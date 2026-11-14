@@ -1,6 +1,6 @@
 # Q Agency Toolbox
 
-One screen that turns a client contact into the three things the team has to write afterwards:
+One app that turns a client contact into the three things the team has to write afterwards:
 
 - the **Zoho CRM note**, always in the same structure
 - the **task name**, in the TASK Q AGENCY format
@@ -8,29 +8,45 @@ One screen that turns a client contact into the three things the team has to wri
 
 Pick the line of business and how the contact ended, drop the PDFs saved for the case, check the fields, copy.
 
-![The toolbox with three Marketplace documents loaded](docs/screenshot.png)
+![The note screen with three Marketplace documents loaded](docs/screenshot.png)
+
+A second tab, **Tasks**, is the web version of the TASK Q AGENCY document: every task name, with your initials, the date after VER NOTA and the closing tags filled in, one click to copy.
+
+![The Tasks tab](docs/tasks.png)
+
+## Installing it
+
+There are three ways to run it. All of them are the same app.
+
+| | How | Good for |
+| --- | --- | --- |
+| **Windows package** | Unzip `dist/QAgency-Toolbox-Windows.zip`, double-click `Instalar.bat` | A real desktop app: Start menu and Desktop shortcut with the agency icon, its own window, pin to the taskbar. No admin rights, no internet. |
+| **Single file** | Open `dist/QAgency-Toolbox.html` in Brave, Chrome or Edge | Trying it, or a computer where nothing can be installed. |
+| **Hosted** | Put the repository root on any static web host (no build step needed) | One address for everyone, an **Instalar** button in the browser, works offline after the first visit, and updates reach the whole team on their own. |
+
+The Windows installer copies the app to `%LOCALAPPDATA%\QAgencyToolbox` and creates shortcuts that open it with Brave, Chrome or Edge (whichever it finds first) in app mode. To update, run `Instalar.bat` from the new package; settings are kept. `Desinstalar.bat` removes it. The installer has not been run on a real Windows machine yet, so try it on one computer before sending it to the team.
+
+If you host it, keep the host private or clear the roster first: `js/config.js` contains the team's names and NPNs.
 
 ## Using it
 
-**Fastest way:** open `dist/QAgency-Toolbox.html` in Chrome or Edge. It is a single self-contained file; it can be copied to any computer and opened with a double click, with no internet.
-
-1. Choose your name at the top right (once; the browser remembers it).
-2. Choose **Obamacare / Medicare / Suplementario** and the situation (App enviada, Esperando consent, Cotización, SOA pendiente, Sin contacto…).
-3. Drop the PDFs anywhere on the window. Fields filled from a document get a gold edge so you know to review them.
-4. Complete what the documents don't carry (payment status, what is pending, follow-up date).
+1. Choose who you are at the top right (once; the browser remembers it).
+2. **Nota** tab: choose Obamacare / Medicare / Suplementario and the situation (App enviada, Esperando consent, Cotización, SOA pendiente, Sin contacto…).
+3. Drop the PDFs anywhere on the window. Fields filled from a document get a gold edge, and the list on the left shows how many are waiting to be reviewed in each section.
+4. Complete what the documents don't carry: payment status, what is pending, the follow-up date.
 5. **Copiar nota** (or Ctrl + Enter), then copy the task and the report line.
 
-The note, task and report can all be edited by hand before copying. If you edit the note and then change a field, the note is left alone until you press **Regenerar**.
+The note, task and report can be edited by hand before copying. If you edit the note and then change a field, the note is left alone until you press **Regenerar**.
 
-### Pinning it to the taskbar
+### People
 
-- **Edge:** open the file → `···` → Apps → *Install this site as an app* → tick *Pin to taskbar*.
-- **Chrome:** open the file → `⋮` → Cast, save and share → *Install page as app* (or *Create shortcut* with *Open as window*), then right-click its taskbar icon → *Pin to taskbar*.
-- If the browser does not offer install for a local file, create a Windows shortcut whose target is
-  `"C:\Program Files\Google\Chrome\Application\chrome.exe" --app="file:///C:/QAgency/QAgency-Toolbox.html"`
-  (adjust both paths) and pin that shortcut.
+Each person in **Ajustes → Equipo** has the initials they sign notes and tasks with, and, if different, the initials they appear with as agent in the Cliq report (Ana signs notes as DI and is agent LI).
 
-Hosting the repository root on any static host (it needs no build step) gives a normal web address with a proper Install button, and everyone gets updates automatically. Note that `js/config.js` contains the team roster, so keep the host private or clear the roster first.
+In the *Agente y colaborador* section of a note, **Agente escritor** is the agent whose NPN was used and **Colaborador** is who actually processed the application. When they are different people the note names the collaborator and the report line starts with their initials (`MA: Q1234 - … (LI)`); a checkbox under the report switches that prefix on or off.
+
+### What ends the note
+
+When the situation is a submitted application, the note ends with «Se reporta en el botón rojo» and the task line. Other situations end without them. Both can be switched off in Ajustes.
 
 ## What it reads
 
@@ -50,28 +66,33 @@ The reader was built against the sample documents in `samples/` (all data fictit
 
 ## Privacy
 
-- Documents are read inside the browser. The page makes no network requests at all, and its Content-Security-Policy blocks them (`connect-src 'none'`).
-- Client data lives only in memory and is gone when the window closes. Only settings are stored in the browser: the team list, your name, the theme.
+- Documents are read inside the browser. The page makes no network requests with client data, and its Content-Security-Policy blocks them (`connect-src 'none'`). Fonts and the PDF reader are bundled, so nothing loads from a CDN.
+- Client data lives only in memory and is gone when the window closes. Only settings are stored in the browser: the team list, your name, the office, the theme.
 - Social Security numbers are never extracted, and a warning appears if the note contains something shaped like one.
+- When hosted, a service worker keeps a copy of the app's own files so it opens offline. It never handles documents or client data.
 
 ## Project layout
 
 ```
-index.html            the page (works opened from disk or served)
-css/app.css           styles, light and dark
-js/config.js          catalogs: team, carriers, tasks, situations and their wording
-js/notes.js           builds the note, task and report (pure functions)
-js/extract.js         recognises documents and pulls the fields out
-js/app.js             the screen
-js/util.js            dates, money, names
-vendor/pdfjs/         PDF.js 3.11.174 (Apache-2.0), bundled so nothing loads from a CDN
-samples/              fictitious PDFs for demos and testing
-tests/                unit tests (node --test)
-tools/build.js        makes dist/QAgency-Toolbox.html
-tools/make-samples.js regenerates samples/ (needs Playwright)
+index.html              the page (works opened from disk or served)
+css/app.css             styles, light and dark
+js/config.js            catalogs: team, offices, carriers, tasks, situations and their wording
+js/notes.js             builds the note, task and report (pure functions)
+js/extract.js           recognises documents and pulls the fields out
+js/app.js               the screen: note form, Tasks tab, settings, install
+js/util.js              dates, money, names
+sw.js                   offline copy when hosted
+manifest.webmanifest    install metadata when hosted
+vendor/pdfjs/           PDF.js 3.11.174 (Apache-2.0)
+vendor/fonts/           Inter and JetBrains Mono (OFL-1.1)
+samples/                fictitious PDFs for demos and testing
+tests/                  unit tests (node --test)
+tools/build.js          makes dist/QAgency-Toolbox.html and the Windows zip
+tools/windows/          installer scripts that go into the zip
+tools/make-samples.js   regenerates samples/ (needs Playwright)
 ```
 
-Most day-to-day changes are edits to `js/config.js`: adding a carrier, a task type, a situation, or changing the suggested wording. The team list can also be edited by each person under **Ajustes**.
+Most day-to-day changes are edits to `js/config.js`: adding a carrier, a task type, a situation, or changing the suggested wording.
 
 ```bash
 npm test
@@ -81,4 +102,4 @@ npm test
 npm run build
 ```
 
-Run the build after any change so `dist/QAgency-Toolbox.html` matches the source.
+Run the build after any change so the files in `dist/` match the source. For a release, change the version in `js/config.js`, `sw.js` and `package.json` together; a test fails if they differ.

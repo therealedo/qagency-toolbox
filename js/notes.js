@@ -82,26 +82,38 @@
     return id;
   }
 
+  /* Arma el nombre de un task del catálogo. `o` trae las partes variables:
+     owner, fecha, hora, metodo, intento, docFecha, taxYear y tags (lista de
+     etiquetas que van al final, después de la hora y sin paréntesis). */
+  function formatTask(T, o) {
+    o = o || {};
+    var owner = val(o.owner).toUpperCase() || "XX";
+    var text = T.text
+      .replace("{metodo}", val(o.metodo) || "TEXT")
+      .replace("{n}", val(o.intento) || "1")
+      .replace("{docFecha}", U.taskDate(o.docFecha) || "MMM/DD/YYYY")
+      .replace("{taxYear}", val(o.taxYear) || String(new Date().getFullYear()));
+
+    if (T.plain) { return (T.noOwner ? "" : owner + ": ") + text; }
+
+    var out = owner + ": " + text + " - VER NOTA " + (U.parseDate(o.fecha) || "MM/DD/YYYY") +
+              " (" + (U.parseTime(o.hora) || "09:00") + ")";
+    (o.tags || []).forEach(function (t) { if (val(t)) { out += " " + val(t).toUpperCase(); } });
+    return out;
+  }
+
   function buildTask(d) {
     var O = outcomeOf(d);
     var T = taskById(d.taskId) || taskById(autoTaskId(d));
     if (!T) { return ""; }
-    var owner = val(d.taskOwner || d.ini).toUpperCase() || "XX";
-    var text = T.text
-      .replace("{metodo}", val(d.metodo) || "TEXT")
-      .replace("{n}", val(d.intento) || "1")
-      .replace("{docFecha}", U.taskDate(d.docFecha) || "MMM/DD/YYYY")
-      .replace("{taxYear}", val(d.taxYear) || String(new Date().getFullYear()));
-
-    if (T.plain) { return (T.noOwner ? "" : owner + ": ") + text; }
-
-    var out = owner + ": " + text + " - VER NOTA " + (U.parseDate(d.fecha) || "MM/DD/YYYY") +
-              " (" + (U.parseTime(d.hora) || "09:00") + ")";
-    /* Las observaciones van al final, después de la hora y sin paréntesis. */
-    if (T.extra === "payment" && has(O, "pago") && d.pagoEstado) { out += " " + d.pagoEstado; }
-    if (T.review && d.review) { out += " REVIEW"; }
-    if (val(d.obsTask)) { out += " " + val(d.obsTask).toUpperCase(); }
-    return out;
+    var tags = [];
+    if (T.extra === "payment" && has(O, "pago") && d.pagoEstado) { tags.push(d.pagoEstado); }
+    if (T.review && d.review) { tags.push("REVIEW"); }
+    if (val(d.obsTask)) { tags.push(d.obsTask); }
+    return formatTask(T, {
+      owner: d.taskOwner || d.ini, fecha: d.fecha, hora: d.hora, metodo: d.metodo, intento: d.intento,
+      docFecha: d.docFecha, taxYear: d.taxYear, tags: tags
+    });
   }
 
   /* ----------------------------------------------------------- report -- */
@@ -141,9 +153,9 @@
             (d.canal || "Call") + " (" + agentIni + ")";
     var delta = memberDelta(d);
     if (delta) { s += " " + delta; }
-    /* Si quien reporta es un colaborador, sus iniciales van delante. */
-    var col = val(d.colaborador).toUpperCase();
-    if (col && col !== agentIni) { s = col + ": " + s; }
+    /* Si la aplicación la procesó un colaborador, sus iniciales van delante. */
+    var col = val(d.reportPrefix).toUpperCase();
+    if (col) { s = col + ": " + s; }
     return s;
   }
 
@@ -344,6 +356,8 @@
       add("Agente escritor", val(d.agente).toUpperCase() + (val(d.npn) ? " - NPN " + val(d.npn) : ""));
       if (d.line === "mc") { add("Writing ID", d.escritura); }
     }
+    /* quién procesó la aplicación, cuando no es el propio agente */
+    if (has(O, "agente") && val(d.colaboradorNombre)) { add("Colaborador", val(d.colaboradorNombre).toUpperCase()); }
     return rows;
   }
 
@@ -382,8 +396,9 @@
     var tail = [];
     var docs = networkDocs(d);
     if (docs.length) { tail.push("Documentos en Network: " + docs.join(", ") + "."); }
-    if (d.botonRojo && O.report) { tail.push("Se reporta en el botón rojo."); }
-    if (d.incluirTask) { var t = buildTask(d); if (t) { tail.push("Task: " + t); } }
+    /* el task y el botón rojo solo cierran la nota de una aplicación enviada */
+    if (d.botonRojo && O.submission) { tail.push("Se reporta en el botón rojo."); }
+    if (d.incluirTask && O.submission) { var t = buildTask(d); if (t) { tail.push("Task: " + t); } }
     if (tail.length) { out.push(""); tail.forEach(function (x) { out.push(x); }); }
 
     var text = out.join("\n");
@@ -415,7 +430,7 @@
   }
 
   var api = {
-    buildNote: buildNote, buildTask: buildTask, buildReport: buildReport, warnings: warnings,
+    buildNote: buildNote, buildTask: buildTask, formatTask: formatTask, buildReport: buildReport, warnings: warnings,
     autoTaskId: autoTaskId, taskById: taskById, outcomeOf: outcomeOf, lineOf: lineOf, gestionOf: gestionOf,
     carrierShort: carrierShort, memberDelta: memberDelta, pendingItems: pendingItems, narrative: narrative
   };

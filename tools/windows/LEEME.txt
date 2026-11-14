@@ -1,0 +1,25 @@
+Q AGENCY TOOLBOX - INSTALACION EN WINDOWS
+
+1. Extrae toda esta carpeta del .zip (clic derecho, "Extraer todo").
+   No ejecutes los archivos desde dentro del .zip.
+2. Haz doble clic en Instalar.bat.
+   Si Windows muestra "Windows protegio su PC", pulsa "Mas informacion"
+   y luego "Ejecutar de todas formas".
+3. Abre "Q Agency Toolbox" desde el Escritorio o el menu Inicio.
+4. Para dejarla en la barra de tareas: con la herramienta abierta, clic
+   derecho en su icono de la barra, "Anclar a la barra de tareas".
+
+Que hace el instalador
+- Copia la herramienta a tu carpeta de usuario
+  (%LOCALAPPDATA%\QAgencyToolbox).
+- Crea un acceso directo en el Escritorio y otro en el menu Inicio que la
+  abren en su propia ventana usando Brave, Chrome o Edge.
+- No necesita permisos de administrador ni internet.
+
+Actualizar: extrae el paquete nuevo y ejecuta Instalar.bat otra vez.
+Tus ajustes (tu nombre, el equipo, el tema) se conservan.
+
+Quitar: doble clic en Desinstalar.bat.
+
+Privacidad: la herramienta lee los documentos dentro del navegador. No
+envia nada a internet y no guarda datos de clientes.
