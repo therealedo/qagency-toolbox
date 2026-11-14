@@ -1,0 +1,12 @@
+Enrollment Application Confirmation
+Confirmation Number         7H2K99Q1                           Date submitted                11/14/2026
+Plan name                   Humana Gold Plus H1036-077         Monthly plan premium          $0.00
+(HMO)
+Applicant name                  Beatriz Diaz                              Date of birth                   01/01/1958
+Medicare Number            1EG4-TE5-MK73                    Medicaid number
+Hospital (Part A) Effective       01/01/2023                              Medical (Part B) Effective       02/01/2023
+Date                              Date
+Proposed effective date         01/01/2027                              Election period                 Annual Enrollment Period
+(AEP)
+Primary Care Physician         Carlos Rivera MD                  PCP ID                     123456
+Agent name                 Laura Gomez                 NPN                       12345678

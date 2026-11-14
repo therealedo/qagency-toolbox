@@ -1,0 +1,9 @@
+Ambetter from Sunshine Health
+Payment Confirmation
+Thank you for your payment.
+Confirmation Number                              PAY123456789
+Payment Amount                              $25.40
+Payment Date                              11/14/2026
+Payment Method                              Visa ending in 4242
+Member ID                              U1234567801
+AutoPay                              Enrolled
