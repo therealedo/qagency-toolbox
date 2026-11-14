@@ -47,8 +47,13 @@ test("reporte: supplemental y cancelados", () => {
 });
 
 test("reporte: colaborador delante y situaciones que no se reportan", () => {
-  assert.equal(N.buildReport(make({ line: "oc", outcome: "enviada", gestion: "renovacion", compania: "UHC", adicionales: "2", ini: "DI", colaborador: "DI" })),
+  /* Liseth firma las notas como DI y figura como agente LI */
+  assert.equal(N.buildReport(make({ line: "oc", outcome: "enviada", gestion: "renovacion", compania: "UHC", adicionales: "2", ini: "DI", agenteIni: "LI", reportPrefix: "DI" })),
     "DI: QXXXX - Diaz, Beatriz - Renew OC UHC 2026 - Call (LI) +2");
+  assert.equal(N.buildReport(make({ line: "oc", outcome: "enviada", gestion: "nueva", compania: "UHC", adicionales: "3", ini: "MA", agenteIni: "LI", reportPrefix: "ma" })),
+    "MA: QXXXX - Diaz, Beatriz - App OC UHC 2026 - Call (LI) +3");
+  assert.equal(N.buildReport(make({ line: "oc", outcome: "enviada", gestion: "renovacion", compania: "UHC", ini: "DI", agenteIni: "LI" })),
+    "QXXXX - Diaz, Beatriz - Renew OC UHC 2026 - Call (LI)");
   assert.equal(N.buildReport(make({ line: "oc", outcome: "consent", gestion: "nueva", compania: "UHC" })), "");
   assert.equal(N.buildReport(make({ line: "mc", outcome: "soa", gestion: "nueva" })), "");
 });
@@ -112,6 +117,43 @@ test("nota: pendientes deducidos del pago y de los documentos", () => {
   assert.match(note, /Documentos en Network: My Plans & Programs\./);
   assert.match(note, /Se reporta en el botón rojo\./);
   assert.match(note, /Task: LI: FOLLOW UP CUSTOMER SERVICE - VER NOTA 02\/01\/2026 \(09:00\) NO PAYMENT$/);
+});
+
+test("nota: el task y el botón rojo solo cierran una aplicación enviada", () => {
+  const extra = { gestion: "nueva", compania: "UHC", net: {}, botonRojo: true, incluirTask: true };
+  ["oc", "mc", "supp"].forEach((line) => {
+    const sent = N.buildNote(make(Object.assign({ line, outcome: "enviada" }, extra)));
+    assert.match(sent, /Se reporta en el botón rojo\.\nTask: LI: /, line);
+  });
+  [["oc", "consent"], ["oc", "cotizacion"], ["oc", "cancelada"], ["oc", "pago"], ["mc", "soa"], ["mc", "sincambio"], ["supp", "cotizacion"]].forEach(([line, outcome]) => {
+    const note = N.buildNote(make(Object.assign({ line, outcome }, extra)));
+    assert.doesNotMatch(note, /botón rojo|Task:/, line + "/" + outcome);
+  });
+  const off = N.buildNote(make(Object.assign({ line: "oc", outcome: "enviada" }, extra, { botonRojo: false, incluirTask: false })));
+  assert.doesNotMatch(off, /botón rojo|Task:/);
+});
+
+test("nota: el colaborador sale cuando no es el propio agente", () => {
+  const d = make({ line: "oc", outcome: "enviada", gestion: "nueva", agente: "Liseth Iznaga", npn: "20253559", net: {} });
+  assert.doesNotMatch(N.buildNote(d), /Colaborador/);
+  const note = N.buildNote(Object.assign({}, d, { colaboradorNombre: "My Access" }));
+  assert.match(note, /Agente escritor: LISETH IZNAGA - NPN 20253559\nColaborador: MY ACCESS/);
+});
+
+test("catálogo de tasks: iniciales, fecha, hora y etiquetas personalizables", () => {
+  const C = require("../js/config.js");
+  const f = (id, o) => N.formatTask(N.taskById(id), o);
+  assert.equal(f("oc_cs", { owner: "di", fecha: "2/1/26", hora: "9", tags: ["NO PREMIUM", "urgent"] }),
+    "DI: FOLLOW UP CUSTOMER SERVICE - VER NOTA 02/01/2026 (09:00) NO PREMIUM URGENT");
+  assert.equal(f("md_fu", { owner: "MA", fecha: "02/01/2026", tags: ["REVIEW"] }), "MA: FOLLOW UP MEDICAID - VER NOTA 02/01/2026 (09:00) REVIEW");
+  assert.equal(f("mc_lost", { owner: "FV", fecha: "02/01/2026", metodo: "LETTER", intento: "3" }), "FV: FOLLOW UP LETTER MC 3 - VER NOTA 02/01/2026 (09:00)");
+  assert.equal(f("tx_pay", { owner: "PD", fecha: "01/01/2026", hora: "11:00", taxYear: "2026" }), "PD: FOLLOW UP PAY PENDING TAX 2026 - VER NOTA 01/01/2026 (11:00)");
+  assert.equal(f("in_home", { owner: "FV", tags: ["URGENT"] }), "FV: HOME VISIT");
+  assert.equal(f("ad_deceased", { owner: "JI" }), "DECEASED");
+  /* las nueve secciones del documento, en su orden */
+  assert.deepEqual([...new Set(C.TASKS.map((t) => t.cat))], ["Medicare (MC)", "Medicaid (MC)", "Medicaid (OC)", "Supp",
+    "Life Insurance", "Marketplace (OC)", "Taxes", "Independientes", "Admin (solo JI)"]);
+  assert.equal(new Set(C.TASKS.map((t) => t.id)).size, C.TASKS.length, "ids únicos");
 });
 
 test("nota: solo salen los datos de las secciones visibles", () => {

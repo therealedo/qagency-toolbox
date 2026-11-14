@@ -6,123 +6,221 @@
 <!-- Nada sale de esta página: sin conexiones externas, sin fuentes ni scripts remotos. -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' data: blob: file:; connect-src 'none'; object-src 'none'; base-uri 'self'; form-action 'none'">
 <meta name="color-scheme" content="light dark">
-<meta name="theme-color" content="#1747B8">
+<meta name="theme-color" content="#F4F6FA" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0B111C" media="(prefers-color-scheme: dark)">
+<meta name="description" content="Nota para Zoho, task y reporte de Cliq en un solo paso.">
 <title>Q Agency Toolbox</title>
 <link rel="icon" href="assets/icon-192.png">
+<link rel="apple-touch-icon" href="assets/icon-192.png">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="stylesheet" href="css/app.css">
 </head>
 <body>
 
+<a class="skip" href="#main">Saltar al contenido</a>
+
 <header class="top">
   <div class="brand">
-    <img class="brand-mark" src="assets/mark.png" alt="" width="30" height="33">
+    <img class="brand-mark" src="assets/mark.png" alt="" width="28" height="30">
     <div class="brand-text">
       <strong>Q Agency Toolbox</strong>
-      <span>Nota, task y reporte en un solo paso</span>
+      <span id="officeTag"></span>
     </div>
   </div>
+
+  <nav class="views" aria-label="Herramientas">
+    <a href="#nota" data-view="nota">
+      <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><path d="M5 3.5h7l3 3V16a.5.5 0 0 1-.5.5h-9A.5.5 0 0 1 5 16zM7.5 9h5M7.5 12h5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Nota
+    </a>
+    <a href="#tasks" data-view="tasks">
+      <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><path d="m4 6 1.5 1.5L8 5M4 13l1.5 1.5L8 12M11 6.5h5M11 13.5h5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Tasks
+    </a>
+  </nav>
+
   <div class="top-tools">
+    <button type="button" class="btn small" id="btnNew" title="Borra los datos del cliente y empieza otra nota" aria-label="Nueva nota">
+      <svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true"><path d="M10 4.5v11M4.5 10h11" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+      <span>Nueva nota</span>
+    </button>
     <label class="who" for="autor">
-      <span>Nota hecha por</span>
-      <select id="autor" aria-label="Nota hecha por"></select>
+      <span>Soy</span>
+      <select id="autor" aria-label="Quién hace la nota"></select>
     </label>
+    <button type="button" class="btn small" id="btnInstall" hidden>Instalar</button>
     <button type="button" class="icon-btn" id="btnTheme" title="Cambiar entre tema claro y oscuro" aria-label="Cambiar tema">
       <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><path d="M10 2.5a7.5 7.5 0 1 0 0 15z" fill="currentColor"/><circle cx="10" cy="10" r="7.5" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
     </button>
-    <button type="button" class="btn ghost" id="btnSettings">Ajustes</button>
+    <button type="button" class="icon-btn" id="btnSettings" title="Ajustes" aria-label="Ajustes">
+      <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><path d="M3 6h8m4 0h2M3 14h2m4 0h8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="13" cy="6" r="2" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="7" cy="14" r="2" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+    </button>
   </div>
 </header>
 
-<main class="layout">
+<div class="update-bar" id="updateBar" hidden>
+  <span>Hay una versión nueva de la herramienta.</span>
+  <button type="button" class="btn small primary" id="btnReload">Actualizar</button>
+</div>
 
-  <section class="work" aria-label="Datos del caso">
+<main id="main" tabindex="-1">
 
-    <div class="card picker">
-      <div class="picker-row">
-        <div class="seg seg-line" id="lineSeg" role="tablist" aria-label="Línea de negocio"></div>
-        <button type="button" class="btn ghost small" id="btnNew" title="Borra los datos del cliente y empieza otra nota">Nueva nota</button>
+  <!-- ============================================================ NOTA -->
+  <section class="view" id="view-nota" aria-label="Nota">
+    <div class="layout">
+
+      <nav class="rail" id="rail" aria-label="Partes del formulario"></nav>
+
+      <div class="work">
+
+        <section class="card picker" id="sec-situacion" data-rail="Situación">
+          <div class="seg seg-line" id="lineSeg" role="tablist" aria-label="Línea de negocio"></div>
+          <div>
+            <div class="field-label" id="outcomeLabel">¿En qué quedó la gestión?</div>
+            <div class="chips" id="outcomes" role="radiogroup" aria-labelledby="outcomeLabel"></div>
+            <p class="picker-desc" id="outcomeDesc"></p>
+          </div>
+        </section>
+
+        <section class="card drop" id="sec-documentos" data-rail="Documentos">
+          <div class="drop-main">
+            <span class="drop-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="22" height="22"><path d="M12 15V4m0 0L8 8m4-4 4 4M5 14v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </span>
+            <div class="drop-text">
+              <strong>Suelta aquí los PDF del caso</strong>
+              <span id="dropHint"></span>
+            </div>
+            <div class="drop-actions">
+              <button type="button" class="btn" id="btnBrowse">Buscar archivos</button>
+              <button type="button" class="btn ghost" id="btnPaste">Pegar texto</button>
+            </div>
+            <input type="file" id="fileInput" accept="application/pdf,.pdf,.txt,image/*" multiple hidden>
+          </div>
+          <ul class="files" id="files" aria-live="polite"></ul>
+          <p class="legend">
+            <i></i><span>Los campos con borde dorado vienen de un documento. Revísalos antes de copiar.</span>
+            <button type="button" class="link-btn" id="btnReviewed">Ya los revisé</button>
+          </p>
+        </section>
+
+        <form id="form" autocomplete="off" novalidate></form>
+
+        <p class="privacy">
+          Los documentos se leen dentro de este navegador. Nada se envía a internet y los datos del cliente no se guardan al cerrar.
+        </p>
       </div>
-      <div class="field-label" id="outcomeLabel">¿En qué quedó la gestión?</div>
-      <div class="chips" id="outcomes" role="radiogroup" aria-labelledby="outcomeLabel"></div>
-      <p class="picker-desc" id="outcomeDesc"></p>
-    </div>
 
-    <div class="card drop" id="drop">
-      <div class="drop-main">
-        <svg class="drop-icon" viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><path d="M12 15V4m0 0L8 8m4-4 4 4M5 14v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        <div class="drop-text">
-          <strong>Suelta aquí los PDF del caso</strong>
-          <span id="dropHint"></span>
+      <aside class="out" aria-label="Textos para copiar">
+
+        <div class="card out-card note-card">
+          <div class="out-head">
+            <h2>Nota para Zoho</h2>
+            <button type="button" class="link-btn" id="noteRegen" hidden>Regenerar</button>
+            <button type="button" class="btn primary" id="copyNote" data-label="Copiar nota">Copiar nota</button>
+          </div>
+          <div class="status" id="status" aria-live="polite"></div>
+          <textarea id="note" spellcheck="false" aria-label="Nota para Zoho"></textarea>
+          <div class="out-foot">
+            <span id="noteCount"></span>
+            <span class="pill warn" id="noteEdited" hidden>Editada a mano</span>
+            <span class="kbd-hint"><kbd>Ctrl</kbd> <kbd>Enter</kbd> copia la nota</span>
+          </div>
         </div>
-        <div class="drop-actions">
-          <button type="button" class="btn" id="btnBrowse">Buscar archivos</button>
-          <button type="button" class="btn ghost" id="btnPaste">Pegar texto</button>
+
+        <div class="card out-card">
+          <div class="out-head">
+            <h2>Task</h2>
+            <button type="button" class="link-btn" id="taskRegen" hidden>Regenerar</button>
+            <button type="button" class="btn" id="copyTask" data-label="Copiar">Copiar</button>
+          </div>
+          <textarea class="mono one-line" id="task" rows="2" spellcheck="false" aria-label="Nombre del task"></textarea>
+          <div class="task-opts">
+            <label class="mini"><span>Tipo de task</span><select id="taskId"></select></label>
+            <label class="mini"><span>Iniciales</span><select id="taskOwner"></select></label>
+            <label class="mini"><span>Etiqueta al final</span><input type="text" id="obsTask" placeholder="URGENT" list="obsList"></label>
+            <label class="mini" id="taxYearBox" hidden><span>Año fiscal</span><input type="text" id="taxYear" inputmode="numeric" maxlength="4"></label>
+            <label class="check" id="reviewBox" hidden><input type="checkbox" id="review"><span>Solo revisión (REVIEW)</span></label>
+          </div>
+          <datalist id="obsList"><option value="URGENT"></datalist>
         </div>
-        <input type="file" id="fileInput" accept="application/pdf,.pdf,.txt,image/*" multiple hidden>
-      </div>
-      <ul class="files" id="files" aria-live="polite"></ul>
-      <p class="legend"><i></i>Los campos con borde dorado se llenaron desde un documento. Revísalos antes de copiar.</p>
+
+        <div class="card out-card" id="reportCard">
+          <div class="out-head">
+            <h2>Reporte para Cliq</h2>
+            <button type="button" class="link-btn" id="reportRegen" hidden>Regenerar</button>
+            <button type="button" class="btn" id="copyReport" data-label="Copiar">Copiar</button>
+          </div>
+          <textarea class="mono one-line" id="report" rows="2" spellcheck="false" aria-label="Línea para el reporte de Cliq"></textarea>
+          <label class="check" id="prefixBox"><input type="checkbox" id="prefix"><span id="prefixLabel">Anteponer al colaborador</span></label>
+          <p class="muted" id="reportNA" hidden>Esta situación no se reporta en Cliq.</p>
+        </div>
+      </aside>
     </div>
-
-    <form id="form" autocomplete="off" novalidate></form>
-
-    <p class="privacy">
-      Los documentos se leen dentro de este navegador. Nada se envía a internet y los datos del cliente no se guardan al cerrar.
-    </p>
   </section>
 
-  <aside class="out" aria-label="Textos para copiar">
+  <!-- =========================================================== TASKS -->
+  <section class="view" id="view-tasks" aria-labelledby="tasksTitle" hidden>
+    <div class="tasks">
 
-    <div class="card out-card note-card">
-      <div class="out-head">
-        <h2>Nota para Zoho</h2>
-        <span class="pill warn" id="noteEdited" hidden>Editada a mano</span>
-        <button type="button" class="link-btn" id="noteRegen" hidden>Regenerar</button>
-        <button type="button" class="btn primary" id="copyNote" data-label="Copiar nota">Copiar nota</button>
-      </div>
-      <textarea id="note" spellcheck="false" aria-label="Nota para Zoho"></textarea>
-      <div class="out-foot">
-        <span id="noteCount"></span>
-        <span class="kbd-hint">Ctrl + Enter copia la nota</span>
+      <aside class="tasks-side" aria-label="Personalizar los tasks">
+        <div class="tasks-intro">
+          <h1 id="tasksTitle">Tasks</h1>
+          <p>Catálogo TASK Q AGENCY. Ajusta las iniciales, la fecha y las etiquetas, y pulsa un task para copiarlo.</p>
+        </div>
+
+        <div class="card tasks-panel">
+          <div class="tasks-pair">
+            <label class="mini"><span>Iniciales</span><input type="text" id="tkOwner" class="upper" maxlength="4" list="tkOwnerList" autocomplete="off"></label>
+            <label class="mini"><span>Hora</span><input type="text" id="tkHora" class="num" placeholder="09:00"></label>
+          </div>
+          <datalist id="tkOwnerList"></datalist>
+          <label class="mini"><span>Fecha después de VER NOTA</span><input type="text" id="tkFecha" class="num" placeholder="MM/DD/AAAA"></label>
+
+          <div class="mini">
+            <span>Etiquetas al final</span>
+            <div class="chips" id="tkTags"></div>
+            <input type="text" id="tkTagFree" class="upper" placeholder="Otra etiqueta" aria-label="Otra etiqueta al final">
+          </div>
+
+          <details class="tasks-more">
+            <summary>Datos que cambian dentro del nombre</summary>
+            <div class="tasks-vars">
+              <div class="mini"><span>Se perdió contacto: medio</span><div class="seg" id="tkMetodo" role="radiogroup" aria-label="Medio de contacto"></div></div>
+              <div class="tasks-pair">
+                <label class="mini"><span>Intento #</span><input type="text" id="tkIntento" class="num" inputmode="numeric" maxlength="2"></label>
+                <label class="mini"><span>Año fiscal</span><input type="text" id="tkTaxYear" class="num" inputmode="numeric" maxlength="4"></label>
+              </div>
+              <label class="mini"><span>Docs: fecha tope</span><input type="text" id="tkDocFecha" class="num" placeholder="MM/DD/AAAA"></label>
+            </div>
+          </details>
+        </div>
+
+        <ul class="rules" id="tkRules"></ul>
+      </aside>
+
+      <div class="tasks-main">
+        <input type="search" id="tkSearch" class="tasks-search" placeholder="Buscar por nombre o descripción" aria-label="Buscar task">
+        <div class="tasks-jump chips" id="tkJump" aria-label="Ir a una categoría"></div>
+        <div id="tkList"></div>
+        <p class="muted tasks-empty" id="tkEmpty" hidden>Ningún task coincide con la búsqueda.</p>
       </div>
     </div>
-
-    <div class="card out-card">
-      <div class="out-head">
-        <h2>Task</h2>
-        <button type="button" class="link-btn" id="taskRegen" hidden>Regenerar</button>
-        <button type="button" class="btn" id="copyTask" data-label="Copiar">Copiar</button>
-      </div>
-      <textarea class="mono one-line" id="task" rows="2" spellcheck="false" aria-label="Nombre del task"></textarea>
-      <div class="task-opts">
-        <label class="mini"><span>Tipo de task</span><select id="taskId"></select></label>
-        <label class="mini narrow"><span>Responsable</span><select id="taskOwner"></select></label>
-        <label class="mini"><span>Observación al final</span><input type="text" id="obsTask" placeholder="URGENT" list="obsList"></label>
-        <label class="mini narrow" id="taxYearBox" hidden><span>Año fiscal</span><input type="text" id="taxYear" inputmode="numeric" maxlength="4"></label>
-        <label class="check" id="reviewBox" hidden><input type="checkbox" id="review"><span>Solo revisión (REVIEW)</span></label>
-      </div>
-      <datalist id="obsList"><option value="URGENT"></datalist>
-    </div>
-
-    <div class="card out-card" id="reportCard">
-      <div class="out-head">
-        <h2>Reporte para Cliq</h2>
-        <button type="button" class="link-btn" id="reportRegen" hidden>Regenerar</button>
-        <button type="button" class="btn" id="copyReport" data-label="Copiar">Copiar</button>
-      </div>
-      <textarea class="mono one-line" id="report" rows="2" spellcheck="false" aria-label="Línea para el reporte de Cliq"></textarea>
-      <p class="muted" id="reportNA" hidden>Esta situación no se reporta en Cliq.</p>
-    </div>
-
-    <ul class="warnings" id="warnings" aria-live="polite"></ul>
-  </aside>
+  </section>
 </main>
 
 <div class="dock" id="dock">
   <button type="button" class="btn primary" data-copy="note">Copiar nota</button>
   <button type="button" class="btn" data-copy="task">Task</button>
   <button type="button" class="btn" data-copy="report" id="dockReport">Reporte</button>
+</div>
+
+<div class="dropveil" id="dropveil" hidden>
+  <div>
+    <svg viewBox="0 0 24 24" width="40" height="40" aria-hidden="true"><path d="M12 15V4m0 0L8 8m4-4 4 4M5 14v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <strong>Suelta los documentos</strong>
+    <span>Se leen aquí mismo; no se envían a ningún lado.</span>
+  </div>
 </div>
 
 <dialog id="dlgSettings" class="dlg">
@@ -132,15 +230,21 @@
       <button type="submit" class="icon-btn" aria-label="Cerrar">✕</button>
     </div>
 
+    <h3>Oficina</h3>
+    <div class="seg seg-fit" id="officeSeg" role="radiogroup" aria-label="Oficina"></div>
+
     <h3>Equipo</h3>
-    <p class="muted">Las iniciales encabezan la nota y el task. El NPN solo hace falta para quien figura como agente escritor.</p>
+    <p class="muted">Las iniciales de notas encabezan la nota y el task. Las de agente son las que salen entre paréntesis en el reporte, si son distintas. El NPN solo hace falta para quien figura como agente escritor.</p>
     <div class="team" id="teamRows"></div>
     <button type="button" class="btn small" id="teamAdd">Agregar persona</button>
 
     <h3>Formato de la nota</h3>
-    <label class="check"><input type="checkbox" id="optTask"><span>Incluir el task al final de la nota</span></label>
-    <label class="check"><input type="checkbox" id="optRojo"><span>Agregar «Se reporta en el botón rojo» cuando la gestión se reporta</span></label>
+    <label class="check"><input type="checkbox" id="optTask"><span>Terminar con el task cuando es una aplicación enviada</span></label>
+    <label class="check"><input type="checkbox" id="optRojo"><span>Agregar «Se reporta en el botón rojo» cuando es una aplicación enviada</span></label>
     <label class="check"><input type="checkbox" id="optAcentos"><span>Escribir la nota sin acentos ni ñ</span></label>
+
+    <h3>Instalación</h3>
+    <p class="muted" id="installHelp"></p>
 
     <div class="dlg-foot">
       <button type="button" class="link-btn" id="teamReset">Restaurar el equipo original</button>

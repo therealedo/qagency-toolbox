@@ -4,18 +4,25 @@
 (function (root) {
   "use strict";
 
-  var VERSION = "1.0.0";
+  var VERSION = "1.1.0";
 
   /* Equipo por defecto. Cada persona puede editarlo en Ajustes; los cambios
-     se guardan en su navegador. `ini` son las iniciales que encabezan la nota
-     y el task; `npn` solo hace falta para quien figura como agente escritor. */
+     se guardan en su navegador.
+       ini       iniciales que encabezan la nota y el task
+       agentIni  iniciales con las que figura como agente en el reporte de
+                 Cliq, si son distintas (Liseth firma las notas como DI y
+                 aparece como agente LI)
+       npn       solo para quien figura como agente escritor */
   var TEAM = [
     { name: "Eduardo Chinea", ini: "ER", npn: "21165945" },
     { name: "Fiorella Vieira", ini: "FV", npn: "20586009" },
     { name: "Lina Espinosa Lopez", ini: "LE", npn: "20074513" },
-    { name: "Liseth Iznaga", ini: "LI", npn: "20253559" },
+    { name: "Liseth Iznaga", ini: "DI", agentIni: "LI", npn: "20253559" },
+    { name: "My Access", ini: "MA", npn: "" },
     { name: "Pavel Diaz", ini: "PD", npn: "" }
   ];
+
+  var OFFICES = ["QAgency", "ATH Insurance"];
 
   /* Compañías: `re` reconoce el nombre dentro de un documento, `name` es como
      sale en la nota y `short` como sale en el reporte de Cliq. */
@@ -71,52 +78,56 @@
     ]
   };
 
-  /* Catálogo completo de tasks (TASK Q AGENCY, actualización 02/01/2026).
-     `extra` marca los que llevan un dato variable dentro del nombre. */
+  /* Catálogo completo de tasks, en el orden y con las descripciones del
+     documento TASK Q AGENCY (actualización 02/01/2026).
+       extra    lleva un dato variable dentro del nombre
+       review   admite REVIEW al final
+       plain    no lleva "VER NOTA fecha (hora)"
+       noOwner  tampoco lleva iniciales */
   var TASKS = [
-    { id: "mc_mant", cat: "Medicare (MC)", text: "MC MANTENIMIENTO", hint: "App concretada" },
-    { id: "mc_mant_cmd", cat: "Medicare (MC)", text: "MC MANTENIMIENTO CMD", hint: "App concretada con condiciones médicas diversas" },
-    { id: "mc_fu", cat: "Medicare (MC)", text: "FOLLOW UP MC", hint: "Próximo a cumplir 65 o interesado fuera del AEP" },
-    { id: "mc_oe", cat: "Medicare (MC)", text: "FOLLOW UP OPEN ENROLLMENT MC", hint: "Cita para AEP: quiere cambiar o new interesado" },
-    { id: "mc_inactive", cat: "Medicare (MC)", text: "FOLLOW UP LEAD_INACTIVE CLIENT MC", hint: "Contactado para recuperar, no interesado por el momento" },
-    { id: "mc_soa", cat: "Medicare (MC)", text: "SOA PENDING", hint: "Se cierra cuando el SOA esté en el Network" },
+    { id: "mc_mant", cat: "Medicare (MC)", text: "MC MANTENIMIENTO", hint: "App concretadas" },
+    { id: "mc_mant_cmd", cat: "Medicare (MC)", text: "MC MANTENIMIENTO CMD", hint: "App concretadas con CMD = condiciones médicas diversas" },
+    { id: "mc_fu", cat: "Medicare (MC)", text: "FOLLOW UP MC", hint: "Persona interesada próxima a cumplir 65 o interesada en aplicar con la agencia fuera del AEP" },
+    { id: "mc_oe", cat: "Medicare (MC)", text: "FOLLOW UP OPEN ENROLLMENT MC", hint: "Citas para AEP: cliente quiere cambiar o seguimiento de un new contactado interesado" },
+    { id: "mc_inactive", cat: "Medicare (MC)", text: "FOLLOW UP LEAD_INACTIVE CLIENT MC", hint: "Persona contactada para recuperar, no interesada por el momento" },
+    { id: "mc_soa", cat: "Medicare (MC)", text: "SOA PENDING", hint: "El task se cierra cuando el SOA esté en el Network" },
     { id: "mc_lost", cat: "Medicare (MC)", text: "FOLLOW UP {metodo} MC {n}", extra: "contact", hint: "Se perdió contacto" },
     { id: "mc_pc", cat: "Medicare (MC)", text: "FOLLOW UP P&C", hint: "" },
 
-    { id: "oc_cs", cat: "Marketplace (OC)", text: "FOLLOW UP CUSTOMER SERVICE", extra: "payment", hint: "Cliente con app concretada" },
-    { id: "oc_cs_dep", cat: "Marketplace (OC)", text: "FOLLOW UP CUSTOMER SERVICE DEP", hint: "Cliente solo dentro de la cobertura, no es principal" },
-    { id: "oc_quote", cat: "Marketplace (OC)", text: "MKPL QUOTE PENDING", hint: "Se realizó cotización" },
-    { id: "oc_app_pending", cat: "Marketplace (OC)", text: "MKPL APP PENDING", hint: "Solo falta procesar, consent firmado" },
-    { id: "oc_oe", cat: "Marketplace (OC)", text: "FOLLOW UP OPEN ENROLLMENT OC", hint: "Cita para OEP: quiere renovar o new interesado" },
-    { id: "oc_docs", cat: "Marketplace (OC)", text: "FOLLOW UP DOCS BY {docFecha}", extra: "docs", hint: "Documentos requeridos por el Mercado" },
-    { id: "oc_lost", cat: "Marketplace (OC)", text: "FOLLOW UP {metodo} OC {n}", extra: "contact", hint: "Se perdió contacto" },
-    { id: "oc_consent", cat: "Marketplace (OC)", text: "FOLLOW UP CONSENT", hint: "En espera del consentimiento firmado" },
-    { id: "oc_inactive", cat: "Marketplace (OC)", text: "FOLLOW UP LEAD_INACTIVE CLIENT OC", hint: "Prospecto o cliente a recuperar" },
+    { id: "md_fu", cat: "Medicaid (MC)", text: "FOLLOW UP MEDICAID", review: true, hint: "Seguimiento para la renovación" },
+    { id: "md_pending", cat: "Medicaid (MC)", text: "FOLLOW UP MEDICAID PENDING", review: true, hint: "En seguimiento para procesar" },
+    { id: "md_fs", cat: "Medicaid (MC)", text: "FOLLOW UP MEDICAID_FOODSTAMPS", review: true, hint: "Beneficio médico y alimentos: en seguimiento o para procesar" },
+    { id: "md_food", cat: "Medicaid (MC)", text: "FOLLOW UP FOODSTAMPS", review: true, hint: "En seguimiento o para procesar" },
+    { id: "md_denied", cat: "Medicaid (MC)", text: "FOLLOW UP MEDICAID DENIED", review: true, hint: "Proceso denegado" },
+
+    { id: "mo_pending", cat: "Medicaid (OC)", text: "MKPL APP MEDICAID PENDING", review: true, hint: "En seguimiento o para procesar: prospecto para OC" },
+    { id: "mo_app", cat: "Medicaid (OC)", text: "MKPL APP MEDICAID", review: true, hint: "En seguimiento: prospecto para OC" },
+    { id: "mo_denied", cat: "Medicaid (OC)", text: "MKPL APP MEDICAID DENIED", review: true, hint: "Proceso denegado, prospecto para OC" },
+    { id: "mo_pending_dep", cat: "Medicaid (OC)", text: "MKPL APP MEDICAID PENDING DEP", review: true, hint: "Para procesar: familiar de un principal en OC no creado en Zoho" },
+    { id: "mo_dep", cat: "Medicaid (OC)", text: "MKPL APP MEDICAID DEP", review: true, hint: "Seguimiento: familiar de un principal en OC no creado en Zoho" },
+    { id: "mo_denied_dep", cat: "Medicaid (OC)", text: "MKPL APP MEDICAID DENIED DEP", review: true, hint: "Denegado, prospecto para OC" },
+    { id: "mo_food_dep", cat: "Medicaid (OC)", text: "FOLLOW UP FOODSTAMPS DEP", review: true, hint: "En seguimiento o para procesar: beneficio de alimentos para familiar de un principal en OC" },
+    { id: "mo_temp", cat: "Medicaid (OC)", text: "MKPL APP MEDICAID TEMPORARY", review: true, hint: "Casos de embarazo y personas recién llegadas" },
 
     { id: "supp_cs", cat: "Supp", text: "FOLLOW UP CUSTOMER SERVICE SUPP", hint: "" },
     { id: "supp_quote", cat: "Supp", text: "FOLLOW UP QUOTE SUPP", hint: "" },
     { id: "supp_st", cat: "Supp", text: "FOLLOW UP RENEWAL SHORT TERM", hint: "" },
 
-    { id: "md_fu", cat: "Medicaid (MC)", text: "FOLLOW UP MEDICAID", review: true, hint: "Seguimiento para la renovación" },
-    { id: "md_pending", cat: "Medicaid (MC)", text: "FOLLOW UP MEDICAID PENDING", review: true, hint: "En seguimiento para procesar" },
-    { id: "md_fs", cat: "Medicaid (MC)", text: "FOLLOW UP MEDICAID_FOODSTAMPS", review: true, hint: "Beneficio médico y alimentos" },
-    { id: "md_food", cat: "Medicaid (MC)", text: "FOLLOW UP FOODSTAMPS", review: true, hint: "En seguimiento o para procesar" },
-    { id: "md_denied", cat: "Medicaid (MC)", text: "FOLLOW UP MEDICAID DENIED", review: true, hint: "Proceso denegado" },
-
-    { id: "mo_pending", cat: "Medicaid (OC)", text: "MKPL APP MEDICAID PENDING", review: true, hint: "Para procesar, prospecto para OC" },
-    { id: "mo_app", cat: "Medicaid (OC)", text: "MKPL APP MEDICAID", review: true, hint: "En seguimiento, prospecto para OC" },
-    { id: "mo_denied", cat: "Medicaid (OC)", text: "MKPL APP MEDICAID DENIED", review: true, hint: "Denegado, prospecto para OC" },
-    { id: "mo_pending_dep", cat: "Medicaid (OC)", text: "MKPL APP MEDICAID PENDING DEP", review: true, hint: "Para procesar, familiar de un principal en OC" },
-    { id: "mo_dep", cat: "Medicaid (OC)", text: "MKPL APP MEDICAID DEP", review: true, hint: "Seguimiento, familiar de un principal en OC" },
-    { id: "mo_denied_dep", cat: "Medicaid (OC)", text: "MKPL APP MEDICAID DENIED DEP", review: true, hint: "Denegado, prospecto para OC" },
-    { id: "mo_food_dep", cat: "Medicaid (OC)", text: "FOLLOW UP FOODSTAMPS DEP", review: true, hint: "Alimentos para familiar de un principal en OC" },
-    { id: "mo_temp", cat: "Medicaid (OC)", text: "MKPL APP MEDICAID TEMPORARY", review: true, hint: "Embarazo y personas recién llegadas" },
-
     { id: "li_pending", cat: "Life Insurance", text: "LIFE INSURANCE PENDING", hint: "Interesado o con cita" },
-    { id: "li_review", cat: "Life Insurance", text: "LIFE INSURANCE REVIEW", hint: "Verificar si fue aceptado" },
+    { id: "li_review", cat: "Life Insurance", text: "LIFE INSURANCE REVIEW", hint: "Seguimiento después del proceso, verificar si fue aceptado" },
     { id: "li_annuity", cat: "Life Insurance", text: "ANNUITY PENDING", hint: "" },
     { id: "li_ret", cat: "Life Insurance", text: "RETIREMENT PLAN PENDING", hint: "" },
     { id: "li_plan", cat: "Life Insurance", text: "PLAN DE RETIRO", hint: "" },
+
+    { id: "oc_inactive", cat: "Marketplace (OC)", text: "FOLLOW UP LEAD_INACTIVE CLIENT OC", hint: "Contactados para prospecto, para recuperar, work, Medicaid" },
+    { id: "oc_cs", cat: "Marketplace (OC)", text: "FOLLOW UP CUSTOMER SERVICE", extra: "payment", hint: "Cliente con app concretadas. Lleva al final la referencia de pago" },
+    { id: "oc_cs_dep", cat: "Marketplace (OC)", text: "FOLLOW UP CUSTOMER SERVICE DEP", hint: "Cliente solo dentro de la cobertura, no es principal en ningún plan adicional" },
+    { id: "oc_quote", cat: "Marketplace (OC)", text: "MKPL QUOTE PENDING", hint: "Se realizó cotización" },
+    { id: "oc_app_pending", cat: "Marketplace (OC)", text: "MKPL APP PENDING", hint: "Solo falta procesar: consent firmado" },
+    { id: "oc_oe", cat: "Marketplace (OC)", text: "FOLLOW UP OPEN ENROLLMENT OC", hint: "Citas para OEP: cliente quiere renovar o new contactado interesado" },
+    { id: "oc_docs", cat: "Marketplace (OC)", text: "FOLLOW UP DOCS BY {docFecha}", extra: "docs", hint: "Lleva la fecha tope de los documentos" },
+    { id: "oc_lost", cat: "Marketplace (OC)", text: "FOLLOW UP {metodo} OC {n}", extra: "contact", hint: "Se perdió contacto" },
+    { id: "oc_consent", cat: "Marketplace (OC)", text: "FOLLOW UP CONSENT", hint: "" },
 
     { id: "tx_oe", cat: "Taxes", text: "FOLLOW UP OPEN ENROLLMENT TAX {taxYear}", extra: "tax", hint: "Interesado o con cita" },
     { id: "tx_pay", cat: "Taxes", text: "FOLLOW UP PAY PENDING TAX {taxYear}", extra: "tax", hint: "En espera del pago" },
@@ -124,7 +135,31 @@
     { id: "tx_fu", cat: "Taxes", text: "FOLLOW UP TAX {taxYear}", extra: "tax", hint: "Proceso concretado" },
 
     { id: "in_home", cat: "Independientes", text: "HOME VISIT", plain: true, hint: "" },
-    { id: "in_ref", cat: "Independientes", text: "REFERRAL 1", plain: true, noOwner: true, hint: "" }
+    { id: "in_ref", cat: "Independientes", text: "REFERRAL 1", plain: true, noOwner: true, hint: "" },
+
+    { id: "ad_aside", cat: "Admin (solo JI)", text: "LEAVE ASIDE", plain: true, noOwner: true, hint: "" },
+    { id: "ad_deceased", cat: "Admin (solo JI)", text: "DECEASED", plain: true, noOwner: true, hint: "" },
+    { id: "ad_agent", cat: "Admin (solo JI)", text: "AGENT", plain: true, noOwner: true, hint: "" },
+    { id: "ad_alfonso", cat: "Admin (solo JI)", text: "AGENT ALFONSO", plain: true, noOwner: true, hint: "" }
+  ];
+
+  /* Etiquetas que se agregan al final del task, después de la hora y sin
+     paréntesis. Las de pago son excluyentes entre sí. */
+  var TASK_TAGS = [
+    { v: "PAYMENT", group: "pago", hint: "Tiene prima y el pago está confirmado con el cliente" },
+    { v: "NO PAYMENT", group: "pago", hint: "Tiene prima y no ha pagado" },
+    { v: "PAYMENT NOT VERIFIED", group: "pago", hint: "Tiene prima; el cliente no contestó para confirmar" },
+    { v: "NO PREMIUM", group: "pago", hint: "Revisado y no tiene prima" },
+    { v: "URGENT", hint: "Requiere atención inmediata" },
+    { v: "REVIEW", hint: "Task que solo es de revisión (Medicaid)" }
+  ];
+
+  /* Reglas del documento TASK Q AGENCY, para mostrarlas junto al catálogo. */
+  var TASK_RULES = [
+    "Las observaciones adicionales van al final, después de la hora de referencia y sin paréntesis. Por ejemplo: URGENT.",
+    "En FOLLOW UP CUSTOMER SERVICE se agrega al final una referencia de pago: PAYMENT, NO PAYMENT, PAYMENT NOT VERIFIED o NO PREMIUM.",
+    "Los tasks de Medicaid que solo son de revisión llevan REVIEW al final.",
+    "En todos los casos, revisar el procedimiento de llamadas."
   ];
 
   /* Referencia de pago que se agrega al final del task de customer service. */
@@ -151,7 +186,9 @@
        cierre     segunda frase de la narrativa; admite {plataforma}, {seg}
        pendiente / proximo   texto sugerido, siempre editable
        task       id del task por defecto
-       report     true si la gestión se reporta en Cliq */
+       report     true si la gestión se reporta en Cliq
+       submission true si es una aplicación enviada: la nota termina con el
+                  task y con «Se reporta en el botón rojo» */
   var LINES = {
     oc: {
       label: "Obamacare",
@@ -164,6 +201,7 @@
       ],
       outcomes: [
         { id: "enviada", label: "App enviada", desc: "Aplicación procesada y plan seleccionado",
+          submission: true,
           estatus: "APLICACIÓN ENVIADA", cierre: "Se envía la aplicación en {plataforma} con los siguientes datos:",
           pendiente: "", proximo: "Seguimiento de servicio al cliente",
           task: "oc_cs", report: true, sections: S_FULL_OC },
@@ -223,6 +261,7 @@
       ],
       outcomes: [
         { id: "enviada", label: "App enviada", desc: "Solicitud enviada en el portal de la compañía",
+          submission: true,
           estatus: "SOLICITUD ENVIADA", cierre: "Se envía la solicitud en el portal de la compañía con los siguientes datos:",
           pendiente: "", proximo: "Seguimiento de mantenimiento",
           task: "mc_mant", report: true, sections: S_FULL_MC },
@@ -273,6 +312,7 @@
       ],
       outcomes: [
         { id: "enviada", label: "App enviada", desc: "Aplicación enviada a la compañía",
+          submission: true,
           estatus: "APLICACIÓN ENVIADA", cierre: "Se envía la aplicación con los siguientes datos:",
           pendiente: "", proximo: "Seguimiento de servicio al cliente",
           task: "supp_cs", report: true, sections: S_FULL_SU },
@@ -312,7 +352,8 @@
   };
 
   var api = {
-    VERSION: VERSION, TEAM: TEAM, CARRIERS: CARRIERS, TASKS: TASKS, PAYMENT: PAYMENT,
+    VERSION: VERSION, TEAM: TEAM, OFFICES: OFFICES, CARRIERS: CARRIERS, TASKS: TASKS, PAYMENT: PAYMENT,
+    TASK_TAGS: TASK_TAGS, TASK_RULES: TASK_RULES,
     CHANNELS: CHANNELS, MODALIDADES: MODALIDADES, LINES: LINES
   };
   root.QA = root.QA || {};
