@@ -1,0 +1,16 @@
+HealthCare.gov    Beatriz   Log out
+Review your application
+2027 application for individual & family coverage
+Application ID: 4412345678
+Household contact
+First name                              Beatriz
+Last name                              Diaz
+Date of birth                              03/14/1985
+Social Security number                              ***-**-1234
+Home address                              123 Main St, Miami, FL 33101
+Household income
+Job - Acme Cleaning LLC                              $2,666.67 Monthly
+Expected yearly income                              $32,000.00
+Tax household size                              4
+Sign & submit
+I agree to allow the Marketplace to use my income data, including information from tax returns.

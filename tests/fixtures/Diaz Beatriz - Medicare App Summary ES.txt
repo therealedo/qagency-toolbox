@@ -1,0 +1,24 @@
+Resumen de la solicitud de inscripción
+AARP Medicare Advantage from UHC FL-0020 (HMO-POS)
+Nombre del plan:                              AARP Medicare Advantage from UHC FL-0020 (HMO-POS)
+H-PBP-SegmentID:                              H1045-012-000
+Prima del plan:                              $0.00
+Información del solicitante
+Nombre:                              Beatriz
+Apellido:                              Diaz
+Fecha de nacimiento:                              01/01/1958
+Número de Medicare:                              1EG4-TE5-MK73
+Fecha de entrada en vigencia de servicios en el hospital
+(Parte A):                              01/01/2023
+Fecha de entrada en vigencia de servicios médicos (Parte B): 02/01/2023
+Fecha de entrada en vigencia propuesta:                   01/01/2027
+Período de elección:                              AEP - Período de inscripción anual
+Número de ID de Medicaid:                            9876543210
+Nombre del PCP:                              Dr. Carlos Rivera
+ID del PCP:                              000123456
+Información del agente
+Nombre del agente:                              Laura Gomez
+NPN:                              12345678
+Id. de escritura:                              1234567
+Confirmation Number:                            A1B2C3D4E5
+Fecha de la firma:                              11/14/2026

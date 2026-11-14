@@ -1,0 +1,9 @@
+Florida Combined Life Insurance Company, Inc.
+BlueDental Choice Plus
+Application ID: 2026111400123                              Submission Type: Electronic
+First Name: Beatriz                              Last Name: Diaz
+Requested Effective Date: 12/01/2026                              Monthly Premium: $38.50
+Agency Name: Agencia Demo                              Agent Name: Laura Gomez
+NPN: 12345678                              State License Number: W123456
+Have you had dental coverage in the last 90 days? (Selected) No
+There is a waiting period for major services. DPPO network.
