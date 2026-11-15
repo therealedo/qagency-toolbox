@@ -109,8 +109,10 @@ test("Aplicación dental", () => {
   assert.equal(r.fields.compania, "FLORIDA BLUE (FCL)");
   assert.equal(r.fields.prima, "$38.50");
   assert.equal(r.fields.efectiva, "12/01/2026");
-  assert.equal(r.fields.appId, "2026111400123");
+  /* Suplementario solo guarda el Policy #: ni App ID ni tipo de plan */
+  assert.equal(r.fields.appId, undefined);
   assert.equal(r.fields.poliza, undefined);
+  assert.equal(r.fields.tipoPlan, undefined);
 });
 
 test("Aplicación de vida: producto, App ID y beneficiario", () => {
@@ -121,7 +123,7 @@ test("Aplicación de vida: producto, App ID y beneficiario", () => {
   assert.equal(r.type, "supp_app");
   assert.equal(r.fields.producto, "Life");
   assert.equal(r.fields.compania, "OCCIDENTAL");
-  assert.equal(r.fields.appId, "OL-778899");
+  assert.equal(r.fields.appId, undefined);
   assert.equal(r.fields.beneficiario, "Collantes, Pedro (husband)");
 });
 

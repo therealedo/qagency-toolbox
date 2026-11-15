@@ -47,7 +47,6 @@
   function has(O, section) { return O.sections.indexOf(section) >= 0; }
   function val(v) { return U.collapse(v); }
   function upper(v) { return val(v).toUpperCase(); }
-  function members(d) { return U.parseList(d.miembros).map(function (x) { return x.toUpperCase(); }); }
   function first(name) { return U.titleCase(val(name).split(" ")[0] || ""); }
 
   /* Personas del hogar (Obamacare). La primera es el titular: su nombre sale
@@ -67,6 +66,12 @@
   function enTaxes(d) { return personas(d).filter(function (p) { return p.taxes; }); }
   function conCobertura(d) { return personas(d).filter(function (p) { return p.cobertura; }); }
   function names(list) { return list.length ? " (" + list.map(function (p) { return p.first; }).join(", ") + ")" : ""; }
+  /* Suplementario: quienes tienen cobertura, el titular como "el cliente" y
+     los demás por su nombre de pila: "el cliente, Maria y Luis" */
+  function cubiertos(d) {
+    var list = conCobertura(d).map(function (p) { return p.titular ? cliente(d) : p.first; });
+    return list.length > 1 ? list.slice(0, -1).join(", ") + " y " + list[list.length - 1] : (list[0] || "");
+  }
   /* Ingreso del hogar: la suma de lo que gana cada persona en los taxes. */
   function ingresoHogar(d) {
     return enTaxes(d).reduce(function (sum, p) { return p.ingreso ? (sum || 0) + p.ingreso : sum; }, null);
@@ -129,7 +134,7 @@
       return (m[1] === "-" ? "-" : "+") + (+m[2]);
     }
     if (d.line === "mc") { return ""; }
-    var n = d.line === "oc" ? conCobertura(d).length : members(d).length;
+    var n = conCobertura(d).length;
     return n > 1 ? "+" + (n - 1) : "";
   }
 
@@ -285,16 +290,15 @@
       }
     }
     if (d.line === "supp") {
-      var P = productOf(d), others = members(d).slice(1);
-      var who = cliente(d) + (others.length ? (others.length === 1 ? " y " + others[0] : ", " + others.slice(0, -1).join(", ") + " y " + others[others.length - 1]) : "");
+      var P = productOf(d), who = cubiertos(d);
       var what = (P.es ? " de " + P.es : "") + (carrier ? " de " + carrier : "") + (val(d.plan) ? ", plan " + val(d.plan) + "," : "");
       switch (O.id) {
         case "enviada":
-          return ({ renovacion: "Se renueva app", cambio: "Se procesa cambio de plan" }[G.v] || "Se procesa app") + what + " para " + who + ".";
-        case "cancelada": return "Se cancela" + (P.es ? " " + P.es : " el plan") + (carrier ? " de " + carrier : "") + " a solicitud " + delCliente(d) + ".";
-        case "cotizacion": return talk(d) + ", desea cotizar " + P.sms + ".";
-        case "pago": return talk(d) + " sobre el pago de su " + P.sms + (carrier ? " con " + carrier : "") + ".";
-        case "shortterm": return talk(d) + " sobre la renovación de su Short Term" + (carrier ? " de " + carrier : "") + ".";
+          return (G.v === "renovacion" ? "Se renueva app" : "Se procesa app") + what + (who ? " para " + who : "") + ".";
+        /* en la cotización se nombra a los miembros solo si hay más que el titular */
+        case "cotizacion":
+          var otros = conCobertura(d).some(function (p) { return !p.titular; });
+          return talk(d) + ", desea cotizar " + P.sms + (otros ? " para " + who : "") + ".";
       }
     }
     return talk(d) + ".";
@@ -326,8 +330,8 @@
     if (d.line === "mc") { add("Writing ID", d.escritura); }
     /* solo cuando no fue quien escribe la nota */
     add("Habló con el cliente", upper(d.talkerNombre));
-    /* en Medicare la app la hace quien escribe la nota: no hay colaborador */
-    if (d.line !== "mc") { add("Colaborador", upper(d.colaboradorNombre)); }
+    /* en Medicare y Suplementario la app la hace quien escribe la nota: no hay colaborador */
+    if (d.line === "oc") { add("Colaborador", upper(d.colaboradorNombre)); }
   }
 
   /* ------------------------------------------------------------ cambios --
@@ -499,16 +503,14 @@
         raw("Se explica y da detalles del plan cotizado:");
         raw("Compañía_Plan: " + [carrier, val(d.plan)].filter(Boolean).join("_") + (prima ? " - " + prima : ""));
       }
+      add("Fecha efectiva estimada", U.parseDate(d.efectiva) || d.efectiva);
       return;
     }
     if (has(O, "plan")) {
-      if (O.id !== "enviada") { add("Plan", d.plan); }
       add("Effective Date", U.parseDate(d.efectiva) || d.efectiva);
       add("Monthly Premium", U.parseMoney(d.prima));
-      add("App ID", d.appId);
       add("Policy #", d.poliza);
       add("Periodo", d.plazo);
-      add("Tipo de plan", d.tipoPlan);
       add("Beneficiario", d.beneficiario);
     }
     if (has(O, "pago")) { add("Pago", paymentLine(d)); add("AutoPay", d.autopay); }
@@ -659,27 +661,13 @@
       case "cotizacion":
         parts.push("Gracias por su tiempo. Le cotizamos " + (carrier || plan ? "el plan " + [carrier, plan].filter(Boolean).join(" ") : what) + (pay ? " por " + pay + " al mes" : "") + ". Avísenos si desea continuar con la aplicación.");
         break;
-      case "pago":
-        var plano = what + (carrier ? " con " + carrier : "");
-        parts.push({
-          "PAYMENT": "Confirmamos el pago de " + plano + (U.parseMoney(d.pagoMonto) ? " por " + U.parseMoney(d.pagoMonto) : "") + ". ¡Gracias!",
-          "NO PAYMENT": "Le recordamos realizar el pago de " + plano + (pay ? " por " + pay : "") + (U.parseDate(d.pagoFecha) ? " el " + U.parseDate(d.pagoFecha) : "") + ".",
-          "PAYMENT NOT VERIFIED": "Queremos confirmar el pago de " + plano + ". Por favor llámenos cuando pueda.",
-          "NO PREMIUM": plano.charAt(0).toUpperCase() + plano.slice(1) + " no tiene pago mensual; no necesita pagar nada."
-        }[d.pagoEstado] || "Le escribimos sobre el pago de " + plano + ".");
-        break;
       case "cancelada":
         parts.push((what.charAt(0).toUpperCase() + what.slice(1)) + (carrier ? " con " + carrier : "") + " quedó cancelado según lo solicitado.");
-        break;
-      case "shortterm":
-        parts.push("Su plan Short Term" + (plan ? " " + plan : "") + " está por vencer. Llámenos para renovarlo a tiempo.");
         break;
     }
 
     var text = parts.join(" ");
-    /* el teléfono va donde ya se le pide que llame; si no, al final */
-    if (tel && /llámenos/.test(text)) { text = text.replace("llámenos", "llámenos al " + tel); }
-    else if (tel) { text += " Cualquier duda, llámenos al " + tel + "."; }
+    if (tel) { text += " Cualquier duda, llámenos al " + tel + "."; }
     else if (["enviada", "cancelada"].indexOf(O.id) >= 0) { text += " Cualquier duda, estamos a la orden."; }
 
     return text;
@@ -691,7 +679,9 @@
      (todo lo pedido, enviado o no) y la firma de quien habló con el cliente. */
   function buildEmail(d, part) {
     var O = outcomeOf(d);
-    if (d.line !== "oc" || O.id !== "enviada") { return ""; }
+    if (O.id !== "enviada") { return ""; }
+    if (d.line === "supp") { return part === 1 ? emailSupp(d) : ""; }
+    if (d.line !== "oc") { return ""; }
     var en = d.idioma === "en", lines = [];
     if (part === 1) {
       var y = val(d.anio), carrier = carrierName("oc", d.compania), plan = val(d.plan);
@@ -729,6 +719,31 @@
     lines.push(en ? "Please feel free to contact us, if you have any questions or concerns." : "Por favor comuníquese con nosotros por cualquier duda.");
     lines.push("");
     lines.push(en ? "Best Regards," : "Saludos");
+    if (val(d.firmaNombre)) { lines.push(U.titleCase(d.firmaNombre)); }
+    return lines.join("\n");
+  }
+
+  /* Email de una app de Suplementario enviada: una sola parte, con la
+     compañía, el Policy #, la fecha efectiva y la prima. */
+  function emailSupp(d) {
+    var en = d.idioma === "en", lines = [];
+    var carrier = carrierName("supp", d.compania), id = val(d.poliza);
+    var ef = U.parseDate(d.efectiva), pay = U.parseMoney(d.prima);
+    if (en) {
+      lines.push("Dear Client", "", "We attached the application for:");
+      if (carrier) { lines.push("Company " + carrier); }
+      if (id) { lines.push("ID # " + id); }
+      if (ef) { lines.push("Effective date: " + ef); }
+      if (pay) { lines.push("Monthly Premium: " + pay); }
+      lines.push("Please feel free to contact us, if you have any questions or concerns.", "", "Best regards,");
+    } else {
+      lines.push((d.genero === "a" ? "Estimada" : "Estimado") + " Cliente", "", "Se adjunta Aplicación al Plan:");
+      if (carrier) { lines.push("Compañía " + carrier); }
+      if (id) { lines.push("ID # " + id); }
+      if (ef) { lines.push("Cobertura a partir del " + ef); }
+      if (pay) { lines.push("Prima Mensual: " + pay); }
+      lines.push("Le llegará por correo postal la póliza, beneficios.", "Cualquier duda u observación se puede comunicar con nosotros.", "", "Saludos,");
+    }
     if (val(d.firmaNombre)) { lines.push(U.titleCase(d.firmaNombre)); }
     return lines.join("\n");
   }

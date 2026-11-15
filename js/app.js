@@ -112,6 +112,7 @@
   function L() { return C.LINES[S.line]; }
   function O() { return N.outcomeOf({ line: S.line, outcome: S.outcome }); }
   function isOC(id) { return S.line === "oc" && (!id || O().id === id); }
+  function isSupp(id) { return S.line === "supp" && (!id || O().id === id); }
   /* Medicare sin cambios: solo el nombre del plan, sin datos de Medicare */
   function mcSin() { return S.line === "mc" && O().id === "sincambio"; }
 
@@ -119,14 +120,14 @@
 
   var GROUPS = [
     { id: "contacto", title: "Contacto" },
-    { id: "cliente", title: function () { return S.line === "oc" ? "Hogar" : "Cliente"; } },
+    { id: "cliente", title: function () { return { oc: "Hogar", supp: "Members" }[S.line] || "Cliente"; } },
     { id: "cancelacion", title: "Cancelación" },
     { id: "gestion", title: "Gestión" },
     { id: "plan", title: function () { return isOC("pendiente") ? "Planes cotizados" : "Plan"; } },
     { id: "pago", title: "Pago" },
     { id: "docs", title: "Documentos que pide el Mercado", short: "Docs pedidos" },
     { id: "seguimiento", title: "Pendiente y próximo paso", short: "Seguimiento" },
-    { id: "agente", title: function () { return S.line === "mc" ? "Agente" : "Agente y colaborador"; }, short: "Agente" },
+    { id: "agente", title: function () { return S.line === "oc" ? "Agente y colaborador" : "Agente"; }, short: "Agente" },
     { id: "network", title: "Network: documentos y nombres de archivo", short: "Network" }
   ];
 
@@ -176,7 +177,7 @@
     { k: "modalidad", g: "contacto", type: "select", label: "Modalidad de la cita", options: C.MODALIDADES,
       when: function (f) { return f.canal === "Appointment"; } },
 
-    { k: "nombres", g: "cliente", sec: "cliente", type: "text", label: function () { return S.line === "oc" ? "Nombre(s) del titular" : "Nombre(s)"; },
+    { k: "nombres", g: "cliente", sec: "cliente", type: "text", label: function () { return S.line !== "mc" ? "Nombre(s) del titular" : "Nombre(s)"; },
       w: "w2", upper: true, hint: "Como aparece en Zoho" },
     { k: "apellidos", g: "cliente", sec: "cliente", type: "text", label: "Apellido(s)", w: "w2", upper: true },
     { k: "genero", g: "cliente", sec: "cliente", type: "seg", label: "En la nota", w: "w2",
@@ -187,15 +188,13 @@
       when: function (f) { return f.codigoTipo === "Q"; } },
     { k: "esCliente", g: "cliente", sec: "cliente", type: "check", w: "w2", lines: ["mc"],
       label: "Es cliente (si no, el task es FOLLOW UP LEAD_INACTIVE CLIENT MC)", when: mcSin },
-    { k: "direccion", g: "cliente", sec: "cliente", type: "text", label: "Dirección", w: "full", lines: ["oc"],
+    { k: "direccion", g: "cliente", sec: "cliente", type: "text", label: "Dirección", w: "full", lines: ["oc", "supp"],
       ph: "Calle, ciudad, estado y código postal", when: function () { return !isOC("cancelada"); } },
-    { k: "clienteTel", g: "cliente", sec: "cliente", type: "text", label: "Teléfono del titular", w: "w2", lines: ["oc"], mode: "tel",
+    { k: "clienteTel", g: "cliente", sec: "cliente", type: "text", label: "Teléfono del titular", w: "w2", lines: ["oc", "supp"], mode: "tel",
       ph: "(305) 555-0100", when: function () { return !isOC("cancelada"); } },
-    { k: "clienteEmail", g: "cliente", sec: "cliente", type: "text", label: "Email del titular", w: "w2", lines: ["oc"], mode: "email",
+    { k: "clienteEmail", g: "cliente", sec: "cliente", type: "text", label: "Email del titular", w: "w2", lines: ["oc", "supp"], mode: "email",
       when: function () { return !isOC("cancelada"); } },
-    { k: "personas", g: "cliente", sec: "cliente", type: "personas", w: "full", lines: ["oc"] },
-    { k: "miembros", g: "cliente", sec: "cliente", type: "area", label: "Miembros en cobertura", w: "w3", rows: 3, upper: true,
-      lines: ["supp"], hint: "Uno por línea, empezando por el titular" },
+    { k: "personas", g: "cliente", sec: "cliente", type: "personas", w: "full", lines: ["oc", "supp"] },
     { k: "adicionales", g: "cliente", sec: "cliente", type: "text", label: "Miembros ±", lines: ["supp"],
       hint: "Para el reporte: +2, o -1 si se quitó" },
     { k: "mbi", g: "cliente", sec: "medicare", type: "text", label: "Número de Medicare (MBI)", w: "w2", upper: true, lines: ["mc"] },
@@ -224,8 +223,7 @@
       when: function (f) { return f.periodo === "SEP"; } },
     { k: "plataforma", g: "gestion", sec: "proceso", type: "select", label: "Plataforma", lines: ["oc"],
       options: ["MKPL", "HealthSherpa", "Portal de la compañía"] },
-    { k: "appId", g: "gestion", sec: "proceso", type: "text", lines: ["oc", "supp"],
-      label: function () { return S.line === "oc" ? "ID de aplicación (ID#)" : "App ID"; },
+    { k: "appId", g: "gestion", sec: "proceso", type: "text", lines: ["oc"], label: "ID de aplicación (ID#)",
       when: function () { return !isOC("pendiente"); } },
     { k: "cuentaMkpl", g: "gestion", sec: "proceso", type: "seg", label: "Cuenta MKPL", w: "w2", lines: ["oc"], clearable: true,
       options: [{ v: "si", l: "Creada" }, { v: "no", l: "No creada" }],
@@ -247,17 +245,17 @@
     { k: "plan", g: "plan", sec: "plan", type: "text", label: "Nombre del plan", w: "w2",
       hint: function () { return S.line === "mc" ? "Con el contrato (H-PBP): Humana Gold Plus H1036-077 (HMO)" : ""; } },
     { k: "estado", g: "plan", sec: "plan", type: "text", label: "Status", lines: ["oc"], list: ["Active", "Pending", "Unpaid binder", "Terminated"] },
-    { k: "tipoPlan", g: "plan", sec: "plan", type: "text", label: "Tipo de plan", lines: ["supp"], list: ["DHMO", "DPPO", "Indemnidad", "Copago"] },
     { k: "tienePrima", g: "plan", sec: "plan", type: "check", lines: ["mc"], label: "Tiene prima mensual (si no, Premium $0.00)",
       when: function () { return !mcSin(); } },
     { k: "prima", g: "plan", sec: "plan", type: "money", label: "Prima mensual",
       hint: function () { return S.line === "oc" ? "Lo que paga el cliente, ya con el subsidio" : ""; },
       when: function (f) { return S.line !== "mc" || (!!f.tienePrima && !mcSin()); } },
     { k: "efectiva", g: "plan", sec: ["plan", "planes"], type: "date",
-      label: function () { return S.line === "oc" ? "Cobertura desde" : "Fecha efectiva"; }, when: function () { return !mcSin(); } },
+      label: function () { return S.line === "oc" ? "Cobertura desde" : (isSupp("cotizacion") ? "Fecha efectiva estimada" : "Fecha efectiva"); },
+      when: function () { return !mcSin(); } },
     { k: "revisaPlanes", g: "plan", sec: "planes", type: "check", w: "w3", lines: ["oc"],
       label: "Revisará los planes: se le envía o entrega la cotización" },
-    { k: "poliza", g: "plan", sec: "plan", type: "text", label: "Policy #", lines: ["supp"] },
+    { k: "poliza", g: "plan", sec: "plan", type: "text", label: "Policy #", lines: ["supp"], when: function () { return !isSupp("cotizacion"); } },
     { k: "plazo", g: "plan", sec: "plan", type: "text", label: "Periodo", ph: "3 years", lines: ["supp"],
       when: function (f) { return f.producto === "Short Term"; } },
     { k: "beneficiario", g: "plan", sec: "plan", type: "text", label: "Beneficiario", w: "w2", lines: ["supp"],
@@ -270,7 +268,12 @@
       when: function () { return O().task === "mc_mant" && !O().cancelled && !mcSin(); } },
 
     { k: "pagoEstado", g: "pago", sec: "pago", type: "seg", label: "Estado del pago", w: "full",
-      options: C.PAYMENT.map(function (p) { return { v: p.v, l: p.label, t: p.hint }; }), clearable: true },
+      options: function () {
+        /* Suplementario solo ofrece Pago confirmado y Pendiente de pago */
+        var allowed = S.line === "supp" ? C.LINES.supp.pagos : null;
+        return C.PAYMENT.filter(function (p) { return !allowed || allowed.indexOf(p.v) >= 0; })
+          .map(function (p) { return { v: p.v, l: p.label, t: p.hint }; });
+      }, clearable: true },
     { k: "pagoMonto", g: "pago", sec: "pago", type: "money", label: "Monto",
       when: function (f) { return f.pagoEstado === "PAYMENT" || f.pagoEstado === "NO PAYMENT"; } },
     { k: "pagoFecha", g: "pago", sec: "pago", type: "date",
@@ -299,7 +302,7 @@
       options: function () { return teamOptions("—"); } },
     { k: "npnAgente", g: "agente", sec: "agente", type: "select", label: "Agente (NPN)", w: "w2",
       options: npnOptions, hint: "El NPN con el que se hace la app" },
-    { k: "colaborador", g: "agente", sec: "agente", type: "select", label: "Colaborador", w: "w2", lines: ["oc", "supp"],
+    { k: "colaborador", g: "agente", sec: "agente", type: "select", label: "Colaborador", w: "w2", lines: ["oc"],
       hint: "Quién procesó la aplicación", options: function () { return teamOptions("—"); } },
     { k: "escritura", g: "agente", sec: "agente", type: "text", label: "Writing ID", w: "w2", lines: ["mc"] }
   ];
@@ -520,7 +523,7 @@
     var box = $("list_personas");
     if (!box) { return; }
     box.textContent = "";
-    var cancel = isOC("cancelada");
+    var cancel = isOC("cancelada"), supp = S.line === "supp";
     var listEl = el("div", "people");
     S.f.personas.forEach(function (p, i) {
       var row = listItem("person" + (p.open ? " open" : "") + (p.auto ? " is-auto" : ""), i);
@@ -534,16 +537,16 @@
       if (rel) { t.appendChild(el("span", "person-rel", rel)); }
       head.appendChild(t);
       var tg = el("div", "person-tags");
-      if (!cancel) {
+      if (!cancel && !supp) {
         var tx = actBtn("taxes", i, "Taxes", "tog" + (p.taxes ? " on" : ""));
         tx.setAttribute("aria-pressed", p.taxes ? "true" : "false"); tx.title = "Está en la declaración de impuestos";
         tg.appendChild(tx);
       }
       var cv = actBtn("cobertura", i, cancel ? "Se cancela" : "Cobertura", "tog" + (p.cobertura ? " on" : ""));
       cv.setAttribute("aria-pressed", p.cobertura ? "true" : "false");
-      cv.title = cancel ? "Está en la póliza que se cancela" : "Pide cobertura";
+      cv.title = cancel ? "Está en la póliza que se cancela" : (supp ? "Tiene cobertura" : "Pide cobertura");
       tg.appendChild(cv);
-      if (!cancel) { var inc = el("span", "person-inc num", U.parseMoney(p.ingreso) ? U.parseMoney(p.ingreso).replace(/\.00$/, "") : ""); inc.dataset.incFor = i; tg.appendChild(inc); }
+      if (!cancel && !supp) { var inc = el("span", "person-inc num", U.parseMoney(p.ingreso) ? U.parseMoney(p.ingreso).replace(/\.00$/, "") : ""); inc.dataset.incFor = i; tg.appendChild(inc); }
       head.appendChild(tg);
       head.appendChild(p.titular ? el("span", "person-gap") : actBtn("remove-person", i, "✕", "icon-btn tiny", "Quitar a " + personLabel(p)));
       row.appendChild(head);
@@ -554,6 +557,12 @@
           body.appendChild(el("p", "hint person-note", "El nombre del titular se escribe arriba, como aparece en Zoho."));
         } else {
           body.appendChild(labeled("Nombre completo", itemInput("personas", i, "nombre", p.nombre, { cls: "upper", ph: "Nombre y apellido" }), "grow"));
+        }
+        if (supp) {
+          body.appendChild(labeled("DOB", itemInput("personas", i, "dob", p.dob, { cls: "num", ph: "MM/DD/AAAA" }), "w-date"));
+          row.appendChild(body);
+          listEl.appendChild(row);
+          return;
         }
         body.appendChild(labeled("Parentesco", itemSelect("personas", i, "parentesco", p.parentesco,
           [{ v: "", l: "—" }].concat(C.PARENTESCOS.map(function (r) { return { v: r, l: r }; })))));
@@ -585,7 +594,9 @@
     var sum = el("span", "list-sum"); sum.id = "peopleSum";
     foot.appendChild(sum);
     box.appendChild(foot);
-    if (!cancel) {
+    if (supp) {
+      box.appendChild(el("p", "hint people-hint", "La nota nombra a quienes tienen cobertura, por su nombre de pila."));
+    } else if (!cancel) {
       box.appendChild(el("p", "hint people-hint",
         "Sale en la nota como «Cambios» lo que quede distinto de los documentos, y la dirección, teléfono, email, estatus y DOB que llenes."));
     }
@@ -601,6 +612,7 @@
     var inc = tax.reduce(function (s, p) { return s + (p.ingreso || 0); }, 0);
     sum.textContent = isOC("cancelada")
       ? "Se cancelan " + cov.length + (cov.length ? " (" + firsts(cov) + ")" : "")
+      : S.line === "supp" ? "Cobertura " + cov.length + (cov.length ? " (" + firsts(cov) + ")" : "")
       : "Taxes " + tax.length + (tax.length ? " (" + firsts(tax) + ")" : "") + " · Cobertura " + cov.length +
         (cov.length ? " (" + firsts(cov) + ")" : "") + (inc ? " · Ingreso " + U.parseMoney(inc).replace(/\.00$/, "") : "");
     each(document.querySelectorAll("[data-name-for]"), function (n) {
@@ -1008,7 +1020,7 @@
   /* ------------------------------------------------------------ salidas */
 
   function hasClientData() {
-    return ["nombres", "apellidos", "plan", "compania", "mbi", "appId", "miembros", "notas", "pendiente", "codigoQ"]
+    return ["nombres", "apellidos", "plan", "compania", "mbi", "appId", "notas", "pendiente", "codigoQ"]
       .some(function (k) { return U.collapse(S.f[k]); });
   }
 
@@ -1038,8 +1050,8 @@
       me: memberByName(settings.autor),
       talker: memberByName(S.f.talker),
       agent: S.f.npnAgente === "__extra" && x ? { name: x.name, npn: x.npn, ini: U.initials(x.name) } : memberByName(S.f.npnAgente),
-      /* en Medicare la app la hace quien escribe la nota */
-      collab: S.line === "mc" ? memberByName(settings.autor) : memberByName(S.f.colaborador)
+      /* en Medicare y Suplementario la app la hace quien escribe la nota */
+      collab: S.line === "oc" ? memberByName(S.f.colaborador) : memberByName(settings.autor)
     };
   }
 
@@ -1140,14 +1152,21 @@
     $("smsCount").textContent = info.length + " caracteres · " + info.parts + (info.parts === 1 ? " mensaje" : " mensajes");
     $("smsCount").title = info.unicode ? "Con acentos o emojis cada mensaje admite 70 caracteres; si no, 160." : "";
 
-    /* SMS y email de una app de Obamacare: en español o en inglés */
-    var bilingual = isOC("enviada");
-    each(document.querySelectorAll("[data-lang-seg]"), function (seg) { seg.hidden = !bilingual; syncSeg(seg, S.f.idioma || "es"); });
-    $("emailCard").hidden = !bilingual;
-    if (bilingual) {
+    /* SMS de una app de Obamacare y email de una app de Obamacare o de
+       Suplementario: en español o en inglés */
+    var smsLang = isOC("enviada"), email = isOC("enviada") || isSupp("enviada");
+    each(document.querySelectorAll("[data-lang-seg]"), function (seg) {
+      seg.hidden = !(seg.closest("#emailCard") ? email : smsLang);
+      syncSeg(seg, S.f.idioma || "es");
+    });
+    $("emailCard").hidden = !email;
+    if (email) {
+      var one = isSupp();
+      $("emailPart2").hidden = one;
+      $("emailHead1").textContent = one ? "Aplicación y póliza" : "1 · Documentos y plan";
       setOut("email1", N.buildEmail(d, 1));
-      setOut("email2", N.buildEmail(d, 2));
-      fitHeight($("email1")); fitHeight($("email2"));
+      if (!one) { setOut("email2", N.buildEmail(d, 2)); }
+      fitHeight($("email1")); if (!one) { fitHeight($("email2")); }
     }
     updateFileNames();
 
@@ -1263,7 +1282,7 @@
     /* lo que va a las listas o a los selectores se aparta del resto */
     var special = {};
     ["miembros", "ingreso", "hogar", "docs", "agente", "npn", "dob"].forEach(function (k) {
-      if (k in fields && !(k === "miembros" && S.line === "supp")) { special[k] = fields[k]; delete fields[k]; }
+      if (k in fields) { special[k] = fields[k]; delete fields[k]; }
     });
     Object.keys(fields).forEach(function (k) {
       var v = fields[k];
@@ -1275,8 +1294,8 @@
       if (!empty && !replaceable) { return; }
       S.f[k] = v; S.auto[k] = true; S.rank[k] = rank; S.base[k] = v; applied++;
     });
+    if (special.miembros && S.line !== "mc") { applied += mergePersonas(U.parseList(special.miembros)); }
     if (S.line === "oc") {
-      if (special.miembros) { applied += mergePersonas(U.parseList(special.miembros)); }
       var tit = S.f.personas[0];
       /* el ingreso y la fecha de nacimiento del documento son del titular */
       [["ingreso", U.parseMoney(special.ingreso)], ["dob", U.parseDate(special.dob)]].forEach(function (x) {

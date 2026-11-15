@@ -470,16 +470,16 @@
     f.plan = after(doc, [/\bPlan\s*name\b/i, /Nombre del plan/i, /\b(Selected\s*plan|Plan\s*selected)\b/i, /\bProduct\s*name\b/i], vText(70), 1);
     f.prima = after(doc, [/\b(Total\s*)?monthly\s*premium\b/i, /Prima\s*mensual/i, /\bPremium\b/i, /\bPrima\b/i], vMoney, 1);
     f.efectiva = after(doc, [/\b(Requested\s*)?effective\s*date\b/i, /\bCoverage\s*start\s*date\b/i, /Fecha efectiva/i], vDate, 1);
-    f.appId = after(doc, [/\bApplication\s*(ID|number|#|no\.?)/i, /\bApp\s*ID\b/i,
+    /* Suplementario solo guarda el Policy #; el número de la aplicación se
+       lee para no confundirlo con la póliza */
+    var app = after(doc, [/\bApplication\s*(ID|number|#|no\.?)/i, /\bApp\s*ID\b/i,
       /N[uú]mero de (solicitud|aplicaci[oó]n)/i, /\bConfirmation\s*(number|#)/i], vCode(5, 24), 1);
     f.poliza = after(doc, [/\bPolicy\s*(ID|number|#|no\.?)/i, /\bCertificate\s*(number|#)/i, /N[uú]mero de p[oó]liza/i], vCode(5, 24), 1);
-    if (f.poliza && f.poliza === f.appId) { delete f.poliza; }
+    if (f.poliza && f.poliza === app) { delete f.poliza; }
     if (/beneficiar/i.test(doc.flat)) {
       var ben = after(doc, [/\bPrimary\s*beneficiary(\s*name)?\b/i, /\bBeneficiary(\s*name)?\b/i, /Beneficiario(\s*principal)?/i], vText(60), 1);
       if (ben && !/%|percent|porcentaje/i.test(ben)) { f.beneficiario = ben; }
     }
-    if (/\bDHMO\b/.test(doc.flat)) { f.tipoPlan = "DHMO"; }
-    else if (/\bDPPO\b|\bPPO\b/.test(doc.flat)) { f.tipoPlan = "DPPO"; }
     agentInfo(doc, f);
     return f;
   }

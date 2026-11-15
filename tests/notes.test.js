@@ -54,8 +54,10 @@ test("reporte: supplemental y cancelados", () => {
     "QXXXX - Diaz, Beatriz - App Dental Cigna 2026 - Call (LI)");
   assert.equal(N.buildReport(make({ line: "oc", outcome: "cancelada", gestion: "renovacion", compania: "UHC", adicionales: "+3" })),
     "QXXXX - Diaz, Beatriz - Renew OC UHC 2026_Cancelled - Call (LI) +3");
-  assert.equal(N.buildReport(make({ line: "supp", outcome: "cancelada", gestion: "cambio", producto: "Dental", compania: "UHC" })),
-    "QXXXX - Diaz, Beatriz - App Dental UHC 2026_Change_Cancelled - Call (LI)");
+  /* los miembros con cobertura además del titular */
+  assert.equal(N.buildReport(make({ line: "supp", outcome: "enviada", gestion: "nueva", producto: "Dental", compania: "UHC",
+    personas: [{ titular: true, cobertura: true }, { nombre: "JUAN DIAZ", cobertura: true }, { nombre: "ANA DIAZ", cobertura: false }] })),
+    "QXXXX - Diaz, Beatriz - App Dental UHC 2026 - Call (LI) +1");
 });
 
 test("reporte: colaborador delante y situaciones que no se reportan", () => {
@@ -85,6 +87,9 @@ test("task: formato estándar por situación", () => {
   assert.deepEqual(C.LINES.mc.outcomes.map((o) => o.id), ["enviada", "sincambio"], "Medicare solo tiene App enviada y Sin cambios");
   assert.equal(C.LINES.mc.label, "Medicare Advantage");
   assert.equal(C.LINES.mc.code, "MC");
+  assert.deepEqual(C.LINES.supp.outcomes.map((o) => o.id), ["enviada", "cotizacion"], "Suplementario solo tiene App enviada y Cotización");
+  assert.deepEqual(C.LINES.supp.gestiones.map((g) => g.v), ["nueva", "renovacion"], "sin cambio de plan");
+  assert.deepEqual(C.LINES.supp.pagos, ["PAYMENT", "NO PAYMENT"], "solo Pago confirmado y Pendiente de pago");
   assert.equal(t({ line: "supp", outcome: "cotizacion" }), "DI: FOLLOW UP QUOTE SUPP - VER NOTA 02/01/2026 (09:00)");
   assert.equal(t({ line: "supp", outcome: "enviada", producto: "Life" }), "DI: LIFE INSURANCE REVIEW - VER NOTA 02/01/2026 (09:00)");
   assert.equal(t({ line: "supp", outcome: "cotizacion", producto: "Life" }), "DI: LIFE INSURANCE PENDING - VER NOTA 02/01/2026 (09:00)");
@@ -328,7 +333,9 @@ test("nota: suplementario como el template ACCIDENTE", () => {
     ini: "ER", line: "supp", outcome: "enviada", gestion: "nueva", producto: "Accident", genero: "a",
     compania: "Allstate", plan: "Enhancer AME 17500", poliza: "2037288957", efectiva: "08/21/2026", prima: "12.89",
     beneficiario: "Sparling, Bryan (father)", pagoEstado: "PAYMENT", pagoMetodo: "CC", autopay: "On",
-    agente: "Eduardo Chinea", agenteIni: "ER"
+    agente: "Eduardo Chinea", agenteIni: "ER",
+    /* ya no van en Suplementario */
+    appId: "APP-998877", tipoPlan: "DPPO", colaboradorNombre: "My Access", notas: "Llamar el lunes", fechaSeg: "02/03/2026", pendiente: "Firma"
   }));
   assert.equal(note, [
     "ER_02/01/2026: Se procesa app de Accidente de Allstate, plan Enhancer AME 17500, para la cliente.",
@@ -340,9 +347,14 @@ test("nota: suplementario como el template ACCIDENTE", () => {
     "AutoPay: On",
     "NPN: ER"
   ].join("\n"));
-  const family = N.buildNote(make({ line: "supp", outcome: "enviada", gestion: "nueva", producto: "Hospital",
-    compania: "Golden Rule", miembros: "RAUL GAVELA\nMARIA GAVELA\nLUIS GAVELA" }));
-  assert.match(family, /^LI_02\/01\/2026: Se procesa app de Hospital de GR para el cliente, MARIA GAVELA y LUIS GAVELA\.$/m);
+  /* Members: solo los nombres de pila de quienes tienen cobertura */
+  const family = N.buildNote(make({ line: "supp", outcome: "enviada", gestion: "nueva", producto: "Hospital", nombres: "RAUL", apellidos: "GAVELA",
+    compania: "Golden Rule", personas: [{ titular: true, cobertura: true, dob: "01/02/1980" }, { nombre: "MARIA GAVELA", cobertura: true },
+      { nombre: "LUIS GAVELA", cobertura: true }, { nombre: "ANA GAVELA", cobertura: false }] }));
+  assert.match(family, /^LI_02\/01\/2026: Se procesa app de Hospital de GR para el cliente, Maria y Luis\.$/m);
+  const kids = N.buildNote(make({ line: "supp", outcome: "enviada", gestion: "renovacion", producto: "Dental", compania: "Cigna",
+    personas: [{ titular: true, cobertura: false }, { nombre: "MARIA DIAZ", cobertura: true }] }));
+  assert.match(kids, /^LI_02\/01\/2026: Se renueva app de Dental de Cigna para Maria\.$/m);
 });
 
 test("nota: el botón rojo solo cierra una aplicación enviada y el task nunca va en la nota", () => {
@@ -384,13 +396,27 @@ test("nota: al cliente / del cliente según el género", () => {
   assert.match(cancel("a"), /a solicitud de la cliente\.$/);
 });
 
-test("nota: hora de revisión en 12 horas y seguimiento solo si hay fecha", () => {
+test("nota: hora de revisión en 12 horas; Suplementario ya no lleva seguimiento", () => {
   const tarde = N.buildNote(make({ line: "supp", outcome: "cotizacion", producto: "Dental", hora: "15:00" }));
   assert.match(tarde, /^LI_02\/01\/2026: Se conversa con el cliente \(03:00\), desea cotizar /);
   assert.doesNotMatch(tarde, /Seguimiento/);
   assert.match(N.buildTask(make({ line: "supp", outcome: "cotizacion", hora: "15:00" })), /VER NOTA 02\/01\/2026 \(03:00\)$/);
   const seg = N.buildNote(make({ line: "supp", outcome: "cotizacion", producto: "Dental", fechaSeg: "02/03/2026" }));
-  assert.match(seg, /\nSeguimiento: Contactar al cliente para definir el plan - 02\/03\/2026$/);
+  assert.doesNotMatch(seg, /Seguimiento|Pendiente/);
+});
+
+test("nota: cotización de suplementario con los miembros y la fecha efectiva estimada", () => {
+  const d = make({ line: "supp", outcome: "cotizacion", gestion: "nueva", producto: "Dental", compania: "Cigna", plan: "Dental Plus",
+    prima: "30", efectiva: "03/01/2026", appId: "APP-1", poliza: "POL-1", tipoPlan: "DHMO",
+    personas: [{ titular: true, cobertura: true }, { nombre: "MARIA DIAZ", cobertura: true }] });
+  assert.equal(N.buildNote(d), [
+    "LI_02/01/2026: Se conversa con el cliente (09:00), desea cotizar seguro dental para el cliente y Maria.",
+    "Se explica y da detalles del plan cotizado:",
+    "Compañía_Plan: Cigna_Dental Plus - $30.00",
+    "Fecha efectiva estimada: 03/01/2026"
+  ].join("\n"));
+  /* solo el titular: no hace falta nombrarlo */
+  assert.match(N.buildNote(make({ line: "supp", outcome: "cotizacion", producto: "Dental" })), /desea cotizar seguro dental\.$/m);
 });
 
 test("nota: sin acentos cuando se pide", () => {
@@ -404,8 +430,8 @@ test("nota: sin acentos cuando se pide", () => {
 test("SMS: lleva la oficina, el nombre del cliente y el teléfono", () => {
   const sms = N.buildSms(make({ line: "oc", outcome: "cancelada", gestion: "nueva", anio: "2027", compania: "UHC", oficina: "ATH Insurance" }));
   assert.equal(sms, "Hola Beatriz, le saluda el equipo de ATH Insurance. Su seguro de Obamacare 2027 con UHC quedó cancelado según lo solicitado. Cualquier duda, estamos a la orden.");
-  const tel = N.buildSms(make({ line: "supp", outcome: "pago", producto: "Dental", pagoEstado: "PAYMENT NOT VERIFIED", oficina: "QAgency", telefono: "(305) 555-0100" }));
-  assert.match(tel, /^Hola Beatriz, le saluda el equipo de QAgency\. .*llámenos al \(305\) 555-0100 cuando pueda\./);
+  const tel = N.buildSms(make({ line: "supp", outcome: "enviada", gestion: "nueva", producto: "Dental", oficina: "QAgency", telefono: "(305) 555-0100" }));
+  assert.match(tel, /^Hola Beatriz, le saluda el equipo de QAgency\. .* Cualquier duda, llámenos al \(305\) 555-0100\.$/);
   Object.keys(C.LINES).forEach((line) => C.LINES[line].outcomes.forEach((o) => {
     const s = N.buildSms(make({ line, outcome: o.id, oficina: "QAgency" }));
     if (o.noSms) { assert.equal(s, "", line + "/" + o.id); return; }
@@ -505,6 +531,44 @@ test("email Obamacare: parte 1 con la póliza y parte 2 con lo que pide el Merca
   assert.equal(N.buildEmail(make({ line: "oc", outcome: "pendiente" }), 1), "", "solo para una app enviada");
   assert.equal(N.buildEmail(make({ line: "mc", outcome: "enviada" }), 2), "");
   assert.ok(C.MKPL_DOCS.every((c) => /^Pruebas de /.test(c.es) && /^Proof of /.test(c.en)), "las 11 en los dos idiomas");
+});
+
+test("email Suplementario: aplicación enviada en español e inglés", () => {
+  const d = make({ line: "supp", outcome: "enviada", gestion: "nueva", producto: "Dental", compania: "FLORIDA BLUE (FCL)",
+    poliza: "FB123456", efectiva: "12/01/2026", prima: "38.5", firmaNombre: "EDUARDO CHINEA" });
+  assert.equal(N.buildEmail(d, 1), [
+    "Estimado Cliente",
+    "",
+    "Se adjunta Aplicación al Plan:",
+    "Compañía Florida Blue",
+    "ID # FB123456",
+    "Cobertura a partir del 12/01/2026",
+    "Prima Mensual: $38.50",
+    "Le llegará por correo postal la póliza, beneficios.",
+    "Cualquier duda u observación se puede comunicar con nosotros.",
+    "",
+    "Saludos,",
+    "Eduardo Chinea"
+  ].join("\n"));
+  assert.equal(N.buildEmail(Object.assign({}, d, { idioma: "en" }), 1), [
+    "Dear Client",
+    "",
+    "We attached the application for:",
+    "Company Florida Blue",
+    "ID # FB123456",
+    "Effective date: 12/01/2026",
+    "Monthly Premium: $38.50",
+    "Please feel free to contact us, if you have any questions or concerns.",
+    "",
+    "Best regards,",
+    "Eduardo Chinea"
+  ].join("\n"));
+  assert.match(N.buildEmail(Object.assign({}, d, { genero: "a" }), 1), /^Estimada Cliente\n/);
+  /* una sola parte; sin póliza no hay línea de ID */
+  assert.equal(N.buildEmail(d, 2), "");
+  assert.doesNotMatch(N.buildEmail(Object.assign({}, d, { poliza: "" }), 1), /ID #/);
+  assert.match(N.buildEmail(Object.assign({}, d, { compania: "UHC" }), 1), /\nCompañía UnitedHealthcare\n/);
+  assert.equal(N.buildEmail(make({ line: "supp", outcome: "cotizacion" }), 1), "");
 });
 
 test("SMS: cuenta caracteres y mensajes", () => {
