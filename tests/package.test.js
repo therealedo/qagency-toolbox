@@ -43,6 +43,14 @@ test("el equipo por defecto: iniciales de notas y de agente", () => {
   assert.deepEqual(C.OFFICES, ["QAgency", "ATH Insurance"]);
 });
 
+test("el instalador prefiere Chrome, luego Edge, y Brave al final (Brave no deja elegir carpetas)", () => {
+  const ps = fs.readFileSync(path.join(root, "tools", "windows", "instalar.ps1"), "utf8");
+  const exes = ps.match(/\$navegadores = @\(([\s\S]*?)\r?\n\)/)[1].match(/[a-z]+\.exe/g);
+  assert.equal(exes.length, 8, "las mismas rutas de siempre");
+  assert.deepEqual(exes.filter((x, i) => exes.indexOf(x) === i), ["chrome.exe", "msedge.exe", "brave.exe"]);
+  assert.match(ps, /No se encontro Chrome, Edge ni Brave/);
+});
+
 test("la página sigue sin conexiones: el OCR solo agrega 'wasm-unsafe-eval'", () => {
   const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
   const csp = html.match(/Content-Security-Policy" content="([^"]+)"/)[1];
