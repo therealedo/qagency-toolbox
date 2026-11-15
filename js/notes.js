@@ -1,14 +1,18 @@
 /* Q Agency Toolbox — generadores de texto.
-   Tres salidas a partir de los mismos datos:
-     buildNote    nota para Zoho CRM
-     buildTask    nombre del task (formato TASK Q AGENCY)
-     buildReport  línea para el canal de Cliq (formato STANDARD FORMs - REPORT)
+   Cinco salidas a partir de los mismos datos:
+     buildNote      nota para Zoho CRM, con la forma de PROCESS TEMPLATES
+     buildTask      nombre del task (formato TASK Q AGENCY)
+     buildReport    línea para el canal de Cliq (STANDARD FORMs - REPORT)
+     buildSms       mensaje de texto para el cliente, con el nombre de la oficina
+     buildFileNames nombres para guardar los documentos (NOMBRE DE ARCHIVOS)
    Son funciones puras: no tocan la pantalla, así que se pueden probar solas. */
 (function (root) {
   "use strict";
 
   var C = (root.QA && root.QA.config) || require("./config.js");
   var U = (root.QA && root.QA.util) || require("./util.js");
+
+  /* ------------------------------------------------------------ comunes -- */
 
   function lineOf(d) { return C.LINES[d.line] || C.LINES.oc; }
 
@@ -28,6 +32,12 @@
     return L.gestiones[0];
   }
 
+  function productOf(d) {
+    var list = C.LINES.supp.productos;
+    for (var i = 0; i < list.length; i++) { if (list[i].v === d.producto) { return list[i]; } }
+    return list[list.length - 1];
+  }
+
   function taskById(id) {
     for (var i = 0; i < C.TASKS.length; i++) { if (C.TASKS[i].id === id) { return C.TASKS[i]; } }
     return null;
@@ -35,19 +45,13 @@
 
   function has(O, section) { return O.sections.indexOf(section) >= 0; }
   function val(v) { return U.collapse(v); }
+  function upper(v) { return val(v).toUpperCase(); }
+  function members(d) { return U.parseList(d.miembros).map(function (x) { return x.toUpperCase(); }); }
 
-  function fullName(d) { return U.collapse((d.nombres || "") + " " + (d.apellidos || "")).toUpperCase(); }
-
-  function productName(d) {
-    var L = lineOf(d);
-    if (d.line === "mc") { return "plan de Medicare"; }
-    if (d.line === "supp") {
-      for (var i = 0; i < L.productos.length; i++) {
-        if (L.productos[i].v === d.producto) { return L.productos[i].note; }
-      }
-      return L.product;
-    }
-    return L.product;
+  /* "Diaz, Beatriz": como se escriben los nombres en el reporte y los archivos */
+  function zohoName(d) {
+    var ap = U.titleCase(d.apellidos), no = U.titleCase(d.nombres);
+    return ap && no ? ap + ", " + no : (ap || no);
   }
 
   function carrierShort(line, name) {
@@ -59,6 +63,12 @@
     return n.length <= 5 ? n.toUpperCase() : U.titleCase(n);
   }
 
+  /* Montos redondos sin centavos, como se escriben los ingresos: $22,590 */
+  function moneyShort(v) {
+    var s = U.parseMoney(v);
+    return s.replace(/\.00$/, "");
+  }
+
   /* +N miembros adicionales con cobertura (o -N si se quitaron). */
   function memberDelta(d) {
     var manual = val(d.adicionales).replace(/\s+/g, "");
@@ -68,17 +78,22 @@
       return (m[1] === "-" ? "-" : "+") + (+m[2]);
     }
     if (d.line === "mc") { return ""; }
-    var n = U.parseList(d.miembros).length;
+    var n = members(d).length;
     return n > 1 ? "+" + (n - 1) : "";
   }
 
-  /* ------------------------------------------------------------- task -- */
+  /* --------------------------------------------------------------- task -- */
 
   function autoTaskId(d) {
     var O = outcomeOf(d);
     var id = O.task;
     if (id === "oc_cs" && d.dep) { id = "oc_cs_dep"; }
     if (id === "mc_mant" && d.cmd) { id = "mc_mant_cmd"; }
+    /* el seguro de vida tiene sus propios tasks */
+    if (d.line === "supp" && d.producto === "Life") {
+      if (O.id === "enviada") { id = "li_review"; }
+      if (O.id === "cotizacion") { id = "li_pending"; }
+    }
     return id;
   }
 
@@ -87,7 +102,7 @@
      etiquetas que van al final, después de la hora y sin paréntesis). */
   function formatTask(T, o) {
     o = o || {};
-    var owner = val(o.owner).toUpperCase() || "XX";
+    var owner = upper(o.owner) || "XX";
     var text = T.text
       .replace("{metodo}", val(o.metodo) || "TEXT")
       .replace("{n}", val(o.intento) || "1")
@@ -98,7 +113,7 @@
 
     var out = owner + ": " + text + " - VER NOTA " + (U.parseDate(o.fecha) || "MM/DD/YYYY") +
               " (" + (U.parseTime(o.hora) || "09:00") + ")";
-    (o.tags || []).forEach(function (t) { if (val(t)) { out += " " + val(t).toUpperCase(); } });
+    (o.tags || []).forEach(function (t) { if (val(t)) { out += " " + upper(t); } });
     return out;
   }
 
@@ -116,22 +131,19 @@
     });
   }
 
-  /* ----------------------------------------------------------- report -- */
+  /* ------------------------------------------------------------- report -- */
 
   function reportCode(d) {
     if (d.codigoTipo === "New") { return "New"; }
     if (d.codigoTipo === "Sin Code") { return "Sin Code"; }
-    var q = val(d.codigoQ).toUpperCase().replace(/^Q/, "").replace(/[^0-9A-Z]/g, "");
+    var q = upper(d.codigoQ).replace(/^Q/, "").replace(/[^0-9A-Z]/g, "");
     return "Q" + (q || "XXXX");
   }
 
   function reportProcess(d) {
     var O = outcomeOf(d), G = gestionOf(d);
     var proc = G.proc;
-    if (d.line === "supp") {
-      var prod = val(d.producto);
-      proc += " " + (prod && prod !== "Otro" ? prod : "Supp");
-    }
+    if (d.line === "supp") { proc += " " + productOf(d).file; }
     var carrier = val(d.reportCarrier) || carrierShort(d.line, d.compania);
     var parts = [proc];
     if (carrier) { parts.push(carrier); }
@@ -146,78 +158,98 @@
   function buildReport(d) {
     var O = outcomeOf(d);
     if (!O.report) { return ""; }
-    var ap = U.titleCase(d.apellidos), no = U.titleCase(d.nombres);
-    var name = ap && no ? ap + ", " + no : (ap || no || "Apellido, Nombre");
-    var agentIni = val(d.agenteIni || d.ini).toUpperCase() || "XX";
-    var s = reportCode(d) + " - " + name + " - " + reportProcess(d) + " - " +
+    var agentIni = upper(d.agenteIni || d.ini) || "XX";
+    var s = reportCode(d) + " - " + (zohoName(d) || "Apellido, Nombre") + " - " + reportProcess(d) + " - " +
             (d.canal || "Call") + " (" + agentIni + ")";
     var delta = memberDelta(d);
     if (delta) { s += " " + delta; }
     /* Si la aplicación la procesó un colaborador, sus iniciales van delante. */
-    var col = val(d.reportPrefix).toUpperCase();
+    var col = upper(d.reportPrefix);
     if (col) { s = col + ": " + s; }
     return s;
   }
 
-  /* ------------------------------------------------------------- nota -- */
+  /* --------------------------------------------------------------- nota -- */
 
-  function opening(d) {
-    if (d.canal === "Appointment") {
-      return "Se atiende al cliente en cita agendada (" + (d.modalidad || "presencial") + ")";
-    }
-    if (d.canal === "Walk In") { return "Se atiende al cliente en la oficina (walk-in)"; }
-    return "Se atiende al cliente por llamada";
+  function cliente(d) { return d.genero === "a" ? "la cliente" : "el cliente"; }
+  /* "interesado" -> "interesada" cuando es una cliente */
+  function adj(d, word) { return d.genero === "a" ? word.replace(/o$/, "a") : word; }
+
+  var MODO_CITA = { "presencial": "en cita presencial", "telefónica": "en cita telefónica", "Zoom": "en cita por Zoom", "en casa": "en cita en su casa" };
+
+  /* Cómo empieza una nota de conversación: "Se conversa con la cliente (02:44)" */
+  function talk(d) {
+    var t = U.parseTime(d.horaLlamada) ? " (" + U.to12h(d.horaLlamada) + ")" : "";
+    if (d.canal === "Appointment") { return "Se atiende a " + cliente(d) + " " + (MODO_CITA[d.modalidad] || "en cita") + t; }
+    if (d.canal === "Walk In") { return "Se atiende a " + cliente(d) + " en la oficina" + t; }
+    return "Se conversa con " + cliente(d) + t;
   }
 
-  function motive(d) {
-    var O = outcomeOf(d), G = gestionOf(d);
-    var prod = productName(d);
-    var y = val(d.anio) ? " " + val(d.anio) : "";
-    switch (O.id) {
-      case "pago": return "para gestionar el pago de su " + prod + y;
-      case "docs": return "para dar seguimiento a los documentos que requiere el Mercado en su aplicación" + y;
-      case "cancelada": return "para cancelar su " + prod + y;
-      case "sincambio": return "para la revisión anual de su plan de Medicare" + y;
-      case "interesado": return "para orientarlo sobre sus opciones de Medicare";
-      case "shortterm": return "para la renovación de su " + prod;
-      default: return G.motivo.replace("{producto}", prod) + y;
-    }
+  function lineLabel(d) {
+    if (d.line === "mc") { return "MC"; }
+    if (d.line === "supp") { return productOf(d).es || "suplementario"; }
+    return "OC";
   }
 
-  var PAGO_CIERRE = {
-    "PAYMENT": "Se realiza el pago con el cliente.",
-    "NO PAYMENT": "El cliente queda en realizar el pago.",
-    "PAYMENT NOT VERIFIED": "No se logra confirmar el pago con el cliente.",
-    "NO PREMIUM": "Se verifica que el plan no tiene prima."
-  };
+  function year(d) { return val(d.anio) ? " " + val(d.anio) : ""; }
+
+  function citaWhen(d) {
+    var f = U.parseDate(d.fechaSeg), h = U.parseTime(d.hora);
+    return f ? " para el " + f + (h ? " a las " + h : "") : "";
+  }
 
   var METODO_ES = { TEXT: "un mensaje de texto", EMAIL: "un correo electrónico", LETTER: "una carta" };
 
-  function followUpStamp(d) {
-    var f = U.parseDate(d.fechaSeg), h = U.parseTime(d.hora);
-    if (!f) { return ""; }
-    return f + (h ? " (" + h + ")" : "");
-  }
+  function header(d) {
+    var O = outcomeOf(d), G = gestionOf(d);
+    var carrier = carrierShort(d.line, d.compania);
+    var con = carrier ? " con " + carrier : "";
+    var lbl = lineLabel(d), y = year(d);
 
-  function narrative(d) {
-    var O = outcomeOf(d);
-    if (O.id === "sincontacto") {
-      var s = "Se intenta contactar al cliente por llamada " + motive(d) + ", sin respuesta.";
-      if (METODO_ES[d.metodo]) { s += " Se le envía " + METODO_ES[d.metodo] + "."; }
-      if (val(d.intento)) { s += " Intento #" + val(d.intento) + "."; }
-      return s;
+    if (d.line === "oc") {
+      switch (O.id) {
+        case "enviada": return ({ renovacion: "Se renueva", cambio: "Se actualiza" }[G.v] || "Se procesa") + " app OC" + y + con + ".";
+        case "cancelada": return "Se cancela app OC" + y + con + " a solicitud de " + cliente(d) + ".";
+        case "cotizacion":
+        case "consent": return talk(d) + ", nos indicó que desea cotizar con los siguientes datos:";
+        case "lista": return talk(d) + ", nos indicó que desea " + { nueva: "aplicar", renovacion: "renovar", cambio: "actualizar su app" }[G.v] + " con los siguientes datos:";
+        case "docs": return talk(d) + " sobre los documentos que pide el MKPL para su app OC" + y + ".";
+        case "pago": return talk(d) + " sobre el pago de su plan OC" + y + con + ".";
+        case "cita": return talk(d) + ", " + { nueva: "está " + adj(d, "interesado") + " en aplicar al OC", renovacion: "desea renovar su OC", cambio: "desea actualizar su app OC" }[G.v] + y + ". Se agenda cita" + citaWhen(d) + ".";
+        case "nointeresado": return talk(d) + ", indica que no está " + adj(d, "interesado") + " por el momento.";
+      }
     }
-    var out = opening(d) + " " + motive(d) + ".";
-    if (d.line === "mc" && has(O, "proceso") && d.soaEstado === "firmado" && O.id !== "soa") {
-      out += " Se firma el SOA previo a la cita" + (U.parseDate(d.soaFecha) ? " (" + U.parseDate(d.soaFecha) + ")" : "") + ".";
+    if (d.line === "mc") {
+      switch (O.id) {
+        case "enviada": return G.v === "cambio" ? "Se procesa cambio de plan de MC" + (carrier ? " a " + carrier : "") + "." : "Se procesa app de MC" + con + ".";
+        case "cancelada": return "Se cancela app de MC" + con + " a solicitud de " + cliente(d) + ".";
+        case "soa": return talk(d) + " sobre su plan de MC" + y + ". Se envía el SOA para firma antes de revisar los planes.";
+        case "cita": return talk(d) + ", desea revisar su plan de MC" + y + ". Se agenda cita" + citaWhen(d) + ".";
+        case "sincambio": return talk(d) + ", se revisan los beneficios de su plan para" + (y || " el próximo año") + " y decide mantenerse en su plan actual.";
+        case "interesado": return talk(d) + ", está " + adj(d, "interesado") + " en aplicar al MC con la agencia.";
+        case "nointeresado": return talk(d) + ", indica que no está " + adj(d, "interesado") + " por el momento.";
+      }
     }
-    var f = U.parseDate(d.fechaSeg), h = U.parseTime(d.hora);
-    var seg = f ? " para el " + f + (h ? " a las " + h : "") : "";
-    var plat = val(d.plataforma) || "el Mercado";
-    var cierre = O.cierre.replace("{plataforma}", plat).replace("{seg}", seg);
-    if (O.id === "pago") { cierre = PAGO_CIERRE[d.pagoEstado] || ""; }
-    if (cierre) { out += " " + cierre; }
-    return out;
+    if (d.line === "supp") {
+      var P = productOf(d), others = members(d).slice(1);
+      var who = cliente(d) + (others.length ? (others.length === 1 ? " y " + others[0] : ", " + others.slice(0, -1).join(", ") + " y " + others[others.length - 1]) : "");
+      var what = (P.es ? " de " + P.es : "") + (carrier ? " de " + carrier : "") + (val(d.plan) ? ", plan " + val(d.plan) + "," : "");
+      switch (O.id) {
+        case "enviada":
+          return ({ renovacion: "Se renueva app", cambio: "Se procesa cambio de plan" }[G.v] || "Se procesa app") + what + " para " + who + ".";
+        case "cancelada": return "Se cancela" + (P.es ? " " + P.es : " el plan") + (carrier ? " de " + carrier : "") + " a solicitud de " + cliente(d) + ".";
+        case "cotizacion": return talk(d) + ", desea cotizar " + P.sms + ".";
+        case "pago": return talk(d) + " sobre el pago de su " + P.sms + (carrier ? " con " + carrier : "") + ".";
+        case "shortterm": return talk(d) + " sobre la renovación de su Short Term" + (carrier ? " de " + carrier : "") + ".";
+      }
+    }
+    /* sin contacto: igual para todas las líneas */
+    var por = { nueva: "su app " + lbl, renovacion: "la renovación de su " + lbl, cambio: "su " + lbl }[G.v] || ("su " + lbl);
+    if (d.line === "mc") { por = "revisar su plan de MC"; }
+    var s = "Se llama a " + cliente(d) + " para " + por + y + ", sin respuesta.";
+    if (METODO_ES[d.metodo]) { s += " Se le envía " + METODO_ES[d.metodo] + "."; }
+    if (val(d.intento)) { s += " Intento #" + val(d.intento) + "."; }
+    return s;
   }
 
   function paymentLine(d) {
@@ -225,140 +257,148 @@
     var fecha = U.parseDate(d.pagoFecha);
     switch (d.pagoEstado) {
       case "PAYMENT":
-        return "Realizado" + (monto ? " - " + monto : "") + (fecha ? " el " + fecha : "") +
-               (val(d.pagoMetodo) ? " - " + val(d.pagoMetodo) : "") +
-               (val(d.pagoConf) ? " - Conf. " + val(d.pagoConf) : "") +
-               (d.autopay === "SI" ? " - Autopay activo" : (d.autopay === "NO" ? " - Sin autopay" : ""));
+        return ["Realizado" + (monto ? " - " + monto : "") + (fecha ? " el " + fecha : ""),
+                val(d.pagoMetodo), val(d.pagoConf) ? "Conf. " + val(d.pagoConf) : ""].filter(Boolean).join(" - ");
       case "NO PAYMENT":
-        return "Pendiente" + (monto ? " - prima de " + monto : "") + (fecha ? " - el cliente paga el " + fecha : "");
+        return "Pendiente" + (monto ? " - prima de " + monto : "") + (fecha ? " - " + cliente(d) + " paga el " + fecha : "");
       case "PAYMENT NOT VERIFIED":
-        return "No verificado - el cliente no contestó para confirmar";
+        return "No verificado - " + cliente(d) + " no contestó para confirmar";
       case "NO PREMIUM":
         return "No aplica - plan sin prima";
       default:
-        return "";
+        return val(d.pagoMetodo);
     }
   }
 
-  /* Lo que queda pendiente: lo que escribió el agente (o lo sugerido para la
-     situación) más lo que se deduce del pago y de los documentos. */
-  function pendingItems(d) {
-    var O = outcomeOf(d), items = [];
-    var typed = val(d.pendiente);
-    if (typed) { items.push(typed); } else if (O.pendiente) { items.push(O.pendiente); }
-    if (has(O, "pago")) {
-      var monto = U.parseMoney(d.pagoMonto) || (d.line === "oc" ? U.parseMoney(d.primaPagar) : U.parseMoney(d.prima));
-      if (d.pagoEstado === "NO PAYMENT") {
-        items.push("Pago de la prima" + (monto ? " (" + monto + ")" : "") +
-                   (U.parseDate(d.pagoFecha) ? " - el cliente paga el " + U.parseDate(d.pagoFecha) : ""));
-      } else if (d.pagoEstado === "PAYMENT NOT VERIFIED") {
-        items.push("Confirmar el pago con el cliente");
-      }
-    }
-    if (has(O, "docsreq") && val(d.docReq) && O.id !== "docs") {
-      items.push("Enviar al Mercado: " + val(d.docReq) +
-                 (U.parseDate(d.docFecha) ? " antes del " + U.parseDate(d.docFecha) : ""));
-    }
-    return items;
+  function agentRows(d, add) {
+    var O = outcomeOf(d);
+    if (!has(O, "agente")) { return; }
+    /* el NPN se anota con las iniciales del agente, como en los templates */
+    if (val(d.agente) || val(d.agenteIni)) { add("NPN", upper(d.agenteIni) || U.initials(d.agente)); }
+    if (d.line === "mc") { add("Writing ID", d.escritura); }
+    add("Colaborador", upper(d.colaboradorNombre));
   }
 
-  function dataRows(d) {
-    var O = outcomeOf(d), rows = [];
-    function add(label, value) { if (val(value)) { rows.push(label + ": " + val(value)); } }
+  function bodyOC(d, add, raw) {
+    var O = outcomeOf(d), m = members(d);
+    var nTax = val(d.hogar), nCov = m.length;
+    var names = nCov ? " (" + m.join(", ") + ")" : "";
+    var cov = nCov ? nCov + names : "";
+    var quoteLike = O.id === "cotizacion" || O.id === "consent" || O.id === "lista";
 
-    var name = fullName(d);
-    var members = U.parseList(d.miembros).map(function (x) { return x.toUpperCase(); });
-
-    if (has(O, "cliente")) {
-      add("Solicitante", name);
-      if (d.line !== "mc" && members.length) {
-        add("Miembros en cobertura", members.length + " - " + members.join(", "));
+    if (quoteLike) {
+      var portal = { "HealthSherpa": "HEALTHSHERPA", "el portal de la compañía": "PORTAL DE LA COMPAÑÍA" }[d.plataforma] || "MARKETPLACE";
+      raw("PROCESAR POR EL PORTAL: " + portal + ".");
+      if (val(d.ingreso)) { raw("Income: " + moneyShort(d.ingreso) + "."); }
+      if (nTax) { raw("En taxes: " + nTax + "."); }
+      if (cov) { raw("Solicitan cobertura: " + cov + "."); }
+      add("ID#", d.appId);
+      if (d.periodo === "SEP") { add("Enrollment Period", "SEP" + (val(d.motivoSep) ? " - " + val(d.motivoSep) : "")); }
+      var carrier = carrierShort("oc", d.compania), prima = moneyShort(d.primaPagar);
+      if (carrier || val(d.plan)) {
+        raw("Se explica y da detalles del plan cotizado:");
+        raw("Compañía_Plan: " + [carrier, val(d.plan)].filter(Boolean).join("_") + (prima ? " - " + prima : ""));
       }
+      if (O.id === "consent") { raw("Se envía carta de consentimiento."); }
+      if (O.id === "lista") { raw("Se recibe la carta de consentimiento firmada."); agentRows(d, add); }
+      return;
     }
 
-    if (d.line === "oc") {
-      if (has(O, "hogar")) {
-        add("Tamaño del hogar", d.hogar);
-        add("Ingreso anual estimado", U.parseMoney(d.ingreso));
-      }
-      if (has(O, "proceso")) {
-        add("ID de aplicación", d.appId);
-        if (d.periodo === "SEP") {
-          add("Tipo de inscripción", "Special Enrollment (SEP)" + (val(d.motivoSep) ? " - Motivo: " + val(d.motivoSep) : ""));
-        } else if (d.periodo === "OEP") {
-          add("Tipo de inscripción", "Open Enrollment (OEP)");
-        }
-      }
-      if (has(O, "plan")) {
-        add("Compañía", val(d.compania).toUpperCase());
-        add("Plan", d.plan);
-        add("ID del plan", val(d.planId).toUpperCase());
-        if (val(d.metal) && val(d.plan).toLowerCase().indexOf(val(d.metal).toLowerCase()) < 0) { add("Nivel", d.metal); }
-        var ef = U.parseDate(d.efectiva), fin = U.parseDate(d.fin);
-        add("Cobertura", ef ? ef + (fin ? " - " + fin : "") : "");
-        add("No. de póliza", d.poliza);
-      }
-      if (has(O, "costos")) {
-        add("Prima total", U.parseMoney(d.primaTotal));
-        add("Subsidio (APTC)", U.parseMoney(d.subsidio));
-        add("Prima a pagar", U.parseMoney(d.primaPagar));
-        add("Deducible", U.parseMoney(d.deducible));
-        add("Máximo de bolsillo", U.parseMoney(d.maximo));
-      }
-      if (has(O, "docsreq")) {
-        add("Documentos requeridos", val(d.docReq) ? val(d.docReq) + (U.parseDate(d.docFecha) ? " - fecha tope " + U.parseDate(d.docFecha) : "") : "");
-      }
+    if (has(O, "hogar") && (val(d.ingreso) || nTax || nCov)) {
+      var s = val(d.ingreso) ? "Sus ingresos anuales son " + moneyShort(d.ingreso) + ". " : "";
+      if (nTax && nCov) { s += (nTax === "1" ? "Es " : "Son ") + nTax + " en los taxes y " + nCov + " pidiendo cobertura" + names + "."; }
+      else if (nTax) { s += (nTax === "1" ? "Es " : "Son ") + nTax + " en los taxes."; }
+      else if (nCov) { s += nCov + " pidiendo cobertura" + names + "."; }
+      raw(s.trim());
     }
-
-    if (d.line === "mc") {
-      if (has(O, "medicare")) {
-        add("Número de Medicare (MBI)", val(d.mbi).toUpperCase());
-        add("Parte A efectiva", U.parseDate(d.parteA) || d.parteA);
-        add("Parte B efectiva", U.parseDate(d.parteB) || d.parteB);
-        add("Medicaid", val(d.medicaid) ? "SI - ID " + val(d.medicaid) : "");
-      }
-      if (has(O, "proceso")) {
-        if (val(d.periodoMC)) {
-          add("Período de elección", val(d.periodoMC) + (d.periodoMC === "SEP" && val(d.motivoSepMC) ? " - Motivo: " + val(d.motivoSepMC) : ""));
-        }
-        if (d.soaEstado === "firmado") { add("SOA", "Firmado" + (U.parseDate(d.soaFecha) ? " el " + U.parseDate(d.soaFecha) : "")); }
-        else if (d.soaEstado === "pendiente") { add("SOA", "Pendiente de firma"); }
-        add("Plan anterior", d.anterior);
-      }
-      if (has(O, "plan")) {
-        add("Compañía", val(d.compania).toUpperCase());
-        var contrato = val(d.contrato).toUpperCase();
-        var yaEsta = contrato && val(d.plan).toUpperCase().indexOf(contrato.split("-").slice(0, 2).join("-")) >= 0;
-        add("Plan", val(d.plan) ? val(d.plan) + (contrato && !yaEsta ? " (" + contrato + ")" : "") : "");
-        add("Prima mensual", U.parseMoney(d.prima));
-        add("Fecha efectiva", U.parseDate(d.efectiva) || d.efectiva);
-        add("PCP", val(d.pcp) ? val(d.pcp) + (val(d.pcpId) ? " (ID " + val(d.pcpId) + ")" : "") : "");
-        add("Afección crónica que califica", d.afeccion);
-        add("No. de confirmación", d.confirmacion);
-      }
+    var idLine = [val(d.appId) ? "ID#: " + val(d.appId) : "", val(d.estado) ? "Status: " + val(d.estado) : ""].filter(Boolean).join("   ");
+    if (idLine && (has(O, "proceso") || O.id === "pago")) { raw(idLine); }
+    if (has(O, "plan")) {
+      add(O.id === "enviada" ? "Se inscribe en plan" : "Plan", d.plan);
+      add("Plan ID", upper(d.planId));
+      if (val(d.metal) && val(d.plan).toLowerCase().indexOf(val(d.metal).toLowerCase()) < 0) { add("Nivel", d.metal); }
+      var ef = U.parseDate(d.efectiva), fin = U.parseDate(d.fin);
+      if (ef) { add("Inicia cobertura", ef + (fin ? " (hasta " + fin + ")" : "")); }
     }
-
-    if (d.line === "supp") {
-      if (has(O, "proceso")) { add("Producto", d.producto === "Otro" ? "" : d.producto); }
-      if (has(O, "plan")) {
-        add("Compañía", val(d.compania).toUpperCase());
-        add("Plan", d.plan);
-        add("Tipo de plan", d.tipoPlan);
-        add("Prima mensual", U.parseMoney(d.prima));
-        add("Fecha efectiva", U.parseDate(d.efectiva) || d.efectiva);
-        add("No. de aplicación / póliza", d.poliza);
+    if (has(O, "costos")) {
+      var pay = U.parseMoney(d.primaPagar), tot = U.parseMoney(d.primaTotal), sub = U.parseMoney(d.subsidio);
+      if (pay || tot) {
+        add("Premium", (pay || tot) + (pay && tot && sub ? " (prima " + tot + " - APTC " + sub + ")" : ""));
       }
+      var ded = U.parseMoney(d.deducible), max = U.parseMoney(d.maximo);
+      if (ded || max) { raw([ded ? "Deducible: " + ded : "", max ? "Máx. de bolsillo: " + max : ""].filter(Boolean).join(" / ")); }
     }
-
-    if (has(O, "pago")) { add("Pago", paymentLine(d)); }
-
-    if (has(O, "agente") && val(d.agente)) {
-      add("Agente escritor", val(d.agente).toUpperCase() + (val(d.npn) ? " - NPN " + val(d.npn) : ""));
-      if (d.line === "mc") { add("Writing ID", d.escritura); }
+    if (has(O, "plan")) { add("Póliza #", d.poliza); }
+    if (has(O, "proceso") && O.id === "enviada") {
+      add("Enrollment Period", d.periodo === "SEP" ? "SEP" + (val(d.motivoSep) ? " - " + val(d.motivoSep) : "") : d.periodo);
     }
-    /* quién procesó la aplicación, cuando no es el propio agente */
-    if (has(O, "agente") && val(d.colaboradorNombre)) { add("Colaborador", val(d.colaboradorNombre).toUpperCase()); }
-    return rows;
+    agentRows(d, add);
+    if (has(O, "docsreq")) {
+      if (val(d.docReq)) { raw("MKPL pide docs: " + val(d.docReq) + (U.parseDate(d.docFecha) ? " antes del " + U.parseDate(d.docFecha) : "") + "."); }
+      else if (O.id === "enviada" && d.net && d.net.eligibility) { raw("MKPL no pide docs."); }
+    }
+    if (O.id === "enviada") {
+      var acct = d.cuentaMkpl === "no" ? "No hay cuenta MKPL creada. " : (d.cuentaMkpl === "si" ? "Tiene cuenta MKPL creada. " : "");
+      var how = { "HealthSherpa": "La app se hizo con HealthSherpa.", "HealthCare.gov": "La app se hizo en el MKPL (HealthCare.gov).",
+                  "el portal de la compañía": "La app se hizo en el portal de la compañía." }[d.plataforma] || "";
+      if (acct || how) { raw((acct + how).trim()); }
+    }
+    if (has(O, "pago")) { add("Pago", paymentLine(d)); add("AutoPay", d.pagoEstado === "PAYMENT" ? d.autopay : ""); }
+  }
+
+  function bodyMC(d, add) {
+    var O = outcomeOf(d);
+    if (has(O, "cliente")) { add("Name", zohoName(d)); }
+    if (has(O, "medicare")) {
+      add("MC #", upper(d.mbi));
+      add("PART A", U.parseDate(d.parteA) || d.parteA);
+      add("PART B", U.parseDate(d.parteB) || d.parteB);
+    }
+    if (has(O, "plan")) {
+      var contrato = upper(d.contrato), plan = val(d.plan);
+      var fullPlan = plan ? plan + (contrato && plan.toUpperCase().indexOf(contrato) < 0 ? " " + contrato : "") : contrato;
+      add(O.id === "enviada" || O.id === "cancelada" ? "Plan" : "Plan actual", fullPlan);
+      add("Conf/App #", d.confirmacion);
+    }
+    if (has(O, "proceso") && val(d.periodoMC) && O.id !== "sincontacto") {
+      add("Election Period", val(d.periodoMC) + (d.periodoMC === "SEP" && val(d.motivoSepMC) ? " (" + val(d.motivoSepMC) + ")" : ""));
+    }
+    if (has(O, "plan")) { add("Fecha de efectividad", U.parseDate(d.efectiva) || d.efectiva); }
+    if (has(O, "medicare")) { add("Medicaid", val(d.medicaid) ? "SI - ID " + val(d.medicaid) : ""); }
+    if (has(O, "proceso") && d.gestion === "cambio") { add("Plan anterior", d.anterior); }
+    if (has(O, "plan")) {
+      add("PCP", val(d.pcp) ? val(d.pcp) + (val(d.pcpId) ? " (ID " + val(d.pcpId) + ")" : "") : "");
+      add("Afección crónica", d.afeccion);
+      add("Premium", U.parseMoney(d.prima));
+    }
+    if (has(O, "proceso") && O.id !== "soa" && O.id !== "sincontacto" && d.soaEstado === "firmado" && U.parseDate(d.soaFecha)) {
+      add("SOA firmado", U.parseDate(d.soaFecha));
+    }
+    agentRows(d, add);
+  }
+
+  function bodySupp(d, add, raw) {
+    var O = outcomeOf(d);
+    if (O.id === "cotizacion") {
+      var carrier = carrierShort("supp", d.compania), prima = U.parseMoney(d.prima);
+      if (carrier || val(d.plan)) {
+        raw("Se explica y da detalles del plan cotizado:");
+        raw("Compañía_Plan: " + [carrier, val(d.plan)].filter(Boolean).join("_") + (prima ? " - " + prima : ""));
+      }
+      return;
+    }
+    if (has(O, "plan")) {
+      if (O.id !== "enviada") { add("Plan", d.plan); }
+      add("Effective Date", U.parseDate(d.efectiva) || d.efectiva);
+      add("Monthly Premium", U.parseMoney(d.prima));
+      add("App ID", d.appId);
+      add("Policy #", d.poliza);
+      add("Periodo", d.plazo);
+      add("Tipo de plan", d.tipoPlan);
+      add("Beneficiario", d.beneficiario);
+    }
+    if (has(O, "pago")) { add("Pago", paymentLine(d)); add("AutoPay", d.autopay); }
+    agentRows(d, add);
   }
 
   function networkDocs(d) {
@@ -370,42 +410,162 @@
   function buildNote(d, opts) {
     opts = opts || {};
     var O = outcomeOf(d);
-    var ini = val(d.ini).toUpperCase() || "XX";
-    var out = [];
+    var ini = upper(d.ini) || "XX";
+    var out = [ini + "_" + (U.parseDate(d.fecha) || "MM/DD/YYYY") + ": " + header(d)];
 
-    out.push(ini + "_" + (U.parseDate(d.fecha) || "MM/DD/YYYY") + ": " + narrative(d));
-    out.push("");
+    function add(label, value) { if (val(value)) { out.push(label + ": " + val(value)); } }
+    function raw(text) { if (val(text)) { out.push(text); } }
 
-    out.push("ESTATUS: " + O.estatus + (d.recuperado && has(O, "proceso") ? " (RECUPERADO)" : ""));
-    var pend = pendingItems(d);
-    out.push("PENDIENTE: " + (pend.length ? pend.join("; ") : "Ninguno"));
-    var prox = val(d.proximo) || O.proximo.replace("{plataforma}", val(d.plataforma) || "el Mercado");
-    var stamp = followUpStamp(d);
-    if (prox || stamp) { out.push("PRÓXIMO PASO: " + [prox, stamp].filter(Boolean).join(" - ")); }
+    if (d.line === "mc") { bodyMC(d, add, raw); }
+    else if (d.line === "supp") { bodySupp(d, add, raw); }
+    else { bodyOC(d, add, raw); }
 
-    var rows = dataRows(d);
-    if (rows.length) { out.push(""); rows.forEach(function (r) { out.push(r); }); }
+    String(d.notas || "").split(/\n/).map(U.collapse).filter(Boolean).forEach(function (x, i) {
+      out.push(i === 0 ? "Observaciones: " + x : x);
+    });
 
-    var obs = String(d.notas || "").split(/\n/).map(U.collapse).filter(Boolean);
-    if (obs.length) {
-      out.push("");
-      out.push("Observaciones: " + obs[0]);
-      obs.slice(1).forEach(function (x) { out.push(x); });
-    }
+    var g = function (t) { return String(t || "").replace(/el cliente/g, cliente(d)); };
+    add("Pendiente", val(d.pendiente) || g(O.pendiente));
+    var f = U.parseDate(d.fechaSeg);
+    var prox = val(d.proximo) || (f ? g(O.proximo) : "");
+    if (O.id !== "cita" && (prox || f)) { add("Seguimiento", [prox, f].filter(Boolean).join(" - ")); }
 
-    var tail = [];
     var docs = networkDocs(d);
-    if (docs.length) { tail.push("Documentos en Network: " + docs.join(", ") + "."); }
-    /* el task y el botón rojo solo cierran la nota de una aplicación enviada */
-    if (d.botonRojo && O.submission) { tail.push("Se reporta en el botón rojo."); }
-    if (d.incluirTask && O.submission) { var t = buildTask(d); if (t) { tail.push("Task: " + t); } }
-    if (tail.length) { out.push(""); tail.forEach(function (x) { out.push(x); }); }
+    if (docs.length) { out.push("Docs en mi folder del NETW: " + docs.join(", ") + "."); }
+    /* el botón rojo y el task solo cierran la nota de una aplicación enviada */
+    if (d.botonRojo && O.submission) { out.push("Se reporta en el botón rojo."); }
+    if (d.incluirTask && O.submission) { var t = buildTask(d); if (t) { out.push("Task: " + t); } }
 
     var text = out.join("\n");
     return opts.sinAcentos ? U.stripAccents(text) : text;
   }
 
-  /* ----------------------------------------------------------- avisos -- */
+  /* ---------------------------------------------------------------- SMS -- */
+
+  function firstName(d) { return U.titleCase(val(d.nombres).split(" ")[0] || ""); }
+
+  function buildSms(d, opts) {
+    opts = opts || {};
+    var O = outcomeOf(d);
+    var office = val(d.oficina) || "QAgency";
+    var carrier = carrierShort(d.line, d.compania);
+    var y = year(d);
+    /* kind: cómo se nombra el producto; what: lo mismo con "su" delante */
+    var kind = d.line === "mc" ? "Medicare" + y : (d.line === "supp" ? productOf(d).sms : "Obamacare" + y);
+    var what = d.line === "mc" ? "su plan de Medicare" + y : (d.line === "supp" ? "su " + productOf(d).sms : "su seguro de Obamacare" + y);
+    var plan = val(d.plan);
+    var ef = U.parseDate(d.efectiva);
+    var pay = d.line === "oc" ? U.parseMoney(d.primaPagar) : U.parseMoney(d.prima);
+    var name = firstName(d);
+    var tel = val(d.telefono);
+    var parts = [];
+
+    parts.push("Hola" + (name ? " " + name : "") + ", le saluda el equipo de " + office + ".");
+
+    switch (O.id) {
+      case "enviada":
+        parts.push((d.line === "mc" ? "Su solicitud de " : "Su aplicación de ") + kind + (carrier ? " con " + carrier : "") +
+                   (d.line === "mc" ? " quedó enviada." : " quedó procesada."));
+        if (plan) { parts.push("Plan: " + plan + "."); }
+        if (pay) { parts.push(U.moneyNumber(pay) === 0 ? "No tiene pago mensual." : "Pago mensual: " + pay + "."); }
+        if (ef) { parts.push("Su cobertura inicia el " + ef + "."); }
+        if (d.pagoEstado === "NO PAYMENT") {
+          parts.push("Recuerde hacer su primer pago para activar la cobertura" + (U.parseDate(d.pagoFecha) ? " (fecha acordada: " + U.parseDate(d.pagoFecha) + ")" : "") + ".");
+        }
+        if (d.line === "oc" && val(d.docReq)) {
+          parts.push("El Mercado pide " + val(d.docReq).toLowerCase() + (U.parseDate(d.docFecha) ? " antes del " + U.parseDate(d.docFecha) : "") + "; envíenoslo lo antes posible.");
+        }
+        if (d.line === "mc") { parts.push("Cuando reciba su tarjeta nueva, úsela desde esa fecha."); }
+        break;
+      case "lista":
+        parts.push("Recibimos su consentimiento firmado. Procesaremos " + what + " y le avisaremos cuando quede listo.");
+        break;
+      case "consent":
+        parts.push("Le enviamos la carta de consentimiento para " + what + ". Por favor fírmela cuando pueda para continuar con el proceso.");
+        break;
+      case "cotizacion":
+        parts.push("Gracias por su tiempo. Le cotizamos " + (carrier || plan ? "el plan " + [carrier, plan].filter(Boolean).join(" ") : what) + (pay ? " por " + pay + " al mes" : "") + ". Avísenos si desea continuar con la aplicación.");
+        break;
+      case "docs":
+        parts.push("El Mercado necesita " + (val(d.docReq) ? val(d.docReq).toLowerCase() : "unos documentos") + " para " + what + (U.parseDate(d.docFecha) ? ", con fecha límite el " + U.parseDate(d.docFecha) : "") + ". Por favor envíenoslos lo antes posible para mantener su cobertura.");
+        break;
+      case "pago":
+        var plano = what + (carrier ? " con " + carrier : "");
+        parts.push({
+          "PAYMENT": "Confirmamos el pago de " + plano + (U.parseMoney(d.pagoMonto) ? " por " + U.parseMoney(d.pagoMonto) : "") + ". ¡Gracias!",
+          "NO PAYMENT": "Le recordamos realizar el pago de " + plano + (pay ? " por " + pay : "") + (U.parseDate(d.pagoFecha) ? " el " + U.parseDate(d.pagoFecha) : "") + ".",
+          "PAYMENT NOT VERIFIED": "Queremos confirmar el pago de " + plano + ". Por favor llámenos cuando pueda.",
+          "NO PREMIUM": plano.charAt(0).toUpperCase() + plano.slice(1) + " no tiene pago mensual; no necesita pagar nada."
+        }[d.pagoEstado] || "Le escribimos sobre el pago de " + plano + ".");
+        break;
+      case "soa":
+        parts.push("Le enviamos el formulario de alcance de la cita (SOA) de Medicare. Por favor fírmelo antes de nuestra conversación para poder revisar los planes con usted.");
+        break;
+      case "cita":
+        var f = U.parseDate(d.fechaSeg), h = U.parseTime(d.hora);
+        parts.push("Le confirmamos su cita" + (f ? " para el " + f + (h ? " a las " + h : "") : "") + " para revisar " + what + ". Si necesita cambiarla, avísenos.");
+        break;
+      case "sincambio":
+        parts.push("Como conversamos, usted se mantiene en su plan actual" + (plan ? " (" + plan + ")" : "") + (y ? " para" + y : "") + ".");
+        break;
+      case "interesado":
+        parts.push("Gracias por su interés. Le contactaremos cuando se abra su período para inscribirse en Medicare.");
+        break;
+      case "sincontacto":
+        parts.push("Intentamos comunicarnos con usted sobre " + what + ". Por favor llámenos o responda este mensaje cuando pueda.");
+        break;
+      case "nointeresado":
+        parts.push("Gracias por atendernos. Si más adelante necesita ayuda con su seguro, con gusto le atendemos.");
+        break;
+      case "cancelada":
+        parts.push((what.charAt(0).toUpperCase() + what.slice(1)) + (carrier ? " con " + carrier : "") + " quedó cancelado según lo solicitado.");
+        break;
+      case "shortterm":
+        parts.push("Su plan Short Term" + (plan ? " " + plan : "") + " está por vencer. Llámenos para renovarlo a tiempo.");
+        break;
+    }
+
+    var text = parts.join(" ");
+    /* el teléfono va donde ya se le pide que llame; si no, al final */
+    if (tel && /llámenos/.test(text)) { text = text.replace("llámenos", "llámenos al " + tel); }
+    else if (tel) { text += " Cualquier duda, llámenos al " + tel + "."; }
+    else if (["enviada", "sincambio", "cancelada", "lista"].indexOf(O.id) >= 0) { text += " Cualquier duda, estamos a la orden."; }
+
+    return opts.sinAcentos ? U.stripAccents(text) : text;
+  }
+
+  /* Caracteres y cantidad de mensajes. Con letras fuera del alfabeto GSM
+     (á, í, ó, ú…) cada mensaje admite 70 caracteres en vez de 160. */
+  var GSM = "@£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞÆæßÉ !\"#¤%&'()*+,-./0123456789:;<=>?¡ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÑÜ§¿abcdefghijklmnopqrstuvwxyzäöñüà";
+  function smsInfo(text) {
+    var t = String(text || ""), gsm = true;
+    for (var i = 0; i < t.length; i++) { if (GSM.indexOf(t.charAt(i)) < 0) { gsm = false; break; } }
+    var single = gsm ? 160 : 70, multi = gsm ? 153 : 67;
+    var parts = t.length <= single ? 1 : Math.ceil(t.length / multi);
+    return { length: t.length, parts: t.length ? parts : 0, unicode: !gsm };
+  }
+
+  /* ----------------------------------------------------- nombres archivo -- */
+
+  function buildFileNames(d) {
+    var L = lineOf(d);
+    var carrier = carrierShort(d.line, d.compania) || "Compania";
+    var product = productOf(d).file;
+    var who = U.stripAccents(zohoName(d)) || "Apellido, Nombre";
+    var base = U.parseDate(d.fecha) || U.today();
+    var dates = {
+      note: base,
+      effective: U.parseDate(d.efectiva) || base,
+      soa: U.parseDate(d.soaFecha) || base,
+      payment: U.parseDate(d.pagoFecha) || base
+    };
+    return L.network.map(function (n) {
+      var name = who + " - " + n.file.replace("{carrier}", carrier).replace("{product}", product) + " " + U.yearMonth(dates[n.date] || base);
+      return { k: n.k, label: n.label, name: U.stripAccents(name).replace(/[\\/:*?"<>|]/g, "") };
+    });
+  }
+
+  /* ------------------------------------------------------------- avisos -- */
 
   var SSN_RE = /\b\d{3}-\d{2}-\d{4}\b/;
 
@@ -430,9 +590,10 @@
   }
 
   var api = {
-    buildNote: buildNote, buildTask: buildTask, formatTask: formatTask, buildReport: buildReport, warnings: warnings,
+    buildNote: buildNote, buildTask: buildTask, formatTask: formatTask, buildReport: buildReport,
+    buildSms: buildSms, smsInfo: smsInfo, buildFileNames: buildFileNames, warnings: warnings,
     autoTaskId: autoTaskId, taskById: taskById, outcomeOf: outcomeOf, lineOf: lineOf, gestionOf: gestionOf,
-    carrierShort: carrierShort, memberDelta: memberDelta, pendingItems: pendingItems, narrative: narrative
+    productOf: productOf, carrierShort: carrierShort, memberDelta: memberDelta, zohoName: zohoName
   };
   root.QA = root.QA || {};
   root.QA.notes = api;
