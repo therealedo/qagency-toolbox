@@ -1381,7 +1381,7 @@
     var label = btn.dataset.label || btn.textContent;
     btn.dataset.label = label;
     btn.textContent = "Copiado ✓"; btn.classList.add("done");
-    setTimeout(function () { btn.textContent = label; btn.classList.remove("done"); }, 1600);
+    setTimeout(function () { btn.textContent = btn.dataset.label || label; btn.classList.remove("done"); }, 1600);
   }
 
   function copyOut(key, btn, win) {
@@ -1579,6 +1579,7 @@
     if (f.status === "reading") { return f.ocrStep || "Leyendo…"; }
     if (f.status === "error") { return f.ocr ? "El OCR no pudo leerlo. Usa «Pegar texto» o llena los datos a mano." : "No se pudo leer. Usa «Pegar texto»."; }
     if (f.ocr && (f.status === "image" || f.status === "scanned")) { return "El OCR no encontró texto: llena los datos a mano"; }
+    if (f.status === "image" && f.other) { return "Este tipo de archivo no se lee: llena los datos a mano"; }
     if (f.status === "image") { return "Imagen: este navegador no tiene OCR, llena los datos a mano"; }
     if (f.status === "scanned") { return "PDF escaneado: este navegador no tiene OCR, llena los datos a mano"; }
     /* lo leído con OCR puede traer errores: se pide revisarlo */
@@ -1621,6 +1622,8 @@
      navegador; el texto pasa por la misma extracción que un PDF con texto. */
   function ocrReady() { return !!(OCR && OCR.supported()); }
   function ocrStep(entry, text) { entry.ocrStep = text; renderFiles(); }
+  /* lo leído con OCR cuenta aunque sea poco (una captura de una sola línea) */
+  function ocrStatus(text, empty) { return String(text || "").replace(/\s/g, "").length < 4 ? empty : "ok"; }
 
   function readFile(file) {
     var entry = { name: file.name, status: "reading", applied: 0, file: file };
@@ -1642,7 +1645,7 @@
             ocrStep(entry, n > 1 ? "Leyendo con OCR… página " + i + " de " + n : "Leyendo con OCR…");
           }).then(function (r) {
             entry.ocrPages = r.pages; entry.ocrTotal = r.total;
-            finishFile(entry, r.text);
+            finishFile(entry, r.text, ocrStatus(r.text, "scanned"));
           });
         });
       }).catch(failed);
@@ -1654,9 +1657,10 @@
       entry.ocr = true;
       ocrStep(entry, "Leyendo con OCR…");
       return OCR.readImage(file).then(function (text) {
-        finishFile(entry, text, OCR.needsOcr(text) ? "image" : "");
+        finishFile(entry, text, ocrStatus(text, "image"));
       }).catch(failed);
     }
+    entry.other = !isImage;
     finishFile(entry, "", "image");
     return Promise.resolve();
   }
@@ -2200,6 +2204,10 @@
     /* una captura pegada con Ctrl + V en la vista de la nota se lee con OCR */
     document.addEventListener("paste", function (e) {
       if (currentView !== "nota" || !e.clipboardData || $("dlgPaste").open) { return; }
+      /* Excel y otras apps copian el texto junto con una imagen: en un campo
+         se pega el texto, como siempre */
+      var t = e.target, editable = t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
+      if (editable && Array.prototype.indexOf.call(e.clipboardData.types || [], "text/plain") >= 0) { return; }
       var imgs = Array.prototype.filter.call(e.clipboardData.files || [], function (f) { return /^image\//i.test(f.type); });
       if (!imgs.length) { return; }
       e.preventDefault();
