@@ -378,6 +378,8 @@
       f.fin = after(doc, [/\b(Coverage\s*)?end\s*date\b/i, /Fecha de finalizaci[oó]n/i], vDate, 1);
     }
 
+    var st = doc.flat.match(/(?:^|\n)\s*(?:status:\s*|estado:\s*)?(active|activo|pending|pendiente|unpaid binder|terminated|cancell?ed|canceled)\s*(?:\n|$)/i);
+    if (st) { f.estado = { activo: "Active", pendiente: "Pending" }[st[1].toLowerCase()] || U.titleCase(st[1]).replace("Binder", "binder"); }
     f.compania = carrierIn("oc", (f.plan || "") + "\n" + doc.flat);
     var metal = ((f.plan || "") + " " + doc.flat).match(/\b(expanded bronze|bronze|silver|gold|platinum|catastrophic)\b/i);
     if (metal) { f.metal = U.titleCase(metal[1]); }
@@ -430,6 +432,9 @@
     if (/\baccident(al)?\b|accidentes/i.test(text) && !dental) { return "Accident"; }
     if (/\bcancer\b|c[aá]ncer|critical\s*illness/i.test(text) && !dental) { return "Cancer"; }
     if (/short[\s-]?term/i.test(text)) { return "Short Term"; }
+    if (/\b(term|whole|universal|final expense)\s*life\b|life\s*insurance\s*(application|policy)|seguro de vida/i.test(text)) { return "Life"; }
+    if (/international|travel\s*medical|geo\s*blue|seguro internacional/i.test(text)) { return "International"; }
+    if (/discount\s*(medical\s*)?(plan|card|program)|plan de descuento/i.test(text)) { return "Discount Plan"; }
     if (dental && vision && /dental\s*(and|&|\+|y|\/)\s*visi[oó]n/i.test(text)) { return "Dental + Vision"; }
     if (dental) { return "Dental"; }
     if (vision) { return "Vision"; }
@@ -444,8 +449,14 @@
     f.plan = after(doc, [/\bPlan\s*name\b/i, /Nombre del plan/i, /\b(Selected\s*plan|Plan\s*selected)\b/i, /\bProduct\s*name\b/i], vText(70), 1);
     f.prima = after(doc, [/\b(Total\s*)?monthly\s*premium\b/i, /Prima\s*mensual/i, /\bPremium\b/i, /\bPrima\b/i], vMoney, 1);
     f.efectiva = after(doc, [/\b(Requested\s*)?effective\s*date\b/i, /\bCoverage\s*start\s*date\b/i, /Fecha efectiva/i], vDate, 1);
-    f.poliza = after(doc, [/\bApplication\s*(ID|number|#|no\.?)/i, /\bPolicy\s*(ID|number|#|no\.?)/i,
-      /N[uú]mero de (solicitud|aplicaci[oó]n|p[oó]liza)/i, /\bConfirmation\s*(number|#)/i], vCode(5, 24), 1);
+    f.appId = after(doc, [/\bApplication\s*(ID|number|#|no\.?)/i, /\bApp\s*ID\b/i,
+      /N[uú]mero de (solicitud|aplicaci[oó]n)/i, /\bConfirmation\s*(number|#)/i], vCode(5, 24), 1);
+    f.poliza = after(doc, [/\bPolicy\s*(ID|number|#|no\.?)/i, /\bCertificate\s*(number|#)/i, /N[uú]mero de p[oó]liza/i], vCode(5, 24), 1);
+    if (f.poliza && f.poliza === f.appId) { delete f.poliza; }
+    if (/beneficiar/i.test(doc.flat)) {
+      var ben = after(doc, [/\bPrimary\s*beneficiary(\s*name)?\b/i, /\bBeneficiary(\s*name)?\b/i, /Beneficiario(\s*principal)?/i], vText(60), 1);
+      if (ben && !/%|percent|porcentaje/i.test(ben)) { f.beneficiario = ben; }
+    }
     if (/\bDHMO\b/.test(doc.flat)) { f.tipoPlan = "DHMO"; }
     else if (/\bDPPO\b|\bPPO\b/.test(doc.flat)) { f.tipoPlan = "DPPO"; }
     agentInfo(doc, f);
@@ -475,7 +486,9 @@
       [/thank you for your payment|gracias por su pago/i, 4], [/amount paid|monto pagado|payment amount/i, 1]],
     supp_app: [[/\bdental\b/i, 1], [/\bvisi[oó]n\b/i, 1], [/hospital indemnity|indemnizaci[oó]n hospitalaria/i, 3],
       [/accident(al)? (insurance|coverage|plan)|seguro de accidentes/i, 3], [/cancer (insurance|plan)|critical illness/i, 3],
-      [/short[\s-]?term (medical|health)/i, 3], [/waiting period|per[ií]odo de espera/i, 1], [/\b(DHMO|DPPO)\b/, 2]],
+      [/short[\s-]?term (medical|health)/i, 3], [/waiting period|per[ií]odo de espera/i, 1], [/\b(DHMO|DPPO)\b/, 2],
+      [/life insurance|seguro de vida|death benefit|face amount/i, 3], [/international|travel medical|geo\s*blue/i, 3],
+      [/discount (medical )?(plan|card|program)/i, 3]],
     consent: [[/consent (form|to act|for)|consentimiento/i, 3], [/authorize|autorizo|autorizaci[oó]n/i, 1],
       [/agent of record|agente de registro/i, 1]]
   };

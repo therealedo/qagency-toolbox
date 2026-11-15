@@ -19,7 +19,7 @@ test("My Plans & Programs", () => {
     planId: "68398FL0030046", plan: "Ambetter Standard Silver",
     primaTotal: "$850.12", subsidio: "$824.72", primaPagar: "$25.40",
     miembros: "BEATRIZ DIAZ\nJUAN CARLOS DIAZ\nANA DIAZ", nombres: "BEATRIZ", apellidos: "DIAZ",
-    efectiva: "01/01/2027", fin: "12/31/2027", compania: "AMBETTER", metal: "Silver", anio: "2027",
+    efectiva: "01/01/2027", fin: "12/31/2027", estado: "Active", compania: "AMBETTER", metal: "Silver", anio: "2027",
     plataforma: "HealthCare.gov"
   });
 });
@@ -109,7 +109,20 @@ test("Aplicación dental", () => {
   assert.equal(r.fields.compania, "FLORIDA BLUE (FCL)");
   assert.equal(r.fields.prima, "$38.50");
   assert.equal(r.fields.efectiva, "12/01/2026");
-  assert.equal(r.fields.poliza, "2026111400123");
+  assert.equal(r.fields.appId, "2026111400123");
+  assert.equal(r.fields.poliza, undefined);
+});
+
+test("Aplicación de vida: producto, App ID y beneficiario", () => {
+  const text = "Occidental Life Insurance Company\nTerm Life Insurance Application\nApplication ID: OL-778899\n" +
+    "First Name: Katherina\nLast Name: Collantes Vasquez\nMonthly Premium: $45.20\n" +
+    "Primary Beneficiary: Collantes, Pedro (husband)\nRequested Effective Date: 05/15/2026";
+  const r = X.extract(text, "app.pdf", "oc");
+  assert.equal(r.type, "supp_app");
+  assert.equal(r.fields.producto, "Life");
+  assert.equal(r.fields.compania, "OCCIDENTAL");
+  assert.equal(r.fields.appId, "OL-778899");
+  assert.equal(r.fields.beneficiario, "Collantes, Pedro (husband)");
 });
 
 test("el nombre del archivo ayuda cuando el documento no trae texto", () => {

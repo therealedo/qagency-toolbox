@@ -1,10 +1,12 @@
 # Q Agency Toolbox
 
-One app that turns a client contact into the three things the team has to write afterwards:
+One app that turns a client contact into everything the team has to write afterwards:
 
-- the **Zoho CRM note**, always in the same structure
+- the **Zoho CRM note**, in the shape of the agency's PROCESS TEMPLATES
 - the **task name**, in the TASK Q AGENCY format
 - the **Cliq report line**, in the STANDARD FORMs - REPORT format
+- the **SMS for the client**, signed with the office (QAgency or ATH Insurance)
+- the **file names** for saving each document to the Network, per NOMBRE DE ARCHIVOS
 
 Pick the line of business and how the contact ended, drop the PDFs saved for the case, check the fields, copy.
 
@@ -44,9 +46,19 @@ Each person in **Ajustes → Equipo** has the initials they sign notes and tasks
 
 In the *Agente y colaborador* section of a note, **Agente escritor** is the agent whose NPN was used and **Colaborador** is who actually processed the application. When they are different people the note names the collaborator and the report line starts with their initials (`MA: Q1234 - … (LI)`); a checkbox under the report switches that prefix on or off.
 
-### What ends the note
+### The note
+
+Each situation writes the note the way PROCESS TEMPLATES does: `ER_11/09/2026:` and one sentence, then the case data in the agency's own labels (`ID#`, `Status`, `Inicia cobertura`, `Premium`, `Enrollment Period`, `MC #`, `PART A`, `Conf/App #`, `Effective Date`, `Monthly Premium`, `AutoPay`…), the agent as `NPN: LI`, and `Docs en mi folder del NETW: …`. Conversations start with the call time in 12-hour format, `Se conversa con la cliente (02:44)`, and **En la nota** switches between *el cliente* and *la cliente*.
 
 When the situation is a submitted application, the note ends with «Se reporta en el botón rojo» and the task line. Other situations end without them. Both can be switched off in Ajustes.
+
+The note never asks for or includes Marketplace usernames, passwords or security questions.
+
+### SMS and file names
+
+The SMS card writes a short message for the client in Spanish: what was done and what they need to do next, greeting them by first name and signed by the office chosen in Ajustes, with that office's phone number if one is set. The counter shows how many text messages it takes; accents make each one hold 70 characters instead of 160, and **Sin acentos** fixes that.
+
+The Network section lists the documents for the line of business, each with its file name ready to copy, for example `Caso, Angel - Medicare_Humana 2026 OCT`. Copying a name also ticks the document, so it is listed in the note. Plan documents (My Plans & Programs, the Medicare application, supplemental applications and ID cards) take the year and month of the coverage start; the rest take the date of the note, the SOA signature or the payment.
 
 ## What it reads
 
@@ -58,7 +70,7 @@ When the situation is a submitted application, the note ends with «Se reporta e
 | Medicare application summary (carrier portal, Spanish or English) | MBI, Part A/B, plan, contract, election period, PCP, confirmation, agent |
 | Scope of Appointment | beneficiary, signature date |
 | Payment receipt | amount, date, confirmation, last 4 digits, autopay |
-| Supplemental application | product, carrier, plan, premium, effective date |
+| Supplemental application (dental, vision, hospital, accident, cancer, short term, life, international, discount) | product, carrier, plan, premium, effective date, App ID, policy number, beneficiary |
 
 Scanned PDFs and screenshots have no text to read; they are still ticked in the *Documentos en Network* list by file name, and the fields are typed by hand. **Pegar texto** is the fallback when a PDF will not open.
 
@@ -67,7 +79,7 @@ The reader was built against the sample documents in `samples/` (all data fictit
 ## Privacy
 
 - Documents are read inside the browser. The page makes no network requests with client data, and its Content-Security-Policy blocks them (`connect-src 'none'`). Fonts and the PDF reader are bundled, so nothing loads from a CDN.
-- Client data lives only in memory and is gone when the window closes. Only settings are stored in the browser: the team list, your name, the office, the theme.
+- Client data lives only in memory and is gone when the window closes. Only settings are stored in the browser: the team list, your name, the office and its phone, the theme.
 - Social Security numbers are never extracted, and a warning appears if the note contains something shaped like one.
 - When hosted, a service worker keeps a copy of the app's own files so it opens offline. It never handles documents or client data.
 

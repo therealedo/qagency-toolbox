@@ -23,8 +23,8 @@
 
   function loadSettings() {
     var def = {
-      v: SETTINGS_VERSION, autor: "", team: clone(C.TEAM), oficina: C.OFFICES[0],
-      incluirTask: true, botonRojo: true, sinAcentos: false, theme: "", line: "oc"
+      v: SETTINGS_VERSION, autor: "", team: clone(C.TEAM), oficina: C.OFFICES[0], telefonos: {},
+      incluirTask: true, botonRojo: true, sinAcentos: false, smsSinAcentos: false, theme: "", line: "oc"
     };
     try {
       var saved = JSON.parse(localStorage.getItem(STORE) || "null");
@@ -36,6 +36,7 @@
     } catch (e) { /* almacenamiento bloqueado: se sigue con los valores por defecto */ }
     if (!C.LINES[def.line]) { def.line = "oc"; }
     if (C.OFFICES.indexOf(def.oficina) < 0) { def.oficina = C.OFFICES[0]; }
+    if (!def.telefonos || typeof def.telefonos !== "object") { def.telefonos = {}; }
     return def;
   }
 
@@ -80,7 +81,8 @@
   function freshFields() {
     var season = seasonDefaults();
     return {
-      fecha: U.today(), canal: "Call", modalidad: "presencial", anio: U.defaultPlanYear(),
+      fecha: U.today(), horaLlamada: U.to12h(new Date()), genero: "o",
+      canal: "Call", modalidad: "presencial", anio: U.defaultPlanYear(),
       codigoTipo: "Q", gestion: "", periodo: season.periodo, plataforma: "HealthCare.gov",
       periodoMC: season.periodoMC, soaEstado: "firmado", producto: "Dental",
       metodo: "TEXT", intento: "1", hora: "09:00", net: {}, taskId: "", taskOwner: "",
@@ -95,7 +97,7 @@
     auto: {},      /* true: leído de un documento; "calc": calculado o por defecto */
     rank: {},      /* prioridad del documento que llenó cada campo */
     files: [],
-    edited: { note: false, task: false, report: false },
+    edited: { note: false, task: false, report: false, sms: false },
     dirty: false
   };
 
@@ -113,7 +115,7 @@
     { id: "docs", title: "Documentos que pide el Mercado", short: "Docs pedidos" },
     { id: "seguimiento", title: "Pendiente y próximo paso", short: "Seguimiento" },
     { id: "agente", title: "Agente y colaborador", short: "Agente" },
-    { id: "network", title: "Documentos guardados en Network", short: "Network" }
+    { id: "network", title: "Network: documentos y nombres de archivo", short: "Network" }
   ];
 
   var SEP_OC = ["Pérdida de cobertura", "Mudanza", "Matrimonio", "Nacimiento o adopción", "Divorcio o separación",
@@ -141,11 +143,14 @@
     { k: "fecha", g: "contacto", type: "date", label: "Fecha de la nota" },
     { k: "anio", g: "contacto", type: "int", label: "Año del plan", max: 4 },
     { k: "canal", g: "contacto", type: "seg", label: "Canal", w: "w2", options: C.CHANNELS },
+    { k: "horaLlamada", g: "contacto", type: "clock", label: "Hora de la llamada", hint: "En formato de 12 horas, como en las notas" },
     { k: "modalidad", g: "contacto", type: "select", label: "Modalidad de la cita", options: C.MODALIDADES,
       when: function (f) { return f.canal === "Appointment"; } },
 
     { k: "nombres", g: "cliente", sec: "cliente", type: "text", label: "Nombre(s)", w: "w2", upper: true, hint: "Como aparece en Zoho" },
     { k: "apellidos", g: "cliente", sec: "cliente", type: "text", label: "Apellido(s)", w: "w2", upper: true },
+    { k: "genero", g: "cliente", sec: "cliente", type: "seg", label: "En la nota", w: "w2",
+      options: [{ v: "o", l: "el cliente" }, { v: "a", l: "la cliente" }] },
     { k: "codigoTipo", g: "cliente", sec: "cliente", type: "seg", label: "Código en Zoho", w: "w2",
       options: [{ v: "Q", l: "Código Q" }, { v: "New", l: "New" }, { v: "Sin Code", l: "Sin Code" }] },
     { k: "codigoQ", g: "cliente", sec: "cliente", type: "text", label: "Número Q", ph: "1234", prefix: "Q",
@@ -157,8 +162,8 @@
       lines: ["oc", "supp"], hint: "Uno por línea, empezando por el titular" },
     { k: "adicionales", g: "cliente", sec: "cliente", type: "text", label: "Miembros ±", lines: ["oc", "supp"],
       hint: "Para el reporte: +2, o -1 si se quitó" },
-    { k: "hogar", g: "cliente", sec: "hogar", type: "int", label: "Tamaño del hogar", lines: ["oc"], max: 2 },
-    { k: "ingreso", g: "cliente", sec: "hogar", type: "money", label: "Ingreso anual estimado", lines: ["oc"] },
+    { k: "hogar", g: "cliente", sec: "hogar", type: "int", label: "En los taxes", lines: ["oc"], max: 2, hint: "Personas en la declaración" },
+    { k: "ingreso", g: "cliente", sec: "hogar", type: "money", label: "Ingreso anual (income)", lines: ["oc"] },
     { k: "mbi", g: "cliente", sec: "medicare", type: "text", label: "Número de Medicare (MBI)", w: "w2", upper: true, lines: ["mc"] },
     { k: "medicaid", g: "cliente", sec: "medicare", type: "text", label: "ID de Medicaid", w: "w2", lines: ["mc"], hint: "Solo si tiene Medicaid" },
     { k: "parteA", g: "cliente", sec: "medicare", type: "date", label: "Parte A efectiva", lines: ["mc"] },
@@ -169,12 +174,16 @@
     { k: "recuperado", g: "gestion", sec: "proceso", type: "check", label: "Cliente recuperado" },
     { k: "producto", g: "gestion", sec: "proceso", type: "select", label: "Producto", lines: ["supp"],
       options: C.LINES.supp.productos.map(function (p) { return p.v; }) },
-    { k: "periodo", g: "gestion", sec: "proceso", type: "seg", label: "Tipo de inscripción", lines: ["oc"], options: ["OEP", "SEP"] },
+    { k: "periodo", g: "gestion", sec: "proceso", type: "seg", label: "Enrollment Period", lines: ["oc"], options: ["OEP", "SEP", "None"] },
     { k: "motivoSep", g: "gestion", sec: "proceso", type: "text", label: "Motivo del SEP", w: "w2", lines: ["oc"], list: SEP_OC,
       when: function (f) { return f.periodo === "SEP"; } },
     { k: "plataforma", g: "gestion", sec: "proceso", type: "select", label: "Plataforma", lines: ["oc"],
       options: ["HealthCare.gov", "HealthSherpa", "el portal de la compañía"] },
-    { k: "appId", g: "gestion", sec: "proceso", type: "text", label: "ID de aplicación", lines: ["oc"] },
+    { k: "appId", g: "gestion", sec: "proceso", type: "text", lines: ["oc", "supp"],
+      label: function () { return S.line === "oc" ? "ID de aplicación (ID#)" : "App ID"; } },
+    { k: "cuentaMkpl", g: "gestion", sec: "proceso", type: "seg", label: "Cuenta MKPL", lines: ["oc"], clearable: true,
+      options: [{ v: "si", l: "Creada" }, { v: "no", l: "No creada" }],
+      when: function () { return O().id === "enviada"; } },
     { k: "periodoMC", g: "gestion", sec: "proceso", type: "select", label: "Período de elección", lines: ["mc"],
       options: ["AEP", "OEP", "ICEP / IEP", "SEP"] },
     { k: "motivoSepMC", g: "gestion", sec: "proceso", type: "text", label: "Motivo del SEP", w: "w2", lines: ["mc"], list: SEP_MC,
@@ -192,6 +201,7 @@
       list: function () { return C.CARRIERS[S.line].map(function (c) { return c.name; }); } },
     { k: "plan", g: "plan", sec: "plan", type: "text", label: "Nombre del plan", w: "w2" },
     { k: "planId", g: "plan", sec: "plan", type: "text", label: "ID del plan", lines: ["oc"], upper: true },
+    { k: "estado", g: "plan", sec: "plan", type: "text", label: "Status", lines: ["oc"], list: ["Active", "Pending", "Unpaid binder", "Terminated"] },
     { k: "metal", g: "plan", sec: "plan", type: "select", label: "Nivel", lines: ["oc"],
       options: ["", "Bronze", "Expanded Bronze", "Silver", "Gold", "Platinum", "Catastrophic"] },
     { k: "contrato", g: "plan", sec: "plan", type: "text", label: "Contrato (H-PBP)", ph: "H1036-077", lines: ["mc"], upper: true },
@@ -201,7 +211,11 @@
       label: function () { return S.line === "oc" ? "Cobertura desde" : "Fecha efectiva"; } },
     { k: "fin", g: "plan", sec: "plan", type: "date", label: "Cobertura hasta", lines: ["oc"] },
     { k: "poliza", g: "plan", sec: "plan", type: "text", lines: ["oc", "supp"],
-      label: function () { return S.line === "oc" ? "No. de póliza" : "No. de aplicación / póliza"; } },
+      label: function () { return S.line === "oc" ? "No. de póliza" : "Policy #"; } },
+    { k: "plazo", g: "plan", sec: "plan", type: "text", label: "Periodo", ph: "3 years", lines: ["supp"],
+      when: function (f) { return f.producto === "Short Term"; } },
+    { k: "beneficiario", g: "plan", sec: "plan", type: "text", label: "Beneficiario", w: "w2", lines: ["supp"],
+      ph: "Apellido, Nombre (parentesco)", when: function (f) { return f.producto === "Life" || f.producto === "Accident"; } },
     { k: "primaTotal", g: "plan", sec: "costos", type: "money", label: "Prima total", lines: ["oc"] },
     { k: "subsidio", g: "plan", sec: "costos", type: "money", label: "Subsidio (APTC)", lines: ["oc"] },
     { k: "primaPagar", g: "plan", sec: "costos", type: "money", label: "Prima a pagar", lines: ["oc"] },
@@ -221,11 +235,11 @@
     { k: "pagoFecha", g: "pago", sec: "pago", type: "date",
       label: function () { return S.f.pagoEstado === "NO PAYMENT" ? "El cliente paga el" : "Fecha del pago"; },
       when: function (f) { return f.pagoEstado === "PAYMENT" || f.pagoEstado === "NO PAYMENT"; } },
-    { k: "pagoMetodo", g: "pago", sec: "pago", type: "text", label: "Método", ph: "Tarjeta ****1234",
+    { k: "pagoMetodo", g: "pago", sec: "pago", type: "text", label: "Método", ph: "Tarjeta CC ****1234",
       hint: "Solo los últimos 4 dígitos", when: function (f) { return f.pagoEstado === "PAYMENT"; } },
     { k: "pagoConf", g: "pago", sec: "pago", type: "text", label: "No. de confirmación",
       when: function (f) { return f.pagoEstado === "PAYMENT"; } },
-    { k: "autopay", g: "pago", sec: "pago", type: "seg", label: "Autopay", options: ["SI", "NO"], clearable: true,
+    { k: "autopay", g: "pago", sec: "pago", type: "text", label: "AutoPay", ph: "On, Off, 25th…", list: ["On", "Off", "No (eBill)"],
       when: function (f) { return f.pagoEstado === "PAYMENT"; } },
 
     { k: "docReq", g: "docs", sec: "docsreq", type: "text", label: "Qué documentos pide", w: "w3", list: DOCS },
@@ -310,6 +324,7 @@
       if (F.type === "money") { ctl.inputMode = "decimal"; ctl.placeholder = "$0.00"; ctl.classList.add("num"); }
       if (F.type === "date") { ctl.placeholder = "MM/DD/AAAA"; ctl.classList.add("num"); }
       if (F.type === "time") { ctl.placeholder = "09:00"; ctl.classList.add("num"); }
+      if (F.type === "clock") { ctl.placeholder = "02:44"; ctl.classList.add("num"); }
       if (F.type === "int") { ctl.inputMode = "numeric"; ctl.classList.add("num"); if (F.max) { ctl.maxLength = F.max; } }
       if (F.list) { ctl.setAttribute("list", "dl_" + F.k); }
     }
@@ -355,20 +370,41 @@
       sec.appendChild(head);
       var grid = el("div", "grid");
       FIELDS.filter(function (F) { return F.g === G.id; }).forEach(function (F) { grid.appendChild(buildField(F)); });
-      if (G.id === "network") { grid.id = "netGrid"; grid.className = "checks"; }
+      if (G.id === "network") {
+        grid.id = "netGrid"; grid.className = "net";
+        sec.appendChild(el("p", "hint net-hint", "Marca lo que guardaste: sale en la nota. El nombre ya viene en el formato de NOMBRE DE ARCHIVOS."));
+      }
       sec.appendChild(grid);
       form.appendChild(sec);
     });
   }
 
+  /* Cada documento: casilla para la nota, su nombre de archivo y un botón
+     para copiarlo. Copiar el nombre marca la casilla. */
   function renderNetwork() {
     var grid = $("netGrid");
     grid.textContent = "";
     L().network.forEach(function (n) {
+      var row = el("div", "net-row");
       var lab = el("label", "check");
       var c = el("input"); c.type = "checkbox"; c.dataset.net = n.k; c.checked = !!S.f.net[n.k];
       lab.appendChild(c); lab.appendChild(el("span", null, n.label));
-      grid.appendChild(lab);
+      row.appendChild(lab);
+      var code = el("code", "net-file"); code.dataset.fileFor = n.k;
+      row.appendChild(code);
+      var b = el("button", "btn small", "Copiar");
+      b.type = "button"; b.dataset.copyFile = n.k; b.dataset.label = "Copiar";
+      b.setAttribute("aria-label", "Copiar el nombre de archivo de " + n.label);
+      row.appendChild(b);
+      grid.appendChild(row);
+    });
+    updateFileNames();
+  }
+
+  function updateFileNames() {
+    N.buildFileNames(data()).forEach(function (f) {
+      var code = $("netGrid").querySelector('[data-file-for="' + f.k + '"]');
+      if (code) { code.textContent = f.name; code.title = f.name; }
     });
   }
 
@@ -599,13 +635,21 @@
     var usePrefix = S.f.prefijo === "si" ? true : (S.f.prefijo === "no" ? false : !!p.other);
     d.reportPrefix = usePrefix && p.collab ? p.collab.ini : "";
     d.oficina = settings.oficina;
+    d.telefono = settings.telefonos[settings.oficina] || "";
     d.incluirTask = settings.incluirTask;
     d.botonRojo = settings.botonRojo;
     return d;
   }
 
-  var OUT = { note: "note", task: "task", report: "report" };
-  var generated = { note: "", task: "", report: "" };
+  /* el cuadro crece con el texto, para leerlo entero sin barra de scroll */
+  function fitHeight(box) {
+    if (!box.offsetParent) { return; }
+    box.style.height = "auto";
+    box.style.height = (box.scrollHeight + 2) + "px";
+  }
+
+  var OUT = { note: "note", task: "task", report: "report", sms: "sms" };
+  var generated = { note: "", task: "", report: "", sms: "" };
 
   function setOut(key, text) {
     generated[key] = text;
@@ -660,6 +704,14 @@
       note = note.replace(/^Task: .*$/m, "Task: " + (settings.sinAcentos ? U.stripAccents(d.taskText) : d.taskText));
     }
     setOut("note", note);
+
+    setOut("sms", N.buildSms(d, { sinAcentos: settings.smsSinAcentos }));
+    fitHeight($("sms"));
+    var info = N.smsInfo($("sms").value);
+    $("smsCount").textContent = info.length + " caracteres · " + info.parts + (info.parts === 1 ? " mensaje" : " mensajes");
+    $("smsCount").title = info.unicode ? "Con acentos cada mensaje admite 70 caracteres; sin acentos, 160." : "";
+    $("smsPlain").checked = settings.smsSinAcentos;
+    updateFileNames();
 
     var shown = $("note").value;
     $("noteCount").textContent = shown.length + " caracteres";
@@ -770,7 +822,6 @@
       S.f[k] = v; S.auto[k] = true; S.rank[k] = rank; applied++;
     });
     if (res.net) { S.f.net[res.net] = true; }
-    if (res.type === "mc_app" && res.fields.confirmacion) { S.f.net.confirmation = true; }
     return applied;
   }
 
@@ -1102,6 +1153,7 @@
     var seg = $("officeSeg");
     fillSeg(seg, C.OFFICES.map(function (o) { return { v: o, l: o }; }));
     syncSeg(seg, settings.oficina);
+    $("officeTel").value = settings.telefonos[settings.oficina] || "";
     $("optTask").checked = settings.incluirTask;
     $("optRojo").checked = settings.botonRojo;
     $("optAcentos").checked = settings.sinAcentos;
@@ -1157,6 +1209,7 @@
     else if (F.type === "money") { out = U.parseMoney(raw); bad = !out; }
     else if (F.type === "date") { out = U.parseDate(raw); bad = !out; }
     else if (F.type === "time") { out = U.parseTime(raw); bad = !out; }
+    else if (F.type === "clock") { out = U.to12h(raw); bad = !out; }
     else if (F.type === "int") { out = raw.replace(/[^\d]/g, ""); }
     else if (F.upper && F.type !== "area") { out = U.collapse(raw).toUpperCase(); }
     else if (F.type !== "area") { out = U.collapse(raw); }
@@ -1204,6 +1257,15 @@
         refresh();
         return;
       }
+      if (b.dataset.copyFile) {
+        var k2 = b.dataset.copyFile;
+        copyText($("netGrid").querySelector('[data-file-for="' + k2 + '"]').textContent, function () { flashButton(b); });
+        S.f.net[k2] = true;
+        $("netGrid").querySelector('[data-net="' + k2 + '"]').checked = true;
+        S.dirty = true;
+        refresh();
+        return;
+      }
       if (b.dataset.quick) {
         var Fq = FIELD[b.dataset.quick];
         S.f[Fq.k] = Fq.quick[+b.dataset.i].fn();
@@ -1241,7 +1303,7 @@
     Object.keys(OUT).forEach(function (key) {
       $(OUT[key]).addEventListener("input", function () {
         /* el task y el reporte son de una sola línea aunque se muestren en dos */
-        if (key !== "note" && /\n/.test(this.value)) { this.value = this.value.replace(/\s*\n\s*/g, " "); }
+        if ((key === "task" || key === "report") && /\n/.test(this.value)) { this.value = this.value.replace(/\s*\n\s*/g, " "); }
         S.edited[key] = this.value !== generated[key];
         refresh();
       });
@@ -1250,6 +1312,8 @@
     $("copyNote").addEventListener("click", function () { copyOut("note", this); });
     $("copyTask").addEventListener("click", function () { copyOut("task", this); });
     $("copyReport").addEventListener("click", function () { copyOut("report", this); });
+    $("copySms").addEventListener("click", function () { copyOut("sms", this); });
+    $("smsPlain").addEventListener("change", function () { settings.smsSinAcentos = this.checked; saveSettings(); S.edited.sms = false; refresh(); });
     $("dock").addEventListener("click", function (e) {
       var b = e.target.closest("[data-copy]");
       if (b) { copyOut(b.dataset.copy, b); }
@@ -1275,7 +1339,7 @@
     $("btnNew").addEventListener("click", function () {
       if (hasClientData() && S.dirty && !window.confirm("La nota actual no se ha copiado. ¿Empezar una nueva?")) { return; }
       S.f = freshFields(); S.auto = {}; S.rank = {}; S.files = [];
-      S.edited = { note: false, task: false, report: false }; S.dirty = false;
+      S.edited = { note: false, task: false, report: false, sms: false }; S.dirty = false;
       S.outcome = L().outcomes[0].id;
       afterOutcomeChange(); defaultPeople();
       each(form.querySelectorAll(".bad"), function (x) { x.classList.remove("bad"); });
@@ -1337,6 +1401,11 @@
       if (!b) { return; }
       settings.oficina = b.dataset.v; saveSettings();
       syncSeg(this, settings.oficina);
+      $("officeTel").value = settings.telefonos[settings.oficina] || "";
+    });
+    $("officeTel").addEventListener("input", function () {
+      settings.telefonos[settings.oficina] = U.collapse(this.value);
+      saveSettings();
     });
     $("teamRows").addEventListener("input", function (e) {
       var t = e.target;

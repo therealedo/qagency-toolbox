@@ -137,6 +137,22 @@
     return pad2(h) + ":" + pad2(mi);
   }
 
+  /* Hora en formato de 12 horas sin am/pm, como va en las notas: 14:44 -> 02:44. */
+  function to12h(input) {
+    var t = input instanceof Date ? pad2(input.getHours()) + ":" + pad2(input.getMinutes()) : parseTime(input);
+    if (!t) { return ""; }
+    var h = +t.slice(0, 2) % 12;
+    return pad2(h === 0 ? 12 : h) + t.slice(2);
+  }
+
+  /* "03/15/2026" -> "2026 MAR": año y mes como van en los nombres de archivo. */
+  function yearMonth(mdy) {
+    var p = parseDate(mdy);
+    if (!p) { return ""; }
+    var a = p.split("/");
+    return a[2] + " " + MONTH_ABBR[+a[0] - 1];
+  }
+
   /* Año de plan que toca vender hoy: desde octubre ya es el siguiente. */
   function defaultPlanYear(d) {
     d = d || new Date();
@@ -167,10 +183,10 @@
 
   var LOWER_WORDS = { de: 1, del: 1, la: 1, las: 1, los: 1, y: 1, da: 1, dos: 1, van: 1, von: 1 };
 
-  /* "DIAZ PEREZ" -> "Diaz Perez", respetando partículas y apóstrofos. */
+  /* "DIAZ DE LA PENA" -> "Diaz De La Pena": cada palabra con mayúscula, que
+     es como la agencia escribe los nombres en Zoho y en los archivos. */
   function titleCase(s) {
-    return collapse(s).toLowerCase().split(" ").map(function (w, i) {
-      if (i > 0 && LOWER_WORDS[w]) { return w; }
+    return collapse(s).toLowerCase().split(" ").map(function (w) {
       return w.replace(/(^|[-'’])([a-záéíóúñü])/g, function (_, a, b) { return a + b.toUpperCase(); });
     }).join(" ");
   }
@@ -217,7 +233,7 @@
   var api = {
     pad2: pad2, fmtDate: fmtDate, today: today, parseDate: parseDate, parseDateWords: parseDateWords,
     findDate: findDate, toDateObj: toDateObj, addDays: addDays, addMonths: addMonths, taskDate: taskDate,
-    parseTime: parseTime, defaultPlanYear: defaultPlanYear, moneyNumber: moneyNumber, parseMoney: parseMoney,
+    parseTime: parseTime, to12h: to12h, yearMonth: yearMonth, defaultPlanYear: defaultPlanYear, moneyNumber: moneyNumber, parseMoney: parseMoney,
     stripAccents: stripAccents, collapse: collapse, titleCase: titleCase, initials: initials,
     splitName: splitName, parseList: parseList, escapeHtml: escapeHtml, MONTHS: MONTHS
   };

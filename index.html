@@ -155,6 +155,19 @@
           <label class="check" id="prefixBox"><input type="checkbox" id="prefix"><span id="prefixLabel">Anteponer al colaborador</span></label>
           <p class="muted" id="reportNA" hidden>Esta situación no se reporta en Cliq.</p>
         </div>
+
+        <div class="card out-card" id="smsCard">
+          <div class="out-head">
+            <h2>SMS para el cliente</h2>
+            <button type="button" class="link-btn" id="smsRegen" hidden>Regenerar</button>
+            <button type="button" class="btn" id="copySms" data-label="Copiar">Copiar</button>
+          </div>
+          <textarea id="sms" rows="4" spellcheck="true" aria-label="Mensaje de texto para el cliente"></textarea>
+          <div class="out-foot">
+            <span id="smsCount"></span>
+            <label class="check sms-opt"><input type="checkbox" id="smsPlain"><span>Sin acentos (cabe en menos mensajes)</span></label>
+          </div>
+        </div>
       </aside>
     </div>
   </section>
@@ -213,6 +226,7 @@
   <button type="button" class="btn primary" data-copy="note">Copiar nota</button>
   <button type="button" class="btn" data-copy="task">Task</button>
   <button type="button" class="btn" data-copy="report" id="dockReport">Reporte</button>
+  <button type="button" class="btn" data-copy="sms">SMS</button>
 </div>
 
 <div class="dropveil" id="dropveil" hidden>
@@ -231,7 +245,11 @@
     </div>
 
     <h3>Oficina</h3>
-    <div class="seg seg-fit" id="officeSeg" role="radiogroup" aria-label="Oficina"></div>
+    <div class="office-row">
+      <div class="seg seg-fit" id="officeSeg" role="radiogroup" aria-label="Oficina"></div>
+      <label class="mini"><span>Teléfono para el SMS</span><input type="text" id="officeTel" placeholder="(305) 555-0100" inputmode="tel"></label>
+    </div>
+    <p class="muted">El nombre de la oficina y su teléfono salen en el SMS para el cliente.</p>
 
     <h3>Equipo</h3>
     <p class="muted">Las iniciales de notas encabezan la nota y el task. Las de agente son las que salen entre paréntesis en el reporte, si son distintas. El NPN solo hace falta para quien figura como agente escritor.</p>

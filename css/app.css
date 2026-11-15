@@ -461,8 +461,25 @@ kbd {
 }
 .chip-mini:hover { border-color: var(--brand); color: var(--brand-ink); }
 
-.checks { display: flex; flex-wrap: wrap; gap: 2px 24px; }
-.checks .check { padding: 3px 0; }
+.net { display: flex; flex-direction: column; }
+.net-hint { margin: -6px 0 10px; }
+.net-row {
+  display: grid; grid-template-columns: 172px minmax(0, 1fr) auto; gap: 12px; align-items: center;
+  padding: 7px 0; border-top: 1px solid var(--line);
+}
+.net-row:first-child { border-top: none; }
+.net-row .check { padding: 0; }
+.net-file {
+  font-family: var(--mono); font-size: 12px; color: var(--ink-2);
+  background: var(--inset); border: 1px solid var(--line); border-radius: 7px;
+  padding: 5px 9px; overflow-wrap: anywhere; line-height: 1.5;
+}
+.office-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 14px; }
+.office-row .mini { width: 200px; }
+#sms { min-height: 92px; line-height: 1.55; background: var(--inset); border-color: var(--line); resize: none; overflow: hidden; }
+#sms:focus { background: var(--field); }
+.sms-opt { margin-left: auto; padding: 0; font-size: 12px; }
+.sms-opt span { color: var(--ink-3); }
 
 .privacy { font-size: 12.5px; color: var(--ink-3); padding: 2px 4px 0; }
 
@@ -644,6 +661,8 @@ kbd {
   .file { flex-wrap: wrap; }
   .file-meta { text-align: left; flex-basis: 100%; }
   .team-row { grid-template-columns: minmax(0, 1fr) 50px 50px 86px 26px; gap: 5px; }
+  .net-row { grid-template-columns: minmax(0, 1fr) auto; gap: 6px 10px; }
+  .net-file { grid-column: 1 / -1; grid-row: 2; }
   .tk-row { grid-template-columns: minmax(0, 1fr); }
   .tk-copy { display: none; }
   .dropveil > div { padding: 32px 28px; margin: 16px; text-align: center; }

@@ -4,7 +4,7 @@
 (function (root) {
   "use strict";
 
-  var VERSION = "1.1.0";
+  var VERSION = "1.2.0";
 
   /* Equipo por defecto. Cada persona puede editarlo en Ajustes; los cambios
      se guardan en su navegador.
@@ -62,7 +62,12 @@
     ],
     supp: [
       { re: /florida\s*combined\s*life|\bFCL\b|bluedental|florida\s*blue/i, name: "FLORIDA BLUE (FCL)", short: "FB" },
-      { re: /unitedhealthcare|united\s*healthcare|\bUHC\b|golden\s*rule/i, name: "UNITED HEALTHCARE", short: "UHC" },
+      { re: /golden\s*rule|\bGR\b/i, name: "GOLDEN RULE", short: "GR" },
+      { re: /unitedhealthcare|united\s*healthcare|\bUHC\b/i, name: "UNITED HEALTHCARE", short: "UHC" },
+      { re: /allstate/i, name: "ALLSTATE", short: "Allstate" },
+      { re: /usable/i, name: "USABLE LIFE", short: "USAble" },
+      { re: /occidental/i, name: "OCCIDENTAL", short: "Occidental" },
+      { re: /geo\s*blue/i, name: "GEOBLUE", short: "Geoblue" },
       { re: /ameritas|primestar/i, name: "AMERITAS", short: "Ameritas" },
       { re: /humana/i, name: "HUMANA", short: "Humana" },
       { re: /delta\s*dental/i, name: "DELTA DENTAL", short: "Delta Dental" },
@@ -176,177 +181,159 @@
   /* Secciones del formulario. Cada situación decide cuáles se muestran. */
   var S_FULL_OC = ["cliente", "hogar", "proceso", "plan", "costos", "pago", "docsreq", "agente", "network"];
   var S_PLAN_OC = ["cliente", "hogar", "proceso", "plan", "costos", "agente", "network"];
+  var S_QUOTE_OC = ["cliente", "hogar", "proceso", "plan", "costos", "network"];
   var S_FULL_MC = ["cliente", "medicare", "proceso", "plan", "agente", "network"];
   var S_PLAN_MC = ["cliente", "medicare", "proceso", "plan", "network"];
   var S_FULL_SU = ["cliente", "proceso", "plan", "pago", "agente", "network"];
   var S_LIGHT = ["cliente", "proceso"];
 
-  /* Situaciones (resultado de la gestión) por línea de negocio.
-       estatus    lo que sale en la línea ESTATUS de la nota
-       cierre     segunda frase de la narrativa; admite {plataforma}, {seg}
+  /* Situaciones (resultado de la gestión) por línea de negocio. El texto de
+     la nota y del SMS para cada una está en notes.js.
        pendiente / proximo   texto sugerido, siempre editable
        task       id del task por defecto
        report     true si la gestión se reporta en Cliq
-       submission true si es una aplicación enviada: la nota termina con el
-                  task y con «Se reporta en el botón rojo» */
+       submission true si es una aplicación enviada: la nota termina con
+                  «Se reporta en el botón rojo» y el task
+
+     Documentos de Network: `file` es el nombre con que se guarda el archivo
+     (NOMBRE DE ARCHIVOS), sin el cliente delante ni el año y mes detrás.
+     Admite {carrier} y {product}. `date` dice de dónde salen el año y el mes:
+     note (fecha de la nota), effective (inicio de la cobertura), soa
+     (firma del SOA) o payment (fecha del pago). */
   var LINES = {
     oc: {
       label: "Obamacare",
       code: "OC",
-      product: "Seguro Médico del Mercado",
       gestiones: [
-        { v: "nueva", label: "Nueva inscripción", proc: "App OC", motivo: "para realizar su aplicación de Seguro Médico del Mercado" },
-        { v: "renovacion", label: "Renovación", proc: "Renew OC", motivo: "para la renovación de su Seguro Médico del Mercado" },
-        { v: "cambio", label: "Cambio de vida", proc: "OC Life Change", motivo: "para reportar un cambio en su aplicación del Mercado" }
+        { v: "nueva", label: "Nueva inscripción", proc: "App OC" },
+        { v: "renovacion", label: "Renovación", proc: "Renew OC" },
+        { v: "cambio", label: "Cambio de vida", proc: "OC Life Change" }
       ],
       outcomes: [
         { id: "enviada", label: "App enviada", desc: "Aplicación procesada y plan seleccionado",
-          submission: true,
-          estatus: "APLICACIÓN ENVIADA", cierre: "Se envía la aplicación en {plataforma} con los siguientes datos:",
-          pendiente: "", proximo: "Seguimiento de servicio al cliente",
+          submission: true, pendiente: "", proximo: "Seguimiento de servicio al cliente",
           task: "oc_cs", report: true, sections: S_FULL_OC },
         { id: "lista", label: "Lista para procesar", desc: "Consent firmado, solo falta procesar",
-          estatus: "LISTA PARA PROCESAR - CONSENT FIRMADO", cierre: "Se recibe el consentimiento firmado. La aplicación queda lista para procesar con los siguientes datos:",
-          pendiente: "Procesar la aplicación", proximo: "Procesar la aplicación en {plataforma}",
+          pendiente: "Procesar la app", proximo: "Procesar la app",
           task: "oc_app_pending", sections: S_PLAN_OC },
-        { id: "consent", label: "Esperando consent", desc: "Se habló con el cliente, falta la firma",
-          estatus: "EN ESPERA DEL CONSENT", cierre: "Se revisan las opciones con el cliente y se envía el consentimiento para firma.",
-          pendiente: "Cliente debe firmar el consentimiento", proximo: "Procesar la aplicación al recibir el consent",
-          task: "oc_consent", sections: S_PLAN_OC },
+        { id: "consent", label: "Esperando consent", desc: "Se cotizó y se envió la carta de consentimiento",
+          pendiente: "Firma del consentimiento", proximo: "Procesar la app al recibir el consent",
+          task: "oc_consent", sections: S_QUOTE_OC },
         { id: "cotizacion", label: "Cotización", desc: "Se cotizó, el cliente queda en decidir",
-          estatus: "COTIZACIÓN REALIZADA", cierre: "Se realiza la cotización y se le explican las opciones al cliente.",
           pendiente: "Cliente debe confirmar el plan", proximo: "Contactar al cliente para definir el plan",
-          task: "oc_quote", sections: S_PLAN_OC },
+          task: "oc_quote", sections: S_QUOTE_OC },
         { id: "docs", label: "Docs pendientes", desc: "El Mercado pide documentos",
-          estatus: "DOCUMENTOS PENDIENTES", cierre: "Se le indica al cliente qué documentos debe enviar y la fecha tope.",
-          pendiente: "Cliente debe enviar los documentos requeridos", proximo: "Subir los documentos al Mercado",
+          pendiente: "Cliente debe enviar los documentos", proximo: "Subir los documentos al MKPL",
           task: "oc_docs", sections: ["cliente", "proceso", "plan", "docsreq", "network"] },
         { id: "pago", label: "Pago", desc: "Se gestiona o verifica el pago de la prima",
-          estatus: "GESTIÓN DE PAGO", cierre: "",
           pendiente: "", proximo: "Seguimiento de servicio al cliente",
           task: "oc_cs", sections: ["cliente", "plan", "costos", "pago", "network"] },
         { id: "cita", label: "Cita OEP", desc: "Quiere renovar o está interesado; queda con cita",
-          estatus: "CITA AGENDADA", cierre: "El cliente está interesado y se agenda cita{seg}.",
           pendiente: "Atender la cita", proximo: "Cita con el cliente",
           task: "oc_oe", sections: S_LIGHT },
         { id: "sincontacto", label: "Sin contacto", desc: "No contesta",
-          estatus: "SIN CONTACTO", cierre: "",
-          pendiente: "Lograr contacto con el cliente", proximo: "Volver a contactar al cliente",
+          pendiente: "Lograr contacto con el cliente", proximo: "Volver a llamar",
           task: "oc_lost", sections: ["cliente", "proceso", "contacto"] },
         { id: "nointeresado", label: "No interesado", desc: "Prospecto o cliente inactivo por ahora",
-          estatus: "NO INTERESADO POR EL MOMENTO", cierre: "El cliente indica que no está interesado por el momento.",
           pendiente: "", proximo: "Contactar más adelante para recuperar",
           task: "oc_inactive", sections: S_LIGHT },
         { id: "cancelada", label: "Cancelación", desc: "Se cancela o termina la póliza",
-          estatus: "PÓLIZA CANCELADA", cierre: "La cancelación se realiza a solicitud del cliente con los siguientes datos:",
-          pendiente: "", proximo: "Verificar que la cancelación se refleje en el sistema",
+          pendiente: "", proximo: "Verificar que la cancelación se refleje",
           task: "oc_cs", report: true, cancelled: true, sections: ["cliente", "proceso", "plan", "agente", "network"] }
       ],
       network: [
-        { k: "consent", label: "Consent" },
-        { k: "appsummary", label: "App Summary" },
-        { k: "eligibility", label: "Eligibility Letter" },
-        { k: "plans", label: "My Plans & Programs" },
-        { k: "payment", label: "Comprobante de pago" }
+        { k: "appsummary", label: "App Summary", file: "OC_App Summary", date: "note" },
+        { k: "eligibility", label: "Eligibility Letter", file: "OC_EligibilityNotice", date: "note" },
+        { k: "plans", label: "My Plans & Programs", file: "OC_My Plans & Programs {carrier}", date: "effective" },
+        { k: "payment", label: "Pago", file: "OC_{carrier} Payment", date: "payment" },
+        { k: "consent", label: "Consent", file: "OC_Consent", date: "note" }
       ]
     },
 
     mc: {
       label: "Medicare",
       code: "MC",
-      product: "Medicare",
       gestiones: [
-        { v: "nueva", label: "Solicitud nueva", proc: "App MC", motivo: "para realizar su aplicación de Medicare" },
-        { v: "cambio", label: "Cambio de plan o compañía", proc: "App MC", suffix: "_Change", motivo: "para realizar un cambio de plan de Medicare" }
+        { v: "nueva", label: "Solicitud nueva", proc: "App MC" },
+        { v: "cambio", label: "Cambio de plan o compañía", proc: "App MC", suffix: "_Change" }
       ],
       outcomes: [
         { id: "enviada", label: "App enviada", desc: "Solicitud enviada en el portal de la compañía",
-          submission: true,
-          estatus: "SOLICITUD ENVIADA", cierre: "Se envía la solicitud en el portal de la compañía con los siguientes datos:",
-          pendiente: "", proximo: "Seguimiento de mantenimiento",
+          submission: true, pendiente: "", proximo: "Seguimiento de mantenimiento",
           task: "mc_mant", report: true, sections: S_FULL_MC },
         { id: "soa", label: "SOA pendiente", desc: "Falta el Scope of Appointment firmado",
-          estatus: "EN ESPERA DEL SOA", cierre: "Se envía el SOA para firma antes de revisar los planes.",
-          pendiente: "Cliente debe firmar el SOA", proximo: "Atender al cliente al recibir el SOA",
+          pendiente: "Firma del SOA", proximo: "Atender al cliente al recibir el SOA",
           task: "mc_soa", sections: S_PLAN_MC },
         { id: "cita", label: "Cita AEP", desc: "Quiere cambiar o está interesado; queda con cita",
-          estatus: "CITA AGENDADA", cierre: "El cliente está interesado y se agenda cita{seg}.",
           pendiente: "Atender la cita", proximo: "Cita con el cliente",
           task: "mc_oe", sections: S_PLAN_MC },
         { id: "sincambio", label: "Sin cambios", desc: "Se revisa y se queda con su plan actual",
-          estatus: "SE MANTIENE EN SU PLAN", cierre: "Se revisan los beneficios para el próximo año y el cliente decide mantenerse en su plan actual.",
           pendiente: "", proximo: "Seguimiento de mantenimiento",
           task: "mc_mant", sections: ["cliente", "medicare", "plan", "network"] },
         { id: "interesado", label: "Interesado", desc: "Próximo a cumplir 65 o fuera del AEP",
-          estatus: "INTERESADO", cierre: "El cliente está interesado en aplicar con la agencia.",
-          pendiente: "", proximo: "Contactar al cliente cuando se abra su período de elección",
+          pendiente: "", proximo: "Contactar cuando se abra su período de elección",
           task: "mc_fu", sections: ["cliente", "medicare", "proceso"] },
         { id: "sincontacto", label: "Sin contacto", desc: "No contesta",
-          estatus: "SIN CONTACTO", cierre: "",
-          pendiente: "Lograr contacto con el cliente", proximo: "Volver a contactar al cliente",
+          pendiente: "Lograr contacto con el cliente", proximo: "Volver a llamar",
           task: "mc_lost", sections: ["cliente", "proceso", "contacto"] },
         { id: "nointeresado", label: "No interesado", desc: "Contactado para recuperar, no por ahora",
-          estatus: "NO INTERESADO POR EL MOMENTO", cierre: "El cliente indica que no está interesado por el momento.",
           pendiente: "", proximo: "Contactar más adelante para recuperar",
           task: "mc_inactive", sections: S_LIGHT },
         { id: "cancelada", label: "Cancelación", desc: "Se cancela la solicitud o el plan",
-          estatus: "SOLICITUD CANCELADA", cierre: "La cancelación se realiza a solicitud del cliente con los siguientes datos:",
-          pendiente: "", proximo: "Verificar que la cancelación se refleje en el sistema",
+          pendiente: "", proximo: "Verificar que la cancelación se refleje",
           task: "mc_mant", report: true, cancelled: true, sections: ["cliente", "medicare", "proceso", "plan", "agente", "network"] }
       ],
       network: [
-        { k: "soa", label: "SOA" },
-        { k: "appsummary", label: "App Summary" },
-        { k: "confirmation", label: "Confirmación" }
+        { k: "soa", label: "SOA", file: "Medicare_SOA", date: "soa" },
+        { k: "appsummary", label: "App Summary", file: "Medicare_{carrier}", date: "effective" }
       ]
     },
 
     supp: {
       label: "Suplementario",
       code: "SUPP",
-      product: "seguro suplementario",
       gestiones: [
-        { v: "nueva", label: "Aplicación nueva", proc: "App", motivo: "para realizar su aplicación de {producto}" },
-        { v: "renovacion", label: "Renovación", proc: "Renew", motivo: "para la renovación de su {producto}" },
-        { v: "cambio", label: "Cambio de plan", proc: "App", suffix: "_Change", motivo: "para realizar un cambio en su {producto}" }
+        { v: "nueva", label: "Aplicación nueva", proc: "App" },
+        { v: "renovacion", label: "Renovación", proc: "Renew" },
+        { v: "cambio", label: "Cambio de plan", proc: "App", suffix: "_Change" }
       ],
       outcomes: [
         { id: "enviada", label: "App enviada", desc: "Aplicación enviada a la compañía",
-          submission: true,
-          estatus: "APLICACIÓN ENVIADA", cierre: "Se envía la aplicación con los siguientes datos:",
-          pendiente: "", proximo: "Seguimiento de servicio al cliente",
+          submission: true, pendiente: "", proximo: "Seguimiento de servicio al cliente",
           task: "supp_cs", report: true, sections: S_FULL_SU },
         { id: "cotizacion", label: "Cotización", desc: "Se cotizó, el cliente queda en decidir",
-          estatus: "COTIZACIÓN REALIZADA", cierre: "Se realiza la cotización y se le explican las opciones al cliente.",
           pendiente: "Cliente debe confirmar el plan", proximo: "Contactar al cliente para definir el plan",
           task: "supp_quote", sections: ["cliente", "proceso", "plan"] },
         { id: "pago", label: "Pago", desc: "Se gestiona o verifica el pago",
-          estatus: "GESTIÓN DE PAGO", cierre: "",
           pendiente: "", proximo: "Seguimiento de servicio al cliente",
           task: "supp_cs", sections: ["cliente", "plan", "pago", "network"] },
         { id: "shortterm", label: "Renovar Short Term", desc: "Seguimiento para renovar un Short Term",
-          estatus: "RENOVACIÓN PENDIENTE", cierre: "Se le explican al cliente las opciones para renovar.",
           pendiente: "Renovar el plan antes del vencimiento", proximo: "Contactar al cliente para renovar",
           task: "supp_st", sections: ["cliente", "proceso", "plan"] },
         { id: "cancelada", label: "Cancelación", desc: "Se cancela la póliza",
-          estatus: "PÓLIZA CANCELADA", cierre: "La cancelación se realiza a solicitud del cliente con los siguientes datos:",
-          pendiente: "", proximo: "Verificar que la cancelación se refleje en el sistema",
+          pendiente: "", proximo: "Verificar que la cancelación se refleje",
           task: "supp_cs", report: true, cancelled: true, sections: ["cliente", "proceso", "plan", "agente"] }
       ],
+      /* v: lo que se elige; es: cómo se nombra en la nota; sms: cómo se le
+         nombra al cliente; file: cómo va en el nombre del archivo y en el
+         reporte de Cliq */
       productos: [
-        { v: "Dental", note: "Seguro Dental" },
-        { v: "Vision", note: "Seguro de Visión" },
-        { v: "Dental + Vision", note: "Seguro Dental y de Visión" },
-        { v: "Hospital", note: "Seguro de Hospitalización" },
-        { v: "Accident", note: "Seguro de Accidentes" },
-        { v: "Cancer", note: "Seguro de Cáncer" },
-        { v: "Short Term", note: "Seguro Short Term" },
-        { v: "Otro", note: "seguro suplementario" }
+        { v: "Dental", es: "Dental", sms: "seguro dental", file: "Dental" },
+        { v: "Vision", es: "Visión", sms: "seguro de visión", file: "Vision" },
+        { v: "Dental + Vision", es: "Dental y Visión", sms: "seguro dental y de visión", file: "Dental" },
+        { v: "Hospital", es: "Hospital", sms: "seguro de hospital", file: "Hospital" },
+        { v: "Accident", es: "Accidente", sms: "seguro de accidentes", file: "Accident" },
+        { v: "Cancer", es: "Cáncer", sms: "seguro de cáncer", file: "Cancer" },
+        { v: "Short Term", es: "Short Term", sms: "seguro Short Term", file: "Short Term" },
+        { v: "Life", es: "Vida", sms: "seguro de vida", file: "Life" },
+        { v: "International", es: "Internacional", sms: "seguro internacional", file: "International" },
+        { v: "Discount Plan", es: "Plan de descuento", sms: "plan de descuento", file: "Discount" },
+        { v: "Otro", es: "", sms: "seguro", file: "Supp" }
       ],
       network: [
-        { k: "appsummary", label: "Aplicación" },
-        { k: "consent", label: "Consent" },
-        { k: "payment", label: "Comprobante de pago" }
+        { k: "appsummary", label: "Aplicación", file: "{product}_{carrier}", date: "effective" },
+        { k: "payment", label: "Pago", file: "Payment Confirmation - {product}_{carrier}", date: "payment" },
+        { k: "card", label: "ID card", file: "{product}_{carrier} - CARD", date: "effective" }
       ]
     }
   };

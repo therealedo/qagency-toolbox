@@ -476,8 +476,25 @@ kbd {
 }
 .chip-mini:hover { border-color: var(--brand); color: var(--brand-ink); }
 
-.checks { display: flex; flex-wrap: wrap; gap: 2px 24px; }
-.checks .check { padding: 3px 0; }
+.net { display: flex; flex-direction: column; }
+.net-hint { margin: -6px 0 10px; }
+.net-row {
+  display: grid; grid-template-columns: 172px minmax(0, 1fr) auto; gap: 12px; align-items: center;
+  padding: 7px 0; border-top: 1px solid var(--line);
+}
+.net-row:first-child { border-top: none; }
+.net-row .check { padding: 0; }
+.net-file {
+  font-family: var(--mono); font-size: 12px; color: var(--ink-2);
+  background: var(--inset); border: 1px solid var(--line); border-radius: 7px;
+  padding: 5px 9px; overflow-wrap: anywhere; line-height: 1.5;
+}
+.office-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 14px; }
+.office-row .mini { width: 200px; }
+#sms { min-height: 92px; line-height: 1.55; background: var(--inset); border-color: var(--line); resize: none; overflow: hidden; }
+#sms:focus { background: var(--field); }
+.sms-opt { margin-left: auto; padding: 0; font-size: 12px; }
+.sms-opt span { color: var(--ink-3); }
 
 .privacy { font-size: 12.5px; color: var(--ink-3); padding: 2px 4px 0; }
 
@@ -659,6 +676,8 @@ kbd {
   .file { flex-wrap: wrap; }
   .file-meta { text-align: left; flex-basis: 100%; }
   .team-row { grid-template-columns: minmax(0, 1fr) 50px 50px 86px 26px; gap: 5px; }
+  .net-row { grid-template-columns: minmax(0, 1fr) auto; gap: 6px 10px; }
+  .net-file { grid-column: 1 / -1; grid-row: 2; }
   .tk-row { grid-template-columns: minmax(0, 1fr); }
   .tk-copy { display: none; }
   .dropveil > div { padding: 32px 28px; margin: 16px; text-align: center; }
@@ -815,6 +834,19 @@ kbd {
           <label class="check" id="prefixBox"><input type="checkbox" id="prefix"><span id="prefixLabel">Anteponer al colaborador</span></label>
           <p class="muted" id="reportNA" hidden>Esta situación no se reporta en Cliq.</p>
         </div>
+
+        <div class="card out-card" id="smsCard">
+          <div class="out-head">
+            <h2>SMS para el cliente</h2>
+            <button type="button" class="link-btn" id="smsRegen" hidden>Regenerar</button>
+            <button type="button" class="btn" id="copySms" data-label="Copiar">Copiar</button>
+          </div>
+          <textarea id="sms" rows="4" spellcheck="true" aria-label="Mensaje de texto para el cliente"></textarea>
+          <div class="out-foot">
+            <span id="smsCount"></span>
+            <label class="check sms-opt"><input type="checkbox" id="smsPlain"><span>Sin acentos (cabe en menos mensajes)</span></label>
+          </div>
+        </div>
       </aside>
     </div>
   </section>
@@ -873,6 +905,7 @@ kbd {
   <button type="button" class="btn primary" data-copy="note">Copiar nota</button>
   <button type="button" class="btn" data-copy="task">Task</button>
   <button type="button" class="btn" data-copy="report" id="dockReport">Reporte</button>
+  <button type="button" class="btn" data-copy="sms">SMS</button>
 </div>
 
 <div class="dropveil" id="dropveil" hidden>
@@ -891,7 +924,11 @@ kbd {
     </div>
 
     <h3>Oficina</h3>
-    <div class="seg seg-fit" id="officeSeg" role="radiogroup" aria-label="Oficina"></div>
+    <div class="office-row">
+      <div class="seg seg-fit" id="officeSeg" role="radiogroup" aria-label="Oficina"></div>
+      <label class="mini"><span>Teléfono para el SMS</span><input type="text" id="officeTel" placeholder="(305) 555-0100" inputmode="tel"></label>
+    </div>
+    <p class="muted">El nombre de la oficina y su teléfono salen en el SMS para el cliente.</p>
 
     <h3>Equipo</h3>
     <p class="muted">Las iniciales de notas encabezan la nota y el task. Las de agente son las que salen entre paréntesis en el reporte, si son distintas. El NPN solo hace falta para quien figura como agente escritor.</p>
@@ -986,7 +1023,7 @@ kbd {
 (function (root) {
   "use strict";
 
-  var VERSION = "1.1.0";
+  var VERSION = "1.2.0";
 
   /* Equipo por defecto. Cada persona puede editarlo en Ajustes; los cambios
      se guardan en su navegador.
@@ -1044,7 +1081,12 @@ kbd {
     ],
     supp: [
       { re: /florida\s*combined\s*life|\bFCL\b|bluedental|florida\s*blue/i, name: "FLORIDA BLUE (FCL)", short: "FB" },
-      { re: /unitedhealthcare|united\s*healthcare|\bUHC\b|golden\s*rule/i, name: "UNITED HEALTHCARE", short: "UHC" },
+      { re: /golden\s*rule|\bGR\b/i, name: "GOLDEN RULE", short: "GR" },
+      { re: /unitedhealthcare|united\s*healthcare|\bUHC\b/i, name: "UNITED HEALTHCARE", short: "UHC" },
+      { re: /allstate/i, name: "ALLSTATE", short: "Allstate" },
+      { re: /usable/i, name: "USABLE LIFE", short: "USAble" },
+      { re: /occidental/i, name: "OCCIDENTAL", short: "Occidental" },
+      { re: /geo\s*blue/i, name: "GEOBLUE", short: "Geoblue" },
       { re: /ameritas|primestar/i, name: "AMERITAS", short: "Ameritas" },
       { re: /humana/i, name: "HUMANA", short: "Humana" },
       { re: /delta\s*dental/i, name: "DELTA DENTAL", short: "Delta Dental" },
@@ -1158,177 +1200,159 @@ kbd {
   /* Secciones del formulario. Cada situación decide cuáles se muestran. */
   var S_FULL_OC = ["cliente", "hogar", "proceso", "plan", "costos", "pago", "docsreq", "agente", "network"];
   var S_PLAN_OC = ["cliente", "hogar", "proceso", "plan", "costos", "agente", "network"];
+  var S_QUOTE_OC = ["cliente", "hogar", "proceso", "plan", "costos", "network"];
   var S_FULL_MC = ["cliente", "medicare", "proceso", "plan", "agente", "network"];
   var S_PLAN_MC = ["cliente", "medicare", "proceso", "plan", "network"];
   var S_FULL_SU = ["cliente", "proceso", "plan", "pago", "agente", "network"];
   var S_LIGHT = ["cliente", "proceso"];
 
-  /* Situaciones (resultado de la gestión) por línea de negocio.
-       estatus    lo que sale en la línea ESTATUS de la nota
-       cierre     segunda frase de la narrativa; admite {plataforma}, {seg}
+  /* Situaciones (resultado de la gestión) por línea de negocio. El texto de
+     la nota y del SMS para cada una está en notes.js.
        pendiente / proximo   texto sugerido, siempre editable
        task       id del task por defecto
        report     true si la gestión se reporta en Cliq
-       submission true si es una aplicación enviada: la nota termina con el
-                  task y con «Se reporta en el botón rojo» */
+       submission true si es una aplicación enviada: la nota termina con
+                  «Se reporta en el botón rojo» y el task
+
+     Documentos de Network: `file` es el nombre con que se guarda el archivo
+     (NOMBRE DE ARCHIVOS), sin el cliente delante ni el año y mes detrás.
+     Admite {carrier} y {product}. `date` dice de dónde salen el año y el mes:
+     note (fecha de la nota), effective (inicio de la cobertura), soa
+     (firma del SOA) o payment (fecha del pago). */
   var LINES = {
     oc: {
       label: "Obamacare",
       code: "OC",
-      product: "Seguro Médico del Mercado",
       gestiones: [
-        { v: "nueva", label: "Nueva inscripción", proc: "App OC", motivo: "para realizar su aplicación de Seguro Médico del Mercado" },
-        { v: "renovacion", label: "Renovación", proc: "Renew OC", motivo: "para la renovación de su Seguro Médico del Mercado" },
-        { v: "cambio", label: "Cambio de vida", proc: "OC Life Change", motivo: "para reportar un cambio en su aplicación del Mercado" }
+        { v: "nueva", label: "Nueva inscripción", proc: "App OC" },
+        { v: "renovacion", label: "Renovación", proc: "Renew OC" },
+        { v: "cambio", label: "Cambio de vida", proc: "OC Life Change" }
       ],
       outcomes: [
         { id: "enviada", label: "App enviada", desc: "Aplicación procesada y plan seleccionado",
-          submission: true,
-          estatus: "APLICACIÓN ENVIADA", cierre: "Se envía la aplicación en {plataforma} con los siguientes datos:",
-          pendiente: "", proximo: "Seguimiento de servicio al cliente",
+          submission: true, pendiente: "", proximo: "Seguimiento de servicio al cliente",
           task: "oc_cs", report: true, sections: S_FULL_OC },
         { id: "lista", label: "Lista para procesar", desc: "Consent firmado, solo falta procesar",
-          estatus: "LISTA PARA PROCESAR - CONSENT FIRMADO", cierre: "Se recibe el consentimiento firmado. La aplicación queda lista para procesar con los siguientes datos:",
-          pendiente: "Procesar la aplicación", proximo: "Procesar la aplicación en {plataforma}",
+          pendiente: "Procesar la app", proximo: "Procesar la app",
           task: "oc_app_pending", sections: S_PLAN_OC },
-        { id: "consent", label: "Esperando consent", desc: "Se habló con el cliente, falta la firma",
-          estatus: "EN ESPERA DEL CONSENT", cierre: "Se revisan las opciones con el cliente y se envía el consentimiento para firma.",
-          pendiente: "Cliente debe firmar el consentimiento", proximo: "Procesar la aplicación al recibir el consent",
-          task: "oc_consent", sections: S_PLAN_OC },
+        { id: "consent", label: "Esperando consent", desc: "Se cotizó y se envió la carta de consentimiento",
+          pendiente: "Firma del consentimiento", proximo: "Procesar la app al recibir el consent",
+          task: "oc_consent", sections: S_QUOTE_OC },
         { id: "cotizacion", label: "Cotización", desc: "Se cotizó, el cliente queda en decidir",
-          estatus: "COTIZACIÓN REALIZADA", cierre: "Se realiza la cotización y se le explican las opciones al cliente.",
           pendiente: "Cliente debe confirmar el plan", proximo: "Contactar al cliente para definir el plan",
-          task: "oc_quote", sections: S_PLAN_OC },
+          task: "oc_quote", sections: S_QUOTE_OC },
         { id: "docs", label: "Docs pendientes", desc: "El Mercado pide documentos",
-          estatus: "DOCUMENTOS PENDIENTES", cierre: "Se le indica al cliente qué documentos debe enviar y la fecha tope.",
-          pendiente: "Cliente debe enviar los documentos requeridos", proximo: "Subir los documentos al Mercado",
+          pendiente: "Cliente debe enviar los documentos", proximo: "Subir los documentos al MKPL",
           task: "oc_docs", sections: ["cliente", "proceso", "plan", "docsreq", "network"] },
         { id: "pago", label: "Pago", desc: "Se gestiona o verifica el pago de la prima",
-          estatus: "GESTIÓN DE PAGO", cierre: "",
           pendiente: "", proximo: "Seguimiento de servicio al cliente",
           task: "oc_cs", sections: ["cliente", "plan", "costos", "pago", "network"] },
         { id: "cita", label: "Cita OEP", desc: "Quiere renovar o está interesado; queda con cita",
-          estatus: "CITA AGENDADA", cierre: "El cliente está interesado y se agenda cita{seg}.",
           pendiente: "Atender la cita", proximo: "Cita con el cliente",
           task: "oc_oe", sections: S_LIGHT },
         { id: "sincontacto", label: "Sin contacto", desc: "No contesta",
-          estatus: "SIN CONTACTO", cierre: "",
-          pendiente: "Lograr contacto con el cliente", proximo: "Volver a contactar al cliente",
+          pendiente: "Lograr contacto con el cliente", proximo: "Volver a llamar",
           task: "oc_lost", sections: ["cliente", "proceso", "contacto"] },
         { id: "nointeresado", label: "No interesado", desc: "Prospecto o cliente inactivo por ahora",
-          estatus: "NO INTERESADO POR EL MOMENTO", cierre: "El cliente indica que no está interesado por el momento.",
           pendiente: "", proximo: "Contactar más adelante para recuperar",
           task: "oc_inactive", sections: S_LIGHT },
         { id: "cancelada", label: "Cancelación", desc: "Se cancela o termina la póliza",
-          estatus: "PÓLIZA CANCELADA", cierre: "La cancelación se realiza a solicitud del cliente con los siguientes datos:",
-          pendiente: "", proximo: "Verificar que la cancelación se refleje en el sistema",
+          pendiente: "", proximo: "Verificar que la cancelación se refleje",
           task: "oc_cs", report: true, cancelled: true, sections: ["cliente", "proceso", "plan", "agente", "network"] }
       ],
       network: [
-        { k: "consent", label: "Consent" },
-        { k: "appsummary", label: "App Summary" },
-        { k: "eligibility", label: "Eligibility Letter" },
-        { k: "plans", label: "My Plans & Programs" },
-        { k: "payment", label: "Comprobante de pago" }
+        { k: "appsummary", label: "App Summary", file: "OC_App Summary", date: "note" },
+        { k: "eligibility", label: "Eligibility Letter", file: "OC_EligibilityNotice", date: "note" },
+        { k: "plans", label: "My Plans & Programs", file: "OC_My Plans & Programs {carrier}", date: "effective" },
+        { k: "payment", label: "Pago", file: "OC_{carrier} Payment", date: "payment" },
+        { k: "consent", label: "Consent", file: "OC_Consent", date: "note" }
       ]
     },
 
     mc: {
       label: "Medicare",
       code: "MC",
-      product: "Medicare",
       gestiones: [
-        { v: "nueva", label: "Solicitud nueva", proc: "App MC", motivo: "para realizar su aplicación de Medicare" },
-        { v: "cambio", label: "Cambio de plan o compañía", proc: "App MC", suffix: "_Change", motivo: "para realizar un cambio de plan de Medicare" }
+        { v: "nueva", label: "Solicitud nueva", proc: "App MC" },
+        { v: "cambio", label: "Cambio de plan o compañía", proc: "App MC", suffix: "_Change" }
       ],
       outcomes: [
         { id: "enviada", label: "App enviada", desc: "Solicitud enviada en el portal de la compañía",
-          submission: true,
-          estatus: "SOLICITUD ENVIADA", cierre: "Se envía la solicitud en el portal de la compañía con los siguientes datos:",
-          pendiente: "", proximo: "Seguimiento de mantenimiento",
+          submission: true, pendiente: "", proximo: "Seguimiento de mantenimiento",
           task: "mc_mant", report: true, sections: S_FULL_MC },
         { id: "soa", label: "SOA pendiente", desc: "Falta el Scope of Appointment firmado",
-          estatus: "EN ESPERA DEL SOA", cierre: "Se envía el SOA para firma antes de revisar los planes.",
-          pendiente: "Cliente debe firmar el SOA", proximo: "Atender al cliente al recibir el SOA",
+          pendiente: "Firma del SOA", proximo: "Atender al cliente al recibir el SOA",
           task: "mc_soa", sections: S_PLAN_MC },
         { id: "cita", label: "Cita AEP", desc: "Quiere cambiar o está interesado; queda con cita",
-          estatus: "CITA AGENDADA", cierre: "El cliente está interesado y se agenda cita{seg}.",
           pendiente: "Atender la cita", proximo: "Cita con el cliente",
           task: "mc_oe", sections: S_PLAN_MC },
         { id: "sincambio", label: "Sin cambios", desc: "Se revisa y se queda con su plan actual",
-          estatus: "SE MANTIENE EN SU PLAN", cierre: "Se revisan los beneficios para el próximo año y el cliente decide mantenerse en su plan actual.",
           pendiente: "", proximo: "Seguimiento de mantenimiento",
           task: "mc_mant", sections: ["cliente", "medicare", "plan", "network"] },
         { id: "interesado", label: "Interesado", desc: "Próximo a cumplir 65 o fuera del AEP",
-          estatus: "INTERESADO", cierre: "El cliente está interesado en aplicar con la agencia.",
-          pendiente: "", proximo: "Contactar al cliente cuando se abra su período de elección",
+          pendiente: "", proximo: "Contactar cuando se abra su período de elección",
           task: "mc_fu", sections: ["cliente", "medicare", "proceso"] },
         { id: "sincontacto", label: "Sin contacto", desc: "No contesta",
-          estatus: "SIN CONTACTO", cierre: "",
-          pendiente: "Lograr contacto con el cliente", proximo: "Volver a contactar al cliente",
+          pendiente: "Lograr contacto con el cliente", proximo: "Volver a llamar",
           task: "mc_lost", sections: ["cliente", "proceso", "contacto"] },
         { id: "nointeresado", label: "No interesado", desc: "Contactado para recuperar, no por ahora",
-          estatus: "NO INTERESADO POR EL MOMENTO", cierre: "El cliente indica que no está interesado por el momento.",
           pendiente: "", proximo: "Contactar más adelante para recuperar",
           task: "mc_inactive", sections: S_LIGHT },
         { id: "cancelada", label: "Cancelación", desc: "Se cancela la solicitud o el plan",
-          estatus: "SOLICITUD CANCELADA", cierre: "La cancelación se realiza a solicitud del cliente con los siguientes datos:",
-          pendiente: "", proximo: "Verificar que la cancelación se refleje en el sistema",
+          pendiente: "", proximo: "Verificar que la cancelación se refleje",
           task: "mc_mant", report: true, cancelled: true, sections: ["cliente", "medicare", "proceso", "plan", "agente", "network"] }
       ],
       network: [
-        { k: "soa", label: "SOA" },
-        { k: "appsummary", label: "App Summary" },
-        { k: "confirmation", label: "Confirmación" }
+        { k: "soa", label: "SOA", file: "Medicare_SOA", date: "soa" },
+        { k: "appsummary", label: "App Summary", file: "Medicare_{carrier}", date: "effective" }
       ]
     },
 
     supp: {
       label: "Suplementario",
       code: "SUPP",
-      product: "seguro suplementario",
       gestiones: [
-        { v: "nueva", label: "Aplicación nueva", proc: "App", motivo: "para realizar su aplicación de {producto}" },
-        { v: "renovacion", label: "Renovación", proc: "Renew", motivo: "para la renovación de su {producto}" },
-        { v: "cambio", label: "Cambio de plan", proc: "App", suffix: "_Change", motivo: "para realizar un cambio en su {producto}" }
+        { v: "nueva", label: "Aplicación nueva", proc: "App" },
+        { v: "renovacion", label: "Renovación", proc: "Renew" },
+        { v: "cambio", label: "Cambio de plan", proc: "App", suffix: "_Change" }
       ],
       outcomes: [
         { id: "enviada", label: "App enviada", desc: "Aplicación enviada a la compañía",
-          submission: true,
-          estatus: "APLICACIÓN ENVIADA", cierre: "Se envía la aplicación con los siguientes datos:",
-          pendiente: "", proximo: "Seguimiento de servicio al cliente",
+          submission: true, pendiente: "", proximo: "Seguimiento de servicio al cliente",
           task: "supp_cs", report: true, sections: S_FULL_SU },
         { id: "cotizacion", label: "Cotización", desc: "Se cotizó, el cliente queda en decidir",
-          estatus: "COTIZACIÓN REALIZADA", cierre: "Se realiza la cotización y se le explican las opciones al cliente.",
           pendiente: "Cliente debe confirmar el plan", proximo: "Contactar al cliente para definir el plan",
           task: "supp_quote", sections: ["cliente", "proceso", "plan"] },
         { id: "pago", label: "Pago", desc: "Se gestiona o verifica el pago",
-          estatus: "GESTIÓN DE PAGO", cierre: "",
           pendiente: "", proximo: "Seguimiento de servicio al cliente",
           task: "supp_cs", sections: ["cliente", "plan", "pago", "network"] },
         { id: "shortterm", label: "Renovar Short Term", desc: "Seguimiento para renovar un Short Term",
-          estatus: "RENOVACIÓN PENDIENTE", cierre: "Se le explican al cliente las opciones para renovar.",
           pendiente: "Renovar el plan antes del vencimiento", proximo: "Contactar al cliente para renovar",
           task: "supp_st", sections: ["cliente", "proceso", "plan"] },
         { id: "cancelada", label: "Cancelación", desc: "Se cancela la póliza",
-          estatus: "PÓLIZA CANCELADA", cierre: "La cancelación se realiza a solicitud del cliente con los siguientes datos:",
-          pendiente: "", proximo: "Verificar que la cancelación se refleje en el sistema",
+          pendiente: "", proximo: "Verificar que la cancelación se refleje",
           task: "supp_cs", report: true, cancelled: true, sections: ["cliente", "proceso", "plan", "agente"] }
       ],
+      /* v: lo que se elige; es: cómo se nombra en la nota; sms: cómo se le
+         nombra al cliente; file: cómo va en el nombre del archivo y en el
+         reporte de Cliq */
       productos: [
-        { v: "Dental", note: "Seguro Dental" },
-        { v: "Vision", note: "Seguro de Visión" },
-        { v: "Dental + Vision", note: "Seguro Dental y de Visión" },
-        { v: "Hospital", note: "Seguro de Hospitalización" },
-        { v: "Accident", note: "Seguro de Accidentes" },
-        { v: "Cancer", note: "Seguro de Cáncer" },
-        { v: "Short Term", note: "Seguro Short Term" },
-        { v: "Otro", note: "seguro suplementario" }
+        { v: "Dental", es: "Dental", sms: "seguro dental", file: "Dental" },
+        { v: "Vision", es: "Visión", sms: "seguro de visión", file: "Vision" },
+        { v: "Dental + Vision", es: "Dental y Visión", sms: "seguro dental y de visión", file: "Dental" },
+        { v: "Hospital", es: "Hospital", sms: "seguro de hospital", file: "Hospital" },
+        { v: "Accident", es: "Accidente", sms: "seguro de accidentes", file: "Accident" },
+        { v: "Cancer", es: "Cáncer", sms: "seguro de cáncer", file: "Cancer" },
+        { v: "Short Term", es: "Short Term", sms: "seguro Short Term", file: "Short Term" },
+        { v: "Life", es: "Vida", sms: "seguro de vida", file: "Life" },
+        { v: "International", es: "Internacional", sms: "seguro internacional", file: "International" },
+        { v: "Discount Plan", es: "Plan de descuento", sms: "plan de descuento", file: "Discount" },
+        { v: "Otro", es: "", sms: "seguro", file: "Supp" }
       ],
       network: [
-        { k: "appsummary", label: "Aplicación" },
-        { k: "consent", label: "Consent" },
-        { k: "payment", label: "Comprobante de pago" }
+        { k: "appsummary", label: "Aplicación", file: "{product}_{carrier}", date: "effective" },
+        { k: "payment", label: "Pago", file: "Payment Confirmation - {product}_{carrier}", date: "payment" },
+        { k: "card", label: "ID card", file: "{product}_{carrier} - CARD", date: "effective" }
       ]
     }
   };
@@ -1484,6 +1508,22 @@ kbd {
     return pad2(h) + ":" + pad2(mi);
   }
 
+  /* Hora en formato de 12 horas sin am/pm, como va en las notas: 14:44 -> 02:44. */
+  function to12h(input) {
+    var t = input instanceof Date ? pad2(input.getHours()) + ":" + pad2(input.getMinutes()) : parseTime(input);
+    if (!t) { return ""; }
+    var h = +t.slice(0, 2) % 12;
+    return pad2(h === 0 ? 12 : h) + t.slice(2);
+  }
+
+  /* "03/15/2026" -> "2026 MAR": año y mes como van en los nombres de archivo. */
+  function yearMonth(mdy) {
+    var p = parseDate(mdy);
+    if (!p) { return ""; }
+    var a = p.split("/");
+    return a[2] + " " + MONTH_ABBR[+a[0] - 1];
+  }
+
   /* Año de plan que toca vender hoy: desde octubre ya es el siguiente. */
   function defaultPlanYear(d) {
     d = d || new Date();
@@ -1514,10 +1554,10 @@ kbd {
 
   var LOWER_WORDS = { de: 1, del: 1, la: 1, las: 1, los: 1, y: 1, da: 1, dos: 1, van: 1, von: 1 };
 
-  /* "DIAZ PEREZ" -> "Diaz Perez", respetando partículas y apóstrofos. */
+  /* "DIAZ DE LA PENA" -> "Diaz De La Pena": cada palabra con mayúscula, que
+     es como la agencia escribe los nombres en Zoho y en los archivos. */
   function titleCase(s) {
-    return collapse(s).toLowerCase().split(" ").map(function (w, i) {
-      if (i > 0 && LOWER_WORDS[w]) { return w; }
+    return collapse(s).toLowerCase().split(" ").map(function (w) {
       return w.replace(/(^|[-'’])([a-záéíóúñü])/g, function (_, a, b) { return a + b.toUpperCase(); });
     }).join(" ");
   }
@@ -1564,7 +1604,7 @@ kbd {
   var api = {
     pad2: pad2, fmtDate: fmtDate, today: today, parseDate: parseDate, parseDateWords: parseDateWords,
     findDate: findDate, toDateObj: toDateObj, addDays: addDays, addMonths: addMonths, taskDate: taskDate,
-    parseTime: parseTime, defaultPlanYear: defaultPlanYear, moneyNumber: moneyNumber, parseMoney: parseMoney,
+    parseTime: parseTime, to12h: to12h, yearMonth: yearMonth, defaultPlanYear: defaultPlanYear, moneyNumber: moneyNumber, parseMoney: parseMoney,
     stripAccents: stripAccents, collapse: collapse, titleCase: titleCase, initials: initials,
     splitName: splitName, parseList: parseList, escapeHtml: escapeHtml, MONTHS: MONTHS
   };
@@ -1576,16 +1616,20 @@ kbd {
 </script>
 <script>
 /* Q Agency Toolbox — generadores de texto.
-   Tres salidas a partir de los mismos datos:
-     buildNote    nota para Zoho CRM
-     buildTask    nombre del task (formato TASK Q AGENCY)
-     buildReport  línea para el canal de Cliq (formato STANDARD FORMs - REPORT)
+   Cinco salidas a partir de los mismos datos:
+     buildNote      nota para Zoho CRM, con la forma de PROCESS TEMPLATES
+     buildTask      nombre del task (formato TASK Q AGENCY)
+     buildReport    línea para el canal de Cliq (STANDARD FORMs - REPORT)
+     buildSms       mensaje de texto para el cliente, con el nombre de la oficina
+     buildFileNames nombres para guardar los documentos (NOMBRE DE ARCHIVOS)
    Son funciones puras: no tocan la pantalla, así que se pueden probar solas. */
 (function (root) {
   "use strict";
 
   var C = (root.QA && root.QA.config) || require("./config.js");
   var U = (root.QA && root.QA.util) || require("./util.js");
+
+  /* ------------------------------------------------------------ comunes -- */
 
   function lineOf(d) { return C.LINES[d.line] || C.LINES.oc; }
 
@@ -1605,6 +1649,12 @@ kbd {
     return L.gestiones[0];
   }
 
+  function productOf(d) {
+    var list = C.LINES.supp.productos;
+    for (var i = 0; i < list.length; i++) { if (list[i].v === d.producto) { return list[i]; } }
+    return list[list.length - 1];
+  }
+
   function taskById(id) {
     for (var i = 0; i < C.TASKS.length; i++) { if (C.TASKS[i].id === id) { return C.TASKS[i]; } }
     return null;
@@ -1612,19 +1662,13 @@ kbd {
 
   function has(O, section) { return O.sections.indexOf(section) >= 0; }
   function val(v) { return U.collapse(v); }
+  function upper(v) { return val(v).toUpperCase(); }
+  function members(d) { return U.parseList(d.miembros).map(function (x) { return x.toUpperCase(); }); }
 
-  function fullName(d) { return U.collapse((d.nombres || "") + " " + (d.apellidos || "")).toUpperCase(); }
-
-  function productName(d) {
-    var L = lineOf(d);
-    if (d.line === "mc") { return "plan de Medicare"; }
-    if (d.line === "supp") {
-      for (var i = 0; i < L.productos.length; i++) {
-        if (L.productos[i].v === d.producto) { return L.productos[i].note; }
-      }
-      return L.product;
-    }
-    return L.product;
+  /* "Diaz, Beatriz": como se escriben los nombres en el reporte y los archivos */
+  function zohoName(d) {
+    var ap = U.titleCase(d.apellidos), no = U.titleCase(d.nombres);
+    return ap && no ? ap + ", " + no : (ap || no);
   }
 
   function carrierShort(line, name) {
@@ -1636,6 +1680,12 @@ kbd {
     return n.length <= 5 ? n.toUpperCase() : U.titleCase(n);
   }
 
+  /* Montos redondos sin centavos, como se escriben los ingresos: $22,590 */
+  function moneyShort(v) {
+    var s = U.parseMoney(v);
+    return s.replace(/\.00$/, "");
+  }
+
   /* +N miembros adicionales con cobertura (o -N si se quitaron). */
   function memberDelta(d) {
     var manual = val(d.adicionales).replace(/\s+/g, "");
@@ -1645,17 +1695,22 @@ kbd {
       return (m[1] === "-" ? "-" : "+") + (+m[2]);
     }
     if (d.line === "mc") { return ""; }
-    var n = U.parseList(d.miembros).length;
+    var n = members(d).length;
     return n > 1 ? "+" + (n - 1) : "";
   }
 
-  /* ------------------------------------------------------------- task -- */
+  /* --------------------------------------------------------------- task -- */
 
   function autoTaskId(d) {
     var O = outcomeOf(d);
     var id = O.task;
     if (id === "oc_cs" && d.dep) { id = "oc_cs_dep"; }
     if (id === "mc_mant" && d.cmd) { id = "mc_mant_cmd"; }
+    /* el seguro de vida tiene sus propios tasks */
+    if (d.line === "supp" && d.producto === "Life") {
+      if (O.id === "enviada") { id = "li_review"; }
+      if (O.id === "cotizacion") { id = "li_pending"; }
+    }
     return id;
   }
 
@@ -1664,7 +1719,7 @@ kbd {
      etiquetas que van al final, después de la hora y sin paréntesis). */
   function formatTask(T, o) {
     o = o || {};
-    var owner = val(o.owner).toUpperCase() || "XX";
+    var owner = upper(o.owner) || "XX";
     var text = T.text
       .replace("{metodo}", val(o.metodo) || "TEXT")
       .replace("{n}", val(o.intento) || "1")
@@ -1675,7 +1730,7 @@ kbd {
 
     var out = owner + ": " + text + " - VER NOTA " + (U.parseDate(o.fecha) || "MM/DD/YYYY") +
               " (" + (U.parseTime(o.hora) || "09:00") + ")";
-    (o.tags || []).forEach(function (t) { if (val(t)) { out += " " + val(t).toUpperCase(); } });
+    (o.tags || []).forEach(function (t) { if (val(t)) { out += " " + upper(t); } });
     return out;
   }
 
@@ -1693,22 +1748,19 @@ kbd {
     });
   }
 
-  /* ----------------------------------------------------------- report -- */
+  /* ------------------------------------------------------------- report -- */
 
   function reportCode(d) {
     if (d.codigoTipo === "New") { return "New"; }
     if (d.codigoTipo === "Sin Code") { return "Sin Code"; }
-    var q = val(d.codigoQ).toUpperCase().replace(/^Q/, "").replace(/[^0-9A-Z]/g, "");
+    var q = upper(d.codigoQ).replace(/^Q/, "").replace(/[^0-9A-Z]/g, "");
     return "Q" + (q || "XXXX");
   }
 
   function reportProcess(d) {
     var O = outcomeOf(d), G = gestionOf(d);
     var proc = G.proc;
-    if (d.line === "supp") {
-      var prod = val(d.producto);
-      proc += " " + (prod && prod !== "Otro" ? prod : "Supp");
-    }
+    if (d.line === "supp") { proc += " " + productOf(d).file; }
     var carrier = val(d.reportCarrier) || carrierShort(d.line, d.compania);
     var parts = [proc];
     if (carrier) { parts.push(carrier); }
@@ -1723,78 +1775,98 @@ kbd {
   function buildReport(d) {
     var O = outcomeOf(d);
     if (!O.report) { return ""; }
-    var ap = U.titleCase(d.apellidos), no = U.titleCase(d.nombres);
-    var name = ap && no ? ap + ", " + no : (ap || no || "Apellido, Nombre");
-    var agentIni = val(d.agenteIni || d.ini).toUpperCase() || "XX";
-    var s = reportCode(d) + " - " + name + " - " + reportProcess(d) + " - " +
+    var agentIni = upper(d.agenteIni || d.ini) || "XX";
+    var s = reportCode(d) + " - " + (zohoName(d) || "Apellido, Nombre") + " - " + reportProcess(d) + " - " +
             (d.canal || "Call") + " (" + agentIni + ")";
     var delta = memberDelta(d);
     if (delta) { s += " " + delta; }
     /* Si la aplicación la procesó un colaborador, sus iniciales van delante. */
-    var col = val(d.reportPrefix).toUpperCase();
+    var col = upper(d.reportPrefix);
     if (col) { s = col + ": " + s; }
     return s;
   }
 
-  /* ------------------------------------------------------------- nota -- */
+  /* --------------------------------------------------------------- nota -- */
 
-  function opening(d) {
-    if (d.canal === "Appointment") {
-      return "Se atiende al cliente en cita agendada (" + (d.modalidad || "presencial") + ")";
-    }
-    if (d.canal === "Walk In") { return "Se atiende al cliente en la oficina (walk-in)"; }
-    return "Se atiende al cliente por llamada";
+  function cliente(d) { return d.genero === "a" ? "la cliente" : "el cliente"; }
+  /* "interesado" -> "interesada" cuando es una cliente */
+  function adj(d, word) { return d.genero === "a" ? word.replace(/o$/, "a") : word; }
+
+  var MODO_CITA = { "presencial": "en cita presencial", "telefónica": "en cita telefónica", "Zoom": "en cita por Zoom", "en casa": "en cita en su casa" };
+
+  /* Cómo empieza una nota de conversación: "Se conversa con la cliente (02:44)" */
+  function talk(d) {
+    var t = U.parseTime(d.horaLlamada) ? " (" + U.to12h(d.horaLlamada) + ")" : "";
+    if (d.canal === "Appointment") { return "Se atiende a " + cliente(d) + " " + (MODO_CITA[d.modalidad] || "en cita") + t; }
+    if (d.canal === "Walk In") { return "Se atiende a " + cliente(d) + " en la oficina" + t; }
+    return "Se conversa con " + cliente(d) + t;
   }
 
-  function motive(d) {
-    var O = outcomeOf(d), G = gestionOf(d);
-    var prod = productName(d);
-    var y = val(d.anio) ? " " + val(d.anio) : "";
-    switch (O.id) {
-      case "pago": return "para gestionar el pago de su " + prod + y;
-      case "docs": return "para dar seguimiento a los documentos que requiere el Mercado en su aplicación" + y;
-      case "cancelada": return "para cancelar su " + prod + y;
-      case "sincambio": return "para la revisión anual de su plan de Medicare" + y;
-      case "interesado": return "para orientarlo sobre sus opciones de Medicare";
-      case "shortterm": return "para la renovación de su " + prod;
-      default: return G.motivo.replace("{producto}", prod) + y;
-    }
+  function lineLabel(d) {
+    if (d.line === "mc") { return "MC"; }
+    if (d.line === "supp") { return productOf(d).es || "suplementario"; }
+    return "OC";
   }
 
-  var PAGO_CIERRE = {
-    "PAYMENT": "Se realiza el pago con el cliente.",
-    "NO PAYMENT": "El cliente queda en realizar el pago.",
-    "PAYMENT NOT VERIFIED": "No se logra confirmar el pago con el cliente.",
-    "NO PREMIUM": "Se verifica que el plan no tiene prima."
-  };
+  function year(d) { return val(d.anio) ? " " + val(d.anio) : ""; }
+
+  function citaWhen(d) {
+    var f = U.parseDate(d.fechaSeg), h = U.parseTime(d.hora);
+    return f ? " para el " + f + (h ? " a las " + h : "") : "";
+  }
 
   var METODO_ES = { TEXT: "un mensaje de texto", EMAIL: "un correo electrónico", LETTER: "una carta" };
 
-  function followUpStamp(d) {
-    var f = U.parseDate(d.fechaSeg), h = U.parseTime(d.hora);
-    if (!f) { return ""; }
-    return f + (h ? " (" + h + ")" : "");
-  }
+  function header(d) {
+    var O = outcomeOf(d), G = gestionOf(d);
+    var carrier = carrierShort(d.line, d.compania);
+    var con = carrier ? " con " + carrier : "";
+    var lbl = lineLabel(d), y = year(d);
 
-  function narrative(d) {
-    var O = outcomeOf(d);
-    if (O.id === "sincontacto") {
-      var s = "Se intenta contactar al cliente por llamada " + motive(d) + ", sin respuesta.";
-      if (METODO_ES[d.metodo]) { s += " Se le envía " + METODO_ES[d.metodo] + "."; }
-      if (val(d.intento)) { s += " Intento #" + val(d.intento) + "."; }
-      return s;
+    if (d.line === "oc") {
+      switch (O.id) {
+        case "enviada": return ({ renovacion: "Se renueva", cambio: "Se actualiza" }[G.v] || "Se procesa") + " app OC" + y + con + ".";
+        case "cancelada": return "Se cancela app OC" + y + con + " a solicitud de " + cliente(d) + ".";
+        case "cotizacion":
+        case "consent": return talk(d) + ", nos indicó que desea cotizar con los siguientes datos:";
+        case "lista": return talk(d) + ", nos indicó que desea " + { nueva: "aplicar", renovacion: "renovar", cambio: "actualizar su app" }[G.v] + " con los siguientes datos:";
+        case "docs": return talk(d) + " sobre los documentos que pide el MKPL para su app OC" + y + ".";
+        case "pago": return talk(d) + " sobre el pago de su plan OC" + y + con + ".";
+        case "cita": return talk(d) + ", " + { nueva: "está " + adj(d, "interesado") + " en aplicar al OC", renovacion: "desea renovar su OC", cambio: "desea actualizar su app OC" }[G.v] + y + ". Se agenda cita" + citaWhen(d) + ".";
+        case "nointeresado": return talk(d) + ", indica que no está " + adj(d, "interesado") + " por el momento.";
+      }
     }
-    var out = opening(d) + " " + motive(d) + ".";
-    if (d.line === "mc" && has(O, "proceso") && d.soaEstado === "firmado" && O.id !== "soa") {
-      out += " Se firma el SOA previo a la cita" + (U.parseDate(d.soaFecha) ? " (" + U.parseDate(d.soaFecha) + ")" : "") + ".";
+    if (d.line === "mc") {
+      switch (O.id) {
+        case "enviada": return G.v === "cambio" ? "Se procesa cambio de plan de MC" + (carrier ? " a " + carrier : "") + "." : "Se procesa app de MC" + con + ".";
+        case "cancelada": return "Se cancela app de MC" + con + " a solicitud de " + cliente(d) + ".";
+        case "soa": return talk(d) + " sobre su plan de MC" + y + ". Se envía el SOA para firma antes de revisar los planes.";
+        case "cita": return talk(d) + ", desea revisar su plan de MC" + y + ". Se agenda cita" + citaWhen(d) + ".";
+        case "sincambio": return talk(d) + ", se revisan los beneficios de su plan para" + (y || " el próximo año") + " y decide mantenerse en su plan actual.";
+        case "interesado": return talk(d) + ", está " + adj(d, "interesado") + " en aplicar al MC con la agencia.";
+        case "nointeresado": return talk(d) + ", indica que no está " + adj(d, "interesado") + " por el momento.";
+      }
     }
-    var f = U.parseDate(d.fechaSeg), h = U.parseTime(d.hora);
-    var seg = f ? " para el " + f + (h ? " a las " + h : "") : "";
-    var plat = val(d.plataforma) || "el Mercado";
-    var cierre = O.cierre.replace("{plataforma}", plat).replace("{seg}", seg);
-    if (O.id === "pago") { cierre = PAGO_CIERRE[d.pagoEstado] || ""; }
-    if (cierre) { out += " " + cierre; }
-    return out;
+    if (d.line === "supp") {
+      var P = productOf(d), others = members(d).slice(1);
+      var who = cliente(d) + (others.length ? (others.length === 1 ? " y " + others[0] : ", " + others.slice(0, -1).join(", ") + " y " + others[others.length - 1]) : "");
+      var what = (P.es ? " de " + P.es : "") + (carrier ? " de " + carrier : "") + (val(d.plan) ? ", plan " + val(d.plan) + "," : "");
+      switch (O.id) {
+        case "enviada":
+          return ({ renovacion: "Se renueva app", cambio: "Se procesa cambio de plan" }[G.v] || "Se procesa app") + what + " para " + who + ".";
+        case "cancelada": return "Se cancela" + (P.es ? " " + P.es : " el plan") + (carrier ? " de " + carrier : "") + " a solicitud de " + cliente(d) + ".";
+        case "cotizacion": return talk(d) + ", desea cotizar " + P.sms + ".";
+        case "pago": return talk(d) + " sobre el pago de su " + P.sms + (carrier ? " con " + carrier : "") + ".";
+        case "shortterm": return talk(d) + " sobre la renovación de su Short Term" + (carrier ? " de " + carrier : "") + ".";
+      }
+    }
+    /* sin contacto: igual para todas las líneas */
+    var por = { nueva: "su app " + lbl, renovacion: "la renovación de su " + lbl, cambio: "su " + lbl }[G.v] || ("su " + lbl);
+    if (d.line === "mc") { por = "revisar su plan de MC"; }
+    var s = "Se llama a " + cliente(d) + " para " + por + y + ", sin respuesta.";
+    if (METODO_ES[d.metodo]) { s += " Se le envía " + METODO_ES[d.metodo] + "."; }
+    if (val(d.intento)) { s += " Intento #" + val(d.intento) + "."; }
+    return s;
   }
 
   function paymentLine(d) {
@@ -1802,140 +1874,148 @@ kbd {
     var fecha = U.parseDate(d.pagoFecha);
     switch (d.pagoEstado) {
       case "PAYMENT":
-        return "Realizado" + (monto ? " - " + monto : "") + (fecha ? " el " + fecha : "") +
-               (val(d.pagoMetodo) ? " - " + val(d.pagoMetodo) : "") +
-               (val(d.pagoConf) ? " - Conf. " + val(d.pagoConf) : "") +
-               (d.autopay === "SI" ? " - Autopay activo" : (d.autopay === "NO" ? " - Sin autopay" : ""));
+        return ["Realizado" + (monto ? " - " + monto : "") + (fecha ? " el " + fecha : ""),
+                val(d.pagoMetodo), val(d.pagoConf) ? "Conf. " + val(d.pagoConf) : ""].filter(Boolean).join(" - ");
       case "NO PAYMENT":
-        return "Pendiente" + (monto ? " - prima de " + monto : "") + (fecha ? " - el cliente paga el " + fecha : "");
+        return "Pendiente" + (monto ? " - prima de " + monto : "") + (fecha ? " - " + cliente(d) + " paga el " + fecha : "");
       case "PAYMENT NOT VERIFIED":
-        return "No verificado - el cliente no contestó para confirmar";
+        return "No verificado - " + cliente(d) + " no contestó para confirmar";
       case "NO PREMIUM":
         return "No aplica - plan sin prima";
       default:
-        return "";
+        return val(d.pagoMetodo);
     }
   }
 
-  /* Lo que queda pendiente: lo que escribió el agente (o lo sugerido para la
-     situación) más lo que se deduce del pago y de los documentos. */
-  function pendingItems(d) {
-    var O = outcomeOf(d), items = [];
-    var typed = val(d.pendiente);
-    if (typed) { items.push(typed); } else if (O.pendiente) { items.push(O.pendiente); }
-    if (has(O, "pago")) {
-      var monto = U.parseMoney(d.pagoMonto) || (d.line === "oc" ? U.parseMoney(d.primaPagar) : U.parseMoney(d.prima));
-      if (d.pagoEstado === "NO PAYMENT") {
-        items.push("Pago de la prima" + (monto ? " (" + monto + ")" : "") +
-                   (U.parseDate(d.pagoFecha) ? " - el cliente paga el " + U.parseDate(d.pagoFecha) : ""));
-      } else if (d.pagoEstado === "PAYMENT NOT VERIFIED") {
-        items.push("Confirmar el pago con el cliente");
-      }
-    }
-    if (has(O, "docsreq") && val(d.docReq) && O.id !== "docs") {
-      items.push("Enviar al Mercado: " + val(d.docReq) +
-                 (U.parseDate(d.docFecha) ? " antes del " + U.parseDate(d.docFecha) : ""));
-    }
-    return items;
+  function agentRows(d, add) {
+    var O = outcomeOf(d);
+    if (!has(O, "agente")) { return; }
+    /* el NPN se anota con las iniciales del agente, como en los templates */
+    if (val(d.agente) || val(d.agenteIni)) { add("NPN", upper(d.agenteIni) || U.initials(d.agente)); }
+    if (d.line === "mc") { add("Writing ID", d.escritura); }
+    add("Colaborador", upper(d.colaboradorNombre));
   }
 
-  function dataRows(d) {
-    var O = outcomeOf(d), rows = [];
-    function add(label, value) { if (val(value)) { rows.push(label + ": " + val(value)); } }
+  function bodyOC(d, add, raw) {
+    var O = outcomeOf(d), m = members(d);
+    var nTax = val(d.hogar), nCov = m.length;
+    var names = nCov ? " (" + m.join(", ") + ")" : "";
+    var cov = nCov ? nCov + names : "";
+    var quoteLike = O.id === "cotizacion" || O.id === "consent" || O.id === "lista";
 
-    var name = fullName(d);
-    var members = U.parseList(d.miembros).map(function (x) { return x.toUpperCase(); });
-
-    if (has(O, "cliente")) {
-      add("Solicitante", name);
-      if (d.line !== "mc" && members.length) {
-        add("Miembros en cobertura", members.length + " - " + members.join(", "));
+    if (quoteLike) {
+      var portal = { "HealthSherpa": "HEALTHSHERPA", "el portal de la compañía": "PORTAL DE LA COMPAÑÍA" }[d.plataforma] || "MARKETPLACE";
+      raw("PROCESAR POR EL PORTAL: " + portal + ".");
+      if (val(d.ingreso)) { raw("Income: " + moneyShort(d.ingreso) + "."); }
+      if (nTax) { raw("En taxes: " + nTax + "."); }
+      if (cov) { raw("Solicitan cobertura: " + cov + "."); }
+      add("ID#", d.appId);
+      if (d.periodo === "SEP") { add("Enrollment Period", "SEP" + (val(d.motivoSep) ? " - " + val(d.motivoSep) : "")); }
+      var carrier = carrierShort("oc", d.compania), prima = moneyShort(d.primaPagar);
+      if (carrier || val(d.plan)) {
+        raw("Se explica y da detalles del plan cotizado:");
+        raw("Compañía_Plan: " + [carrier, val(d.plan)].filter(Boolean).join("_") + (prima ? " - " + prima : ""));
       }
+      if (O.id === "consent") { raw("Se envía carta de consentimiento."); }
+      if (O.id === "lista") { raw("Se recibe la carta de consentimiento firmada."); agentRows(d, add); }
+      return;
     }
 
-    if (d.line === "oc") {
-      if (has(O, "hogar")) {
-        add("Tamaño del hogar", d.hogar);
-        add("Ingreso anual estimado", U.parseMoney(d.ingreso));
-      }
-      if (has(O, "proceso")) {
-        add("ID de aplicación", d.appId);
-        if (d.periodo === "SEP") {
-          add("Tipo de inscripción", "Special Enrollment (SEP)" + (val(d.motivoSep) ? " - Motivo: " + val(d.motivoSep) : ""));
-        } else if (d.periodo === "OEP") {
-          add("Tipo de inscripción", "Open Enrollment (OEP)");
-        }
-      }
-      if (has(O, "plan")) {
-        add("Compañía", val(d.compania).toUpperCase());
-        add("Plan", d.plan);
-        add("ID del plan", val(d.planId).toUpperCase());
-        if (val(d.metal) && val(d.plan).toLowerCase().indexOf(val(d.metal).toLowerCase()) < 0) { add("Nivel", d.metal); }
-        var ef = U.parseDate(d.efectiva), fin = U.parseDate(d.fin);
-        add("Cobertura", ef ? ef + (fin ? " - " + fin : "") : "");
-        add("No. de póliza", d.poliza);
-      }
-      if (has(O, "costos")) {
-        add("Prima total", U.parseMoney(d.primaTotal));
-        add("Subsidio (APTC)", U.parseMoney(d.subsidio));
-        add("Prima a pagar", U.parseMoney(d.primaPagar));
-        add("Deducible", U.parseMoney(d.deducible));
-        add("Máximo de bolsillo", U.parseMoney(d.maximo));
-      }
-      if (has(O, "docsreq")) {
-        add("Documentos requeridos", val(d.docReq) ? val(d.docReq) + (U.parseDate(d.docFecha) ? " - fecha tope " + U.parseDate(d.docFecha) : "") : "");
-      }
+    if (has(O, "hogar") && (val(d.ingreso) || nTax || nCov)) {
+      var s = val(d.ingreso) ? "Sus ingresos anuales son " + moneyShort(d.ingreso) + ". " : "";
+      if (nTax && nCov) { s += (nTax === "1" ? "Es " : "Son ") + nTax + " en los taxes y " + nCov + " pidiendo cobertura" + names + "."; }
+      else if (nTax) { s += (nTax === "1" ? "Es " : "Son ") + nTax + " en los taxes."; }
+      else if (nCov) { s += nCov + " pidiendo cobertura" + names + "."; }
+      raw(s.trim());
     }
-
-    if (d.line === "mc") {
-      if (has(O, "medicare")) {
-        add("Número de Medicare (MBI)", val(d.mbi).toUpperCase());
-        add("Parte A efectiva", U.parseDate(d.parteA) || d.parteA);
-        add("Parte B efectiva", U.parseDate(d.parteB) || d.parteB);
-        add("Medicaid", val(d.medicaid) ? "SI - ID " + val(d.medicaid) : "");
-      }
-      if (has(O, "proceso")) {
-        if (val(d.periodoMC)) {
-          add("Período de elección", val(d.periodoMC) + (d.periodoMC === "SEP" && val(d.motivoSepMC) ? " - Motivo: " + val(d.motivoSepMC) : ""));
-        }
-        if (d.soaEstado === "firmado") { add("SOA", "Firmado" + (U.parseDate(d.soaFecha) ? " el " + U.parseDate(d.soaFecha) : "")); }
-        else if (d.soaEstado === "pendiente") { add("SOA", "Pendiente de firma"); }
-        add("Plan anterior", d.anterior);
-      }
-      if (has(O, "plan")) {
-        add("Compañía", val(d.compania).toUpperCase());
-        var contrato = val(d.contrato).toUpperCase();
-        var yaEsta = contrato && val(d.plan).toUpperCase().indexOf(contrato.split("-").slice(0, 2).join("-")) >= 0;
-        add("Plan", val(d.plan) ? val(d.plan) + (contrato && !yaEsta ? " (" + contrato + ")" : "") : "");
-        add("Prima mensual", U.parseMoney(d.prima));
-        add("Fecha efectiva", U.parseDate(d.efectiva) || d.efectiva);
-        add("PCP", val(d.pcp) ? val(d.pcp) + (val(d.pcpId) ? " (ID " + val(d.pcpId) + ")" : "") : "");
-        add("Afección crónica que califica", d.afeccion);
-        add("No. de confirmación", d.confirmacion);
-      }
+    var idLine = [val(d.appId) ? "ID#: " + val(d.appId) : "", val(d.estado) ? "Status: " + val(d.estado) : ""].filter(Boolean).join("   ");
+    if (idLine && (has(O, "proceso") || O.id === "pago")) { raw(idLine); }
+    if (has(O, "plan")) {
+      add(O.id === "enviada" ? "Se inscribe en plan" : "Plan", d.plan);
+      add("Plan ID", upper(d.planId));
+      if (val(d.metal) && val(d.plan).toLowerCase().indexOf(val(d.metal).toLowerCase()) < 0) { add("Nivel", d.metal); }
+      var ef = U.parseDate(d.efectiva), fin = U.parseDate(d.fin);
+      if (ef) { add("Inicia cobertura", ef + (fin ? " (hasta " + fin + ")" : "")); }
     }
-
-    if (d.line === "supp") {
-      if (has(O, "proceso")) { add("Producto", d.producto === "Otro" ? "" : d.producto); }
-      if (has(O, "plan")) {
-        add("Compañía", val(d.compania).toUpperCase());
-        add("Plan", d.plan);
-        add("Tipo de plan", d.tipoPlan);
-        add("Prima mensual", U.parseMoney(d.prima));
-        add("Fecha efectiva", U.parseDate(d.efectiva) || d.efectiva);
-        add("No. de aplicación / póliza", d.poliza);
+    if (has(O, "costos")) {
+      var pay = U.parseMoney(d.primaPagar), tot = U.parseMoney(d.primaTotal), sub = U.parseMoney(d.subsidio);
+      if (pay || tot) {
+        add("Premium", (pay || tot) + (pay && tot && sub ? " (prima " + tot + " - APTC " + sub + ")" : ""));
       }
+      var ded = U.parseMoney(d.deducible), max = U.parseMoney(d.maximo);
+      if (ded || max) { raw([ded ? "Deducible: " + ded : "", max ? "Máx. de bolsillo: " + max : ""].filter(Boolean).join(" / ")); }
     }
-
-    if (has(O, "pago")) { add("Pago", paymentLine(d)); }
-
-    if (has(O, "agente") && val(d.agente)) {
-      add("Agente escritor", val(d.agente).toUpperCase() + (val(d.npn) ? " - NPN " + val(d.npn) : ""));
-      if (d.line === "mc") { add("Writing ID", d.escritura); }
+    if (has(O, "plan")) { add("Póliza #", d.poliza); }
+    if (has(O, "proceso") && O.id === "enviada") {
+      add("Enrollment Period", d.periodo === "SEP" ? "SEP" + (val(d.motivoSep) ? " - " + val(d.motivoSep) : "") : d.periodo);
     }
-    /* quién procesó la aplicación, cuando no es el propio agente */
-    if (has(O, "agente") && val(d.colaboradorNombre)) { add("Colaborador", val(d.colaboradorNombre).toUpperCase()); }
-    return rows;
+    agentRows(d, add);
+    if (has(O, "docsreq")) {
+      if (val(d.docReq)) { raw("MKPL pide docs: " + val(d.docReq) + (U.parseDate(d.docFecha) ? " antes del " + U.parseDate(d.docFecha) : "") + "."); }
+      else if (O.id === "enviada" && d.net && d.net.eligibility) { raw("MKPL no pide docs."); }
+    }
+    if (O.id === "enviada") {
+      var acct = d.cuentaMkpl === "no" ? "No hay cuenta MKPL creada. " : (d.cuentaMkpl === "si" ? "Tiene cuenta MKPL creada. " : "");
+      var how = { "HealthSherpa": "La app se hizo con HealthSherpa.", "HealthCare.gov": "La app se hizo en el MKPL (HealthCare.gov).",
+                  "el portal de la compañía": "La app se hizo en el portal de la compañía." }[d.plataforma] || "";
+      if (acct || how) { raw((acct + how).trim()); }
+    }
+    if (has(O, "pago")) { add("Pago", paymentLine(d)); add("AutoPay", d.pagoEstado === "PAYMENT" ? d.autopay : ""); }
+  }
+
+  function bodyMC(d, add) {
+    var O = outcomeOf(d);
+    if (has(O, "cliente")) { add("Name", zohoName(d)); }
+    if (has(O, "medicare")) {
+      add("MC #", upper(d.mbi));
+      add("PART A", U.parseDate(d.parteA) || d.parteA);
+      add("PART B", U.parseDate(d.parteB) || d.parteB);
+    }
+    if (has(O, "plan")) {
+      var contrato = upper(d.contrato), plan = val(d.plan);
+      var fullPlan = plan ? plan + (contrato && plan.toUpperCase().indexOf(contrato) < 0 ? " " + contrato : "") : contrato;
+      add(O.id === "enviada" || O.id === "cancelada" ? "Plan" : "Plan actual", fullPlan);
+      add("Conf/App #", d.confirmacion);
+    }
+    if (has(O, "proceso") && val(d.periodoMC) && O.id !== "sincontacto") {
+      add("Election Period", val(d.periodoMC) + (d.periodoMC === "SEP" && val(d.motivoSepMC) ? " (" + val(d.motivoSepMC) + ")" : ""));
+    }
+    if (has(O, "plan")) { add("Fecha de efectividad", U.parseDate(d.efectiva) || d.efectiva); }
+    if (has(O, "medicare")) { add("Medicaid", val(d.medicaid) ? "SI - ID " + val(d.medicaid) : ""); }
+    if (has(O, "proceso") && d.gestion === "cambio") { add("Plan anterior", d.anterior); }
+    if (has(O, "plan")) {
+      add("PCP", val(d.pcp) ? val(d.pcp) + (val(d.pcpId) ? " (ID " + val(d.pcpId) + ")" : "") : "");
+      add("Afección crónica", d.afeccion);
+      add("Premium", U.parseMoney(d.prima));
+    }
+    if (has(O, "proceso") && O.id !== "soa" && O.id !== "sincontacto" && d.soaEstado === "firmado" && U.parseDate(d.soaFecha)) {
+      add("SOA firmado", U.parseDate(d.soaFecha));
+    }
+    agentRows(d, add);
+  }
+
+  function bodySupp(d, add, raw) {
+    var O = outcomeOf(d);
+    if (O.id === "cotizacion") {
+      var carrier = carrierShort("supp", d.compania), prima = U.parseMoney(d.prima);
+      if (carrier || val(d.plan)) {
+        raw("Se explica y da detalles del plan cotizado:");
+        raw("Compañía_Plan: " + [carrier, val(d.plan)].filter(Boolean).join("_") + (prima ? " - " + prima : ""));
+      }
+      return;
+    }
+    if (has(O, "plan")) {
+      if (O.id !== "enviada") { add("Plan", d.plan); }
+      add("Effective Date", U.parseDate(d.efectiva) || d.efectiva);
+      add("Monthly Premium", U.parseMoney(d.prima));
+      add("App ID", d.appId);
+      add("Policy #", d.poliza);
+      add("Periodo", d.plazo);
+      add("Tipo de plan", d.tipoPlan);
+      add("Beneficiario", d.beneficiario);
+    }
+    if (has(O, "pago")) { add("Pago", paymentLine(d)); add("AutoPay", d.autopay); }
+    agentRows(d, add);
   }
 
   function networkDocs(d) {
@@ -1947,42 +2027,162 @@ kbd {
   function buildNote(d, opts) {
     opts = opts || {};
     var O = outcomeOf(d);
-    var ini = val(d.ini).toUpperCase() || "XX";
-    var out = [];
+    var ini = upper(d.ini) || "XX";
+    var out = [ini + "_" + (U.parseDate(d.fecha) || "MM/DD/YYYY") + ": " + header(d)];
 
-    out.push(ini + "_" + (U.parseDate(d.fecha) || "MM/DD/YYYY") + ": " + narrative(d));
-    out.push("");
+    function add(label, value) { if (val(value)) { out.push(label + ": " + val(value)); } }
+    function raw(text) { if (val(text)) { out.push(text); } }
 
-    out.push("ESTATUS: " + O.estatus + (d.recuperado && has(O, "proceso") ? " (RECUPERADO)" : ""));
-    var pend = pendingItems(d);
-    out.push("PENDIENTE: " + (pend.length ? pend.join("; ") : "Ninguno"));
-    var prox = val(d.proximo) || O.proximo.replace("{plataforma}", val(d.plataforma) || "el Mercado");
-    var stamp = followUpStamp(d);
-    if (prox || stamp) { out.push("PRÓXIMO PASO: " + [prox, stamp].filter(Boolean).join(" - ")); }
+    if (d.line === "mc") { bodyMC(d, add, raw); }
+    else if (d.line === "supp") { bodySupp(d, add, raw); }
+    else { bodyOC(d, add, raw); }
 
-    var rows = dataRows(d);
-    if (rows.length) { out.push(""); rows.forEach(function (r) { out.push(r); }); }
+    String(d.notas || "").split(/\n/).map(U.collapse).filter(Boolean).forEach(function (x, i) {
+      out.push(i === 0 ? "Observaciones: " + x : x);
+    });
 
-    var obs = String(d.notas || "").split(/\n/).map(U.collapse).filter(Boolean);
-    if (obs.length) {
-      out.push("");
-      out.push("Observaciones: " + obs[0]);
-      obs.slice(1).forEach(function (x) { out.push(x); });
-    }
+    var g = function (t) { return String(t || "").replace(/el cliente/g, cliente(d)); };
+    add("Pendiente", val(d.pendiente) || g(O.pendiente));
+    var f = U.parseDate(d.fechaSeg);
+    var prox = val(d.proximo) || (f ? g(O.proximo) : "");
+    if (O.id !== "cita" && (prox || f)) { add("Seguimiento", [prox, f].filter(Boolean).join(" - ")); }
 
-    var tail = [];
     var docs = networkDocs(d);
-    if (docs.length) { tail.push("Documentos en Network: " + docs.join(", ") + "."); }
-    /* el task y el botón rojo solo cierran la nota de una aplicación enviada */
-    if (d.botonRojo && O.submission) { tail.push("Se reporta en el botón rojo."); }
-    if (d.incluirTask && O.submission) { var t = buildTask(d); if (t) { tail.push("Task: " + t); } }
-    if (tail.length) { out.push(""); tail.forEach(function (x) { out.push(x); }); }
+    if (docs.length) { out.push("Docs en mi folder del NETW: " + docs.join(", ") + "."); }
+    /* el botón rojo y el task solo cierran la nota de una aplicación enviada */
+    if (d.botonRojo && O.submission) { out.push("Se reporta en el botón rojo."); }
+    if (d.incluirTask && O.submission) { var t = buildTask(d); if (t) { out.push("Task: " + t); } }
 
     var text = out.join("\n");
     return opts.sinAcentos ? U.stripAccents(text) : text;
   }
 
-  /* ----------------------------------------------------------- avisos -- */
+  /* ---------------------------------------------------------------- SMS -- */
+
+  function firstName(d) { return U.titleCase(val(d.nombres).split(" ")[0] || ""); }
+
+  function buildSms(d, opts) {
+    opts = opts || {};
+    var O = outcomeOf(d);
+    var office = val(d.oficina) || "QAgency";
+    var carrier = carrierShort(d.line, d.compania);
+    var y = year(d);
+    /* kind: cómo se nombra el producto; what: lo mismo con "su" delante */
+    var kind = d.line === "mc" ? "Medicare" + y : (d.line === "supp" ? productOf(d).sms : "Obamacare" + y);
+    var what = d.line === "mc" ? "su plan de Medicare" + y : (d.line === "supp" ? "su " + productOf(d).sms : "su seguro de Obamacare" + y);
+    var plan = val(d.plan);
+    var ef = U.parseDate(d.efectiva);
+    var pay = d.line === "oc" ? U.parseMoney(d.primaPagar) : U.parseMoney(d.prima);
+    var name = firstName(d);
+    var tel = val(d.telefono);
+    var parts = [];
+
+    parts.push("Hola" + (name ? " " + name : "") + ", le saluda el equipo de " + office + ".");
+
+    switch (O.id) {
+      case "enviada":
+        parts.push((d.line === "mc" ? "Su solicitud de " : "Su aplicación de ") + kind + (carrier ? " con " + carrier : "") +
+                   (d.line === "mc" ? " quedó enviada." : " quedó procesada."));
+        if (plan) { parts.push("Plan: " + plan + "."); }
+        if (pay) { parts.push(U.moneyNumber(pay) === 0 ? "No tiene pago mensual." : "Pago mensual: " + pay + "."); }
+        if (ef) { parts.push("Su cobertura inicia el " + ef + "."); }
+        if (d.pagoEstado === "NO PAYMENT") {
+          parts.push("Recuerde hacer su primer pago para activar la cobertura" + (U.parseDate(d.pagoFecha) ? " (fecha acordada: " + U.parseDate(d.pagoFecha) + ")" : "") + ".");
+        }
+        if (d.line === "oc" && val(d.docReq)) {
+          parts.push("El Mercado pide " + val(d.docReq).toLowerCase() + (U.parseDate(d.docFecha) ? " antes del " + U.parseDate(d.docFecha) : "") + "; envíenoslo lo antes posible.");
+        }
+        if (d.line === "mc") { parts.push("Cuando reciba su tarjeta nueva, úsela desde esa fecha."); }
+        break;
+      case "lista":
+        parts.push("Recibimos su consentimiento firmado. Procesaremos " + what + " y le avisaremos cuando quede listo.");
+        break;
+      case "consent":
+        parts.push("Le enviamos la carta de consentimiento para " + what + ". Por favor fírmela cuando pueda para continuar con el proceso.");
+        break;
+      case "cotizacion":
+        parts.push("Gracias por su tiempo. Le cotizamos " + (carrier || plan ? "el plan " + [carrier, plan].filter(Boolean).join(" ") : what) + (pay ? " por " + pay + " al mes" : "") + ". Avísenos si desea continuar con la aplicación.");
+        break;
+      case "docs":
+        parts.push("El Mercado necesita " + (val(d.docReq) ? val(d.docReq).toLowerCase() : "unos documentos") + " para " + what + (U.parseDate(d.docFecha) ? ", con fecha límite el " + U.parseDate(d.docFecha) : "") + ". Por favor envíenoslos lo antes posible para mantener su cobertura.");
+        break;
+      case "pago":
+        var plano = what + (carrier ? " con " + carrier : "");
+        parts.push({
+          "PAYMENT": "Confirmamos el pago de " + plano + (U.parseMoney(d.pagoMonto) ? " por " + U.parseMoney(d.pagoMonto) : "") + ". ¡Gracias!",
+          "NO PAYMENT": "Le recordamos realizar el pago de " + plano + (pay ? " por " + pay : "") + (U.parseDate(d.pagoFecha) ? " el " + U.parseDate(d.pagoFecha) : "") + ".",
+          "PAYMENT NOT VERIFIED": "Queremos confirmar el pago de " + plano + ". Por favor llámenos cuando pueda.",
+          "NO PREMIUM": plano.charAt(0).toUpperCase() + plano.slice(1) + " no tiene pago mensual; no necesita pagar nada."
+        }[d.pagoEstado] || "Le escribimos sobre el pago de " + plano + ".");
+        break;
+      case "soa":
+        parts.push("Le enviamos el formulario de alcance de la cita (SOA) de Medicare. Por favor fírmelo antes de nuestra conversación para poder revisar los planes con usted.");
+        break;
+      case "cita":
+        var f = U.parseDate(d.fechaSeg), h = U.parseTime(d.hora);
+        parts.push("Le confirmamos su cita" + (f ? " para el " + f + (h ? " a las " + h : "") : "") + " para revisar " + what + ". Si necesita cambiarla, avísenos.");
+        break;
+      case "sincambio":
+        parts.push("Como conversamos, usted se mantiene en su plan actual" + (plan ? " (" + plan + ")" : "") + (y ? " para" + y : "") + ".");
+        break;
+      case "interesado":
+        parts.push("Gracias por su interés. Le contactaremos cuando se abra su período para inscribirse en Medicare.");
+        break;
+      case "sincontacto":
+        parts.push("Intentamos comunicarnos con usted sobre " + what + ". Por favor llámenos o responda este mensaje cuando pueda.");
+        break;
+      case "nointeresado":
+        parts.push("Gracias por atendernos. Si más adelante necesita ayuda con su seguro, con gusto le atendemos.");
+        break;
+      case "cancelada":
+        parts.push((what.charAt(0).toUpperCase() + what.slice(1)) + (carrier ? " con " + carrier : "") + " quedó cancelado según lo solicitado.");
+        break;
+      case "shortterm":
+        parts.push("Su plan Short Term" + (plan ? " " + plan : "") + " está por vencer. Llámenos para renovarlo a tiempo.");
+        break;
+    }
+
+    var text = parts.join(" ");
+    /* el teléfono va donde ya se le pide que llame; si no, al final */
+    if (tel && /llámenos/.test(text)) { text = text.replace("llámenos", "llámenos al " + tel); }
+    else if (tel) { text += " Cualquier duda, llámenos al " + tel + "."; }
+    else if (["enviada", "sincambio", "cancelada", "lista"].indexOf(O.id) >= 0) { text += " Cualquier duda, estamos a la orden."; }
+
+    return opts.sinAcentos ? U.stripAccents(text) : text;
+  }
+
+  /* Caracteres y cantidad de mensajes. Con letras fuera del alfabeto GSM
+     (á, í, ó, ú…) cada mensaje admite 70 caracteres en vez de 160. */
+  var GSM = "@£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞÆæßÉ !\"#¤%&'()*+,-./0123456789:;<=>?¡ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÑÜ§¿abcdefghijklmnopqrstuvwxyzäöñüà";
+  function smsInfo(text) {
+    var t = String(text || ""), gsm = true;
+    for (var i = 0; i < t.length; i++) { if (GSM.indexOf(t.charAt(i)) < 0) { gsm = false; break; } }
+    var single = gsm ? 160 : 70, multi = gsm ? 153 : 67;
+    var parts = t.length <= single ? 1 : Math.ceil(t.length / multi);
+    return { length: t.length, parts: t.length ? parts : 0, unicode: !gsm };
+  }
+
+  /* ----------------------------------------------------- nombres archivo -- */
+
+  function buildFileNames(d) {
+    var L = lineOf(d);
+    var carrier = carrierShort(d.line, d.compania) || "Compania";
+    var product = productOf(d).file;
+    var who = U.stripAccents(zohoName(d)) || "Apellido, Nombre";
+    var base = U.parseDate(d.fecha) || U.today();
+    var dates = {
+      note: base,
+      effective: U.parseDate(d.efectiva) || base,
+      soa: U.parseDate(d.soaFecha) || base,
+      payment: U.parseDate(d.pagoFecha) || base
+    };
+    return L.network.map(function (n) {
+      var name = who + " - " + n.file.replace("{carrier}", carrier).replace("{product}", product) + " " + U.yearMonth(dates[n.date] || base);
+      return { k: n.k, label: n.label, name: U.stripAccents(name).replace(/[\\/:*?"<>|]/g, "") };
+    });
+  }
+
+  /* ------------------------------------------------------------- avisos -- */
 
   var SSN_RE = /\b\d{3}-\d{2}-\d{4}\b/;
 
@@ -2007,9 +2207,10 @@ kbd {
   }
 
   var api = {
-    buildNote: buildNote, buildTask: buildTask, formatTask: formatTask, buildReport: buildReport, warnings: warnings,
+    buildNote: buildNote, buildTask: buildTask, formatTask: formatTask, buildReport: buildReport,
+    buildSms: buildSms, smsInfo: smsInfo, buildFileNames: buildFileNames, warnings: warnings,
     autoTaskId: autoTaskId, taskById: taskById, outcomeOf: outcomeOf, lineOf: lineOf, gestionOf: gestionOf,
-    carrierShort: carrierShort, memberDelta: memberDelta, pendingItems: pendingItems, narrative: narrative
+    productOf: productOf, carrierShort: carrierShort, memberDelta: memberDelta, zohoName: zohoName
   };
   root.QA = root.QA || {};
   root.QA.notes = api;
@@ -2398,6 +2599,8 @@ kbd {
       f.fin = after(doc, [/\b(Coverage\s*)?end\s*date\b/i, /Fecha de finalizaci[oó]n/i], vDate, 1);
     }
 
+    var st = doc.flat.match(/(?:^|\n)\s*(?:status:\s*|estado:\s*)?(active|activo|pending|pendiente|unpaid binder|terminated|cancell?ed|canceled)\s*(?:\n|$)/i);
+    if (st) { f.estado = { activo: "Active", pendiente: "Pending" }[st[1].toLowerCase()] || U.titleCase(st[1]).replace("Binder", "binder"); }
     f.compania = carrierIn("oc", (f.plan || "") + "\n" + doc.flat);
     var metal = ((f.plan || "") + " " + doc.flat).match(/\b(expanded bronze|bronze|silver|gold|platinum|catastrophic)\b/i);
     if (metal) { f.metal = U.titleCase(metal[1]); }
@@ -2450,6 +2653,9 @@ kbd {
     if (/\baccident(al)?\b|accidentes/i.test(text) && !dental) { return "Accident"; }
     if (/\bcancer\b|c[aá]ncer|critical\s*illness/i.test(text) && !dental) { return "Cancer"; }
     if (/short[\s-]?term/i.test(text)) { return "Short Term"; }
+    if (/\b(term|whole|universal|final expense)\s*life\b|life\s*insurance\s*(application|policy)|seguro de vida/i.test(text)) { return "Life"; }
+    if (/international|travel\s*medical|geo\s*blue|seguro internacional/i.test(text)) { return "International"; }
+    if (/discount\s*(medical\s*)?(plan|card|program)|plan de descuento/i.test(text)) { return "Discount Plan"; }
     if (dental && vision && /dental\s*(and|&|\+|y|\/)\s*visi[oó]n/i.test(text)) { return "Dental + Vision"; }
     if (dental) { return "Dental"; }
     if (vision) { return "Vision"; }
@@ -2464,8 +2670,14 @@ kbd {
     f.plan = after(doc, [/\bPlan\s*name\b/i, /Nombre del plan/i, /\b(Selected\s*plan|Plan\s*selected)\b/i, /\bProduct\s*name\b/i], vText(70), 1);
     f.prima = after(doc, [/\b(Total\s*)?monthly\s*premium\b/i, /Prima\s*mensual/i, /\bPremium\b/i, /\bPrima\b/i], vMoney, 1);
     f.efectiva = after(doc, [/\b(Requested\s*)?effective\s*date\b/i, /\bCoverage\s*start\s*date\b/i, /Fecha efectiva/i], vDate, 1);
-    f.poliza = after(doc, [/\bApplication\s*(ID|number|#|no\.?)/i, /\bPolicy\s*(ID|number|#|no\.?)/i,
-      /N[uú]mero de (solicitud|aplicaci[oó]n|p[oó]liza)/i, /\bConfirmation\s*(number|#)/i], vCode(5, 24), 1);
+    f.appId = after(doc, [/\bApplication\s*(ID|number|#|no\.?)/i, /\bApp\s*ID\b/i,
+      /N[uú]mero de (solicitud|aplicaci[oó]n)/i, /\bConfirmation\s*(number|#)/i], vCode(5, 24), 1);
+    f.poliza = after(doc, [/\bPolicy\s*(ID|number|#|no\.?)/i, /\bCertificate\s*(number|#)/i, /N[uú]mero de p[oó]liza/i], vCode(5, 24), 1);
+    if (f.poliza && f.poliza === f.appId) { delete f.poliza; }
+    if (/beneficiar/i.test(doc.flat)) {
+      var ben = after(doc, [/\bPrimary\s*beneficiary(\s*name)?\b/i, /\bBeneficiary(\s*name)?\b/i, /Beneficiario(\s*principal)?/i], vText(60), 1);
+      if (ben && !/%|percent|porcentaje/i.test(ben)) { f.beneficiario = ben; }
+    }
     if (/\bDHMO\b/.test(doc.flat)) { f.tipoPlan = "DHMO"; }
     else if (/\bDPPO\b|\bPPO\b/.test(doc.flat)) { f.tipoPlan = "DPPO"; }
     agentInfo(doc, f);
@@ -2495,7 +2707,9 @@ kbd {
       [/thank you for your payment|gracias por su pago/i, 4], [/amount paid|monto pagado|payment amount/i, 1]],
     supp_app: [[/\bdental\b/i, 1], [/\bvisi[oó]n\b/i, 1], [/hospital indemnity|indemnizaci[oó]n hospitalaria/i, 3],
       [/accident(al)? (insurance|coverage|plan)|seguro de accidentes/i, 3], [/cancer (insurance|plan)|critical illness/i, 3],
-      [/short[\s-]?term (medical|health)/i, 3], [/waiting period|per[ií]odo de espera/i, 1], [/\b(DHMO|DPPO)\b/, 2]],
+      [/short[\s-]?term (medical|health)/i, 3], [/waiting period|per[ií]odo de espera/i, 1], [/\b(DHMO|DPPO)\b/, 2],
+      [/life insurance|seguro de vida|death benefit|face amount/i, 3], [/international|travel medical|geo\s*blue/i, 3],
+      [/discount (medical )?(plan|card|program)/i, 3]],
     consent: [[/consent (form|to act|for)|consentimiento/i, 3], [/authorize|autorizo|autorizaci[oó]n/i, 1],
       [/agent of record|agente de registro/i, 1]]
   };
@@ -2648,8 +2862,8 @@ kbd {
 
   function loadSettings() {
     var def = {
-      v: SETTINGS_VERSION, autor: "", team: clone(C.TEAM), oficina: C.OFFICES[0],
-      incluirTask: true, botonRojo: true, sinAcentos: false, theme: "", line: "oc"
+      v: SETTINGS_VERSION, autor: "", team: clone(C.TEAM), oficina: C.OFFICES[0], telefonos: {},
+      incluirTask: true, botonRojo: true, sinAcentos: false, smsSinAcentos: false, theme: "", line: "oc"
     };
     try {
       var saved = JSON.parse(localStorage.getItem(STORE) || "null");
@@ -2661,6 +2875,7 @@ kbd {
     } catch (e) { /* almacenamiento bloqueado: se sigue con los valores por defecto */ }
     if (!C.LINES[def.line]) { def.line = "oc"; }
     if (C.OFFICES.indexOf(def.oficina) < 0) { def.oficina = C.OFFICES[0]; }
+    if (!def.telefonos || typeof def.telefonos !== "object") { def.telefonos = {}; }
     return def;
   }
 
@@ -2705,7 +2920,8 @@ kbd {
   function freshFields() {
     var season = seasonDefaults();
     return {
-      fecha: U.today(), canal: "Call", modalidad: "presencial", anio: U.defaultPlanYear(),
+      fecha: U.today(), horaLlamada: U.to12h(new Date()), genero: "o",
+      canal: "Call", modalidad: "presencial", anio: U.defaultPlanYear(),
       codigoTipo: "Q", gestion: "", periodo: season.periodo, plataforma: "HealthCare.gov",
       periodoMC: season.periodoMC, soaEstado: "firmado", producto: "Dental",
       metodo: "TEXT", intento: "1", hora: "09:00", net: {}, taskId: "", taskOwner: "",
@@ -2720,7 +2936,7 @@ kbd {
     auto: {},      /* true: leído de un documento; "calc": calculado o por defecto */
     rank: {},      /* prioridad del documento que llenó cada campo */
     files: [],
-    edited: { note: false, task: false, report: false },
+    edited: { note: false, task: false, report: false, sms: false },
     dirty: false
   };
 
@@ -2738,7 +2954,7 @@ kbd {
     { id: "docs", title: "Documentos que pide el Mercado", short: "Docs pedidos" },
     { id: "seguimiento", title: "Pendiente y próximo paso", short: "Seguimiento" },
     { id: "agente", title: "Agente y colaborador", short: "Agente" },
-    { id: "network", title: "Documentos guardados en Network", short: "Network" }
+    { id: "network", title: "Network: documentos y nombres de archivo", short: "Network" }
   ];
 
   var SEP_OC = ["Pérdida de cobertura", "Mudanza", "Matrimonio", "Nacimiento o adopción", "Divorcio o separación",
@@ -2766,11 +2982,14 @@ kbd {
     { k: "fecha", g: "contacto", type: "date", label: "Fecha de la nota" },
     { k: "anio", g: "contacto", type: "int", label: "Año del plan", max: 4 },
     { k: "canal", g: "contacto", type: "seg", label: "Canal", w: "w2", options: C.CHANNELS },
+    { k: "horaLlamada", g: "contacto", type: "clock", label: "Hora de la llamada", hint: "En formato de 12 horas, como en las notas" },
     { k: "modalidad", g: "contacto", type: "select", label: "Modalidad de la cita", options: C.MODALIDADES,
       when: function (f) { return f.canal === "Appointment"; } },
 
     { k: "nombres", g: "cliente", sec: "cliente", type: "text", label: "Nombre(s)", w: "w2", upper: true, hint: "Como aparece en Zoho" },
     { k: "apellidos", g: "cliente", sec: "cliente", type: "text", label: "Apellido(s)", w: "w2", upper: true },
+    { k: "genero", g: "cliente", sec: "cliente", type: "seg", label: "En la nota", w: "w2",
+      options: [{ v: "o", l: "el cliente" }, { v: "a", l: "la cliente" }] },
     { k: "codigoTipo", g: "cliente", sec: "cliente", type: "seg", label: "Código en Zoho", w: "w2",
       options: [{ v: "Q", l: "Código Q" }, { v: "New", l: "New" }, { v: "Sin Code", l: "Sin Code" }] },
     { k: "codigoQ", g: "cliente", sec: "cliente", type: "text", label: "Número Q", ph: "1234", prefix: "Q",
@@ -2782,8 +3001,8 @@ kbd {
       lines: ["oc", "supp"], hint: "Uno por línea, empezando por el titular" },
     { k: "adicionales", g: "cliente", sec: "cliente", type: "text", label: "Miembros ±", lines: ["oc", "supp"],
       hint: "Para el reporte: +2, o -1 si se quitó" },
-    { k: "hogar", g: "cliente", sec: "hogar", type: "int", label: "Tamaño del hogar", lines: ["oc"], max: 2 },
-    { k: "ingreso", g: "cliente", sec: "hogar", type: "money", label: "Ingreso anual estimado", lines: ["oc"] },
+    { k: "hogar", g: "cliente", sec: "hogar", type: "int", label: "En los taxes", lines: ["oc"], max: 2, hint: "Personas en la declaración" },
+    { k: "ingreso", g: "cliente", sec: "hogar", type: "money", label: "Ingreso anual (income)", lines: ["oc"] },
     { k: "mbi", g: "cliente", sec: "medicare", type: "text", label: "Número de Medicare (MBI)", w: "w2", upper: true, lines: ["mc"] },
     { k: "medicaid", g: "cliente", sec: "medicare", type: "text", label: "ID de Medicaid", w: "w2", lines: ["mc"], hint: "Solo si tiene Medicaid" },
     { k: "parteA", g: "cliente", sec: "medicare", type: "date", label: "Parte A efectiva", lines: ["mc"] },
@@ -2794,12 +3013,16 @@ kbd {
     { k: "recuperado", g: "gestion", sec: "proceso", type: "check", label: "Cliente recuperado" },
     { k: "producto", g: "gestion", sec: "proceso", type: "select", label: "Producto", lines: ["supp"],
       options: C.LINES.supp.productos.map(function (p) { return p.v; }) },
-    { k: "periodo", g: "gestion", sec: "proceso", type: "seg", label: "Tipo de inscripción", lines: ["oc"], options: ["OEP", "SEP"] },
+    { k: "periodo", g: "gestion", sec: "proceso", type: "seg", label: "Enrollment Period", lines: ["oc"], options: ["OEP", "SEP", "None"] },
     { k: "motivoSep", g: "gestion", sec: "proceso", type: "text", label: "Motivo del SEP", w: "w2", lines: ["oc"], list: SEP_OC,
       when: function (f) { return f.periodo === "SEP"; } },
     { k: "plataforma", g: "gestion", sec: "proceso", type: "select", label: "Plataforma", lines: ["oc"],
       options: ["HealthCare.gov", "HealthSherpa", "el portal de la compañía"] },
-    { k: "appId", g: "gestion", sec: "proceso", type: "text", label: "ID de aplicación", lines: ["oc"] },
+    { k: "appId", g: "gestion", sec: "proceso", type: "text", lines: ["oc", "supp"],
+      label: function () { return S.line === "oc" ? "ID de aplicación (ID#)" : "App ID"; } },
+    { k: "cuentaMkpl", g: "gestion", sec: "proceso", type: "seg", label: "Cuenta MKPL", lines: ["oc"], clearable: true,
+      options: [{ v: "si", l: "Creada" }, { v: "no", l: "No creada" }],
+      when: function () { return O().id === "enviada"; } },
     { k: "periodoMC", g: "gestion", sec: "proceso", type: "select", label: "Período de elección", lines: ["mc"],
       options: ["AEP", "OEP", "ICEP / IEP", "SEP"] },
     { k: "motivoSepMC", g: "gestion", sec: "proceso", type: "text", label: "Motivo del SEP", w: "w2", lines: ["mc"], list: SEP_MC,
@@ -2817,6 +3040,7 @@ kbd {
       list: function () { return C.CARRIERS[S.line].map(function (c) { return c.name; }); } },
     { k: "plan", g: "plan", sec: "plan", type: "text", label: "Nombre del plan", w: "w2" },
     { k: "planId", g: "plan", sec: "plan", type: "text", label: "ID del plan", lines: ["oc"], upper: true },
+    { k: "estado", g: "plan", sec: "plan", type: "text", label: "Status", lines: ["oc"], list: ["Active", "Pending", "Unpaid binder", "Terminated"] },
     { k: "metal", g: "plan", sec: "plan", type: "select", label: "Nivel", lines: ["oc"],
       options: ["", "Bronze", "Expanded Bronze", "Silver", "Gold", "Platinum", "Catastrophic"] },
     { k: "contrato", g: "plan", sec: "plan", type: "text", label: "Contrato (H-PBP)", ph: "H1036-077", lines: ["mc"], upper: true },
@@ -2826,7 +3050,11 @@ kbd {
       label: function () { return S.line === "oc" ? "Cobertura desde" : "Fecha efectiva"; } },
     { k: "fin", g: "plan", sec: "plan", type: "date", label: "Cobertura hasta", lines: ["oc"] },
     { k: "poliza", g: "plan", sec: "plan", type: "text", lines: ["oc", "supp"],
-      label: function () { return S.line === "oc" ? "No. de póliza" : "No. de aplicación / póliza"; } },
+      label: function () { return S.line === "oc" ? "No. de póliza" : "Policy #"; } },
+    { k: "plazo", g: "plan", sec: "plan", type: "text", label: "Periodo", ph: "3 years", lines: ["supp"],
+      when: function (f) { return f.producto === "Short Term"; } },
+    { k: "beneficiario", g: "plan", sec: "plan", type: "text", label: "Beneficiario", w: "w2", lines: ["supp"],
+      ph: "Apellido, Nombre (parentesco)", when: function (f) { return f.producto === "Life" || f.producto === "Accident"; } },
     { k: "primaTotal", g: "plan", sec: "costos", type: "money", label: "Prima total", lines: ["oc"] },
     { k: "subsidio", g: "plan", sec: "costos", type: "money", label: "Subsidio (APTC)", lines: ["oc"] },
     { k: "primaPagar", g: "plan", sec: "costos", type: "money", label: "Prima a pagar", lines: ["oc"] },
@@ -2846,11 +3074,11 @@ kbd {
     { k: "pagoFecha", g: "pago", sec: "pago", type: "date",
       label: function () { return S.f.pagoEstado === "NO PAYMENT" ? "El cliente paga el" : "Fecha del pago"; },
       when: function (f) { return f.pagoEstado === "PAYMENT" || f.pagoEstado === "NO PAYMENT"; } },
-    { k: "pagoMetodo", g: "pago", sec: "pago", type: "text", label: "Método", ph: "Tarjeta ****1234",
+    { k: "pagoMetodo", g: "pago", sec: "pago", type: "text", label: "Método", ph: "Tarjeta CC ****1234",
       hint: "Solo los últimos 4 dígitos", when: function (f) { return f.pagoEstado === "PAYMENT"; } },
     { k: "pagoConf", g: "pago", sec: "pago", type: "text", label: "No. de confirmación",
       when: function (f) { return f.pagoEstado === "PAYMENT"; } },
-    { k: "autopay", g: "pago", sec: "pago", type: "seg", label: "Autopay", options: ["SI", "NO"], clearable: true,
+    { k: "autopay", g: "pago", sec: "pago", type: "text", label: "AutoPay", ph: "On, Off, 25th…", list: ["On", "Off", "No (eBill)"],
       when: function (f) { return f.pagoEstado === "PAYMENT"; } },
 
     { k: "docReq", g: "docs", sec: "docsreq", type: "text", label: "Qué documentos pide", w: "w3", list: DOCS },
@@ -2935,6 +3163,7 @@ kbd {
       if (F.type === "money") { ctl.inputMode = "decimal"; ctl.placeholder = "$0.00"; ctl.classList.add("num"); }
       if (F.type === "date") { ctl.placeholder = "MM/DD/AAAA"; ctl.classList.add("num"); }
       if (F.type === "time") { ctl.placeholder = "09:00"; ctl.classList.add("num"); }
+      if (F.type === "clock") { ctl.placeholder = "02:44"; ctl.classList.add("num"); }
       if (F.type === "int") { ctl.inputMode = "numeric"; ctl.classList.add("num"); if (F.max) { ctl.maxLength = F.max; } }
       if (F.list) { ctl.setAttribute("list", "dl_" + F.k); }
     }
@@ -2980,20 +3209,41 @@ kbd {
       sec.appendChild(head);
       var grid = el("div", "grid");
       FIELDS.filter(function (F) { return F.g === G.id; }).forEach(function (F) { grid.appendChild(buildField(F)); });
-      if (G.id === "network") { grid.id = "netGrid"; grid.className = "checks"; }
+      if (G.id === "network") {
+        grid.id = "netGrid"; grid.className = "net";
+        sec.appendChild(el("p", "hint net-hint", "Marca lo que guardaste: sale en la nota. El nombre ya viene en el formato de NOMBRE DE ARCHIVOS."));
+      }
       sec.appendChild(grid);
       form.appendChild(sec);
     });
   }
 
+  /* Cada documento: casilla para la nota, su nombre de archivo y un botón
+     para copiarlo. Copiar el nombre marca la casilla. */
   function renderNetwork() {
     var grid = $("netGrid");
     grid.textContent = "";
     L().network.forEach(function (n) {
+      var row = el("div", "net-row");
       var lab = el("label", "check");
       var c = el("input"); c.type = "checkbox"; c.dataset.net = n.k; c.checked = !!S.f.net[n.k];
       lab.appendChild(c); lab.appendChild(el("span", null, n.label));
-      grid.appendChild(lab);
+      row.appendChild(lab);
+      var code = el("code", "net-file"); code.dataset.fileFor = n.k;
+      row.appendChild(code);
+      var b = el("button", "btn small", "Copiar");
+      b.type = "button"; b.dataset.copyFile = n.k; b.dataset.label = "Copiar";
+      b.setAttribute("aria-label", "Copiar el nombre de archivo de " + n.label);
+      row.appendChild(b);
+      grid.appendChild(row);
+    });
+    updateFileNames();
+  }
+
+  function updateFileNames() {
+    N.buildFileNames(data()).forEach(function (f) {
+      var code = $("netGrid").querySelector('[data-file-for="' + f.k + '"]');
+      if (code) { code.textContent = f.name; code.title = f.name; }
     });
   }
 
@@ -3224,13 +3474,21 @@ kbd {
     var usePrefix = S.f.prefijo === "si" ? true : (S.f.prefijo === "no" ? false : !!p.other);
     d.reportPrefix = usePrefix && p.collab ? p.collab.ini : "";
     d.oficina = settings.oficina;
+    d.telefono = settings.telefonos[settings.oficina] || "";
     d.incluirTask = settings.incluirTask;
     d.botonRojo = settings.botonRojo;
     return d;
   }
 
-  var OUT = { note: "note", task: "task", report: "report" };
-  var generated = { note: "", task: "", report: "" };
+  /* el cuadro crece con el texto, para leerlo entero sin barra de scroll */
+  function fitHeight(box) {
+    if (!box.offsetParent) { return; }
+    box.style.height = "auto";
+    box.style.height = (box.scrollHeight + 2) + "px";
+  }
+
+  var OUT = { note: "note", task: "task", report: "report", sms: "sms" };
+  var generated = { note: "", task: "", report: "", sms: "" };
 
   function setOut(key, text) {
     generated[key] = text;
@@ -3285,6 +3543,14 @@ kbd {
       note = note.replace(/^Task: .*$/m, "Task: " + (settings.sinAcentos ? U.stripAccents(d.taskText) : d.taskText));
     }
     setOut("note", note);
+
+    setOut("sms", N.buildSms(d, { sinAcentos: settings.smsSinAcentos }));
+    fitHeight($("sms"));
+    var info = N.smsInfo($("sms").value);
+    $("smsCount").textContent = info.length + " caracteres · " + info.parts + (info.parts === 1 ? " mensaje" : " mensajes");
+    $("smsCount").title = info.unicode ? "Con acentos cada mensaje admite 70 caracteres; sin acentos, 160." : "";
+    $("smsPlain").checked = settings.smsSinAcentos;
+    updateFileNames();
 
     var shown = $("note").value;
     $("noteCount").textContent = shown.length + " caracteres";
@@ -3395,7 +3661,6 @@ kbd {
       S.f[k] = v; S.auto[k] = true; S.rank[k] = rank; applied++;
     });
     if (res.net) { S.f.net[res.net] = true; }
-    if (res.type === "mc_app" && res.fields.confirmacion) { S.f.net.confirmation = true; }
     return applied;
   }
 
@@ -3727,6 +3992,7 @@ kbd {
     var seg = $("officeSeg");
     fillSeg(seg, C.OFFICES.map(function (o) { return { v: o, l: o }; }));
     syncSeg(seg, settings.oficina);
+    $("officeTel").value = settings.telefonos[settings.oficina] || "";
     $("optTask").checked = settings.incluirTask;
     $("optRojo").checked = settings.botonRojo;
     $("optAcentos").checked = settings.sinAcentos;
@@ -3782,6 +4048,7 @@ kbd {
     else if (F.type === "money") { out = U.parseMoney(raw); bad = !out; }
     else if (F.type === "date") { out = U.parseDate(raw); bad = !out; }
     else if (F.type === "time") { out = U.parseTime(raw); bad = !out; }
+    else if (F.type === "clock") { out = U.to12h(raw); bad = !out; }
     else if (F.type === "int") { out = raw.replace(/[^\d]/g, ""); }
     else if (F.upper && F.type !== "area") { out = U.collapse(raw).toUpperCase(); }
     else if (F.type !== "area") { out = U.collapse(raw); }
@@ -3829,6 +4096,15 @@ kbd {
         refresh();
         return;
       }
+      if (b.dataset.copyFile) {
+        var k2 = b.dataset.copyFile;
+        copyText($("netGrid").querySelector('[data-file-for="' + k2 + '"]').textContent, function () { flashButton(b); });
+        S.f.net[k2] = true;
+        $("netGrid").querySelector('[data-net="' + k2 + '"]').checked = true;
+        S.dirty = true;
+        refresh();
+        return;
+      }
       if (b.dataset.quick) {
         var Fq = FIELD[b.dataset.quick];
         S.f[Fq.k] = Fq.quick[+b.dataset.i].fn();
@@ -3866,7 +4142,7 @@ kbd {
     Object.keys(OUT).forEach(function (key) {
       $(OUT[key]).addEventListener("input", function () {
         /* el task y el reporte son de una sola línea aunque se muestren en dos */
-        if (key !== "note" && /\n/.test(this.value)) { this.value = this.value.replace(/\s*\n\s*/g, " "); }
+        if ((key === "task" || key === "report") && /\n/.test(this.value)) { this.value = this.value.replace(/\s*\n\s*/g, " "); }
         S.edited[key] = this.value !== generated[key];
         refresh();
       });
@@ -3875,6 +4151,8 @@ kbd {
     $("copyNote").addEventListener("click", function () { copyOut("note", this); });
     $("copyTask").addEventListener("click", function () { copyOut("task", this); });
     $("copyReport").addEventListener("click", function () { copyOut("report", this); });
+    $("copySms").addEventListener("click", function () { copyOut("sms", this); });
+    $("smsPlain").addEventListener("change", function () { settings.smsSinAcentos = this.checked; saveSettings(); S.edited.sms = false; refresh(); });
     $("dock").addEventListener("click", function (e) {
       var b = e.target.closest("[data-copy]");
       if (b) { copyOut(b.dataset.copy, b); }
@@ -3900,7 +4178,7 @@ kbd {
     $("btnNew").addEventListener("click", function () {
       if (hasClientData() && S.dirty && !window.confirm("La nota actual no se ha copiado. ¿Empezar una nueva?")) { return; }
       S.f = freshFields(); S.auto = {}; S.rank = {}; S.files = [];
-      S.edited = { note: false, task: false, report: false }; S.dirty = false;
+      S.edited = { note: false, task: false, report: false, sms: false }; S.dirty = false;
       S.outcome = L().outcomes[0].id;
       afterOutcomeChange(); defaultPeople();
       each(form.querySelectorAll(".bad"), function (x) { x.classList.remove("bad"); });
@@ -3962,6 +4240,11 @@ kbd {
       if (!b) { return; }
       settings.oficina = b.dataset.v; saveSettings();
       syncSeg(this, settings.oficina);
+      $("officeTel").value = settings.telefonos[settings.oficina] || "";
+    });
+    $("officeTel").addEventListener("input", function () {
+      settings.telefonos[settings.oficina] = U.collapse(this.value);
+      saveSettings();
     });
     $("teamRows").addEventListener("input", function (e) {
       var t = e.target;

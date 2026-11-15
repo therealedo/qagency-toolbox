@@ -45,10 +45,19 @@ test("nombres", () => {
   assert.deepEqual(U.splitName("Beatriz Diaz Perez"), { nombres: "Beatriz", apellidos: "Diaz Perez" });
   assert.deepEqual(U.splitName("Maria Elena Diaz Perez"), { nombres: "Maria Elena", apellidos: "Diaz Perez" });
   assert.deepEqual(U.splitName("Juan de la Cruz"), { nombres: "Juan", apellidos: "de la Cruz" });
-  assert.equal(U.titleCase("DIAZ DE LA CRUZ"), "Diaz de la Cruz");
+  assert.equal(U.titleCase("VARONA DE LA PENA"), "Varona De La Pena");
   assert.equal(U.titleCase("o'neil-perez"), "O'Neil-Perez");
   assert.equal(U.initials("Rosa Mendez"), "FV");
   assert.equal(U.initials("Marta Gil Romero"), "LE");
+});
+
+test("hora de la llamada y año-mes de los archivos", () => {
+  assert.equal(U.to12h("14:44"), "02:44");
+  assert.equal(U.to12h("2:44pm"), "02:44");
+  assert.equal(U.to12h("00:15"), "12:15");
+  assert.equal(U.to12h("abc"), "");
+  assert.equal(U.yearMonth("3/20/26"), "2026 MAR");
+  assert.equal(U.yearMonth(""), "");
 });
 
 test("año de plan: desde octubre se vende el siguiente", () => {
