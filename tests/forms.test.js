@@ -195,20 +195,22 @@ test("enlace de firma: los IDs de SignWell en orden, codificados y sin los vací
   assert.equal(url, "https://www.signwell.com/new_doc/abc123/?client_name=Jos%C3%A9%20P%C3%A9rez&client_name_sign=Jos%C3%A9%20P%C3%A9rez" +
     "&consent_date=02%2F01%2F2026&agent_name=Ana%20Torres&agent_npn=10000001&plan=Ambetter%20Silver%20Value&premium=%2445.00" +
     "&income=%2432%2C000&tax_people=3&covered_people=2");
-  assert.equal(F.signingUrl("https://www.signwell.com/new_doc/abc123/", "soa", soa),
-    "https://www.signwell.com/new_doc/abc123/?beneficiary_name=Beatriz%20Diaz&beneficiary_phone=(305)%20555-0100" +
-    "&agent_name=Ana%20Torres&agent_npn=10000001&contact_method=Llamada%20telef%C3%B3nica&plans=Humana%20Gold%20Plus%20H1036-311%20(HMO)");
+});
+
+test("enlace de firma: el SOA solo lo firma el cliente, así que su enlace no lleva datos", () => {
+  assert.equal(F.signingUrl("https://www.signwell.com/new_doc/abc123/", "soa", soa), "https://www.signwell.com/new_doc/abc123/");
+  assert.equal(F.signingUrl("https://example.com/t?ref=1#x", "soa", soa), "https://example.com/t?ref=1#x");
 });
 
 test("enlace de firma: con ? ya en el enlace se agrega con &; sin un enlace válido no hay enlace", () => {
-  const v = { beneficiaryName: "Ana Ruiz" };
-  assert.equal(F.signingUrl("https://example.com/t?ref=1", "soa", v), "https://example.com/t?ref=1&beneficiary_name=Ana%20Ruiz");
-  assert.equal(F.signingUrl("https://example.com/t?", "soa", v), "https://example.com/t?beneficiary_name=Ana%20Ruiz");
-  assert.equal(F.signingUrl("https://example.com/t#x", "soa", v), "https://example.com/t?beneficiary_name=Ana%20Ruiz#x");
-  assert.equal(F.signingUrl("  https://example.com/t  ", "soa", {}), "https://example.com/t");
-  assert.equal(F.signingUrl("", "soa", v), "");
-  assert.equal(F.signingUrl("www.signwell.com/x", "soa", v), "");
-  assert.equal(F.signingUrl("javascript:alert(1)", "soa", v), "");
+  const v = { date: "02/01/2026" };
+  assert.equal(F.signingUrl("https://example.com/t?ref=1", "consent", v), "https://example.com/t?ref=1&consent_date=02%2F01%2F2026");
+  assert.equal(F.signingUrl("https://example.com/t?", "consent", v), "https://example.com/t?consent_date=02%2F01%2F2026");
+  assert.equal(F.signingUrl("https://example.com/t#x", "consent", v), "https://example.com/t?consent_date=02%2F01%2F2026#x");
+  assert.equal(F.signingUrl("  https://example.com/t  ", "consent", {}), "https://example.com/t");
+  assert.equal(F.signingUrl("", "consent", v), "");
+  assert.equal(F.signingUrl("www.signwell.com/x", "consent", v), "");
+  assert.equal(F.signingUrl("javascript:alert(1)", "consent", v), "");
 });
 
 test("enlace de firma: SMS y email en el idioma del cliente, de usted y firmados por la oficina", () => {
@@ -239,10 +241,72 @@ test("archivo: el PDF lleno se llama como el Consent o el SOA del Network", () =
     "Diaz, Beatriz - Medicare_SOA 2026 JAN.pdf");
 });
 
-test("campos de la pantalla: cada valor tiene su etiqueta y su ID de SignWell", () => {
+test("campos de la pantalla: cada valor tiene su etiqueta; el Consent, su ID de SignWell", () => {
   assert.deepEqual(F.FIELDS.consent.map((x) => x.k), Object.keys(consent));
   assert.deepEqual(F.FIELDS.soa.map((x) => x.k), Object.keys(soa));
   assert.deepEqual(F.SIGN_IDS.consent.map((x) => x[0]), ["client_name", "client_name_sign", "consent_date", "agent_name", "agent_npn",
     "plan", "premium", "marital_status", "income", "tax_people", "covered_people"]);
-  assert.deepEqual(F.SIGN_IDS.soa.map((x) => x[0]), ["beneficiary_name", "beneficiary_phone", "agent_name", "agent_npn", "contact_method", "plans"]);
+  assert.deepEqual(F.SIGN_IDS.soa, []);
+});
+
+/* ------------------------------------------------ PDF lleno (con PDF.js) -- */
+
+const fs = require("node:fs");
+const path = require("node:path");
+
+function pdfjs() {
+  const lib = require("../vendor/pdfjs/pdf.min.js");
+  lib.GlobalWorkerOptions.workerSrc = path.join(__dirname, "../vendor/pdfjs/pdf.worker.min.js");
+  return lib;
+}
+function template(key) {
+  const src = fs.readFileSync(path.join(__dirname, "../vendor/forms/" + key + ".js"), "utf8");
+  return new Uint8Array(Buffer.from(src.match(/"([A-Za-z0-9+/=]{1000,})"/)[1], "base64"));
+}
+async function fieldObjects(lib, bytes) {
+  const pdf = await lib.getDocument({ data: bytes.slice(), isEvalSupported: false, verbosity: 0 }).promise;
+  const objs = await pdf.getFieldObjects();
+  pdf.destroy();
+  return objs;
+}
+/* El objeto al que apunta la última tabla de referencias del archivo (la que leen los visores). */
+function latestObject(s, num) {
+  const start = +s.slice(s.lastIndexOf("startxref") + 9).trim().split(/\s/)[0];
+  const head = s.slice(start, s.indexOf("stream", start));
+  assert.match(head, /\/Type\s*\/XRef/);
+  const w = head.match(/\/W\s*\[\s*(\d+)\s+(\d+)\s+(\d+)\s*\]/).slice(1).map(Number);
+  const index = head.match(/\/Index\s*\[([^\]]*)\]/)[1].trim().split(/\s+/).map(Number);
+  let pos = s.indexOf("stream", start) + 6;
+  pos += s[pos] === "\r" ? 2 : 1;
+  const num2 = (n) => { let v = 0; for (let k = 0; k < n; k++) { v = v * 256 + s.charCodeAt(pos++); } return v; };
+  for (let i = 0; i < index.length; i += 2) {
+    for (let n = index[i]; n < index[i] + index[i + 1]; n++) {
+      const type = num2(w[0]), off = num2(w[1]); num2(w[2]);
+      if (n === num && type === 1) { return s.slice(off, s.indexOf("endobj", off)); }
+    }
+  }
+  return null;
+}
+
+test("PDF lleno: la Fecha del Consent (un campo con dos lugares) queda también en el campo, que es lo que Chrome dibuja", async () => {
+  const lib = pdfjs(), bytes = template("consent-qa-es");
+  const parent = (await fieldObjects(lib, bytes)).Fecha.find((o) => o.kidIds);
+  const map = F.fieldMap("consent-qa-es", Object.assign({}, consent, { clientName: "José Pérez Núñez", date: "11/15/2026" }));
+  const out = await F.fillPdf(lib, bytes.slice(), map);
+  const obj = latestObject(Buffer.from(out).toString("latin1"), parseInt(parent.id, 10));
+  assert.match(obj, /\/T\s*\(Fecha\)/);
+  assert.match(obj, /\/V\s*\(11\/15\/2026\)/);
+  const objs = await fieldObjects(lib, new Uint8Array(out));
+  assert.deepEqual(objs.Fecha.filter((o) => o.type).map((o) => o.value), ["11/15/2026", "11/15/2026"]);
+  assert.equal(objs["Yo SrSra"][0].value, "José Pérez Núñez");
+});
+
+test("PDF lleno: sin campos con varios lugares, el PDF sale como lo guarda PDF.js, con los valores", async () => {
+  const lib = pdfjs(), bytes = template("consent-qa-en");
+  const out = await F.fillPdf(lib, bytes.slice(), F.fieldMap("consent-qa-en", consent));
+  const count = (b) => Buffer.from(b).toString("latin1").split("startxref").length - 1;
+  assert.equal(count(out), count(bytes) + 1);
+  const objs = await fieldObjects(lib, new Uint8Array(out));
+  assert.equal(objs["Full Name"][0].value, consent.clientName);
+  assert.equal(objs["Health Plan"][0].value, consent.plan);
 });
