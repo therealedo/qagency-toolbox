@@ -1671,7 +1671,7 @@
 
   /* ---------------------------------------------------------- documentos */
 
-  var RANK = { oc_plans: 3, mc_app: 3, supp_app: 3, oc_elig: 2, pay: 2, oc_app: 1, mc_soa: 1 };
+  var RANK = { oc_plans: 3, mc_app: 3, supp_app: 3, oc_elig: 2, pay: 2, oc_app: 1, mc_soa: 1, supp_card: 1 };
 
   function applyExtraction(res) {
     var lineBefore = S.line, carrierBefore = S.f.compania;
@@ -1829,6 +1829,14 @@
   /* lo leído con OCR cuenta aunque sea poco (una captura de una sola línea) */
   function ocrStatus(text, empty) { return String(text || "").replace(/\s/g, "").length < 4 ? empty : "ok"; }
 
+  /* OCR para un escaneo sin texto, y también cuando el texto es tan poco que
+     no se reconoce el documento (una tarjeta escaneada trae unas pocas
+     palabras sueltas encima de la imagen). */
+  function wantsOcr(text) {
+    if (OCR.needsOcr(text)) { return true; }
+    return String(text || "").replace(/\s/g, "").length < 200 && X.extract(text, "document.pdf", S.line).type === "unknown";
+  }
+
   function readFile(file) {
     var entry = { name: file.name, status: "reading", applied: 0, file: file };
     S.files.push(entry);
@@ -1842,7 +1850,7 @@
       return file.arrayBuffer().then(function (buf) {
         /* PDF.js puede quedarse con los bytes: se le pasa una copia */
         return X.pdfToText(window.pdfjsLib, new Uint8Array(buf.slice(0))).then(function (text) {
-          if (!OCR || !OCR.needsOcr(text) || !ocrReady()) { finishFile(entry, text); return; }
+          if (!OCR || !wantsOcr(text) || !ocrReady()) { finishFile(entry, text); return; }
           entry.ocr = true;
           ocrStep(entry, "Leyendo con OCR…");
           return OCR.readPdf(window.pdfjsLib, new Uint8Array(buf), function (i, n) {

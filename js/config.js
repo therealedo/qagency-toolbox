@@ -74,10 +74,13 @@
       { re: /florida\s*combined\s*life|\bFCL\b|bluedental|florida\s*blue/i, name: "FLORIDA BLUE (FCL)", short: "FB", display: "Florida Blue" },
       { re: /golden\s*rule|\bGR\b/i, name: "GOLDEN RULE", short: "GR" },
       { re: /unitedhealthcare|united\s*healthcare|\bUHC\b/i, name: "UNITED HEALTHCARE", short: "UHC", display: "UnitedHealthcare" },
-      { re: /allstate/i, name: "ALLSTATE", short: "Allstate" },
+      /* Allstate Health Solutions solo nombra a sus aseguradoras (Integon,
+         National Health Insurance Company) */
+      { re: /allstate|integon|national\s*health\s*insurance\s*company|national\s*general/i, name: "ALLSTATE", short: "Allstate" },
       { re: /usable/i, name: "USABLE LIFE", short: "USAble", display: "USAble Life" },
       { re: /occidental/i, name: "OCCIDENTAL", short: "Occidental" },
-      { re: /geo\s*blue/i, name: "GEOBLUE", short: "Geoblue", display: "GeoBlue" },
+      /* las páginas de GeoBlue dicen "Blue Cross Blue Shield Global Solutions" */
+      { re: /geo\s*blue|blue\s*cross\s*blue\s*shield\s*global|bcbs\s*global/i, name: "GEOBLUE", short: "Geoblue", display: "GeoBlue" },
       { re: /ameritas|primestar/i, name: "AMERITAS", short: "Ameritas" },
       { re: /humana/i, name: "HUMANA", short: "Humana" },
       { re: /delta\s*dental/i, name: "DELTA DENTAL", short: "Delta Dental" },

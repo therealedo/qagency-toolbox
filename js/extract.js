@@ -19,6 +19,7 @@
     oc_app: { label: "App Summary", line: "oc", net: "appsummary" },
     pay: { label: "Comprobante de pago", line: "", net: "payment" },
     supp_app: { label: "Aplicación suplementaria", line: "supp", net: "appsummary" },
+    supp_card: { label: "ID card", line: "supp", net: "card" },
     consent: { label: "Consent", line: "", net: "consent" },
     unknown: { label: "Documento", line: "", net: "" }
   };
@@ -30,11 +31,21 @@
 
   /* ------------------------------------------------------ modelo de texto */
 
+  /* Encabezado del bloque de campos de formulario que agrega pdfToText */
+  var FORM_HEAD = "Campos del formulario:";
+
   function makeDoc(text) {
     var lines = String(text || "").replace(/\r\n?/g, "\n").replace(/ /g, " ").split("\n")
       .map(function (l) { return l.replace(/\s+$/, ""); });
+    /* campos del formulario que agrega pdfToText: { nombre: valor } */
+    var form = {}, head = lines.lastIndexOf(FORM_HEAD);
+    for (var i = head + 1; head >= 0 && i < lines.length; i++) {
+      var m = lines[i].match(/^(.+?): (.*)$/);
+      if (m && !(m[1] in form)) { form[m[1]] = m[2].trim(); }
+    }
     return {
       lines: lines,
+      form: form,
       /* mismo texto con los espacios colapsados, para buscar frases */
       flat: lines.map(function (l) { return l.replace(/[ \t]+/g, " ").trim(); }).join("\n")
     };
@@ -88,8 +99,12 @@
 
   function vDate(t) { return U.findDate(firstCell(t)) || U.findDate(String(t).slice(0, 40)); }
 
+  /* el "$" tiene que estar al principio (40 caracteres); el número se lee
+     entero aunque pase de ahí */
   function vMoney(t) {
-    var m = String(t).slice(0, 40).match(MONEY_RE) || firstCell(t).match(/^(-?[\d,]+\.\d{2})$/);
+    var m = String(t).match(MONEY_RE);
+    if (m && m.index > 40) { m = null; }
+    m = m || firstCell(t).match(/^(-?[\d,]+\.\d{2})$/);
     return m ? U.parseMoney(m[1]).replace("-", "") : "";
   }
 
@@ -133,6 +148,27 @@
     return c && c.split(/\s+/).length >= 2 ? c : "";
   }
 
+  /* Nombre completo con cada palabra en mayúscula inicial ("Jamila Orosco",
+     "LISETH IZNAGA", "Ana Maria de la Cruz"): descarta frases sueltas como
+     "Paperless consent agreement signed" o "No Dependents added". */
+  function vPerson(t) {
+    var c = vFullName(t);
+    return c && c.split(/\s+/).every(function (w) { return /^[A-ZÁÉÍÓÚÑÜ]/.test(w) || /^(de|del|la|las|los|y|da|dos|van|von)$/i.test(w); }) ? c : "";
+  }
+
+  /* "Apellido(s), Nombre(s)" como lo escriben las aplicaciones en papel */
+  function vLastFirst(t) {
+    var m = firstCell(t).match(/^([^,]+),\s*([^,]+)$/);
+    return m && vPerson(m[2] + " " + m[1]) ? m[1].trim() + ", " + m[2].trim() : "";
+  }
+
+  /* Un beneficiario es una persona, con o sin el parentesco entre paréntesis:
+     "Collantes, Pedro (husband)", "Osvaldo Molina". */
+  function vBeneficiary(t) {
+    var c = firstCell(t), name = c.replace(/\s*\([^)]*\)\s*$/, "");
+    return vLastFirst(name) || vPerson(name) ? c : "";
+  }
+
   /* Nombre de un médico tal como lo escribe la aplicación ("Dr. Ana Ruiz",
      "RUIZ ANA MD", "Ruiz, Ana, MD"). Rechaza rótulos y frases sueltas
      ("PCP ID", "(PCP)", "will be"). */
@@ -159,9 +195,14 @@
 
   /* ------------------------------------------------------- piezas comunes */
 
+  /* "Parent/Legal Guardian", "Guardian’s Signature": es el tutor, no la
+     compañía Guardian */
+  var GUARDIAN_PERSON = /\b(?:parent|legal)\s*(?:\/|or|and)?\s*(?:legal\s*)?guardian\b|\bguardian(?=\s*(?:['’`]s\b|if\b|\(|of\b|signature))|guardianship/gi;
+
   function carrierIn(line, text) {
     var list = C.CARRIERS[line] || [];
     var best = null, bestAt = Infinity;
+    text = String(text).replace(GUARDIAN_PERSON, "");
     for (var i = 0; i < list.length; i++) {
       var m = text.match(list[i].re);
       if (m && m.index < bestAt) { best = list[i]; bestAt = m.index; }
@@ -533,18 +574,49 @@
 
   /* ----------------------------------------------------------------- pago */
 
-  function extractPay(doc) {
+  var CARD_PAY = /card|tarjeta|visa|mastercard|amex|american express|discover/i;
+  var BANK_PAY = /checking|savings|bank account|cuenta (de banco|bancaria|corriente|de ahorros)|\bACH\b|routing/i;
+
+  /* El método escrito junto a su rótulo ("Debit - Visa - 0933"); "•••• 8935"
+     no dice si es tarjeta o cuenta. */
+  function vPayMethod(t) {
+    var c = firstCell(t);
+    return CARD_PAY.test(c) || /\b(credit|debit|d[eé]bito|cr[eé]dito)\b/i.test(c) ? "Tarjeta CC" : (BANK_PAY.test(c) || /\bbank\b|e-?check/i.test(c) ? "Cuenta de banco" : "");
+  }
+
+  /* Fecha del encabezado que pone el navegador al imprimir la página del
+     pago: "9/28/26, 1:36 PM   Result" */
+  function printDate(doc) {
+    var m = (doc.lines[0] || "").match(/^\s*(\d{1,2}\/\d{1,2}\/\d{2,4}),\s+\d{1,2}:\d{2}\s*[AP]M\b/i);
+    return m ? U.parseDate(m[1]) : "";
+  }
+
+  function extractPay(doc, line) {
     var f = { pagoEstado: "PAYMENT" };
-    f.pagoMonto = after(doc, [/\b(Payment\s*amount|Amount\s*paid|Total\s*paid|Total\s*payment)\b/i, /Monto\s*(pagado|del pago)/i,
+    f.pagoMonto = after(doc, [/\bAmount\s*charged\b/i, /\b(Payment\s*amount|Amount\s*paid|Total\s*paid|Total\s*payment)\b/i, /Monto\s*(pagado|del pago)/i,
       /Importe\s*(pagado|del pago)?/i, /^\s*(Amount|Monto|Total)\b/i], vMoney, 1);
+    /* Oscar: "Payment #<código> has been submitted for processing" */
     f.pagoConf = after(doc, [/\b(Confirmation|Reference|Transaction|Receipt)\s*(number|#|no\.?|ID|code)/i,
-      /N[uú]mero de (confirmaci[oó]n|referencia|transacci[oó]n)/i], vCode(5, 24), 1);
-    f.pagoFecha = after(doc, [/\bPayment\s*date\b/i, /\bDate\s*(paid|of payment)\b/i, /Fecha\s*(del|de)\s*pago/i,
-      /^\s*(Date|Fecha)\b/i], vDate, 1);
-    if (/card|tarjeta|visa|mastercard|amex|american express|discover/i.test(doc.flat)) { f.pagoMetodo = "Tarjeta CC"; }
-    else if (/checking|savings|bank account|cuenta (de banco|bancaria|corriente|de ahorros)|\bACH\b|routing/i.test(doc.flat)) { f.pagoMetodo = "Cuenta de banco"; }
+      /N[uú]mero de (confirmaci[oó]n|referencia|transacci[oó]n)/i, /^\s*Confirmation\s*:/i], vCode(5, 24), 1) ||
+      find(doc, /\bPayment\s*#\s?([A-Za-z0-9]{6,64})\s+has been submitted/i);
+    f.pagoFecha = afterFirst(doc, [/\bPayment\s*date\b/i, /\bDate\s*(paid|of payment)\b/i, /Fecha\s*(del|de)\s*pago/i,
+      /\bPayment\s*Details\b/i, /^\s*(Date|Fecha)\b/i], vDate, 1) || printDate(doc);
+    f.pagoMetodo = after(doc, [/\bPayment\s*method\b/i, /M[eé]todo de pago/i], vPayMethod, 1);
+    if (!f.pagoMetodo && CARD_PAY.test(doc.flat)) { f.pagoMetodo = "Tarjeta CC"; }
+    else if (!f.pagoMetodo && BANK_PAY.test(doc.flat)) { f.pagoMetodo = "Cuenta de banco"; }
     if (/auto\s*pay|autopay|pago autom[aá]tico|recurring/i.test(doc.flat)) {
-      if (/(enrolled|enabled|activ[eo]|on)\b[^\n]{0,20}(auto\s*pay|autopay)|(auto\s*pay|autopay|pago autom[aá]tico)[^\n]{0,25}\b(yes|s[ií]|enrolled|enabled|activ[eo]|on)\b/i.test(doc.flat)) { f.autopay = "On"; }
+      if (/(enrolled|enabled|activ[eo]|on)\b[^\n]{0,20}(auto\s*pay|autopay)|(auto\s*pay|autopay|pago autom[aá]tico)[^\n]{0,25}\b(yes|s[ií]|enrolled|enabled|activ[eo]|on)\b|\bPayment\s*Details\s*:?\s*Auto\s*pay/i.test(doc.flat)) { f.autopay = "On"; }
+    }
+    f.compania = carrierIn(C.CARRIERS[line] ? line : "oc", doc.flat);
+    /* el miembro o asegurado, no quien paga ("Name on Account") */
+    var who = after(doc, [/^\s*Member(\s*Name)?\b(?!\s*(ID|#|number|services))\s*:?/i, /^\s*Insured\b\s*:?/i], vHolder, 0);
+    if (who) { setName(f, who); }
+    if (line === "supp") {
+      /* el comprobante de Suplementario también dice qué se compró */
+      f.producto = suppProduct(doc);
+      f.plan = suppPlan(doc);
+      f.efectiva = suppDate(doc);
+      f.poliza = after(doc, POLICY_LABELS, vCode(5, 24), 1);
     }
     return f;
   }
@@ -553,12 +625,12 @@
 
   function productIn(text) {
     var dental = /\bdental\b/i.test(text), vision = /\bvisi[oó]n\b/i.test(text);
-    if (/hospital\s*indemnity|indemnizaci[oó]n\s*hospitalaria|hospital\s*(cash|confinement)/i.test(text)) { return "Hospital"; }
+    if (/hospital\s*indemnity|indemnizaci[oó]n\s*hospitalaria|hospital\s*(cash|confinement)|fixed\s*indemnity/i.test(text)) { return "Hospital"; }
     if (/\baccident(al)?\b|accidentes/i.test(text) && !dental) { return "Accident"; }
     if (/\bcancer\b|c[aá]ncer|critical\s*illness/i.test(text) && !dental) { return "Cancer"; }
     if (/short[\s-]?term/i.test(text)) { return "Short Term"; }
     if (/\b(term|whole|universal|final expense)\s*life\b|life\s*insurance\s*(application|policy)|seguro de vida/i.test(text)) { return "Life"; }
-    if (/international|travel\s*medical|geo\s*blue|seguro internacional/i.test(text)) { return "International"; }
+    if (/international|travel\s*medical|coverage\s*for\s*travel|geo\s*blue|seguro internacional/i.test(text)) { return "International"; }
     if (/discount\s*(medical\s*)?(plan|card|program)|plan de descuento/i.test(text)) { return "Discount Plan"; }
     if (dental && vision && /dental\s*(and|&|\+|y|\/)\s*visi[oó]n/i.test(text)) { return "Dental + Vision"; }
     if (dental) { return "Dental"; }
@@ -566,29 +638,230 @@
     return "";
   }
 
+  var POLICY_LABELS = [/\bPolicy\s*(ID|number|#|no\.?)/i, /\bCertificate\s*(number|#)/i, /N[uú]mero de p[oó]liza/i];
+
+  /* El título manda: "APPLICATION FOR HOSPITAL INDEMNITY INSURANCE". El resto
+     del texto nombra otros productos (preguntas de reemplazo, avisos). */
+  function suppProduct(doc) {
+    var title = "";
+    for (var i = 0; i < doc.lines.length && !title; i++) {
+      if (/^\s*application for\b/i.test(doc.lines[i])) { title = firstCell(doc.lines[i]); }
+    }
+    return productIn(title) || productIn(doc.flat);
+  }
+
+  /* Un titular escrito sin rótulo de nombre: "Jose Rondon Vallejo, 3/28/1962" */
+  function vHolder(t) { return vPerson(firstCell(t).replace(/,?\s*\d{1,2}\/\d{1,2}\/\d{2,4}\s*$/, "")); }
+
+  /* El titular cuando no hay "First name / Last name": "1. Primary  Apellido,
+     Nombre" (Allstate), el bloque "Primary Subscriber" (Cigna) o "Member" (la
+     tarjeta). */
+  function suppHolder(doc, f) {
+    var lf = after(doc, [/^\s*1\.\s*Primary\b(\s*Proposed)?/i], vLastFirst, 1);
+    if (lf) {
+      var p = lf.split(/,\s*/);
+      f.apellidos = p[0].toUpperCase(); f.nombres = p[1].toUpperCase();
+      return;
+    }
+    var full = after(doc, [/^\s*Primary\s*Subscriber\s*$/i], vPerson, 2) ||
+               after(doc, [/^\s*Member\b(?!\s*(ID|#|number|services|since))\s*:?/i, /^\s*Insured\b\s*:?/i], vHolder, 0);
+    if (full) { setName(f, full); }
+  }
+
+  /* Tabla de pagos con columnas: "Initial Premium:  Annual  Monthly" sobre
+     "Accident Medical Expense Plan  $154.68  $12.89" y "Initial Total Premium
+     ...", o "Initial Payment  Monthly Payment" sobre "$62.66  $62.66". La
+     prima es la columna mensual de la fila del total (o de la única fila). */
+  function monthlyColumn(doc) {
+    var cells = function (l) { return l.trim().split(/\s{2,}|\t/); };
+    for (var i = 0; i < doc.lines.length; i++) {
+      var head = cells(doc.lines[i]);
+      var col = -1;
+      head.forEach(function (c, k) { if (/^(monthly|mensual)(\s+(premium|payment|prima|pago))?$/i.test(c)) { col = k; } });
+      if (col < 1 || MONEY_RE.test(doc.lines[i]) || !head.some(function (c) { return /\b(annual|anual|quarterly|semi|initial|inicial)\b/i.test(c); })) { continue; }
+      var rows = [];
+      for (var j = i + 1; j < doc.lines.length && j <= i + 4; j++) {
+        var r = cells(doc.lines[j]);
+        if (r.length === head.length && MONEY_RE.test(r[col])) { rows.push(r); } else if (rows.length) { break; }
+      }
+      if (!rows.length) { continue; }
+      var total = rows.filter(function (r) { return /total/i.test(r[0]); })[0] || rows[0];
+      var first = rows[0][0];
+      return { prima: vMoney(total[col]), plan: !/total/i.test(first) && !MONEY_RE.test(first) ? vText(70)(first) : "" };
+    }
+    return { prima: "", plan: "" };
+  }
+
+  /* Encabezado en columnas "Plan Selection  Location  Start Date": el plan
+     ocupa las líneas de abajo en la primera columna ("Cigna Dental Vision" /
+     "Hearing 3500"); la letra chica ("for you") ya no es parte del nombre. */
+  function planBelow(doc) {
+    for (var i = 0; i < doc.lines.length; i++) {
+      if (!/^\s*Plan\s*Selection\s{2,}\S/i.test(doc.lines[i])) { continue; }
+      var parts = [];
+      for (var j = i + 1; j < doc.lines.length && parts.length < 3; j++) {
+        var c = firstCell(doc.lines[j]);
+        if (!c || !/^[A-Z0-9]/.test(c) || /[:?]/.test(c)) { break; }
+        parts.push(c);
+      }
+      var name = vText(80)(parts.join(" "));
+      if (name) { return name; }
+    }
+    return "";
+  }
+
+  /* El nombre del plan en el encabezado, sin rótulo: una celda que nombra
+     el producto y el tipo de plan ("BlueDental Copayment QF", "Select Dental
+     PPO Plan"). Los títulos en mayúsculas no cuentan. */
+  function planCell(doc) {
+    for (var i = 0; i < doc.lines.length && i < 12; i++) {
+      var cs = doc.lines[i].trim().split(/\s{2,}|\t/);
+      for (var k = 0; k < cs.length; k++) {
+        var c = cs[k].trim();
+        if (c.length >= 6 && c.length <= 60 && /dental|vision|hospital|accident|indemnity/i.test(c) &&
+            /\b(plan|ppo|hmo|dppo|dhmo|copay(ment)?|choice|value|select|plus|preferred|premier|basic|max)\b/i.test(c) &&
+            !/[:?]|^(application|solicitud|insurance)\b/i.test(c) && /[a-z]/.test(c)) { return c; }
+      }
+    }
+    return "";
+  }
+
+  function suppPlan(doc) {
+    return after(doc, [/\bPlan\s*name\b/i, /Nombre del plan/i, /\b(Selected\s*plan|Plan\s*selected)\b/i, /\bProduct\s*name\b/i,
+      /^\s*Plan\s*(:|\s{2,})/i], vText(70), 1) || monthlyColumn(doc).plan || planBelow(doc) || planCell(doc);
+  }
+
+  function suppPremium(doc) {
+    return monthlyColumn(doc).prima ||
+      after(doc, [/\b(Total\s*)?monthly\s*premium\b/i, /Prima\s*mensual/i, /\bPremium\b/i, /\bPrima\b/i], vMoney, 1);
+  }
+
+  /* Fecha bajo un encabezado de columna: "Plan Selection  Location  Start
+     Date" sobre "Cigna Dental Vision  33907  Sep 01, 2026" */
+  function columnDate(doc, re) {
+    for (var i = 0; i < doc.lines.length; i++) {
+      var m = doc.lines[i].match(re);
+      if (!m || m.index === 0 || !/\S\s{2,}/.test(doc.lines[i].slice(0, m.index))) { continue; }
+      for (var j = i + 1; j < doc.lines.length && j <= i + 2; j++) {
+        var ds = datesIn(doc.lines[j]);
+        if (ds.length) {
+          ds.sort(function (a, b) { return Math.abs(a.index - m.index) - Math.abs(b.index - m.index); });
+          return ds[0].value;
+        }
+      }
+    }
+    return "";
+  }
+
+  function suppDate(doc) {
+    return after(doc, [/\b(Requested\s*)?effective\s*date\b/i, /\bCoverage\s*start\s*date\b/i, /Fecha efectiva/i,
+      /Fecha (solicitada )?de entrada en vigencia/i, /Fecha de vigencia/i], vDate, 1) || columnDate(doc, /\bStart\s*Date\b/i);
+  }
+
+  function suppBeneficiary(doc) {
+    if (!/beneficiar/i.test(doc.flat)) { return ""; }
+    return after(doc, [/\bPrimary\s*beneficiary(\s*name)?\b/i, /^\s*Beneficiary(\s*Name)?\b(\s*\([^)]*\))?/i,
+      /^\s*Beneficiario(\s*principal)?\b/i], vBeneficiary, 1);
+  }
+
+  /* El agente cuando no hay "Agent name: …": "Yo, Nombre Apellido," en el
+     reconocimiento del agente (Florida Blue, donde "Agent Name" se corta en
+     dos líneas), "Writing agent/Producer name" (Cigna) o el nombre escrito
+     encima de su rótulo ("Agent Name  Agent License…"). */
+  function suppAgent(doc) {
+    var ack = after(doc, [/Reconocimientos? del Agente|Agent Acknowledgements?/i], function (t) {
+      var m = String(t).match(/^(?:Yo|I),\s*([^,]+),?\s*$/);
+      return m ? vPerson(m[1]) : "";
+    }, 6);
+    if (ack) { return ack; }
+    var a = after(doc, [/\bWriting\s*agent\s*\/\s*Producer\s*name\b/i, /\bProducer['’]?s?\s*name\b/i], vPerson, 1);
+    for (var i = 1; !a && i < doc.lines.length; i++) {
+      if (/^\s*(Print\s*)?Agent['’]?s?\s*Name\b(?!\s*:\s*\S)/i.test(doc.lines[i])) { a = vPerson(doc.lines[i - 1]); }
+    }
+    return a;
+  }
+
+  /* Golden Rule llena un formulario PDF: los datos vienen de sus campos.
+     El plan es la opción marcada (el valor "Select2000" del botón coincide
+     con "Health ProtectorGuard Select 2000") o el encabezado "AdvantageGuard
+     Plans" de la sección Plan Selection. */
+  function grPlan(doc, form, producto) {
+    var norm = function (s) { return String(s).toLowerCase().replace(/[^a-z0-9]/g, ""); };
+    var start = -1;
+    for (var i = 0; i < doc.lines.length && start < 0; i++) { if (/^\s*Plan Selection\b/i.test(doc.lines[i])) { start = i; } }
+    if (start < 0) { return ""; }
+    var cells = [];
+    for (var j = start + 1; j < doc.lines.length && j < start + 25; j++) {
+      if (/Application Questions|Initial Payment|Estimated Monthly/i.test(doc.lines[j])) { break; }
+      /* sin la casilla dibujada que va delante de cada opción */
+      doc.lines[j].trim().split(/\s{2,}|\t/).forEach(function (c) { if (/[A-Za-z]/.test(c)) { cells.push(c.replace(/^[^A-Za-z0-9(]+/, "").trim()); } });
+    }
+    var picks = Object.keys(form).map(function (k) { return norm(form[k]); })
+      .filter(function (v) { return v.length >= 5 && /[a-z]/.test(v) && /\d/.test(v) && !/^\d/.test(v); });
+    for (var k = 0; k < cells.length; k++) {
+      var c = norm(cells[k]);
+      if (picks.some(function (v) { return c.length >= v.length && c.slice(-v.length) === v; })) { return cells[k]; }
+    }
+    for (k = 0; k < cells.length; k++) {
+      var m = cells[k].match(/^(.+?)\s+Plans$/);
+      if (m) { return m[1] + (producto && m[1].toLowerCase().indexOf(producto.toLowerCase()) < 0 ? " " + producto : ""); }
+    }
+    return "";
+  }
+
+  function goldenRule(doc, f) {
+    var form = doc.form;
+    var first = [form.First1, form.MI1].filter(Boolean).join(" ");
+    if (vName(first) && vName(form.Last1)) { f.nombres = first.toUpperCase(); f.apellidos = form.Last1.toUpperCase(); }
+    f.plan = grPlan(doc, form, f.producto);
+    f.prima = vMoney(form.BaseTotal || "");
+    f.efectiva = U.parseDate([form.ReqDt1, form.ReqDt2, form.ReqDt3].join("/"));
+    /* el CustID es el que va en "Policy ID Number" */
+    f.poliza = vCode(5, 24)(form.CustID || "");
+    var ben = vPerson(form.YourBeneName || "");
+    if (ben) { f.beneficiario = ben + (form.YourBeneRelation ? " (" + form.YourBeneRelation + ")" : ""); }
+    var ag = vFullName(form.BrokerName || form.AgentPrintSign || "");
+    if (ag) { f.agente = ag.toUpperCase(); }
+    /* "Agent Number (NPN)" */
+    var npn = String(form.BRIDNumber || form.AgentNumber || "");
+    if (/^\d{5,12}$/.test(npn)) { f.npn = npn; }
+  }
+
   function extractSupp(doc) {
     var f = {};
-    personName(doc, f);
     f.compania = carrierIn("supp", doc.flat);
-    f.producto = productIn(doc.flat);
-    f.plan = after(doc, [/\bPlan\s*name\b/i, /Nombre del plan/i, /\b(Selected\s*plan|Plan\s*selected)\b/i, /\bProduct\s*name\b/i], vText(70), 1);
-    f.prima = after(doc, [/\b(Total\s*)?monthly\s*premium\b/i, /Prima\s*mensual/i, /\bPremium\b/i, /\bPrima\b/i], vMoney, 1);
-    f.efectiva = after(doc, [/\b(Requested\s*)?effective\s*date\b/i, /\bCoverage\s*start\s*date\b/i, /Fecha efectiva/i], vDate, 1);
+    f.producto = suppProduct(doc);
+    if (/golden\s*rule/i.test(doc.flat) && doc.form.Last1) {
+      goldenRule(doc, f);
+      return f;
+    }
+    personName(doc, f);
+    if (!f.nombres) { suppHolder(doc, f); }
+    f.plan = suppPlan(doc);
+    f.prima = suppPremium(doc);
+    f.efectiva = suppDate(doc);
     /* Suplementario solo guarda el Policy #; el número de la aplicación se
        lee para no confundirlo con la póliza */
     var app = after(doc, [/\bApplication\s*(ID|number|#|no\.?)/i, /\bApp\s*ID\b/i,
       /N[uú]mero de (solicitud|aplicaci[oó]n)/i, /\bConfirmation\s*(number|#)/i], vCode(5, 24), 1);
-    f.poliza = after(doc, [/\bPolicy\s*(ID|number|#|no\.?)/i, /\bCertificate\s*(number|#)/i, /N[uú]mero de p[oó]liza/i], vCode(5, 24), 1);
+    f.poliza = after(doc, POLICY_LABELS, vCode(5, 24), 1);
     if (f.poliza && f.poliza === app) { delete f.poliza; }
-    if (/beneficiar/i.test(doc.flat)) {
-      var ben = after(doc, [/\bPrimary\s*beneficiary(\s*name)?\b/i, /\bBeneficiary(\s*name)?\b/i, /Beneficiario(\s*principal)?/i], vText(60), 1);
-      if (ben && !/%|percent|porcentaje/i.test(ben)) { f.beneficiario = ben; }
-    }
+    var ben = suppBeneficiary(doc);
+    if (ben) { f.beneficiario = ben; }
+    var ag = suppAgent(doc);
     agentInfo(doc, f);
+    if (ag) { f.agente = ag.toUpperCase(); }
+    /* el NPN en el enlace de la herramienta de inscripción ("…&npn=12345678") */
+    var npn = find(doc, /[?&]npn=(\d{5,12})\b/i);
+    if (npn && !f.npn) { f.npn = npn; }
     return f;
   }
 
   /* ------------------------------------------------------------ detección */
+
+  /* Título de una aplicación suplementaria: "APPLICATION FOR HOSPITAL
+     INDEMNITY INSURANCE", "Application for Accident Medical Expense" */
+  var SUPP_TITLE = /(^|\n)[ \t]*application for [^\n]{0,60}(indemnity|accident|dental|vision|cancer|critical illness|short[\s-]?term|life|hospital)/i;
 
   var SIGNALS = {
     mc_soa: [[/scope of (sales )?appointment/i, 4], [/alcance de la cita/i, 4], [/\bSOA\b/, 1],
@@ -608,12 +881,17 @@
       [/healthcare\.gov|cuidadodesalud\.gov|health insurance marketplace|mercado de seguros/i, 1],
       [/household (income|information|members)|ingresos del hogar/i, 1]],
     pay: [[/payment (confirmation|receipt|successful|received|complete)|confirmaci[oó]n de(l)? pago|recibo de pago|pago (recibido|exitoso|realizado)/i, 4],
-      [/thank you for your payment|gracias por su pago/i, 4], [/amount paid|monto pagado|payment amount/i, 1]],
+      [/thank you for your payment|gracias por su pago/i, 4], [/amount paid|monto pagado|payment amount/i, 1],
+      [/payment (submitted|is confirmed)|submitted for processing|amount charged/i, 4], [/\bpayment\s*(date|method|details)\b/i, 1]],
     supp_app: [[/\bdental\b/i, 1], [/\bvisi[oó]n\b/i, 1], [/hospital indemnity|indemnizaci[oó]n hospitalaria/i, 3],
       [/accident(al)? (insurance|coverage|plan)|seguro de accidentes/i, 3], [/cancer (insurance|plan)|critical illness/i, 3],
       [/short[\s-]?term (medical|health)/i, 3], [/waiting period|per[ií]odo de espera/i, 1], [/\b(DHMO|DPPO)\b/, 2],
       [/life insurance|seguro de vida|death benefit|face amount/i, 3], [/international|travel medical|geo\s*blue/i, 3],
-      [/discount (medical )?(plan|card|program)/i, 3]],
+      [/discount (medical )?(plan|card|program)/i, 3], [SUPP_TITLE, 5],
+      [/\b(dental|vision)\s+(insurance|plan|policy|coverage|ppo|hmo|value|choice|copay(ment)?)\b|seguro dental|p[oó]liza dental|bluedental/i, 2]],
+    supp_card: [[/\b(this|the)\s+card\s+(is|does)\s+not\s+(a\s+)?(guarantee|proof|verification)/i, 4],
+      [/\b[1Il]D\s*card\b|\bmember\s*(ID\s*)?card\b|tarjeta de (identificaci[oó]n|miembro)/i, 2],
+      [/claims\s*(correspondence|address)|send claims|electronic claims|payer\s*ID/i, 2]],
     consent: [[/consent (form|to act|for)|consentimiento/i, 3], [/authorize|autorizo|autorizaci[oó]n/i, 1],
       [/agent of record|agente de registro/i, 1]]
   };
@@ -639,10 +917,18 @@
       scores[t] = SIGNALS[t].reduce(function (s, sig) { return s + (sig[0].test(flat) ? sig[1] : 0); }, 0);
     });
     var medicare = scores.mc_app + scores.mc_soa, market = scores.oc_elig + scores.oc_plans + scores.oc_app;
-    /* "dental" aparece en casi todo: solo cuenta si no es Medicare ni Mercado */
-    if (medicare >= 3 || market >= 3) { scores.supp_app = 0; }
-    /* un consent suele mencionar el Mercado; manda si el resto es débil */
-    if (scores.consent >= 4 && market < 5 && medicare < 5) { scores.consent += 3; }
+    /* "dental" aparece en casi todo: solo cuenta si no es Medicare ni Mercado,
+       salvo que el título diga que es una aplicación suplementaria */
+    if ((medicare >= 3 || market >= 3) && !SUPP_TITLE.test(flat)) { scores.supp_app = 0; }
+    /* una tarjeta de Suplementario nombra su producto y no es de Medicare */
+    if (medicare >= 3 || market >= 3 || /\bmedicare\b/i.test(flat) || !productIn(flat)) { scores.supp_card = 0; }
+    /* un consent suele mencionar el Mercado; manda si el resto es débil. Las
+       aplicaciones suplementarias piden consentimiento para firmar en línea:
+       ahí no manda. */
+    if (scores.consent >= 4 && market < 5 && medicare < 5 && scores.supp_app < 4) { scores.consent += 3; }
+    /* una página de pago es corta y nombra el producto que se paga: si dice
+       que el pago se hizo, manda */
+    if (scores.pay >= 4 && flat.length < 4000) { scores.pay += 3; }
     /* un SOA también habla de Medicare Advantage */
     if (scores.mc_soa >= 4) { scores.mc_soa += 3; }
 
@@ -659,7 +945,7 @@
 
   var EXTRACTORS = {
     mc_soa: extractSoa, mc_app: extractMcApp, oc_elig: extractElig, oc_plans: extractPlans,
-    oc_app: extractOcApp, pay: extractPay, supp_app: extractSupp
+    oc_app: extractOcApp, pay: extractPay, supp_app: extractSupp, supp_card: extractSupp
   };
   var FALLBACK = { mc: "mc_app", oc: "oc_plans", supp: "supp_app" };
 
@@ -670,9 +956,9 @@
     var doc = makeDoc(text);
     var fields = {}, guessed = false;
     if (EXTRACTORS[type]) {
-      fields = EXTRACTORS[type](doc);
+      fields = EXTRACTORS[type](doc, currentLine);
     } else if (type === "unknown" && FALLBACK[currentLine] && doc.flat.replace(/\s/g, "").length > 40) {
-      fields = EXTRACTORS[FALLBACK[currentLine]](doc);
+      fields = EXTRACTORS[FALLBACK[currentLine]](doc, currentLine);
       guessed = true;
     }
     Object.keys(fields).forEach(function (k) { if (fields[k] === "" || fields[k] == null) { delete fields[k]; } });
@@ -718,14 +1004,39 @@
     }).join("\n");
   }
 
+  /* Lo escrito en un formulario PDF (AcroForm) no está en el texto de la
+     página: cada campo con valor va al final, una vez, como "Campo: valor"
+     (las casillas sin marcar y las firmas no). */
+  function formLines(perPage) {
+    var seen = {}, out = [];
+    perPage.forEach(function (annots) {
+      (annots || []).forEach(function (a) {
+        var name = a && a.subtype === "Widget" ? String(a.fieldName || "").replace(/\s+/g, " ").trim() : "";
+        var v = name && !seen[name] ? a.fieldValue : null;
+        if (Array.isArray(v)) { v = v.join(", "); }
+        if (v == null || typeof v === "object") { return; }
+        v = String(v).replace(/\s+/g, " ").trim();
+        if (!v || /^off$/i.test(v)) { return; }
+        seen[name] = true;
+        out.push(name + ": " + v);
+      });
+    });
+    return out;
+  }
+
   function pdfToText(pdfjsLib, data) {
     return pdfjsLib.getDocument({ data: data, isEvalSupported: false, disableFontFace: true }).promise.then(function (pdf) {
       var pages = [];
       for (var i = 1; i <= pdf.numPages; i++) {
-        pages.push(pdf.getPage(i).then(function (pg) { return pg.getTextContent(); }));
+        pages.push(pdf.getPage(i).then(function (pg) {
+          var annots = pg.getAnnotations ? pg.getAnnotations().catch(function () { return []; }) : [];
+          return Promise.all([pg.getTextContent(), annots]);
+        }));
       }
       return Promise.all(pages).then(function (contents) {
-        return contents.map(function (c) { return itemsToText(c.items); }).join("\n\n");
+        var text = contents.map(function (c) { return itemsToText(c[0].items); }).join("\n\n");
+        var form = formLines(contents.map(function (c) { return c[1]; }));
+        return form.length ? text + "\n\n" + FORM_HEAD + "\n" + form.join("\n") : text;
       });
     });
   }
