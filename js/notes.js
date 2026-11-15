@@ -107,22 +107,64 @@
     return first(d.nombres) + first(d.apellidos);
   }
 
+  /* ---------------------------------------------------------- compañías --
+     d.compania es el nombre que usan la nota, el reporte y los archivos. En
+     Obamacare y Medicare el formulario lo elige de la lista oficial (las
+     compañías con `option`) o, con «Otra», lo escribe el agente. */
+  var CARRIER_OTHER = "__other";
+
+  function carrierEntry(line, n) {
+    var list = C.CARRIERS[line] || [];
+    for (var i = 0; i < list.length; i++) { if (list[i].re.test(n)) { return list[i]; } }
+    return null;
+  }
+
+  /* "BCBS of" + el estado en dos letras, si lo tiene: "BCBS of GA" */
+  function withState(e, n, text) {
+    var m = e.state ? n.match(e.state) : null;
+    return m ? text + " " + m[1].toUpperCase() : text;
+  }
+
   /* Cómo se le escribe la compañía al cliente: "Florida Blue". */
   function carrierName(line, name) {
     var n = val(name);
     if (!n) { return ""; }
-    var list = C.CARRIERS[line] || [];
-    for (var i = 0; i < list.length; i++) { if (list[i].re.test(n)) { return list[i].display || U.titleCase(list[i].name); } }
-    return n;
+    var e = carrierEntry(line, n);
+    return e ? withState(e, n, e.display || U.titleCase(e.name)) : n;
   }
 
   function carrierShort(line, name) {
     var n = val(name);
     if (!n) { return ""; }
-    var list = C.CARRIERS[line] || [];
-    for (var i = 0; i < list.length; i++) { if (list[i].re.test(n)) { return list[i].short; } }
+    var e = carrierEntry(line, n);
+    if (e) { return withState(e, n, e.short); }
     /* sin coincidencia: el nombre tal cual, con mayúscula inicial */
     return n.length <= 5 ? n.toUpperCase() : U.titleCase(n);
+  }
+
+  /* Opciones oficiales de la línea, en su orden: { v: nombre, l: texto } */
+  function carrierOptions(line) {
+    return (C.CARRIERS[line] || []).filter(function (c) { return c.option; })
+      .map(function (c) { return { v: c.name, l: c.option, state: !!c.state }; });
+  }
+
+  /* Qué opción corresponde a un nombre (escrito o leído de un documento):
+     la oficial que lo reconoce, con su estado si es BCBS of, o «Otra». */
+  function carrierChoice(line, name) {
+    var n = val(name);
+    if (!n) { return { sel: "", state: "" }; }
+    var e = carrierEntry(line, n);
+    if (!e || !e.option) { return { sel: CARRIER_OTHER, state: "" }; }
+    var m = e.state ? n.match(e.state) : null;
+    return { sel: e.name, state: m ? m[1].toUpperCase() : "" };
+  }
+
+  /* Lo contrario: el nombre que sale de una opción oficial y su estado. */
+  function carrierFromChoice(line, sel, state) {
+    var e = (C.CARRIERS[line] || []).filter(function (c) { return c.name === sel; })[0];
+    if (!e || !e.state) { return sel || ""; }
+    var st = String(state || "").replace(/[^a-z]/gi, "").slice(0, 2).toUpperCase();
+    return st ? e.name + " " + st : e.name;
   }
 
   /* Montos redondos sin centavos, como se escriben los ingresos: $22,590 */
@@ -333,7 +375,6 @@
     if (!has(O, "agente")) { return; }
     /* el NPN se anota con las iniciales del agente, como en los templates */
     if (val(d.agente) || val(d.agenteIni)) { add("NPN", upper(d.agenteIni) || U.initials(d.agente)); }
-    if (d.line === "mc") { add("Writing ID", d.escritura); }
     /* solo cuando no fue quien escribe la nota */
     add("Habló con el cliente", upper(d.talkerNombre));
     /* en Medicare y Suplementario la app la hace quien escribe la nota: no hay colaborador */
@@ -523,7 +564,12 @@
     agentRows(d, add);
   }
 
-  function networkOf(d) { var O = outcomeOf(d); return O.network || lineOf(d).network; }
+  /* Una cancelación de Obamacare guarda My Plans & Programs como CANCELLED o
+     como TERMINATED, según lo que se eligió (CANCELLED si no se eligió). */
+  function networkOf(d) {
+    var O = outcomeOf(d), tipo = d.tipoCancel || "cancelled";
+    return (O.network || lineOf(d).network).filter(function (n) { return !n.tipoCancel || n.tipoCancel === tipo; });
+  }
 
   function networkDocs(d) {
     var O = outcomeOf(d);
@@ -776,11 +822,14 @@
       note: base,
       effective: U.parseDate(d.efectiva) || base,
       soa: U.parseDate(d.soaFecha) || base,
-      payment: U.parseDate(d.pagoFecha) || base
+      payment: U.parseDate(d.pagoFecha) || base,
+      termination: U.parseDate(d.fechaTermino) || base
     };
+    /* año del plan: el del campo, si no el de la cobertura y si no el de la nota */
+    var planYear = /^\d{4}$/.test(val(d.anio)) ? val(d.anio) : dates.effective.split("/")[2];
     return networkOf(d).map(function (n) {
-      var name = who + " - " + n.file.replace("{carrier}", carrier).replace("{product}", product) + " " +
-                 U.yearMonth(dates[n.date] || base) + (n.suffix || "");
+      var when = n.date === "plan" ? planYear : U.yearMonth(dates[n.date] || base);
+      var name = who + " - " + n.file.replace("{carrier}", carrier).replace("{product}", product) + " " + when + (n.suffix || "");
       return { k: n.k, label: n.label, name: U.stripAccents(name).replace(/[\\/:*?"<>|]/g, "") };
     });
   }
@@ -814,6 +863,9 @@
       if (hd && hd !== enTaxes(d).length) { w.push("Hogar: el documento indica " + hd + " en los taxes y la lista tiene " + enTaxes(d).length + "."); }
     }
     if (d.line === "oc" && O.id === "cancelada" && !val(d.motivoCancel)) { w.push("Falta el motivo de la cancelación."); }
+    if (d.line === "oc" && O.id === "cancelada" && d.tipoCancel === "terminated" && !U.parseDate(d.fechaTermino)) {
+      w.push("Falta la fecha de terminación de la cobertura (va en el nombre del archivo).");
+    }
     if (noteText && SSN_RE.test(noteText)) { w.push("La nota parece contener un número de Seguro Social. Quítalo antes de pegarla."); }
     return w;
   }
@@ -865,7 +917,8 @@
     buildNote: buildNote, buildTask: buildTask, formatTask: formatTask, buildReport: buildReport,
     buildSms: buildSms, buildEmail: buildEmail, smsInfo: smsInfo, buildFileNames: buildFileNames, warnings: warnings, cambios: cambios,
     autoTaskId: autoTaskId, taskById: taskById, outcomeOf: outcomeOf, lineOf: lineOf, gestionOf: gestionOf,
-    productOf: productOf, carrierShort: carrierShort, memberDelta: memberDelta, zohoName: zohoName, clientInitials: clientInitials,
+    productOf: productOf, carrierShort: carrierShort, carrierName: carrierName, carrierOptions: carrierOptions,
+    carrierChoice: carrierChoice, carrierFromChoice: carrierFromChoice, CARRIER_OTHER: CARRIER_OTHER, memberDelta: memberDelta, zohoName: zohoName, clientInitials: clientInitials,
     personas: personas, docsOf: docsOf, pendingDocs: pendingDocs, planesOf: planesOf, networkOf: networkOf,
     NET_DIRS: NET_DIRS, netDirFor: netDirFor
   };
