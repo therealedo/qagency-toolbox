@@ -671,3 +671,10 @@ test("carpeta del Network: cada línea usa la suya y, si no tiene, la general", 
   assert.deepEqual(N.netDirFor({}, "mc"), { key: "general", dir: null });
 });
 
+test("ventana flotante: iniciales del cliente, nombre y apellido", () => {
+  assert.equal(N.clientInitials({ nombres: "beatriz elena", apellidos: "diaz lopez" }), "BD");
+  assert.equal(N.clientInitials({ nombres: "  ángel ", apellidos: "ortiz" }), "ÁO");
+  assert.equal(N.clientInitials({ nombres: "Beatriz" }), "B");
+  assert.equal(N.clientInitials({ apellidos: "Diaz" }), "D");
+  assert.equal(N.clientInitials({}), "");
+});

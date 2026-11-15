@@ -1452,11 +1452,14 @@
 
   /* ------------------------------------------------- ventana flotante --
      Document Picture-in-Picture: una ventana pequeña que queda encima de las
-     demás, con los botones de copiar. Copia siempre el texto actual. */
+     demás, con los botones de copiar. Copia siempre el texto actual. El marco
+     y la barra de título los dibuja el navegador; por dentro es una burbuja
+     sin bordes. Sin el botón "volver a la pestaña": se vuelve con la barra de
+     tareas. */
   var pip = null;
   function openFloat() {
     if (pip) { pip.focus(); return; }
-    window.documentPictureInPicture.requestWindow({ width: 440, height: 150 }).then(function (w) {
+    window.documentPictureInPicture.requestWindow({ width: 400, height: 140, disallowReturnToOpener: true }).then(function (w) {
       pip = w;
       each(document.styleSheets, function (sheet) {
         var css = "";
@@ -1485,6 +1488,9 @@
     if (body.dataset.sig !== sig || !body.querySelector("[data-next]")) {
       body.textContent = "";
       var head = doc.createElement("div"); head.className = "float-head";
+      var avatar = doc.createElement("span"); avatar.className = "float-avatar"; avatar.setAttribute("aria-hidden", "true");
+      var name = doc.createElement("span"); name.className = "float-name";
+      head.appendChild(avatar); head.appendChild(name);
       var row = doc.createElement("div"); row.className = "float-row";
       var next = doc.createElement("button"); next.type = "button"; next.className = "btn primary small"; next.dataset.next = "1";
       row.appendChild(next);
@@ -1495,7 +1501,10 @@
       body.appendChild(head); body.appendChild(row);
       body.dataset.sig = sig;
     }
-    body.querySelector(".float-head").textContent = N.zohoName(data()) || "Sin cliente";
+    var d = data(), initials = N.clientInitials(d), avatar = body.querySelector(".float-avatar");
+    body.querySelector(".float-name").textContent = N.zohoName(d) || "Sin cliente";
+    avatar.textContent = initials;
+    avatar.hidden = !initials;
     var label = function (b, text) { b.dataset.label = text; if (!b.classList.contains("done")) { b.textContent = text; } };
     label(body.querySelector("[data-next]"), nextLabel());
     each(body.querySelectorAll("[data-copy]"), function (b) { label(b, copyLabel(b.dataset.copy, list)); });
