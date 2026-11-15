@@ -78,6 +78,8 @@
     return { periodoMC: aep ? "AEP" : (maOep ? "OEP" : "SEP"), periodo: oep ? "OEP" : "SEP" };
   }
 
+  function freshEdited() { return { note: false, task: false, report: false, sms: false, email1: false, email2: false }; }
+
   function freshFields() {
     var season = seasonDefaults();
     return {
@@ -87,8 +89,11 @@
       periodoMC: season.periodoMC, soaEstado: "firmado", producto: "Dental",
       metodo: "TEXT", intento: "1", hora: "09:00", net: {}, taskId: "", taskOwner: "",
       talker: "", npnAgente: "", colaborador: "", prefijo: "",
-      personas: [{ titular: true, parentesco: "Titular", taxes: true, cobertura: true, ingreso: "" }],
-      docs: [], planes: [], revisaPlanes: false, motivoCancel: "", motivoOtro: "", hogarDoc: ""
+      personas: [{ titular: true, parentesco: "Titular", taxes: true, cobertura: true, ingreso: "", estatus: "", dob: "" }],
+      docs: [], planes: [], revisaPlanes: false, motivoCancel: "", motivoOtro: "", hogarDoc: "",
+      direccion: "", clienteTel: "", clienteEmail: "", idioma: "es",
+      /* Cambios: personas de un documento que se quitaron y si el hogar vino de un documento */
+      quitados: [], hogarPdf: false
     };
   }
 
@@ -98,8 +103,9 @@
     f: freshFields(),
     auto: {},      /* true: leído de un documento; "calc": calculado o por defecto */
     rank: {},      /* prioridad del documento que llenó cada campo */
+    base: {},      /* valor que trajo un documento, para saber qué cambió */
     files: [],
-    edited: { note: false, task: false, report: false, sms: false },
+    edited: freshEdited(),
     dirty: false
   };
 
@@ -177,9 +183,12 @@
       options: [{ v: "Q", l: "Código Q" }, { v: "New", l: "New" }, { v: "Sin Code", l: "Sin Code" }] },
     { k: "codigoQ", g: "cliente", sec: "cliente", type: "text", label: "Número Q", ph: "1234", prefix: "Q",
       when: function (f) { return f.codigoTipo === "Q"; } },
-    { k: "dep", g: "cliente", sec: "cliente", type: "check", w: "full", lines: ["oc"],
-      label: "Es dependiente: está dentro de la cobertura, no es el principal",
-      when: function () { return isOC("enviada"); } },
+    { k: "direccion", g: "cliente", sec: "cliente", type: "text", label: "Dirección", w: "full", lines: ["oc"],
+      ph: "Calle, ciudad, estado y código postal", when: function () { return !isOC("cancelada"); } },
+    { k: "clienteTel", g: "cliente", sec: "cliente", type: "text", label: "Teléfono del titular", w: "w2", lines: ["oc"], mode: "tel",
+      ph: "(305) 555-0100", when: function () { return !isOC("cancelada"); } },
+    { k: "clienteEmail", g: "cliente", sec: "cliente", type: "text", label: "Email del titular", w: "w2", lines: ["oc"], mode: "email",
+      when: function () { return !isOC("cancelada"); } },
     { k: "personas", g: "cliente", sec: "cliente", type: "personas", w: "full", lines: ["oc"] },
     { k: "miembros", g: "cliente", sec: "cliente", type: "area", label: "Miembros en cobertura", w: "w3", rows: 3, upper: true,
       lines: ["supp"], hint: "Uno por línea, empezando por el titular" },
@@ -353,6 +362,7 @@
       if (F.type === "money") { ctl.inputMode = "decimal"; ctl.placeholder = "$0.00"; ctl.classList.add("num"); }
       if (F.type === "date") { ctl.placeholder = "MM/DD/AAAA"; ctl.classList.add("num"); }
       if (F.type === "int") { ctl.inputMode = "numeric"; ctl.classList.add("num"); if (F.max) { ctl.maxLength = F.max; } }
+      if (F.mode) { ctl.inputMode = F.mode; }
       if (F.list) { ctl.setAttribute("list", "dl_" + F.k); }
     }
     if (F.type !== "seg") { ctl.id = id; }
@@ -543,6 +553,12 @@
         body.appendChild(labeled("Parentesco", itemSelect("personas", i, "parentesco", p.parentesco,
           [{ v: "", l: "—" }].concat(C.PARENTESCOS.map(function (r) { return { v: r, l: r }; })))));
         if (!cancel) {
+          body.appendChild(labeled("Estatus en EE. UU.", itemSelect("personas", i, "estatus", p.estatus,
+            [{ v: "", l: "—" }].concat(C.ESTATUS))));
+          if (p.estatus === "otro") {
+            body.appendChild(labeled("¿Cuál?", itemInput("personas", i, "estatusOtro", p.estatusOtro, { ph: "TPS, asilo…" })));
+          }
+          body.appendChild(labeled("DOB", itemInput("personas", i, "dob", p.dob, { cls: "num", ph: "MM/DD/AAAA" }), "w-date"));
           body.appendChild(labeled("Ingreso anual", itemInput("personas", i, "ingreso", p.ingreso, { cls: "num", ph: "$0", mode: "decimal" })));
           var checks = el("div", "person-checks");
           [["taxes", "En los taxes"], ["cobertura", "Pide cobertura"]].forEach(function (c) {
@@ -564,6 +580,10 @@
     var sum = el("span", "list-sum"); sum.id = "peopleSum";
     foot.appendChild(sum);
     box.appendChild(foot);
+    if (!cancel) {
+      box.appendChild(el("p", "hint people-hint",
+        "Sale en la nota como «Cambios» lo que quede distinto de los documentos, y la dirección, teléfono, email, estatus y DOB que llenes."));
+    }
     updatePeopleSummary();
   }
 
@@ -663,7 +683,7 @@
     var v = t.type === "checkbox" ? t.checked : t.value;
     if (committed && prop === "ingreso") { v = U.parseMoney(v) || ""; t.value = v; }
     if (committed && prop === "prima") { v = U.parseMoney(v) || ""; t.value = v; }
-    if (committed && prop === "fecha") {
+    if (committed && (prop === "fecha" || prop === "dob")) {
       var dd = U.parseDate(v);
       t.closest(".mini").classList.toggle("bad", !!U.collapse(v) && !dd);
       if (dd || !U.collapse(v)) { v = dd; t.value = dd; }
@@ -673,7 +693,7 @@
     delete item.auto;
     S.dirty = true;
     if (t.dataset.list === "personas") {
-      if (prop === "taxes" || prop === "cobertura") { renderPersonas(); }
+      if (prop === "taxes" || prop === "cobertura" || prop === "estatus") { renderPersonas(); }
       else if (prop === "ingreso") { var inc = document.querySelector('[data-inc-for="' + t.dataset.i + '"]'); if (inc) { inc.textContent = (U.parseMoney(v) || "").replace(/\.00$/, ""); } }
       if (committed && prop === "nombre") { renderDocs(); }
     }
@@ -695,7 +715,10 @@
     switch (act) {
       case "toggle": ps[i].open = !ps[i].open; renderPersonas(); return;
       case "taxes": case "cobertura": ps[i][act] = !ps[i][act]; delete ps[i].auto; renderPersonas(); break;
-      case "remove-person": ps.splice(i, 1); renderPersonas(); renderDocs(); break;
+      case "remove-person":
+        /* quitar a alguien que trajo un documento es un cambio */
+        if (ps[i].orig && ps[i].orig.nombre) { S.f.quitados.push(ps[i].orig.nombre); }
+        ps.splice(i, 1); renderPersonas(); renderDocs(); break;
       case "add-person":
         ps.forEach(function (p) { p.open = false; });
         ps.push({ nombre: "", parentesco: "", taxes: true, cobertura: true, ingreso: "", open: true });
@@ -1029,6 +1052,11 @@
     d.oficina = settings.oficina;
     d.telefono = settings.telefonos[settings.oficina] || "";
     d.botonRojo = settings.botonRojo;
+    d.base = S.base;
+    /* el SMS y el email los firma quien habló con el cliente */
+    var signer = p.talker || p.me;
+    d.firmaNombre = signer ? signer.name : "";
+    d.firmaTel = signer ? (signer.tel || "") : "";
     return d;
   }
 
@@ -1039,8 +1067,8 @@
     box.style.height = (box.scrollHeight + 2) + "px";
   }
 
-  var OUT = { note: "note", task: "task", report: "report", sms: "sms" };
-  var generated = { note: "", task: "", report: "", sms: "" };
+  var OUT = { note: "note", task: "task", report: "report", sms: "sms", email1: "email1", email2: "email2" };
+  var generated = { note: "", task: "", report: "", sms: "", email1: "", email2: "" };
 
   function setOut(key, text) {
     generated[key] = text;
@@ -1098,8 +1126,18 @@
     fitHeight($("sms"));
     var info = N.smsInfo($("sms").value);
     $("smsCount").textContent = info.length + " caracteres · " + info.parts + (info.parts === 1 ? " mensaje" : " mensajes");
-    $("smsCount").title = info.unicode ? "Con acentos cada mensaje admite 70 caracteres; sin acentos, 160." : "";
+    $("smsCount").title = info.unicode ? "Con acentos o emojis cada mensaje admite 70 caracteres; si no, 160." : "";
     $("smsPlain").checked = settings.smsSinAcentos;
+
+    /* SMS y email de una app de Obamacare: en español o en inglés */
+    var bilingual = isOC("enviada");
+    each(document.querySelectorAll("[data-lang-seg]"), function (seg) { seg.hidden = !bilingual; syncSeg(seg, S.f.idioma || "es"); });
+    $("emailCard").hidden = !bilingual;
+    if (bilingual) {
+      setOut("email1", N.buildEmail(d, 1));
+      setOut("email2", N.buildEmail(d, 2));
+      fitHeight($("email1")); fitHeight($("email2"));
+    }
     updateFileNames();
 
     var shown = $("note").value;
@@ -1209,21 +1247,29 @@
     var fields = Object.assign({}, res.fields);
     /* lo que va a las listas o a los selectores se aparta del resto */
     var special = {};
-    ["miembros", "ingreso", "hogar", "docs", "agente", "npn"].forEach(function (k) {
+    ["miembros", "ingreso", "hogar", "docs", "agente", "npn", "dob"].forEach(function (k) {
       if (k in fields && !(k === "miembros" && S.line === "supp")) { special[k] = fields[k]; delete fields[k]; }
     });
     Object.keys(fields).forEach(function (k) {
       var v = fields[k];
+      if (isMoney(k)) { v = U.parseMoney(v); }
+      /* lo que trae el documento queda como base para la lista de Cambios */
+      if (!(k in S.base)) { S.base[k] = v; }
       var empty = S.f[k] == null || S.f[k] === "" || S.f[k] === false;
       var replaceable = S.auto[k] && (S.auto[k] === "calc" || rank > (S.rank[k] || 0));
       if (!empty && !replaceable) { return; }
-      if (isMoney(k)) { v = U.parseMoney(v); }
-      S.f[k] = v; S.auto[k] = true; S.rank[k] = rank; applied++;
+      S.f[k] = v; S.auto[k] = true; S.rank[k] = rank; S.base[k] = v; applied++;
     });
     if (S.line === "oc") {
       if (special.miembros) { applied += mergePersonas(U.parseList(special.miembros)); }
       var tit = S.f.personas[0];
-      if (special.ingreso && tit && !U.collapse(tit.ingreso)) { tit.ingreso = U.parseMoney(special.ingreso); tit.auto = true; applied++; }
+      /* el ingreso y la fecha de nacimiento del documento son del titular */
+      [["ingreso", U.parseMoney(special.ingreso)], ["dob", U.parseDate(special.dob)]].forEach(function (x) {
+        if (!tit || !x[1]) { return; }
+        tit.orig = tit.orig || {};
+        if (!(x[0] in tit.orig)) { tit.orig[x[0]] = x[1]; }
+        if (!U.collapse(tit[x[0]])) { tit[x[0]] = x[1]; tit.orig[x[0]] = x[1]; tit.auto = true; applied++; }
+      });
       if (special.hogar) { S.f.hogarDoc = special.hogar; }
       if (special.docs) { applied += mergeDocs(special.docs); }
     }
@@ -1238,11 +1284,21 @@
      agregan si no están, con taxes y cobertura marcados. */
   function mergePersonas(names) {
     var added = 0;
+    if (names.length) { S.f.hogarPdf = true; }
     names.forEach(function (n, idx) {
-      var exists = S.f.personas.some(function (p) { return sameName(personLabel(p), n); });
-      if (exists) { return; }
+      var found = S.f.personas.filter(function (p) { return sameName(personLabel(p), n); })[0];
+      /* el documento confirma que esa persona está en el hogar con cobertura */
+      if (found) {
+        found.orig = found.orig || {};
+        if (!("taxes" in found.orig)) { found.orig.taxes = true; found.orig.cobertura = true; }
+        return;
+      }
       if (idx === 0 && !U.collapse(S.f.nombres)) { return; }
-      S.f.personas.push({ nombre: U.collapse(n).toUpperCase(), parentesco: "", taxes: true, cobertura: true, ingreso: "", auto: true });
+      /* a quien el agente ya quitó no se le vuelve a agregar */
+      if (S.f.quitados.some(function (q) { return sameName(q, n); })) { return; }
+      var nombre = U.collapse(n).toUpperCase();
+      S.f.personas.push({ nombre: nombre, parentesco: "", taxes: true, cobertura: true, ingreso: "", estatus: "", dob: "", auto: true,
+                          orig: { nombre: nombre, taxes: true, cobertura: true } });
       added++;
     });
     return added;
@@ -1569,7 +1625,8 @@
     if (S.f.npnAgente && S.f.npnAgente !== "__extra" && !memberByName(S.f.npnAgente)) { S.f.npnAgente = ""; }
   }
 
-  var TEAM_COLS = [["name", "Nombre completo", "Nombre"], ["ini", "XX", "Notas"], ["agentIni", "Igual", "Agente"], ["npn", "Opcional", "NPN"]];
+  var TEAM_COLS = [["name", "Nombre completo", "Nombre"], ["ini", "XX", "Notas"], ["agentIni", "Igual", "Agente"], ["npn", "Opcional", "NPN"],
+    ["tel", "(305) 555-0100", "Directo"]];
 
   function renderTeam() {
     var box = $("teamRows");
@@ -1584,6 +1641,7 @@
         var inp = el("input"); inp.type = "text"; inp.value = t[c[0]] || ""; inp.placeholder = c[1];
         inp.dataset.team = i; inp.dataset.col = c[0];
         if (c[0] === "ini" || c[0] === "agentIni") { inp.maxLength = 3; inp.classList.add("upper"); }
+        if (c[0] === "tel") { inp.inputMode = "tel"; }
         inp.setAttribute("aria-label", c[2] + " de " + (t.name || "la persona nueva"));
         row.appendChild(inp);
       });
@@ -1783,6 +1841,18 @@
     $("copyTask").addEventListener("click", function () { copyOut("task", this); });
     $("copyReport").addEventListener("click", function () { copyOut("report", this); });
     $("copySms").addEventListener("click", function () { copyOut("sms", this); });
+    $("copyEmail1").addEventListener("click", function () { copyOut("email1", this); });
+    $("copyEmail2").addEventListener("click", function () { copyOut("email2", this); });
+    each(document.querySelectorAll("[data-lang-seg]"), function (seg) {
+      fillSeg(seg, [{ v: "es", l: "Español" }, { v: "en", l: "English" }]);
+      seg.addEventListener("click", function (e) {
+        var b = e.target.closest("button[data-v]");
+        if (!b || S.f.idioma === b.dataset.v) { return; }
+        S.f.idioma = b.dataset.v;
+        S.edited.sms = false; S.edited.email1 = false; S.edited.email2 = false;
+        refresh();
+      });
+    });
     $("smsPlain").addEventListener("change", function () { settings.smsSinAcentos = this.checked; saveSettings(); S.edited.sms = false; refresh(); });
     $("dock").addEventListener("click", function (e) {
       var b = e.target.closest("[data-copy]");
@@ -1810,9 +1880,9 @@
     /* nueva nota */
     $("btnNew").addEventListener("click", function () {
       if (hasClientData() && S.dirty && !window.confirm("La nota actual no se ha copiado. ¿Empezar una nueva?")) { return; }
-      S.f = freshFields(); S.auto = {}; S.rank = {}; S.files = [];
+      S.f = freshFields(); S.auto = {}; S.rank = {}; S.base = {}; S.files = [];
       $("taskId").dataset.line = "";
-      S.edited = { note: false, task: false, report: false, sms: false }; S.dirty = false;
+      S.edited = freshEdited(); S.dirty = false;
       S.outcome = L().outcomes[0].id;
       afterOutcomeChange(); defaultPeople();
       each(form.querySelectorAll(".bad"), function (x) { x.classList.remove("bad"); });

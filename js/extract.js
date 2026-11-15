@@ -406,9 +406,19 @@
       /Ingresos?\s*(anual(es)?|total(es)?|del hogar)/i], vMoney, 1);
     f.hogar = after(doc, [/\bHousehold\s*size\b/i, /\bTax\s*household\s*size\b/i, /Tama[nñ]o del hogar/i,
       /Personas en (el|su) hogar/i], vDigits(1, 2), 1);
+    /* fecha de nacimiento y dirección del contacto del hogar (el titular):
+       sirven de base para saber qué cambió */
+    f.dob = after(doc, [/\bDate\s*of\s*birth\b/i, /Fecha\s*de\s*nacimiento/i], vDate, 1);
+    f.direccion = after(doc, [/\bHome\s*address\b/i, /Direcci[oó]n\s*(de\s*(la\s*)?casa|del\s*hogar|residencial)/i], vAddress, 1);
     if (/healthsherpa/i.test(doc.flat)) { f.plataforma = "HealthSherpa"; }
     else if (/healthcare\.gov|cuidadodesalud\.gov/i.test(doc.flat)) { f.plataforma = "MKPL"; }
     return f;
+  }
+
+  /* una dirección tiene número y calle: "123 Main St, Miami, FL 33101" */
+  function vAddress(t) {
+    var c = firstCell(t);
+    return c.length >= 6 && c.length <= 120 && /\d/.test(c) && /[A-Za-z]{2}/.test(c) && !LABELISH.test(c) ? c : "";
   }
 
   /* ----------------------------------------------------------------- pago */

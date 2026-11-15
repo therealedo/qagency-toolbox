@@ -48,13 +48,27 @@ The task dropdown only lists the tasks of the line you are in (Marketplace for O
 
 There are three situations:
 
-- **App enviada.** *Hogar* lists the people in the application: the titular (named as in Zoho) and everyone else, each with *Taxes* and *Cobertura* toggles and, when opened, their relationship and yearly income. The note counts both and names them: `Sus ingresos anuales son $32,000 (Beatriz $25,000, Juan $7,000). Son 3 en los taxes (Beatriz, Juan, Ana) y 2 pidiendo cobertura (Beatriz, Juan).` *Plan* keeps company, plan name, status, coverage start and the monthly premium the client pays. *Documentos que pide el Mercado* is a checklist: what the Marketplace asked for (the 11 data matching issues from healthcare.gov), for whom, the due date, and once **Enviado** is ticked, which document was sent. While any document is still pending, the automatic task is `FOLLOW UP DOCS BY` the nearest due date; otherwise `FOLLOW UP CUSTOMER SERVICE` with the payment tag.
+- **App enviada.** *Hogar* has the titular's address, phone and email, and lists the people in the application: the titular (named as in Zoho) and everyone else, each with *Taxes* and *Cobertura* toggles and, when opened, their relationship, US status (citizen, resident, work permit or something else, typed), DOB and yearly income. The note counts taxes and coverage and names them: `Sus ingresos anuales son $32,000 (Beatriz $25,000, Juan $7,000). Son 3 en los taxes (Beatriz, Juan, Ana) y 2 pidiendo cobertura (Beatriz, Juan).` *Plan* keeps company, plan name, status, coverage start and the monthly premium the client pays. *Documentos que pide el Mercado* is a checklist: what the Marketplace asked for (the 11 data matching issues from healthcare.gov), for whom, the due date, and once **Enviado** is ticked, which document was sent. While the Marketplace is asking for any document, sent or not, the automatic task is `FOLLOW UP DOCS BY` the earliest due date of all of them; otherwise `FOLLOW UP CUSTOMER SERVICE` with the payment tag. The note always goes in the principal's profile, so there is no dependent option (`FOLLOW UP CUSTOMER SERVICE DEP` can still be picked by hand).
 - **Pendiente** covers quotes, consents waiting for signature and apps ready to process. *Planes cotizados* takes as many plans as were discussed, one line each in the note, with **Seleccionar** for the one the client chose and **Revisará los planes** when the quote is sent or handed over for review. Network only has the consent: the note ends with `Carta de consentimiento enviada.` or, once received, `Se firmó la carta de consentimiento en línea` (call) or `en la oficina` (in person). The task is `FOLLOW UP CONSENT`, `MKPL APP PENDING` once the consent is in, or `FOLLOW UP OPEN ENROLLMENT OC` if the client will review the plans. No SMS.
 - **Cancelación** asks for the reason (too expensive, coverage through work, immigration status or other), what is being cancelled, the company and the agent, and ticks *My Plans & Programs (CANCELLED)*, whose file name ends in `CANCELLED`. The task is `FOLLOW UP LEAD_INACTIVE CLIENT OC`.
 
+**Cambios.** In *App enviada* and *Pendiente*, whatever ends up different from what the documents filled in goes in the note under `Cambios:`, one line per change, right after the household line:
+
+```
+Cambios:
+- Beatriz: ingreso anual $25,000 (antes $32,000), estatus Residente
+- Juan: no pide cobertura
+- Se agrega a ANA DIAZ (Hijo/a), DOB 05/02/2020, estatus Ciudadano
+- Se quita a PEDRO DIAZ
+- Dirección: 456 Oak Ave, Miami, FL 33125 (antes 123 Main St, Miami, FL 33101)
+- Teléfono: (305) 555-0199
+```
+
+A change is a value edited, cleared or toggled after a document filled it (shown with `antes`), a person added by hand to a household that came from a document, or a person from a document removed. Address, phone, email, US status and DOB also count when they are typed where no document had them. With no documents loaded there is nothing to compare against, so only those last five can appear.
+
 ### People
 
-Each person in **Ajustes → Equipo** has the initials they sign notes and tasks with, and, if different, the initials they appear with as agent in the Cliq report (Ana signs notes as DI and is agent LI).
+Each person in **Ajustes → Equipo** has the initials they sign notes and tasks with, and, if different, the initials they appear with as agent in the Cliq report (Ana signs notes as DI and is agent LI), plus an optional direct phone that goes under their signature in the Obamacare SMS. Phones are typed in Ajustes and stay in that browser; they are not in the code.
 
 *Agente y colaborador* has three roles: **Habló con el cliente**, **Agente (NPN)** (a list of the agents with their NPN) and **Colaborador** (who processed the application). They default to whoever writes the note. The note says `NPN: LI`, and names who talked to the client and who processed the app only when it was someone else. When the person who talked to the client is not the one who processed the app, the report line starts with their initials (`FV: Q1234 - … (LI)`); a checkbox under the report switches that on or off.
 
@@ -66,9 +80,26 @@ A submitted application ends with «Se reporta en el botón rojo» (it can be sw
 
 The note never asks for or includes Marketplace usernames, passwords or security questions.
 
-### SMS and file names
+### SMS, email and file names
 
-The SMS card writes a short message for the client in Spanish: what was done and what they need to do next, greeting them by first name and signed by the office chosen in Ajustes, with that office's phone number if one is set. The counter shows how many text messages it takes; accents make each one hold 70 characters instead of 160, and **Sin acentos** fixes that.
+The SMS card writes a short message for the client: what was done and what they need to do next, greeting them by first name and signed by the office chosen in Ajustes, with that office's phone number if one is set. The counter shows how many text messages it takes; accents or emoji make each one hold 70 characters instead of 160, and **Sin acentos** removes the accents.
+
+For an Obamacare **App enviada**, the SMS follows the agency's format, in **Español** or **English** (the switch on the SMS and email cards):
+
+```
+Estimado Miguel: Somos QAgency Insurance. Hemos renovado su seguro de salud 2027 con Florida Blue.
+Plan: myBlue Essentials Silver 27M07-01C
+Inicio: 01/01/2027
+Premium: $85.40/mes
+Revise su email y para cualquier duda, comuníquese de inmediato con nosotros. Saludos Daniel Rivas
+Directo: (239) 555-0101
+Oficina: (239) 555-0102
+🎁 ¡Por cada 4 personas que nos refiera, gana una GIFT CARD!
+```
+
+It is signed by whoever talked to the client, with their direct phone from Ajustes and the office phone. The first sentence follows *Tipo de gestión*: renewed, enrolled (new application) or updated (life change). *Estimado* becomes *Estimada* with *la cliente*.
+
+Below it, **Email para el cliente** has two parts, each with its own **Copiar**: part 1 with the policy (company, coverage start, plan and monthly premium) and part 2 with what the Marketplace is requesting (every requested document with its due date, left out when nothing is requested) and the closing signed by whoever talked to the client. Both follow the same Español / English switch.
 
 The Network section lists the documents for the line of business, each with its file name ready to copy, for example `Caso, Angel - Medicare_Humana 2026 OCT`. Copying a name also ticks the document, so it is listed in the note. Plan documents (My Plans & Programs, the Medicare application, supplemental applications and ID cards) take the year and month of the coverage start; the rest take the date of the note, the SOA signature or the payment.
 
@@ -78,7 +109,7 @@ The Network section lists the documents for the line of business, each with its 
 | --- | --- |
 | My Plans & Programs (HealthCare.gov) | plan, monthly premium, status, people covered, coverage start |
 | Eligibility Letter | application ID, income, household size, documents requested with the person and due date |
-| App Summary (HealthCare.gov) | application ID, applicant, income, household size |
+| App Summary (HealthCare.gov) | application ID, applicant, DOB, home address, income, household size |
 | Medicare application summary (carrier portal, Spanish or English) | MBI, Part A/B, plan, contract, election period, PCP, confirmation, agent |
 | Scope of Appointment | beneficiary, signature date |
 | Payment receipt | amount, date, confirmation, last 4 digits, autopay |

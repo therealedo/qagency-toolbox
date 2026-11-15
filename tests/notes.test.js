@@ -90,11 +90,15 @@ test("task Obamacare: pendiente según el consent y si revisará los planes", ()
   assert.equal(t({ outcome: "cancelada" }), "DI: FOLLOW UP LEAD_INACTIVE CLIENT OC - VER NOTA 02/01/2026 (09:00)");
 });
 
-test("task Obamacare: con documentos pendientes, FOLLOW UP DOCS BY la fecha más próxima", () => {
+test("task Obamacare: mientras el Mercado pida documentos, FOLLOW UP DOCS BY la fecha más próxima de todos", () => {
   const t = (docs) => N.buildTask(make({ ini: "DI", line: "oc", outcome: "enviada", docs }));
   assert.equal(t([{ cat: "income", fecha: "03/01/2027" }, { cat: "immigration", fecha: "02/12/2027" }]),
     "DI: FOLLOW UP DOCS BY FEB/12/2027 - VER NOTA 02/01/2026 (09:00)");
-  assert.equal(t([{ cat: "income", fecha: "03/01/2027", enviado: true }]), "DI: FOLLOW UP CUSTOMER SERVICE - VER NOTA 02/01/2026 (09:00)");
+  /* ya enviados siguen necesitando seguimiento */
+  assert.equal(t([{ cat: "income", fecha: "03/01/2027", enviado: true }]), "DI: FOLLOW UP DOCS BY MAR/01/2027 - VER NOTA 02/01/2026 (09:00)");
+  assert.equal(t([{ cat: "income", fecha: "02/12/2027", enviado: true }, { cat: "immigration", fecha: "03/01/2027" }]),
+    "DI: FOLLOW UP DOCS BY FEB/12/2027 - VER NOTA 02/01/2026 (09:00)");
+  assert.equal(t([]), "DI: FOLLOW UP CUSTOMER SERVICE - VER NOTA 02/01/2026 (09:00)");
 });
 
 test("task: referencia de pago, dependiente y etiquetas al final", () => {
@@ -103,7 +107,9 @@ test("task: referencia de pago, dependiente y etiquetas al final", () => {
   assert.equal(t({ pagoEstado: "PAYMENT" }), "DI: FOLLOW UP CUSTOMER SERVICE - VER NOTA 02/01/2026 (09:00) PAYMENT");
   assert.equal(t({ pagoEstado: "PAYMENT NOT VERIFIED" }), "DI: FOLLOW UP CUSTOMER SERVICE - VER NOTA 02/01/2026 (09:00) PAYMENT NOT VERIFIED");
   assert.equal(t({ pagoEstado: "NO PREMIUM", obsTask: "urgent" }), "DI: FOLLOW UP CUSTOMER SERVICE - VER NOTA 02/01/2026 (09:00) NO PREMIUM URGENT");
-  assert.equal(t({ dep: true, pagoEstado: "PAYMENT" }), "DI: FOLLOW UP CUSTOMER SERVICE DEP - VER NOTA 02/01/2026 (09:00)");
+  /* ya no hay casilla de dependiente: la nota va siempre en el perfil del principal */
+  assert.equal(t({ dep: true, pagoEstado: "PAYMENT" }), "DI: FOLLOW UP CUSTOMER SERVICE - VER NOTA 02/01/2026 (09:00) PAYMENT");
+  assert.equal(t({ taskId: "oc_cs_dep" }), "DI: FOLLOW UP CUSTOMER SERVICE DEP - VER NOTA 02/01/2026 (09:00)", "sigue disponible a mano");
   /* en 12 horas, como en los templates: 2:30 PM sale (02:30) */
   assert.equal(t({ hora: "14:30" }), "DI: FOLLOW UP CUSTOMER SERVICE - VER NOTA 02/01/2026 (02:30)");
 });
@@ -169,6 +175,42 @@ test("nota: ingresos por persona, documentos pedidos y pago", () => {
   assert.match(note, /\nSus ingresos anuales son \$32,000 \(Beatriz \$25,000, Juan \$7,000\)\. Son 3 en los taxes \(Beatriz, Juan, Ana\) y 2 pidiendo cobertura \(Beatriz, Juan\)\.\n/);
   assert.match(note, /\nMKPL pide docs:\n- Ingresos \(Beatriz\) - fecha tope 02\/12\/2027 - Enviado: Pay stub\n- Estatus migratorio \(Juan\) - fecha tope 03\/01\/2027 - Pendiente\n/);
   assert.match(note, /\nLa app se hizo en el MKPL\.\nPago: Realizado - \$25\.40 - Tarjeta CC\nAutoPay: On/);
+});
+
+test("nota: Cambios lista lo que quedó distinto de los PDF", () => {
+  const note = N.buildNote(make({
+    line: "oc", outcome: "enviada", gestion: "renovacion", appId: "4412345678", hogarPdf: true,
+    personas: [
+      { titular: true, taxes: true, cobertura: true, ingreso: "$25,000.00", estatus: "residente", dob: "03/14/1985",
+        orig: { taxes: true, cobertura: true, ingreso: "$32,000.00", dob: "03/14/1985" } },
+      { nombre: "JUAN CARLOS DIAZ", taxes: true, cobertura: false, ingreso: "", orig: { nombre: "JUAN CARLOS DIAZ", taxes: true, cobertura: true } },
+      { nombre: "ANA DIAZ", parentesco: "Hijo/a", taxes: true, cobertura: true, dob: "5/2/2020", estatus: "ciudadano" }
+    ],
+    quitados: ["PEDRO DIAZ"],
+    direccion: "456 Oak Ave, Miami, FL 33125", base: { direccion: "123 Main St, Miami, FL 33101" },
+    clienteTel: "(305) 555-0199", clienteEmail: ""
+  }));
+  assert.ok(note.includes([
+    "Son 3 en los taxes (Beatriz, Juan, Ana) y 2 pidiendo cobertura (Beatriz, Ana).",
+    "Cambios:",
+    "- Beatriz: ingreso anual $25,000 (antes $32,000), estatus Residente",
+    "- Juan: no pide cobertura",
+    "- Se agrega a ANA DIAZ (Hijo/a), DOB 05/02/2020, estatus Ciudadano",
+    "- Se quita a PEDRO DIAZ",
+    "- Dirección: 456 Oak Ave, Miami, FL 33125 (antes 123 Main St, Miami, FL 33101)",
+    "- Teléfono: (305) 555-0199",
+    "ID#: 4412345678"
+  ].join("\n")), note);
+  /* sin datos de un PDF solo cuentan dirección, teléfono, email, estatus y DOB */
+  const manual = N.buildNote(make({ line: "oc", outcome: "enviada", personas: familia, clienteEmail: "bea@example.com" }));
+  assert.match(manual, /\nCambios:\n- Email: bea@example\.com\n/);
+  assert.doesNotMatch(manual, /Se agrega/);
+  const otro = N.buildNote(make({ line: "oc", outcome: "enviada", personas: [{ titular: true, taxes: true, cobertura: true, estatus: "otro", estatusOtro: "TPS" }] }));
+  assert.match(otro, /\nCambios:\n- Beatriz: estatus TPS\n/);
+  assert.doesNotMatch(N.buildNote(make({ line: "oc", outcome: "enviada", personas: familia })), /Cambios/);
+  assert.doesNotMatch(N.buildNote(make({ line: "oc", outcome: "cancelada", clienteTel: "(305) 555-0199" })), /Cambios/);
+  const pend = N.buildNote(make({ line: "oc", outcome: "pendiente", personas: familia, clienteTel: "(305) 555-0199" }));
+  assert.match(pend, /\nSolicitan cobertura: 2 \(Beatriz, Juan\)\.\nCambios:\n- Teléfono: \(305\) 555-0199\n/);
 });
 
 test("nota: pendiente como el template de cotización, con varios planes", () => {
@@ -332,15 +374,105 @@ test("SMS: lleva la oficina, el nombre del cliente y el teléfono", () => {
   assert.equal(sms, "Hola Beatriz, le saluda el equipo de ATH Insurance. Su seguro de Obamacare 2027 con UHC quedó cancelado según lo solicitado. Cualquier duda, estamos a la orden.");
   const tel = N.buildSms(make({ line: "mc", outcome: "sincontacto", oficina: "QAgency", telefono: "(305) 555-0100" }));
   assert.match(tel, /^Hola Beatriz, le saluda el equipo de QAgency\. .*llámenos al \(305\) 555-0100 o responda/);
-  const sent = N.buildSms(make({ line: "oc", outcome: "enviada", gestion: "nueva", oficina: "QAgency", compania: "UHC", prima: "0", efectiva: "1/1/26",
-    docs: [{ cat: "income", persona: "BEATRIZ DIAZ", fecha: "02/12/2026" }] }));
-  assert.match(sent, /Su aplicación de Obamacare 2026 con UHC quedó procesada\. No tiene pago mensual\. Su cobertura inicia el 01\/01\/2026\. El Mercado pide documentos de ingresos \(Beatriz\) antes del 02\/12\/2026; envíenoslos lo antes posible\./);
   Object.keys(C.LINES).forEach((line) => C.LINES[line].outcomes.forEach((o) => {
     const s = N.buildSms(make({ line, outcome: o.id, oficina: "QAgency" }));
     if (o.noSms) { assert.equal(s, "", line + "/" + o.id); return; }
+    if (line === "oc" && o.id === "enviada") { assert.match(s, /^Estimado Beatriz: Somos QAgency Insurance\. /); return; }
     assert.match(s, /^Hola Beatriz, le saluda el equipo de QAgency\. \S/, line + "/" + o.id);
     assert.doesNotMatch(s, /undefined|null|NaN/, line + "/" + o.id);
   }));
+});
+
+test("SMS Obamacare enviada: formato de la agencia en español e inglés", () => {
+  const d = make({ line: "oc", outcome: "enviada", gestion: "renovacion", anio: "2027", nombres: "MIGUEL", genero: "o", oficina: "QAgency",
+    compania: "FLORIDA BLUE", plan: "myBlue Essentials Silver 27M07-01C", efectiva: "1/1/2027", prima: "85.4",
+    firmaNombre: "DANIEL RIVAS", firmaTel: "(239) 282-4226", telefono: "(239) 205-2047" });
+  assert.equal(N.buildSms(d), [
+    "Estimado Miguel: Somos QAgency Insurance. Hemos renovado su seguro de salud 2027 con Florida Blue.",
+    "Plan: myBlue Essentials Silver 27M07-01C",
+    "Inicio: 01/01/2027",
+    "Premium: $85.40/mes",
+    "Revise su email y para cualquier duda, comuníquese de inmediato con nosotros. Saludos Daniel Rivas",
+    "Directo: (239) 282-4226",
+    "Oficina: (239) 205-2047",
+    "🎁 ¡Por cada 4 personas que nos refiera, gana una GIFT CARD!"
+  ].join("\n"));
+  assert.equal(N.buildSms(Object.assign({}, d, { idioma: "en", oficina: "ATH Insurance", plan: "myBlue Bronze 2129", prima: "850.58" })), [
+    "Dear Miguel:",
+    "We are ATH Insurance. We have renewed your 2027 health insurance with Florida Blue.",
+    "Plan: myBlue Bronze 2129",
+    "Start: 01/01/2027",
+    "Premium: $850.58/month",
+    "Please check your email and, if you have any questions, contact us right away. Best regards",
+    "Daniel Rivas",
+    "Direct: (239) 282-4226",
+    "Office: (239) 205-2047",
+    "🎁 For every 4 people you refer to us, you get a GIFT CARD!"
+  ].join("\n"));
+  /* aplicación nueva para una cliente, sin plan, fecha, prima, firma ni teléfonos */
+  assert.equal(N.buildSms(make({ line: "oc", outcome: "enviada", gestion: "nueva", genero: "a", oficina: "QAgency", compania: "Ambetter", anio: "2027" })), [
+    "Estimada Beatriz: Somos QAgency Insurance. Hemos completado su inscripción al seguro de salud 2027 con Ambetter.",
+    "Revise su email y para cualquier duda, comuníquese de inmediato con nosotros. Saludos",
+    "🎁 ¡Por cada 4 personas que nos refiera, gana una GIFT CARD!"
+  ].join("\n"));
+  assert.match(N.buildSms(make({ line: "oc", outcome: "enviada", gestion: "nueva", idioma: "en", compania: "Ambetter", anio: "2027" })),
+    /^Dear Beatriz:\nWe are QAgency Insurance\. We have completed your 2027 health insurance enrollment with Ambetter\.\n/);
+  assert.match(N.buildSms(make({ line: "oc", outcome: "enviada", gestion: "cambio", idioma: "en", compania: "UHC", anio: "2027" })),
+    /^Dear Beatriz:\nWe are QAgency Insurance\. We have updated your 2027 health insurance with UnitedHealthcare\.\n/);
+  assert.match(N.buildSms(make({ line: "oc", outcome: "enviada", gestion: "cambio", compania: "UHC", anio: "2027" })),
+    /^Estimado Beatriz: Somos QAgency Insurance\. Hemos actualizado su seguro de salud 2027 con UnitedHealthcare\.\n/);
+});
+
+test("email Obamacare: parte 1 con la póliza y parte 2 con lo que pide el Mercado", () => {
+  const d = make({ line: "oc", outcome: "enviada", gestion: "nueva", anio: "2027", compania: "Florida Blue", plan: "myBlue Essentials Silver",
+    efectiva: "01/01/2027", prima: "85.4", firmaNombre: "Daniel Rivas", personas: familia,
+    docs: [{ cat: "immigration", persona: "JUAN CARLOS DIAZ", fecha: "03/01/2027", enviado: true },
+           { cat: "income", persona: "BEATRIZ DIAZ", fecha: "02/12/2027" }] });
+  assert.equal(N.buildEmail(d, 1), [
+    "Estimado Cliente:",
+    "Adjunto documentos por su póliza del 2027 con Florida Blue, ya la aplicación fue completada.",
+    "Cobertura a partir del 01/01/2027",
+    "PLAN: myBlue Essentials Silver",
+    "Adjuntamos detalles de beneficios del plan",
+    "Prima Mensual: $85.40"
+  ].join("\n"));
+  assert.equal(N.buildEmail(d, 2), [
+    "MARKETPLACE SOLICITA:",
+    "Pruebas de Estatus Migratorio (Juan), fecha límite 03/01/2027",
+    "Pruebas de Ingresos (Beatriz), fecha límite 02/12/2027",
+    "",
+    "Por favor comuníquese con nosotros por cualquier duda.",
+    "",
+    "Saludos",
+    "Daniel Rivas"
+  ].join("\n"));
+  const en = Object.assign({}, d, { idioma: "en" });
+  assert.equal(N.buildEmail(en, 1), [
+    "Dear Client:",
+    "Attached are documents for your 2027 policy with Florida Blue, your application is complete.",
+    "Effective date: 01/01/2027",
+    "PLAN: myBlue Essentials Silver",
+    "Attached is a detailed description of your benefits with this plan.",
+    "Primary Monthly Payment: $85.40"
+  ].join("\n"));
+  assert.equal(N.buildEmail(en, 2), [
+    "MARKETPLACE IS REQUESTING:",
+    "Proof of Immigration Status (Juan), Due Date 03/01/2027",
+    "Proof of Income (Beatriz), Due Date 02/12/2027",
+    "",
+    "Please feel free to contact us, if you have any questions or concerns.",
+    "",
+    "Best Regards,",
+    "Daniel Rivas"
+  ].join("\n"));
+  /* una sola persona no lleva nombre; sin documentos pedidos la parte 2 es solo el cierre */
+  assert.match(N.buildEmail(Object.assign({}, d, { docs: [{ cat: "income", persona: "BEATRIZ DIAZ", fecha: "02/12/2027" }] }), 2),
+    /^MARKETPLACE SOLICITA:\nPruebas de Ingresos, fecha límite 02\/12\/2027\n\n/);
+  assert.equal(N.buildEmail(Object.assign({}, d, { docs: [] }), 2), "Por favor comuníquese con nosotros por cualquier duda.\n\nSaludos\nDaniel Rivas");
+  assert.match(N.buildEmail(Object.assign({}, d, { genero: "a" }), 1), /^Estimada Cliente:\n/);
+  assert.equal(N.buildEmail(make({ line: "oc", outcome: "pendiente" }), 1), "", "solo para una app enviada");
+  assert.equal(N.buildEmail(make({ line: "mc", outcome: "enviada" }), 2), "");
+  assert.ok(C.MKPL_DOCS.every((c) => /^Pruebas de /.test(c.es) && /^Proof of /.test(c.en)), "las 11 en los dos idiomas");
 });
 
 test("SMS: cuenta caracteres y mensajes", () => {
@@ -388,6 +520,8 @@ test("avisos de Obamacare: fecha tope, cobertura, conteo de taxes y motivo de ca
   const w = N.warnings(make({ line: "oc", outcome: "enviada", codigoQ: "1", compania: "UHC", pagoEstado: "PAYMENT", hogarDoc: "4",
     personas: [{ titular: true, taxes: true, cobertura: false }], docs: [{ cat: "income", persona: "BEATRIZ DIAZ" }] }), "");
   assert.ok(w.some((x) => /fecha tope de ingresos \(Beatriz\)/.test(x)));
+  const sent = N.warnings(make({ line: "oc", outcome: "enviada", docs: [{ cat: "immigration", persona: "BEATRIZ DIAZ", enviado: true }] }), "");
+  assert.ok(sent.some((x) => /fecha tope de estatus migratorio/.test(x)), "también si ya se envió");
   assert.ok(w.some((x) => /quién pide cobertura/.test(x)));
   assert.ok(w.some((x) => /indica 4 en los taxes y la lista tiene 1/.test(x)));
   assert.ok(N.warnings(make({ line: "oc", outcome: "cancelada", compania: "UHC" }), "").some((x) => /motivo de la cancelación/.test(x)));

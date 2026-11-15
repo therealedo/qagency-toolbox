@@ -41,6 +41,8 @@ test("App Summary: nunca se toma el Seguro Social", () => {
   assert.equal(r.fields.appId, "4412345678");
   assert.equal(r.fields.ingreso, "$32,000.00");
   assert.equal(r.fields.hogar, "4");
+  assert.equal(r.fields.dob, "03/14/1985");
+  assert.equal(r.fields.direccion, "123 Main St, Miami, FL 33101");
   assert.doesNotMatch(JSON.stringify(r.fields), /1234"|\*\*\*/);
 });
 

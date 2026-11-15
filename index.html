@@ -159,6 +159,7 @@
         <div class="card out-card" id="smsCard">
           <div class="out-head">
             <h2>SMS para el cliente</h2>
+            <div class="seg seg-mini" data-lang-seg role="radiogroup" aria-label="Idioma del SMS y el email" hidden></div>
             <button type="button" class="link-btn" id="smsRegen" hidden>Regenerar</button>
             <button type="button" class="btn" id="copySms" data-label="Copiar">Copiar</button>
           </div>
@@ -166,6 +167,29 @@
           <div class="out-foot">
             <span id="smsCount"></span>
             <label class="check sms-opt"><input type="checkbox" id="smsPlain"><span>Sin acentos (cabe en menos mensajes)</span></label>
+          </div>
+        </div>
+
+        <div class="card out-card" id="emailCard" hidden>
+          <div class="out-head">
+            <h2>Email para el cliente</h2>
+            <div class="seg seg-mini" data-lang-seg role="radiogroup" aria-label="Idioma del SMS y el email" hidden></div>
+          </div>
+          <div class="email-part">
+            <div class="out-sub">
+              <h3>1 · Documentos y plan</h3>
+              <button type="button" class="link-btn" id="email1Regen" hidden>Regenerar</button>
+              <button type="button" class="btn small" id="copyEmail1" data-label="Copiar">Copiar</button>
+            </div>
+            <textarea class="email-box" id="email1" rows="6" spellcheck="true" aria-label="Email para el cliente, parte 1: documentos y plan"></textarea>
+          </div>
+          <div class="email-part">
+            <div class="out-sub">
+              <h3>2 · Lo que pide el Mercado y firma</h3>
+              <button type="button" class="link-btn" id="email2Regen" hidden>Regenerar</button>
+              <button type="button" class="btn small" id="copyEmail2" data-label="Copiar">Copiar</button>
+            </div>
+            <textarea class="email-box" id="email2" rows="6" spellcheck="true" aria-label="Email para el cliente, parte 2: lo que pide el Mercado y firma"></textarea>
           </div>
         </div>
       </aside>
@@ -247,12 +271,12 @@
     <h3>Oficina</h3>
     <div class="office-row">
       <div class="seg seg-fit" id="officeSeg" role="radiogroup" aria-label="Oficina"></div>
-      <label class="mini"><span>Teléfono para el SMS</span><input type="text" id="officeTel" placeholder="(305) 555-0100" inputmode="tel"></label>
+      <label class="mini"><span>Teléfono de la oficina</span><input type="text" id="officeTel" placeholder="(305) 555-0100" inputmode="tel"></label>
     </div>
     <p class="muted">El nombre de la oficina y su teléfono salen en el SMS para el cliente.</p>
 
     <h3>Equipo</h3>
-    <p class="muted">Las iniciales de notas encabezan la nota y el task. Las de agente son las que salen entre paréntesis en el reporte, si son distintas. El NPN solo hace falta para quien figura como agente escritor.</p>
+    <p class="muted">Las iniciales de notas encabezan la nota y el task. Las de agente son las que salen entre paréntesis en el reporte, si son distintas. El NPN solo hace falta para quien figura como agente escritor. El teléfono directo sale en el SMS de Obamacare, debajo de la firma de quien habló con el cliente.</p>
     <div class="team" id="teamRows"></div>
     <button type="button" class="btn small" id="teamAdd">Agregar persona</button>
 
