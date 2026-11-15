@@ -89,10 +89,13 @@
       var s = new Blob([u8]).stream().pipeThrough(new DecompressionStream("gzip"));
       return new Response(s).arrayBuffer().then(function (b) { return new Uint8Array(b); });
     }
+    var queue = Promise.resolve();
     self.onmessage = function (e) {
-      var m = e.data;
+      queue = queue.then(function () { return handle(e.data); });
+    };
+    function handle(m) {
       var ready = engine.started() ? Promise.resolve() : gunzip(m.wasm).then(function (b) { return engine.start(b); });
-      ready.then(function () {
+      return ready.then(function () {
         if (!m.langs.length) { return; }
         return Promise.all(m.langs.map(function (l) {
           return gunzip(l.data).then(function (d) { return { code: l.code, data: d }; });
@@ -102,7 +105,7 @@
       }).catch(function (err) {
         self.postMessage({ id: m.id, error: String((err && err.message) || err) });
       });
-    };
+    }
   }
 
   /* ------------------------------------------------------- en la página */
