@@ -101,6 +101,12 @@
     return ap && no ? ap + ", " + no : (ap || no);
   }
 
+  /* "BD": inicial del nombre y del apellido, para la burbuja de la ventana flotante */
+  function clientInitials(d) {
+    var first = function (s) { return U.collapse(s).charAt(0).toUpperCase(); };
+    return first(d.nombres) + first(d.apellidos);
+  }
+
   /* Cómo se le escribe la compañía al cliente: "Florida Blue". */
   function carrierName(line, name) {
     var n = val(name);
@@ -859,7 +865,7 @@
     buildNote: buildNote, buildTask: buildTask, formatTask: formatTask, buildReport: buildReport,
     buildSms: buildSms, buildEmail: buildEmail, smsInfo: smsInfo, buildFileNames: buildFileNames, warnings: warnings, cambios: cambios,
     autoTaskId: autoTaskId, taskById: taskById, outcomeOf: outcomeOf, lineOf: lineOf, gestionOf: gestionOf,
-    productOf: productOf, carrierShort: carrierShort, memberDelta: memberDelta, zohoName: zohoName,
+    productOf: productOf, carrierShort: carrierShort, memberDelta: memberDelta, zohoName: zohoName, clientInitials: clientInitials,
     personas: personas, docsOf: docsOf, pendingDocs: pendingDocs, planesOf: planesOf, networkOf: networkOf,
     NET_DIRS: NET_DIRS, netDirFor: netDirFor
   };
