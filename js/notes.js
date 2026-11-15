@@ -112,7 +112,7 @@
     if (T.plain) { return (T.noOwner ? "" : owner + ": ") + text; }
 
     var out = owner + ": " + text + " - VER NOTA " + (U.parseDate(o.fecha) || "MM/DD/YYYY") +
-              " (" + (U.parseTime(o.hora) || "09:00") + ")";
+              " (" + (U.to12h(o.hora) || "09:00") + ")";
     (o.tags || []).forEach(function (t) { if (val(t)) { out += " " + upper(t); } });
     return out;
   }
@@ -177,9 +177,11 @@
 
   var MODO_CITA = { "presencial": "en cita presencial", "telefónica": "en cita telefónica", "Zoom": "en cita por Zoom", "en casa": "en cita en su casa" };
 
-  /* Cómo empieza una nota de conversación: "Se conversa con la cliente (02:44)" */
+  /* Cómo empieza una nota de conversación: "Se conversa con la cliente (02:30)".
+     Entre paréntesis va la hora en que se debe revisar el task, la misma que
+     lleva el task después de VER NOTA. */
   function talk(d) {
-    var t = U.parseTime(d.horaLlamada) ? " (" + U.to12h(d.horaLlamada) + ")" : "";
+    var t = U.parseTime(d.hora) ? " (" + U.to12h(d.hora) + ")" : "";
     if (d.canal === "Appointment") { return "Se atiende a " + cliente(d) + " " + (MODO_CITA[d.modalidad] || "en cita") + t; }
     if (d.canal === "Walk In") { return "Se atiende a " + cliente(d) + " en la oficina" + t; }
     return "Se conversa con " + cliente(d) + t;
@@ -194,7 +196,7 @@
   function year(d) { return val(d.anio) ? " " + val(d.anio) : ""; }
 
   function citaWhen(d) {
-    var f = U.parseDate(d.fechaSeg), h = U.parseTime(d.hora);
+    var f = U.parseDate(d.fechaSeg), h = U.timeLabel(d.hora);
     return f ? " para el " + f + (h ? " a las " + h : "") : "";
   }
 
@@ -502,7 +504,7 @@
         parts.push("Le enviamos el formulario de alcance de la cita (SOA) de Medicare. Por favor fírmelo antes de nuestra conversación para poder revisar los planes con usted.");
         break;
       case "cita":
-        var f = U.parseDate(d.fechaSeg), h = U.parseTime(d.hora);
+        var f = U.parseDate(d.fechaSeg), h = U.timeLabel(d.hora);
         parts.push("Le confirmamos su cita" + (f ? " para el " + f + (h ? " a las " + h : "") : "") + " para revisar " + what + ". Si necesita cambiarla, avísenos.");
         break;
       case "sincambio":

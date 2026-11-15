@@ -56,6 +56,14 @@ test("hora de la llamada y año-mes de los archivos", () => {
   assert.equal(U.to12h("2:44pm"), "02:44");
   assert.equal(U.to12h("00:15"), "12:15");
   assert.equal(U.to12h("abc"), "");
+  assert.equal(U.timeLabel("14:30"), "2:30 PM");
+  assert.equal(U.timeLabel("09:00"), "9:00 AM");
+  assert.equal(U.timeLabel("12:00"), "12:00 PM");
+  const slots = U.halfHourSlots();
+  assert.ok(slots.every((s) => /:(00|30)$/.test(s.v)), "solo :00 y :30");
+  assert.equal(slots[0].v, "07:00");
+  assert.equal(slots[slots.length - 1].v, "21:30");
+  assert.ok(slots.some((s) => s.v === "09:00" && s.l === "09:00 · 9:00 AM"));
   assert.equal(U.yearMonth("3/20/26"), "2026 MAR");
   assert.equal(U.yearMonth(""), "");
 });
