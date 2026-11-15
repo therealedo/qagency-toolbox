@@ -812,7 +812,40 @@
     return w;
   }
 
+  /* ------------------------------------------------------------ fase 1 --
+     Orden de "Copiar siguiente": nota, task, reporte, SMS y email, sin lo que
+     la situación no muestra. */
+  function copyOrder(d) {
+    var O = outcomeOf(d), list = ["note", "task"];
+    if (O.report) { list.push("report"); }
+    if (!O.noSms) { list.push("sms"); }
+    if (buildEmail(d, 1)) { list.push("email1"); }
+    if (buildEmail(d, 2)) { list.push("email2"); }
+    return list;
+  }
+
+  /* Enlaces que abren el teléfono o el correo con el texto listo; sin un
+     número de 10 dígitos o un email válido no hay enlace. */
+  function smsLink(phone, text) {
+    var digits = String(phone || "").replace(/\D/g, "");
+    if (digits.length === 11 && digits.charAt(0) === "1") { digits = digits.slice(1); }
+    if (digits.length !== 10) { return ""; }
+    return "sms:+1" + digits + "?body=" + encodeURIComponent(text || "");
+  }
+  function mailtoLink(email, body) {
+    var to = val(email);
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) { return ""; }
+    return "mailto:" + to + "?body=" + encodeURIComponent(String(body || "").replace(/\r?\n/g, "\r\n"));
+  }
+
+  /* Windows no admite \ / : * ? " < > | en un nombre de archivo, ni que
+     termine en punto o espacio. */
+  function safeFileName(name) {
+    return String(name || "").replace(/[\\/:*?"<>|]/g, "-").replace(/[\s.]+$/, "").replace(/^\s+/, "");
+  }
+
   var api = {
+    copyOrder: copyOrder, smsLink: smsLink, mailtoLink: mailtoLink, safeFileName: safeFileName,
     buildNote: buildNote, buildTask: buildTask, formatTask: formatTask, buildReport: buildReport,
     buildSms: buildSms, buildEmail: buildEmail, smsInfo: smsInfo, buildFileNames: buildFileNames, warnings: warnings, cambios: cambios,
     autoTaskId: autoTaskId, taskById: taskById, outcomeOf: outcomeOf, lineOf: lineOf, gestionOf: gestionOf,

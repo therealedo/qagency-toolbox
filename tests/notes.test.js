@@ -632,3 +632,28 @@ test("avisos: faltantes y Seguro Social en la nota", () => {
   assert.ok(w.some((x) => /Seguro Social/.test(x)));
   assert.deepEqual(N.warnings(make({ line: "oc", outcome: "pendiente" }), "todo bien"), []);
 });
+
+/* ------------------------------------------------------------- fase 1 -- */
+
+test("copiar siguiente: el orden salta lo que la situación no muestra", () => {
+  const order = (extra) => N.copyOrder(make(extra));
+  assert.deepEqual(order({ line: "oc", outcome: "enviada", gestion: "nueva" }), ["note", "task", "report", "sms", "email1", "email2"]);
+  assert.deepEqual(order({ line: "supp", outcome: "enviada", gestion: "nueva" }), ["note", "task", "report", "sms", "email1"]);
+  assert.deepEqual(order({ line: "supp", outcome: "cotizacion" }), ["note", "task", "sms"]);
+  assert.deepEqual(order({ line: "mc", outcome: "sincambio" }), ["note", "task", "report"]);
+  assert.deepEqual(order({ line: "oc", outcome: "pendiente" }), ["note", "task"]);
+});
+
+test("enlaces para abrir el SMS y el email con el texto listo", () => {
+  assert.equal(N.smsLink("(305) 555-0100", "Hola á"), "sms:+13055550100?body=Hola%20%C3%A1");
+  assert.equal(N.smsLink("1 305 555 0100", "x"), "sms:+13055550100?body=x");
+  assert.equal(N.smsLink("555-0100", "x"), "", "sin un número completo no hay enlace");
+  assert.equal(N.mailtoLink("cliente@example.com", "Línea 1\nLínea 2"), "mailto:cliente@example.com?body=L%C3%ADnea%201%0D%0AL%C3%ADnea%202");
+  assert.equal(N.mailtoLink("no es un email", "x"), "");
+});
+
+test("nombre de archivo válido en Windows", () => {
+  assert.equal(N.safeFileName("Diaz, Beatriz - OC_My Plans & Programs FB 2026 NOV"), "Diaz, Beatriz - OC_My Plans & Programs FB 2026 NOV");
+  assert.equal(N.safeFileName('Diaz, Beatriz - Dental_A/B: "Plus"?'), "Diaz, Beatriz - Dental_A-B- -Plus--");
+  assert.equal(N.safeFileName("  Diaz.  "), "Diaz");
+});
