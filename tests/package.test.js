@@ -42,3 +42,12 @@ test("el equipo por defecto: iniciales de notas y de agente", () => {
   assert.ok(!C.TEAM.some((t) => t.ini === "JI"));
   assert.deepEqual(C.OFFICES, ["QAgency", "ATH Insurance"]);
 });
+
+test("la página sigue sin conexiones: el OCR solo agrega 'wasm-unsafe-eval'", () => {
+  const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
+  const csp = html.match(/Content-Security-Policy" content="([^"]+)"/)[1];
+  assert.equal(csp, "default-src 'self' 'unsafe-inline' data: blob: file: 'wasm-unsafe-eval'; connect-src 'none'; object-src 'none'; base-uri 'self'; form-action 'none'");
+  /* el motor y los modelos del OCR van dentro de la herramienta */
+  ["vendor/tesseract/ocr-loader.js", "vendor/tesseract/ocr-wasm.js", "vendor/tesseract/ocr-lang-spa.js",
+    "vendor/tesseract/ocr-lang-eng.js", "js/ocr.js"].forEach((f) => assert.ok(html.includes('<script src="' + f + '"></script>'), f));
+});

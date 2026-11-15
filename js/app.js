@@ -6,6 +6,8 @@
   "use strict";
 
   var C = window.QA.config, U = window.QA.util, N = window.QA.notes, X = window.QA.extract;
+  /* OCR sin internet para escaneos y capturas; null si no se cargó */
+  var OCR = window.QA.ocr || null;
   function $(id) { return document.getElementById(id); }
   function el(tag, cls, text) {
     var e = document.createElement(tag);
@@ -1064,7 +1066,7 @@
       mc: "SOA y App Summary del portal de la compañía. Los campos se llenan solos.",
       supp: "Aplicación o comprobante de pago. Los campos se llenan solos."
     };
-    $("dropHint").textContent = hints[S.line];
+    $("dropHint").textContent = hints[S.line] + (ocrReady() ? " Los escaneos y las capturas (también pegadas con Ctrl + V) se leen con OCR." : "");
   }
 
   function setLine(line) {
@@ -1574,12 +1576,15 @@
   }
 
   function fileStatusText(f) {
-    if (f.status === "reading") { return "Leyendo…"; }
-    if (f.status === "error") { return "No se pudo leer. Usa «Pegar texto»."; }
-    if (f.status === "image") { return "Imagen: no se puede leer, llena los datos a mano"; }
-    if (f.status === "scanned") { return "PDF escaneado sin texto: llena los datos a mano"; }
-    if (!f.applied) { return f.res && f.res.type === "unknown" ? "No se reconoció el documento" : "Sin datos nuevos"; }
-    return f.applied + (f.applied === 1 ? " dato" : " datos");
+    if (f.status === "reading") { return f.ocrStep || "Leyendo…"; }
+    if (f.status === "error") { return f.ocr ? "El OCR no pudo leerlo. Usa «Pegar texto» o llena los datos a mano." : "No se pudo leer. Usa «Pegar texto»."; }
+    if (f.ocr && (f.status === "image" || f.status === "scanned")) { return "El OCR no encontró texto: llena los datos a mano"; }
+    if (f.status === "image") { return "Imagen: este navegador no tiene OCR, llena los datos a mano"; }
+    if (f.status === "scanned") { return "PDF escaneado: este navegador no tiene OCR, llena los datos a mano"; }
+    /* lo leído con OCR puede traer errores: se pide revisarlo */
+    var tail = !f.ocr ? "" : f.ocrTotal > f.ocrPages ? " · OCR de las primeras " + f.ocrPages + " de " + f.ocrTotal + " páginas, revísalo" : " · leído con OCR, revísalo";
+    if (!f.applied) { return (f.res && f.res.type === "unknown" ? "No se reconoció el documento" : "Sin datos nuevos") + tail; }
+    return f.applied + (f.applied === 1 ? " dato" : " datos") + tail;
   }
 
   function renderFiles() {
@@ -1611,22 +1616,46 @@
     renderFiles();
   }
 
+  /* --------------------------------------------------------------- OCR --
+     Un PDF escaneado (sin texto) o una imagen se leen con OCR dentro del
+     navegador; el texto pasa por la misma extracción que un PDF con texto. */
+  function ocrReady() { return !!(OCR && OCR.supported()); }
+  function ocrStep(entry, text) { entry.ocrStep = text; renderFiles(); }
+
   function readFile(file) {
     var entry = { name: file.name, status: "reading", applied: 0, file: file };
     S.files.push(entry);
     renderFiles();
     var isPdf = /pdf/i.test(file.type) || /\.pdf$/i.test(file.name);
     var isText = /^text\//i.test(file.type) || /\.txt$/i.test(file.name);
+    var isImage = /^image\//i.test(file.type) || /\.(png|jpe?g|webp|bmp|gif)$/i.test(file.name);
+    function failed() { entry.status = "error"; renderFiles(); }
     if (isPdf) {
-      if (!window.pdfjsLib) { entry.status = "error"; renderFiles(); return Promise.resolve(); }
-      return file.arrayBuffer()
-        .then(function (buf) { return X.pdfToText(window.pdfjsLib, new Uint8Array(buf)); })
-        .then(function (text) { finishFile(entry, text); })
-        .catch(function () { entry.status = "error"; renderFiles(); });
+      if (!window.pdfjsLib) { failed(); return Promise.resolve(); }
+      return file.arrayBuffer().then(function (buf) {
+        /* PDF.js puede quedarse con los bytes: se le pasa una copia */
+        return X.pdfToText(window.pdfjsLib, new Uint8Array(buf.slice(0))).then(function (text) {
+          if (!OCR || !OCR.needsOcr(text) || !ocrReady()) { finishFile(entry, text); return; }
+          entry.ocr = true;
+          ocrStep(entry, "Leyendo con OCR…");
+          return OCR.readPdf(window.pdfjsLib, new Uint8Array(buf), function (i, n) {
+            ocrStep(entry, n > 1 ? "Leyendo con OCR… página " + i + " de " + n : "Leyendo con OCR…");
+          }).then(function (r) {
+            entry.ocrPages = r.pages; entry.ocrTotal = r.total;
+            finishFile(entry, r.text);
+          });
+        });
+      }).catch(failed);
     }
     if (isText) {
-      return file.text().then(function (text) { finishFile(entry, text); })
-        .catch(function () { entry.status = "error"; renderFiles(); });
+      return file.text().then(function (text) { finishFile(entry, text); }).catch(failed);
+    }
+    if (isImage && ocrReady()) {
+      entry.ocr = true;
+      ocrStep(entry, "Leyendo con OCR…");
+      return OCR.readImage(file).then(function (text) {
+        finishFile(entry, text, OCR.needsOcr(text) ? "image" : "");
+      }).catch(failed);
     }
     finishFile(entry, "", "image");
     return Promise.resolve();
@@ -1641,9 +1670,10 @@
       .then(function () {
         var added = S.files.slice(before);
         var total = added.reduce(function (s, f) { return s + (f.applied || 0); }, 0);
+        var viaOcr = added.some(function (f) { return f.ocr && f.applied; });
         S.dirty = true;
         renderPicker(); syncInputs(); renderNetwork(); refresh();
-        toast(total ? "Se llenaron " + total + (total === 1 ? " campo" : " campos") + ". Revísalos antes de copiar."
+        toast(total ? "Se llenaron " + total + (total === 1 ? " campo" : " campos") + (viaOcr ? " con OCR. Revísalos con cuidado" : ". Revísalos") + " antes de copiar."
                     : "No se encontraron datos en " + (added.length === 1 ? "el documento" : "los documentos") + ".");
       });
   }
@@ -2166,6 +2196,18 @@
       if (!isFiles(e)) { return; }
       e.preventDefault(); depth = 0; veil.hidden = true;
       handleFiles(e.dataTransfer.files);
+    });
+    /* una captura pegada con Ctrl + V en la vista de la nota se lee con OCR */
+    document.addEventListener("paste", function (e) {
+      if (currentView !== "nota" || !e.clipboardData || $("dlgPaste").open) { return; }
+      var imgs = Array.prototype.filter.call(e.clipboardData.files || [], function (f) { return /^image\//i.test(f.type); });
+      if (!imgs.length) { return; }
+      e.preventDefault();
+      handleFiles(imgs.map(function (f, i) {
+        var ext = (f.type.split("/")[1] || "png").replace("jpeg", "jpg");
+        var name = "Captura pegada" + (imgs.length > 1 ? " " + (i + 1) : "") + "." + ext;
+        try { return new File([f], name, { type: f.type }); } catch (err) { return f; }
+      }));
     });
     $("files").addEventListener("click", function (e) {
       var b = e.target.closest("button");

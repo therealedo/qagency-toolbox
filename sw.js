@@ -6,7 +6,7 @@
    datos de los clientes nunca salen de la página. */
 "use strict";
 
-const VERSION = "1.6.0";
+const VERSION = "1.7.0";
 const CACHE = "qa-toolbox-" + VERSION;
 const SHELL = [
   "./",
@@ -17,9 +17,14 @@ const SHELL = [
   "js/util.js",
   "js/notes.js",
   "js/extract.js",
+  "js/ocr.js",
   "js/app.js",
   "vendor/pdfjs/pdf.min.js",
   "vendor/pdfjs/pdf.worker.min.js",
+  "vendor/tesseract/ocr-loader.js",
+  "vendor/tesseract/ocr-wasm.js",
+  "vendor/tesseract/ocr-lang-spa.js",
+  "vendor/tesseract/ocr-lang-eng.js",
   "vendor/fonts/inter-latin-wght-normal.woff2",
   "vendor/fonts/jetbrains-mono-latin-wght-normal.woff2",
   "assets/mark.png",
