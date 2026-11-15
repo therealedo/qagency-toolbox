@@ -68,6 +68,17 @@
     return "";
   }
 
+  /* Como `after`, pero el orden de los rótulos es su prioridad: el primero
+     que dé un valor válido gana, aunque otro rótulo aparezca antes en el
+     documento ("Part A effective date" antes de "Proposed effective date"). */
+  function afterFirst(doc, labels, validate, look) {
+    for (var k = 0; k < labels.length; k++) {
+      var v = after(doc, [labels[k]], validate, look);
+      if (v) { return v; }
+    }
+    return "";
+  }
+
   function find(doc, re, group) {
     var m = doc.flat.match(re);
     return m ? String(m[group == null ? 1 : group]).trim() : "";
@@ -121,6 +132,30 @@
     var c = vName(t);
     return c && c.split(/\s+/).length >= 2 ? c : "";
   }
+
+  /* Nombre de un médico tal como lo escribe la aplicación ("Dr. Ana Ruiz",
+     "RUIZ ANA MD", "Ruiz, Ana, MD"). Rechaza rótulos y frases sueltas
+     ("PCP ID", "(PCP)", "will be"). */
+  var NOT_DOCTOR = /\b(pcp|npi|id|number|primary|care|physician|provider|doctor|patient|current|clinic|center|location|will|be|you|your|the|or|if|this|select|choose|auto|assigned|yes|no|none)\b/i;
+
+  function vDoctor(t) {
+    var c = firstCell(t).replace(/[,;:]+$/, "");
+    if (/[:?()]/.test(c) || NOT_DOCTOR.test(c)) { return ""; }
+    return vFullName(c.replace(/,\s*/g, " ")) ? c : "";
+  }
+
+  /* Nombre de un plan de Medicare: trae el tipo (HMO, PPO, SNP…) o el
+     contrato; se quita el precio que algunas aplicaciones ponen al lado. */
+  var PLAN_KIND = /\b(HMO|PPO|PDP|PFFS|MSA|SNP|MAPD)\b|medicare advantage|\b[HRS]\d{4}\s?-\s?\d{3}\b/i;
+
+  function vPlan(t) {
+    var c = firstCell(t).replace(/\s+\$\s?[\d,]+(\.\d{2})?\b.*$/, "").trim();
+    if (c.length < 5 || c.length > 100 || /[:?]$/.test(c) || /\b(you|your|will|would|if|please)\b/i.test(c)) { return ""; }
+    return PLAN_KIND.test(c) ? c : "";
+  }
+
+  /* Un ID con puntuación pegada al final ("…EAXH6K4Y.") */
+  function vId(t) { return vCode(5, 24)(firstCell(t).replace(/[.,;:]+$/, "")); }
 
   /* ------------------------------------------------------- piezas comunes */
 
@@ -188,9 +223,65 @@
     return "";
   }
 
+  function periodsIn(t) {
+    var out = [];
+    PERIODS.forEach(function (p) { if (p[0].test(t) && out.indexOf(p[1]) < 0) { out.push(p[1]); } });
+    return out;
+  }
+
+  /* El valor de "Election period": un período, no la lista de opciones
+     ("ICEP/IEP  AEP  MA OEP  SEP", con la casilla dibujada) ni una frase. */
+  function vPeriod(t) {
+    var c = firstCell(t);
+    return periodsIn(t).length === 1 && c.length <= 40 ? periodFrom(c) : "";
+  }
+
+  var PERIOD_CODE = /\b(AEP|ICEP|IEP|MA[\s-]?OEP|OEP|SEP)\b/;
+
+  function mcPeriod(doc) {
+    var per = afterFirst(doc, [/(?:^\s*|\s{2,})Per[ií]odo de elecci[oó]n/i, /(?:^\s*|\s{2,})Election\s*(period|type)\b/i,
+      /(?:^\s*|\s{2,})(Proposed\s*)?Enrollment\s*period\b/i], vPeriod, 1);
+    if (per) { return per; }
+    var marked = doc.flat.match(/(annual|initial|special|open)[^\n]{0,40}(election|enrollment)\s*period[^\n]{0,12}\b(yes|s[ií]|x|✔|selected)\b/i);
+    if (marked) { return periodFrom(marked[0]); }
+    /* el código solo en una línea corta ("AEP" en el encabezado) */
+    for (var i = 0; i < doc.lines.length; i++) {
+      var l = doc.lines[i].trim();
+      if (l.length <= 30 && PERIOD_CODE.test(l) && periodsIn(l).length === 1) { return periodFrom(l); }
+    }
+    return "";
+  }
+
+  /* Nombre del agente en formatos que agentInfo no cubre: "Agent Signature :
+     Nombre", un bloque "Agent" seguido de "Name …", o la tabla de dos
+     columnas donde el rótulo "Agent First / Name:" ocupa dos líneas y el
+     apellido de la otra columna queda partido arriba y abajo:
+       Agent First            APELLIDO1
+       NOMBRE         Agent Last Name:
+       Name:                  APELLIDO2 */
+  function mcAgent(doc) {
+    var a = after(doc, [/^\s*Agent\s*Signature\s*:/i], vFullName, 0) ||
+            after(doc, [/^\s*Agent\s*:?\s*$/i], function (t) { return vFullName(String(t).replace(/^Name\b\s*:?\s*/i, "")); }, 1);
+    if (a) { return a; }
+    for (var i = 0; i + 2 < doc.lines.length; i++) {
+      var top = doc.lines[i].match(/^\s*Agent\s*First\s*:?\s*(.*)$/i);
+      var mid = top && doc.lines[i + 1].match(/^\s*(.*?)\s{2,}Agent\s*Last\s*Name\s*:?\s*$/i);
+      var low = mid && doc.lines[i + 2].match(/^\s*Name\s*:?\s*(.*)$/i);
+      var first = low ? vName(mid[1]) : "";
+      var last = first ? [vName(top[1]), vName(low[1])].filter(Boolean).join(" ") : "";
+      if (last) { return first + " " + last; }
+    }
+    return "";
+  }
+
   function extractMcApp(doc) {
     var f = {};
     personName(doc, f);
+    if (!f.nombres) {
+      /* resumen en dos columnas: "Beneficiary  Nombre Apellido" */
+      var ben = after(doc, [/^\s*Beneficiary\s+(?=\S)/i], vFullName, 0);
+      if (ben) { setName(f, ben); }
+    }
 
     var mbi = doc.flat.match(MBI_RE);
     if (mbi) { f.mbi = (mbi[1] + mbi[2] + mbi[3]).toUpperCase(); }
@@ -198,11 +289,16 @@
     f.parteA = after(doc, [/\(?\bPart(e)?\s*A\b\)?/i, /Hospital\s*\(Part(e)?\s*A\)/i], vDate, 1);
     f.parteB = after(doc, [/\(?\bPart(e)?\s*B\b\)?/i, /Medical\s*\(Part(e)?\s*B\)/i], vDate, 1);
 
-    f.efectiva = after(doc, [/Fecha de entrada en vigencia propuesta/i, /\b(Requested|Proposed)\s*effective\s*date\b/i,
+    /* la fecha propuesta manda; "Effective date" a secas no vale si es la
+       de la Parte A o B */
+    f.efectiva = afterFirst(doc, [/Fecha de entrada en vigencia propuesta/i,
+      /\b(Requested|Proposed)\s*(effective|start|coverage\s*start)\s*date\b/i,
       /\bCoverage\s*(start|effective)\s*date\b/i, /Fecha de inicio de (la )?cobertura/i,
-      /\bEffective\s*date\b/i, /Fecha efectiva/i], vDate, 1);
+      /^(?!.*\b(Part(e)?\s*[AB]|Hospital|Medical)\b).*?\bEffective\s*date\b/i, /Fecha efectiva/i], vDate, 1);
 
-    f.plan = after(doc, [/Nombre del plan/i, /\bPlan\s*name\b/i, /\b(Selected\s*plan|Plan\s*selected)\b/i, /Plan (elegido|seleccionado)/i], vText(90), 1);
+    f.plan = afterFirst(doc, [/Nombre del plan/i, /\bPlan\s*name\b/i, /\b(Selected\s*plan|Plan\s*selected)\b/i,
+      /Plan (elegido|seleccionado)/i, /\bselected the following plan\b/i], vPlan, 1) ||
+      after(doc, [/(?:^|\s{2,})Plan\b\s*:?(?=\s+\S)/], vPlan, 0);
     if (!f.plan) {
       /* sin rótulo: una línea corta del encabezado que nombre el tipo de plan */
       for (var i = 0; i < doc.lines.length && i < 15; i++) {
@@ -224,25 +320,33 @@
 
     f.medicaid = after(doc, [/N[uú]mero de (ID de )?Medicaid/i, /\bMedicaid\s*(ID|number|#)/i], vCode(6, 14), 1);
 
-    var per = after(doc, [/Per[ií]odo de elecci[oó]n/i, /\b(Election|Enrollment)\s*period\b/i], function (t) { return periodFrom(t); }, 1);
-    if (!per) {
-      var marked = doc.flat.match(/(annual|initial|special|open)[^\n]{0,40}(election|enrollment)\s*period[^\n]{0,12}\b(yes|s[ií]|x|✔|selected)\b/i);
-      per = marked ? periodFrom(marked[0]) : "";
-    }
-    if (!per) { per = periodFrom(find(doc, /\b(AEP|ICEP|IEP|MA-OEP)\b/)); }
+    var per = mcPeriod(doc);
     if (per) { f.periodoMC = per; }
 
-    f.pcp = after(doc, [/Nombre del PCP/i, /\bPCP\s*name\b/i, /\bPrimary\s*care\s*(physician|provider|doctor)(\s*name)?\b/i,
-      /M[eé]dico de atenci[oó]n primaria/i], vText(60), 1);
-    f.pcpId = after(doc, [/ID del PCP/i, /\bPCP\s*(ID|number|#)/i, /\bProvider\s*ID\b/i], vCode(4, 16), 1);
+    f.pcp = afterFirst(doc, [/Nombre del PCP/i, /\bPCP\s*name\b/i, /\bPrimary\s*care\s*(physician|provider|doctor)(\s*name)?\b/i,
+      /M[eé]dico de atenci[oó]n primaria/i], vDoctor, 1);
+    f.pcpId = afterFirst(doc, [/ID del PCP/i, /\bPCP\s*(ID|number|#)/i, /\bPrimary\s*Care\s*ID\b/i, /\bProvider\s*ID\b/i], vCode(4, 16), 1);
 
-    f.confirmacion = after(doc, [/\bConfirmation\s*(number|#|no\.?|ID|code)?/i, /N[uú]mero de confirmaci[oó]n/i], vCode(5, 24), 1);
-    f.escritura = after(doc, [/Id\. de escritura/i, /\bWriting\s*(agent\s*)?(ID|number|#)/i, /\bAgent\s*(writing\s*)?(ID|number)\b/i], vCode(4, 16), 1);
-    f.prima = after(doc, [/Prima mensual total/i, /Prima del plan/i, /\b(Total\s*)?monthly\s*(plan\s*)?premium\b/i, /\bPlan\s*premium\b/i], vMoney, 1);
+    /* App ID: el número de confirmación o el código de la aplicación */
+    f.confirmacion = afterFirst(doc, [/\bConfirmation\s*(number|#|no\.?|ID)/i, /N[uú]mero de confirmaci[oó]n/i,
+      /\bconfirmation\s*code(\s*is)?\b/i, /\bEnrollment\s*code\b/i, /\bApplication\s*ID\b/i], vId, 1);
+    f.prima = afterFirst(doc, [/Prima mensual total/i, /Prima del plan/i, /\b(Total\s*)?monthly\s*(plan\s*)?premium\b/i,
+      /\bPlan\s*premium\b/i, /^\s*Premium\b/i], vMoney, 1);
+    if (!f.prima) {
+      var pm = find(doc, /\$\s?([\d,]+\.\d{2})\s*(?:per\s*month|\/\s*mo(?:nth)?)\b/i);
+      if (pm) { f.prima = U.parseMoney(pm); }
+    }
 
     agentInfo(doc, f);
-    f.compania = carrierIn("mc", doc.flat);
-    if (/chronic|cr[oó]nica/i.test(doc.flat) && /C-?SNP/i.test(doc.flat)) { f.cmd = true; }
+    if (!f.agente) {
+      var ag = mcAgent(doc);
+      if (ag) { f.agente = ag.toUpperCase(); }
+    }
+    f.compania = carrierIn("mc", (f.plan || "") + "\n" + doc.flat);
+    /* CMD: plan para condiciones crónicas (C-SNP). Con el plan leído manda
+       su nombre: un D-SNP no lo es aunque la aplicación hable de C-SNP. */
+    var csnp = f.plan ? /\bC-?SNP\b/i.test(f.plan) : /chronic|cr[oó]nica/i.test(doc.flat) && /C-?SNP/i.test(doc.flat);
+    if (csnp) { f.cmd = true; }
     return f;
   }
 
