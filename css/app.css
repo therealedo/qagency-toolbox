@@ -563,7 +563,15 @@ kbd {
 .net-row .check { padding: 0; }
 .net-acts { display: flex; gap: 6px; }
 .net-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 10px; }
-.netdir-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.netdirs { display: grid; gap: 6px; }
+/* columnas fijas: los botones quedan alineados aunque los nombres midan distinto */
+.netdir-row { display: grid; grid-template-columns: 160px minmax(0, 1fr) auto minmax(52px, auto); align-items: center; gap: 10px; }
+.netdir-row strong { overflow-wrap: anywhere; }
+.netdir-line { color: var(--ink-2); }
+@media (max-width: 560px) {
+  .netdir-row { grid-template-columns: minmax(0, 1fr) auto minmax(52px, auto); }
+  .netdir-line { grid-column: 1 / -1; }
+}
 .net-file {
   font-family: var(--mono); font-size: 12px; color: var(--ink-2);
   background: var(--inset); border: 1px solid var(--line); border-radius: 7px;

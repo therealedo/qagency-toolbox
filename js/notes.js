@@ -844,13 +844,24 @@
     return String(name || "").replace(/[\\/:*?"<>|]/g, "-").replace(/[\s.]+$/, "").replace(/^\s+/, "");
   }
 
+  /* Carpetas del Network: una general y, si hace falta, una propia por
+     línea (por ejemplo una para OC y otra para MA). Una línea sin carpeta
+     propia guarda en la general. */
+  var NET_DIRS = ["general"].concat(Object.keys(C.LINES));
+  function netDirFor(dirs, line) {
+    var own = dirs && line !== "general" && dirs[line];
+    if (own) { return { key: line, dir: own }; }
+    return { key: "general", dir: (dirs && dirs.general) || null };
+  }
+
   var api = {
     copyOrder: copyOrder, smsLink: smsLink, mailtoLink: mailtoLink, safeFileName: safeFileName,
     buildNote: buildNote, buildTask: buildTask, formatTask: formatTask, buildReport: buildReport,
     buildSms: buildSms, buildEmail: buildEmail, smsInfo: smsInfo, buildFileNames: buildFileNames, warnings: warnings, cambios: cambios,
     autoTaskId: autoTaskId, taskById: taskById, outcomeOf: outcomeOf, lineOf: lineOf, gestionOf: gestionOf,
     productOf: productOf, carrierShort: carrierShort, memberDelta: memberDelta, zohoName: zohoName,
-    personas: personas, docsOf: docsOf, pendingDocs: pendingDocs, planesOf: planesOf, networkOf: networkOf
+    personas: personas, docsOf: docsOf, pendingDocs: pendingDocs, planesOf: planesOf, networkOf: networkOf,
+    NET_DIRS: NET_DIRS, netDirFor: netDirFor
   };
   root.QA = root.QA || {};
   root.QA.notes = api;
