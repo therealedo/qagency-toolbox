@@ -453,7 +453,7 @@ test("email Obamacare: parte 1 con la póliza y parte 2 con lo que pide el Merca
     "Effective date: 01/01/2027",
     "PLAN: myBlue Essentials Silver",
     "Attached is a detailed description of your benefits with this plan.",
-    "Primary Monthly Payment: $85.40"
+    "Premium Monthly Payment: $85.40"
   ].join("\n"));
   assert.equal(N.buildEmail(en, 2), [
     "MARKETPLACE IS REQUESTING:",
