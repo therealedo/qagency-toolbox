@@ -7,6 +7,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const X = require("../js/extract.js");
+const C = require("../js/config.js");
 
 const read = (name) => X.extract(fs.readFileSync(path.join(__dirname, "fixtures", name + ".txt"), "utf8"), name + ".pdf", "oc");
 
@@ -63,7 +64,9 @@ test("Aplicación de Medicare en español", () => {
   assert.equal(f.pcp, "Dr. Carlos Rivera");
   assert.equal(f.pcpId, "000123456");
   assert.equal(f.confirmacion, "A1B2C3D4E5");
-  assert.equal(f.escritura, "1234567");
+  /* el Writing ID ya no se lee: basta con el NPN */
+  assert.equal(f.escritura, undefined);
+  assert.doesNotMatch(JSON.stringify(f), /1234567"/);
   assert.equal(f.npn, "12345678");
   assert.equal(f.compania, "UNITED HEALTHCARE");
 });
@@ -81,6 +84,73 @@ test("Aplicación de Medicare en inglés, en tabla", () => {
   assert.equal(f.pcp, "Carlos Rivera MD");
   assert.equal(f.confirmacion, "7H2K99Q1");
   assert.equal(f.medicaid, undefined, "un Medicaid vacío no debe tomar el dato de otra celda");
+});
+
+/* Aplicaciones reales de Medicare (texto sacado del PDF por pdfToText, con
+   nombres e IDs ficticios). Cada una se reconoce sin ayuda del nombre del
+   archivo y da sus datos; un campo que el documento no trae queda vacío. */
+const mcCarrier = (word) => C.CARRIERS.mc.find((c) => c.re.test(word)).name;
+const MC_APPS = {
+  Humana: {
+    nombres: "ANDRES FELIPE", apellidos: "MORALES", mbi: "4CD5EF6GH78", parteA: "09/01/2010", parteB: "10/01/2010",
+    efectiva: "01/01/2027", plan: "Humana Gold Plus - Diabetes and Heart (HMO C-SNP) H1036-311-000", periodoMC: "AEP",
+    pcp: "RIVAS TOMAS J MD", pcpId: "731902", confirmacion: "H4QW27XTRA", prima: "$0.00", agente: "MARTA QUINTERO",
+    compania: mcCarrier("Humana"), cmd: true
+  },
+  UHC: {
+    nombres: "ELENA", apellidos: "NAVARRO", mbi: "5EF6GH7JK89", parteA: "11/01/2003", parteB: "11/01/2003",
+    efectiva: "01/01/2027", plan: "IND - UHC Dual Complete FL-Y5 (HMO-POS D-SNP) (MAPD) H1045-073-000",
+    medicaid: "1234509876", periodoMC: "AEP", pcp: "Hector Villalba", pcpId: "001234567890", prima: "$0.00",
+    agente: "MARTA QUINTERO LUGO", npn: "19876543", compania: mcCarrier("UnitedHealthcare")
+  },
+  Aetna: {
+    nombres: "GLORIA", apellidos: "PAREDES", mbi: "6GH7JK8MN90", parteA: "08/01/2016", parteB: "08/01/2016",
+    efectiva: "01/01/2027", plan: "Aetna Medicare Select (HMO) H1609-027", periodoMC: "AEP",
+    pcp: "Benitez, Ramon, MD", pcpId: "506070", confirmacion: "T9876543210987A", prima: "$0.00",
+    agente: "MARTA QUINTERO", compania: mcCarrier("Aetna")
+  },
+  /* Freedom solo muestra "PQ22" como MBI, no trae fechas de Parte A/B y
+     marca el período con casillas dibujadas: esos campos quedan vacíos */
+  Freedom: {
+    nombres: "NORA", apellidos: "BELTRAN", efectiva: "01/01/2027", plan: "Freedom Medi-Medi Partial (HMO D-SNP)",
+    medicaid: "2345678901", confirmacion: "N10102026123456789", prima: "$0.00", agente: "LUCIA FERRER CAMPOS",
+    compania: mcCarrier("Freedom Health")
+  },
+  /* Devoted deja la Parte A/B, el PCP y la prima en "-" */
+  Devoted: {
+    nombres: "PABLO", apellidos: "ANDRES RUIZ", mbi: "7JK8MN9PQ01", efectiva: "01/01/2027",
+    plan: "DEVOTED CHOICE GIVEBACK 016 FL (PPO) (H9884-016)", periodoMC: "AEP", confirmacion: "KZPTRWM5N2Q",
+    agente: "LUCIA FERRER CAMPOS", npn: "18765432", compania: mcCarrier("Devoted Health")
+  }
+};
+
+for (const [carrier, expected] of Object.entries(MC_APPS)) {
+  test("Aplicación de Medicare " + carrier + ": tipo y datos", () => {
+    const text = fs.readFileSync(path.join(__dirname, "fixtures", "Medicare App " + carrier + ".txt"), "utf8");
+    const r = X.extract(text, "Medicare App " + carrier + ".pdf", "mc");
+    assert.equal(r.type, "mc_app");
+    assert.equal(r.line, "mc");
+    assert.deepEqual(r.fields, expected);
+  });
+
+  test("Aplicación de Medicare " + carrier + ": se reconoce sin el nombre del archivo", () => {
+    const text = fs.readFileSync(path.join(__dirname, "fixtures", "Medicare App " + carrier + ".txt"), "utf8");
+    assert.equal(X.extract(text, "document.pdf", "oc").type, "mc_app");
+    assert.equal(X.extract(text, "scan0001.pdf", "supp").type, "mc_app");
+  });
+}
+
+test("Aplicación de Medicare: un rótulo nunca se toma como valor", () => {
+  const text = "Medicare Number: 1EG4TE5MK73\nPart A effective date\n01/01/2020\nProposed effective date\n01/01/2027\n" +
+    "Primary Care Physician (PCP)\nPCP ID:\nPCP Name:\nCurrent Patient of PCP?\n" +
+    "If you do not complete the Provider ID, a Primary Care provider will be\nselected for you by the Plan.\n" +
+    "Election Type:     ICEP/IEP   AEP   MA OEP    SEP (type)\nWriting ID: 7654321";
+  const f = X.extract(text, "document.pdf", "mc").fields;
+  assert.equal(f.efectiva, "01/01/2027", "la fecha de la Parte A no es la fecha efectiva");
+  assert.equal(f.pcp, undefined);
+  assert.equal(f.pcpId, undefined);
+  assert.equal(f.periodoMC, undefined, "una lista de opciones sin marcar no es el período");
+  assert.equal(f.escritura, undefined);
 });
 
 test("SOA", () => {

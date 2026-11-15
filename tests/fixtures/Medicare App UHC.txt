@@ -1,0 +1,235 @@
+New Application
+Signature Type:
+In-Person Signature
+Language:
+English
+Authorized Representative
+Is there an Authorized Representative enrolling this beneficiary ?
+Yes
+No
+Medicare Health Insurance Card Information
+First Name:
+Elena
+Middle Name:
+Last Name:
+Navarro
+Medicare Number:
+5EF6GH7JK89
+Gender:
+Female
+Date Of Birth:
+06/10/1940
+(Part A) Hospital effective date:
+11/01/2003
+(Part B) Medical effective date:
+11/01/2003
+Primary Address or Institution Address
+Are you a resident in a nursing home or other long-term care facility?
+Yes
+No
+Primary Address:
+1200 Sample Blvd
+Address Line 2
+City:
+Naples
+Zip Code:
+34100
+County:
+Collier
+State:
+FL
+
+Would you like your mail sent to an alternative address?
+Yes
+No
+Contact Information
+Primary Telephone:
+(555) 010-1280
+Alternate or Institution Telephone:
+Email address:
+benefit information to help you manage your plan?
+Yes
+No
+Yes
+No
+Yes
+No
+By default, your plan documents, such as your Explanation of Benefits and Annual Notice of Changes, are provided
+Yes
+No
+Language Information
+Primary Spoken Language:
+Spanish
+Preferred Material Format:
+Large Print
+Plan details
+Proposed Effective Date:
+01/01/2027
+Plan Name:
+IND - UHC Dual Complete FL-Y5 (HMO-POS D-SNP) (MAPD)
+Plan premium
+$0.00
+H-PBP-SegmentID
+H1045 - 073 - 000
+A Member who is enrolled in a DSNP or with LIS may not pay the costs associated with this plan, depending on their level
+of Medicaid eligibility. The amount of cost-sharing the Member must pay out-of-pocket for Medicare benefits varies by
+their level of Medicaid eligibility. The standard costs for the plan do not go away, but are paid by the government rather
+than the Member.
+
+Are you a member of a State Pharmaceutical Assistance program?
+Yes
+No
+Are you enrolled in your state Medicaid Program?
+Yes
+No
+Medicaid ID Number:
+1234509876
+Election Period:
+AEP
+Primary Care Physician (PCP)
+PCP ID:
+001234567890
+PCP Name:
+Hector Villalba
+Current Patient of PCP?
+Yes
+No
+Important Questions
+Please read and answer these important questions
+Have you ever served in the US Military?
+Yes
+No
+Do you or your spouse work?
+Yes
+No
+Tricare or Veterans Administration (VA) benefits?
+Yes
+No
+drug coverage in addition to the plan?
+Yes
+No
+Do you have your current Health Insurance Card readily available?
+Yes
+No
+That's okay. We can continue with your enrollment today without that information.
+contacting the number on the back of your UHC card.
+Additional Benefits Verification
+The healthy food and utilities benefit is a special supplemental benefit available to enrollees with a qualifying chronic
+condition, who also meet plan criteria indicating they are at high risk for hospitalization and eligible for intensive care
+
+Qualifying Clinical Conditions
+Diabetes mellitus (type 1 or type 2)
+4 Cardiovascular disorders
+4 Chronic heart failure
+Chronic hypertension (chronic high blood pressure)
+Chronic hyperlipidemia (chronic high cholesterol)
+4 Autoimmune disorders
+Cancer
+Chronic alcohol use disorder and other substance use disorders (SUDs)
+Chronic gastrointestinal disease
+Chronic kidney disease (CKD)
+Chronic lung disorders
+Chronic and disabling mental health conditions
+Dementia
+HIV/AIDS
+Immunodeficiency and immunosuppressive disorders
+Neurologic disorders
+Overweight, obesity and metabolic syndrome
+Post-organ transplantation care
+Severe hematologic disorders
+Stroke
+Conditions associated with cognitive impairment
+None of these conditions apply to me
+Treating Provider Information
+What provider can we contact to verify your chronic condition?
+PCP ID:
+001234567890
+PCP Name:
+Hector Villalba
+Name:
+Address:
+Fax number:
+Phone number:
+City:
+State:
+Zip Code:
+
+Email address:
+Do you agree to the Authorization to Release Information ?
+Agree
+Disagree
+Payment Details
+Payment Disclaimer*
+If you have a monthly plan premium (including any late enrollment penalty you may owe) you can pay your premium by
+• You can pay it from your SS check
+• Medicare can bill you
+• The Railroad Retirement Board (RRB) can bill you
+4 Yes
+No
+Premium Payment Option
+Direct pay (Monthly Statement)
+Deduction from Social Security
+Deduction from Railroad Retirement Board
+Electronic Funds Transfer (EFT)
+from your Social Security or RRB benefit check will include all premiums due from your enrollment effective date up to
+send you a paper bill for your monthly premiums.
+4 Yes
+No
+Plan Name
+Plan Premium
+IND - UHC Dual Complete FL-Y5 (HMO-POS D-SNP) (MAPD)
+$0.00
+Total Monthly Premium
+$0.00
+Statement of Understanding
+1. You must keep both Hospital (Part A) and Medical (Part B) to stay in this plan.
+for limited coverage near the U.S. border.
+3. You understand that when your coverage begins with this plan, you must get all of your medical and prescription drug
+benefits from this plan. Benefits and services provided by this plan and contained in this plan’s “Evidence of Coverage”
+document (also known as a member contract or subscriber agreement) will be covered. Neither Medicare nor this plan
+will pay for benefits or services that are not covered.
+4. You understand that you can be enrolled in only one MA plan at a time – and that enrollment in this plan will
+
+automatically end your enrollment in another MA plan (exceptions apply for MA PFFS, MA MSA plans).
+5. By joining this Medicare Advantage Plan, you acknowledge that this plan will release your information to Medicare,
+who may use to track beneficiary enrollment, for payment and other purposes applicable to Federal Statutes that
+Advantage organization with a Medicare contract. Enrollment in the plan depends on the plan’s contract renewal with
+Medicare.
+7. If this is a C-SNP plan, Medicare requires that your chronic condition be verified. The plan may contact your
+physician’s office to verify your chronic condition.
+application means that you have read and understand the contents of this application. If signed by an authorized
+complete this enrollment, and 2) Documentation of this authority is available upon request by Medicare.
+9. Your response to this form is voluntary. However, failure to respond may affect enrollment in the plan.
+10. The information on this enrollment form is correct to the best of your knowledge. You understand that if you
+intentionally provide false information on this form, you will be disenrolled from the plan.
+11. You understand that by completing the online enrollment process, you will send an actual enrollment request, you
+will receive an acceptance or denial notice following submission of the enrollment, and you will be enrolled in the plan
+(if approved by CMS).
+PRIVACY ACT STATEMENT
+The Centers for Medicare & Medicaid Services (CMS) collects information from Medicare plans to track beneficiary
+enrollment in Medicare Advantage (MA) Plans, improve care, and for the payment of Medicare benefits. Sections 1851
+CMS may use, disclose and exchange enrollment data from Medicare beneficiaries as specified in the System of
+form is voluntary. However, failure to respond may affect enrollment in the plan.
+Y0066_JENROLL_2027_A_C
+Applicant has Reviewed and Accepts Statement of Understanding
+4 Yes
+No
+Beneficiary/Authorized Rep Signature*
+information provided on this enrollment application is accurate and it is my intent to enroll in the plan indicated above.
+4 Yes
+No
+Applicant Name
+Elena Navarro
+Medicare #
+5EF6GH7JK89
+Signature Date
+11/03/2026
+Agent Signature*
+Agent Name
+MARTA QUINTERO LUGO
+Writing ID
+7654321
+Signature Date
+11/03/2026
+NPN
+19876543
