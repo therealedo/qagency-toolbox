@@ -4,7 +4,7 @@
 (function (root) {
   "use strict";
 
-  var VERSION = "1.5.0";
+  var VERSION = "1.6.0";
 
   /* Equipo por defecto. Cada persona puede editarlo en Ajustes; los cambios
      se guardan en su navegador.
@@ -64,24 +64,24 @@
       { re: /anthem/i, name: "ANTHEM", short: "Anthem" }
     ],
     supp: [
-      { re: /florida\s*combined\s*life|\bFCL\b|bluedental|florida\s*blue/i, name: "FLORIDA BLUE (FCL)", short: "FB" },
+      { re: /florida\s*combined\s*life|\bFCL\b|bluedental|florida\s*blue/i, name: "FLORIDA BLUE (FCL)", short: "FB", display: "Florida Blue" },
       { re: /golden\s*rule|\bGR\b/i, name: "GOLDEN RULE", short: "GR" },
-      { re: /unitedhealthcare|united\s*healthcare|\bUHC\b/i, name: "UNITED HEALTHCARE", short: "UHC" },
+      { re: /unitedhealthcare|united\s*healthcare|\bUHC\b/i, name: "UNITED HEALTHCARE", short: "UHC", display: "UnitedHealthcare" },
       { re: /allstate/i, name: "ALLSTATE", short: "Allstate" },
-      { re: /usable/i, name: "USABLE LIFE", short: "USAble" },
+      { re: /usable/i, name: "USABLE LIFE", short: "USAble", display: "USAble Life" },
       { re: /occidental/i, name: "OCCIDENTAL", short: "Occidental" },
-      { re: /geo\s*blue/i, name: "GEOBLUE", short: "Geoblue" },
+      { re: /geo\s*blue/i, name: "GEOBLUE", short: "Geoblue", display: "GeoBlue" },
       { re: /ameritas|primestar/i, name: "AMERITAS", short: "Ameritas" },
       { re: /humana/i, name: "HUMANA", short: "Humana" },
       { re: /delta\s*dental/i, name: "DELTA DENTAL", short: "Delta Dental" },
       { re: /cigna/i, name: "CIGNA", short: "Cigna" },
       { re: /aetna/i, name: "AETNA", short: "Aetna" },
-      { re: /metlife/i, name: "METLIFE", short: "MetLife" },
+      { re: /metlife/i, name: "METLIFE", short: "MetLife", display: "MetLife" },
       { re: /guardian/i, name: "GUARDIAN", short: "Guardian" },
-      { re: /mutual\s*of\s*omaha/i, name: "MUTUAL OF OMAHA", short: "Mutual of Omaha" },
+      { re: /mutual\s*of\s*omaha/i, name: "MUTUAL OF OMAHA", short: "Mutual of Omaha", display: "Mutual of Omaha" },
       { re: /manhattan\s*life/i, name: "MANHATTAN LIFE", short: "Manhattan Life" },
       { re: /solstice/i, name: "SOLSTICE", short: "Solstice" },
-      { re: /dentaquest/i, name: "DENTAQUEST", short: "DentaQuest" },
+      { re: /dentaquest/i, name: "DENTAQUEST", short: "DentaQuest", display: "DentaQuest" },
       { re: /spirit\s*dental/i, name: "SPIRIT DENTAL", short: "Spirit" }
     ]
   };
@@ -249,8 +249,7 @@
 
   /* Secciones del formulario. Cada situación decide cuáles se muestran. */
   var S_FULL_MC = ["cliente", "medicare", "proceso", "plan", "agente", "network"];
-  var S_FULL_SU = ["cliente", "proceso", "plan", "pago", "agente", "network", "seguimiento"];
-  var S_LIGHT = ["cliente", "proceso", "seguimiento"];
+  var S_FULL_SU = ["cliente", "proceso", "plan", "pago", "agente", "network"];
 
   /* Situaciones (resultado de la gestión) por línea de negocio. El texto de
      la nota y del SMS para cada una está en notes.js.
@@ -327,26 +326,16 @@
       code: "SUPP",
       gestiones: [
         { v: "nueva", label: "Aplicación nueva", proc: "App" },
-        { v: "renovacion", label: "Renovación", proc: "Renew" },
-        { v: "cambio", label: "Cambio de plan", proc: "App", suffix: "_Change" }
+        { v: "renovacion", label: "Renovación", proc: "Renew" }
       ],
       outcomes: [
         { id: "enviada", label: "App enviada", desc: "Aplicación enviada a la compañía",
-          submission: true, pendiente: "", proximo: "Seguimiento de servicio al cliente",
-          task: "supp_cs", report: true, sections: S_FULL_SU },
+          submission: true, task: "supp_cs", report: true, sections: S_FULL_SU },
         { id: "cotizacion", label: "Cotización", desc: "Se cotizó, el cliente queda en decidir",
-          pendiente: "Cliente debe confirmar el plan", proximo: "Contactar al cliente para definir el plan",
-          task: "supp_quote", sections: ["cliente", "proceso", "plan", "seguimiento"] },
-        { id: "pago", label: "Pago", desc: "Se gestiona o verifica el pago",
-          pendiente: "", proximo: "Seguimiento de servicio al cliente",
-          task: "supp_cs", sections: ["cliente", "plan", "pago", "network", "seguimiento"] },
-        { id: "shortterm", label: "Renovar Short Term", desc: "Seguimiento para renovar un Short Term",
-          pendiente: "Renovar el plan antes del vencimiento", proximo: "Contactar al cliente para renovar",
-          task: "supp_st", sections: ["cliente", "proceso", "plan", "seguimiento"] },
-        { id: "cancelada", label: "Cancelación", desc: "Se cancela la póliza",
-          pendiente: "", proximo: "Verificar que la cancelación se refleje",
-          task: "supp_cs", report: true, cancelled: true, sections: ["cliente", "proceso", "plan", "agente", "seguimiento"] }
+          task: "supp_quote", sections: ["cliente", "proceso", "plan"] }
       ],
+      /* estados del pago que se ofrecen en Suplementario */
+      pagos: ["PAYMENT", "NO PAYMENT"],
       /* v: lo que se elige; es: cómo se nombra en la nota; sms: cómo se le
          nombra al cliente; file: cómo va en el nombre del archivo y en el
          reporte de Cliq */
