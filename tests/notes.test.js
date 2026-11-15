@@ -10,6 +10,11 @@ const C = require("../js/config.js");
 
 const base = { ini: "LI", agenteIni: "LI", fecha: "02/01/2026", hora: "09:00", canal: "Call", nombres: "BEATRIZ", apellidos: "DIAZ", anio: "2026", codigoTipo: "Q" };
 const make = (extra) => Object.assign({}, base, extra);
+const familia = [
+  { titular: true, taxes: true, cobertura: true, ingreso: "25000" },
+  { nombre: "JUAN CARLOS DIAZ", taxes: true, cobertura: true, ingreso: "7000" },
+  { nombre: "ANA DIAZ", taxes: true, cobertura: false }
+];
 
 /* ------------------------------------------------------------- reporte -- */
 
@@ -20,7 +25,8 @@ test("reporte: casos nuevos", () => {
     "QXXXX - Diaz, Beatriz - App MC Aetna 2026 - Call (FV)");
   assert.equal(N.buildReport(make({ line: "oc", outcome: "enviada", gestion: "nueva", codigoTipo: "New", compania: "Florida Blue" })),
     "New - Diaz, Beatriz - App OC FB 2026 - Call (LI)");
-  assert.equal(N.buildReport(make({ line: "oc", outcome: "enviada", gestion: "nueva", codigoQ: "1234", compania: "FLORIDA BLUE", miembros: "Beatriz Diaz\nJuan Diaz\nAna Diaz" })),
+  const tres = familia.map((p) => Object.assign({}, p, { cobertura: true }));
+  assert.equal(N.buildReport(make({ line: "oc", outcome: "enviada", gestion: "nueva", codigoQ: "1234", compania: "FLORIDA BLUE", personas: tres })),
     "Q1234 - Diaz, Beatriz - App OC FB 2026 - Call (LI) +2");
   assert.equal(N.buildReport(make({ line: "oc", outcome: "enviada", gestion: "nueva", codigoTipo: "Sin Code", compania: "FB", canal: "Walk In" })),
     "Sin Code - Diaz, Beatriz - App OC FB 2026 - Walk In (LI)");
@@ -58,7 +64,7 @@ test("reporte: colaborador delante y situaciones que no se reportan", () => {
     "QXXXX - Diaz, Beatriz - Renew OC UHC 2026 - Call (LI)");
   assert.equal(N.buildReport(make({ line: "oc", outcome: "enviada", gestion: "nueva", compania: "UHC", adicionales: "3", ini: "MA", agenteIni: "LI", reportPrefix: "ma" })),
     "MA: QXXXX - Diaz, Beatriz - App OC UHC 2026 - Call (LI) +3");
-  assert.equal(N.buildReport(make({ line: "oc", outcome: "consent", gestion: "nueva", compania: "UHC" })), "");
+  assert.equal(N.buildReport(make({ line: "oc", outcome: "pendiente", gestion: "nueva", compania: "UHC" })), "");
   assert.equal(N.buildReport(make({ line: "mc", outcome: "soa", gestion: "nueva" })), "");
 });
 
@@ -70,14 +76,25 @@ test("task: formato estándar por situación", () => {
   assert.equal(N.buildTask(make({ ini: "FV", line: "mc", outcome: "enviada", cmd: true })), "FV: MC MANTENIMIENTO CMD - VER NOTA 02/01/2026 (09:00)");
   assert.equal(N.buildTask(make({ ini: "FV", line: "mc", outcome: "soa" })), "FV: SOA PENDING - VER NOTA 02/01/2026 (09:00)");
   assert.equal(N.buildTask(make({ ini: "FV", line: "mc", outcome: "cita" })), "FV: FOLLOW UP OPEN ENROLLMENT MC - VER NOTA 02/01/2026 (09:00)");
-  assert.equal(t({ line: "oc", outcome: "cotizacion" }), "DI: MKPL QUOTE PENDING - VER NOTA 02/01/2026 (09:00)");
-  assert.equal(t({ line: "oc", outcome: "lista" }), "DI: MKPL APP PENDING - VER NOTA 02/01/2026 (09:00)");
-  assert.equal(t({ line: "oc", outcome: "consent" }), "DI: FOLLOW UP CONSENT - VER NOTA 02/01/2026 (09:00)");
-  assert.equal(t({ line: "oc", outcome: "docs", docFecha: "07/09/2024" }), "DI: FOLLOW UP DOCS BY JUL/09/2024 - VER NOTA 02/01/2026 (09:00)");
-  assert.equal(t({ line: "oc", outcome: "sincontacto", metodo: "EMAIL", intento: "2" }), "DI: FOLLOW UP EMAIL OC 2 - VER NOTA 02/01/2026 (09:00)");
+  assert.equal(t({ line: "mc", outcome: "sincontacto", metodo: "EMAIL", intento: "2" }), "DI: FOLLOW UP EMAIL MC 2 - VER NOTA 02/01/2026 (09:00)");
   assert.equal(t({ line: "supp", outcome: "cotizacion" }), "DI: FOLLOW UP QUOTE SUPP - VER NOTA 02/01/2026 (09:00)");
   assert.equal(t({ line: "supp", outcome: "enviada", producto: "Life" }), "DI: LIFE INSURANCE REVIEW - VER NOTA 02/01/2026 (09:00)");
   assert.equal(t({ line: "supp", outcome: "cotizacion", producto: "Life" }), "DI: LIFE INSURANCE PENDING - VER NOTA 02/01/2026 (09:00)");
+});
+
+test("task Obamacare: pendiente según el consent y si revisará los planes", () => {
+  const t = (extra) => N.buildTask(make(Object.assign({ ini: "DI", line: "oc", outcome: "pendiente" }, extra)));
+  assert.equal(t({ net: {} }), "DI: FOLLOW UP CONSENT - VER NOTA 02/01/2026 (09:00)");
+  assert.equal(t({ net: { consent: true } }), "DI: MKPL APP PENDING - VER NOTA 02/01/2026 (09:00)");
+  assert.equal(t({ net: { consent: true }, revisaPlanes: true }), "DI: FOLLOW UP OPEN ENROLLMENT OC - VER NOTA 02/01/2026 (09:00)");
+  assert.equal(t({ outcome: "cancelada" }), "DI: FOLLOW UP LEAD_INACTIVE CLIENT OC - VER NOTA 02/01/2026 (09:00)");
+});
+
+test("task Obamacare: con documentos pendientes, FOLLOW UP DOCS BY la fecha más próxima", () => {
+  const t = (docs) => N.buildTask(make({ ini: "DI", line: "oc", outcome: "enviada", docs }));
+  assert.equal(t([{ cat: "income", fecha: "03/01/2027" }, { cat: "immigration", fecha: "02/12/2027" }]),
+    "DI: FOLLOW UP DOCS BY FEB/12/2027 - VER NOTA 02/01/2026 (09:00)");
+  assert.equal(t([{ cat: "income", fecha: "03/01/2027", enviado: true }]), "DI: FOLLOW UP CUSTOMER SERVICE - VER NOTA 02/01/2026 (09:00)");
 });
 
 test("task: referencia de pago, dependiente y etiquetas al final", () => {
@@ -97,7 +114,7 @@ test("task: elegido a mano del catálogo", () => {
   assert.equal(N.buildTask(make({ ini: "PD", line: "oc", outcome: "enviada", taskId: "tx_oe", taxYear: "2026", fecha: "01/01/2026", hora: "11:00" })),
     "PD: FOLLOW UP OPEN ENROLLMENT TAX 2026 - VER NOTA 01/01/2026 (11:00)");
   assert.equal(N.buildTask(make({ ini: "FV", line: "mc", outcome: "enviada", taskId: "in_home" })), "FV: HOME VISIT");
-  assert.equal(N.buildTask(make({ ini: "ER", taskOwner: "DI", line: "oc", outcome: "consent" })), "DI: FOLLOW UP CONSENT - VER NOTA 02/01/2026 (09:00)");
+  assert.equal(N.buildTask(make({ ini: "ER", taskOwner: "DI", line: "oc", outcome: "pendiente", net: {} })), "DI: FOLLOW UP CONSENT - VER NOTA 02/01/2026 (09:00)");
 });
 
 test("catálogo de tasks: iniciales, fecha, hora y etiquetas personalizables", () => {
@@ -120,14 +137,16 @@ test("catálogo de tasks: iniciales, fecha, hora y etiquetas personalizables", (
 test("nota: Obamacare enviada como el template OBAMACARE APP", () => {
   const note = N.buildNote(make({
     ini: "ER", fecha: "05/22/2025", line: "oc", outcome: "enviada", gestion: "cambio", anio: "2026", genero: "a",
-    ingreso: "40000", hogar: "3", miembros: "JANNEL BLANCO", appId: "7562778005", estado: "Active",
-    compania: "UnitedHealthcare", plan: "UHC Silver-D Value", efectiva: "08/01/2026", primaPagar: "139.08",
-    periodo: "None", agente: "Ana Torres", agenteIni: "LI", plataforma: "HealthSherpa", cuentaMkpl: "no",
+    nombres: "JANNEL", apellidos: "BLANCO",
+    personas: [{ titular: true, taxes: true, cobertura: true, ingreso: "40000" },
+               { nombre: "PEDRO BLANCO", taxes: true, cobertura: false }, { nombre: "ANA BLANCO", taxes: true, cobertura: false }],
+    appId: "7562778005", estado: "Active", compania: "UnitedHealthcare", plan: "UHC Silver-D Value", efectiva: "08/01/2026",
+    prima: "139.08", periodo: "None", agente: "Ana Torres", agenteIni: "LI", plataforma: "HealthSherpa", cuentaMkpl: "no",
     net: { eligibility: true }
   }));
   assert.equal(note, [
     "ER_05/22/2025: Se actualiza app OC 2026 con UHC.",
-    "Sus ingresos anuales son $40,000. Son 3 en los taxes y 1 pidiendo cobertura (JANNEL BLANCO).",
+    "Sus ingresos anuales son $40,000. Son 3 en los taxes (Jannel, Pedro, Ana) y 1 pidiendo cobertura (Jannel).",
     "ID#: 7562778005   Status: Active",
     "Se inscribe en plan: UHC Silver-D Value",
     "Inicia cobertura: 08/01/2026",
@@ -140,23 +159,64 @@ test("nota: Obamacare enviada como el template OBAMACARE APP", () => {
   ].join("\n"));
 });
 
-test("nota: cotización con consent como el template OC", () => {
+test("nota: ingresos por persona, documentos pedidos y pago", () => {
   const note = N.buildNote(make({
-    ini: "ER", fecha: "11/09/2026", line: "oc", outcome: "consent", gestion: "nueva", genero: "a", hora: "14:30",
-    plataforma: "HealthCare.gov", ingreso: "22590", hogar: "1", miembros: "DAMARYS", compania: "Ambetter",
-    plan: "Everyday Bronze", primaPagar: "0"
+    line: "oc", outcome: "enviada", gestion: "renovacion", personas: familia, plataforma: "MKPL", prima: "25.4",
+    docs: [{ cat: "income", persona: "BEATRIZ DIAZ", fecha: "2/12/27", enviado: true, doc: "Pay stub" },
+           { cat: "immigration", persona: "JUAN CARLOS DIAZ", fecha: "03/01/2027" }],
+    pagoEstado: "PAYMENT", pagoMetodo: "Tarjeta CC", autopay: "On"
   }));
-  assert.equal(note, [
+  assert.match(note, /\nSus ingresos anuales son \$32,000 \(Beatriz \$25,000, Juan \$7,000\)\. Son 3 en los taxes \(Beatriz, Juan, Ana\) y 2 pidiendo cobertura \(Beatriz, Juan\)\.\n/);
+  assert.match(note, /\nMKPL pide docs:\n- Ingresos \(Beatriz\) - fecha tope 02\/12\/2027 - Enviado: Pay stub\n- Estatus migratorio \(Juan\) - fecha tope 03\/01\/2027 - Pendiente\n/);
+  assert.match(note, /\nLa app se hizo en el MKPL\.\nPago: Realizado - \$25\.40 - Tarjeta CC\nAutoPay: On/);
+});
+
+test("nota: pendiente como el template de cotización, con varios planes", () => {
+  const d = make({
+    ini: "ER", fecha: "11/09/2026", line: "oc", outcome: "pendiente", gestion: "nueva", genero: "a", hora: "14:30",
+    nombres: "DAMARYS", apellidos: "BLANCO", personas: [{ titular: true, taxes: true, cobertura: true, ingreso: "22590" }],
+    plataforma: "MKPL", efectiva: "01/01/2027", agenteIni: "", agente: "",
+    planes: [{ compania: "Ambetter", plan: "Everyday Bronze", prima: "0" }, { compania: "Oscar", plan: "Silver Simple", prima: "45" }],
+    net: {}
+  });
+  assert.equal(N.buildNote(d), [
     "ER_11/09/2026: Se conversa con la cliente (02:30), nos indicó que desea cotizar con los siguientes datos:",
     "PROCESAR POR EL PORTAL: MARKETPLACE.",
     "Income: $22,590.",
-    "En taxes: 1.",
-    "Solicitan cobertura: 1 (DAMARYS).",
-    "Se explica y da detalles del plan cotizado:",
+    "En taxes: 1 (Damarys).",
+    "Solicitan cobertura: 1 (Damarys).",
+    "Se explica y da detalles de los planes cotizados:",
     "Compañía_Plan: Ambetter_Everyday Bronze - $0",
-    "Se envía carta de consentimiento.",
-    "Pendiente: Firma del consentimiento"
+    "Compañía_Plan: Oscar_Silver Simple - $45",
+    "Inicia cobertura: 01/01/2027",
+    "Carta de consentimiento enviada."
   ].join("\n"));
+  /* plan elegido y consent firmado en una llamada */
+  const sel = Object.assign({}, d, { planes: [Object.assign({}, d.planes[0], { sel: true }), d.planes[1]], net: { consent: true } });
+  const note = N.buildNote(sel);
+  assert.match(note, /desea aplicar con los siguientes datos:/);
+  assert.match(note, /Compañía_Plan: Ambetter_Everyday Bronze - \$0 \(SELECCIONADO\)/);
+  assert.match(note, /\nSe firmó la carta de consentimiento en línea\.$/);
+  /* en la oficina: se entrega la cotización y se firma en la oficina */
+  const ofi = N.buildNote(Object.assign({}, sel, { canal: "Walk In", revisaPlanes: true }));
+  assert.match(ofi, /desea cotizar/);
+  assert.match(ofi, /\nSe le entrega la cotización para que revise los planes\.\nSe firmó la carta de consentimiento en la oficina\.$/);
+  assert.equal(N.buildSms(sel), "", "Pendiente no lleva SMS");
+});
+
+test("nota: cancelación con motivo y My Plans & Programs (CANCELLED)", () => {
+  const d = make({ ini: "ER", line: "oc", outcome: "cancelada", gestion: "renovacion", genero: "a", compania: "UHC",
+    personas: familia, motivoCancel: "Otro", motivoOtro: "Se mudó de estado", net: { plans: true } });
+  assert.equal(N.buildNote(d), [
+    "ER_02/01/2026: Se cancela la renovación OC 2026 con UHC a solicitud de la cliente.",
+    "Motivo: Se mudó de estado",
+    "Miembros en la cancelación: 2 (Beatriz, Juan).",
+    "NPN: LI",
+    "Docs en mi folder del NETW: My Plans & Programs (CANCELLED)."
+  ].join("\n"));
+  assert.equal(N.buildReport(d), "QXXXX - Diaz, Beatriz - Renew OC UHC 2026_Cancelled - Call (LI) +1");
+  assert.equal(N.buildFileNames(d)[0].name, "Diaz, Beatriz - OC_My Plans & Programs UHC 2026 FEB CANCELLED");
+  assert.match(N.buildNote(Object.assign({}, d, { motivoCancel: "Demasiado caro" })), /\nMotivo: Demasiado caro\n/);
 });
 
 test("nota: Medicare enviada como el template MEDICARE", () => {
@@ -205,25 +265,25 @@ test("nota: suplementario como el template ACCIDENTE", () => {
   assert.match(family, /^LI_02\/01\/2026: Se procesa app de Hospital de GR para el cliente, MARIA GAVELA y LUIS GAVELA\.$/m);
 });
 
-test("nota: el task y el botón rojo solo cierran una aplicación enviada", () => {
-  const extra = { gestion: "nueva", compania: "UHC", net: {}, botonRojo: true, incluirTask: true };
+test("nota: el botón rojo solo cierra una aplicación enviada y el task nunca va en la nota", () => {
+  const extra = { gestion: "nueva", compania: "UHC", net: {}, botonRojo: true };
   ["oc", "mc", "supp"].forEach((line) => {
     const sent = N.buildNote(make(Object.assign({ line, outcome: "enviada" }, extra)));
-    assert.match(sent, /Se reporta en el botón rojo\.\nTask: LI: /, line);
+    assert.match(sent, /Se reporta en el botón rojo\.$/, line);
+    assert.doesNotMatch(sent, /Task:/, line);
   });
-  [["oc", "consent"], ["oc", "cotizacion"], ["oc", "cancelada"], ["oc", "pago"], ["mc", "soa"], ["mc", "sincambio"], ["supp", "cotizacion"]].forEach(([line, outcome]) => {
-    const note = N.buildNote(make(Object.assign({ line, outcome }, extra)));
-    assert.doesNotMatch(note, /botón rojo|Task:/, line + "/" + outcome);
+  [["oc", "pendiente"], ["oc", "cancelada"], ["mc", "soa"], ["mc", "sincambio"], ["supp", "cotizacion"]].forEach(([line, outcome]) => {
+    assert.doesNotMatch(N.buildNote(make(Object.assign({ line, outcome }, extra))), /botón rojo|Task:/, line + "/" + outcome);
   });
-  const off = N.buildNote(make(Object.assign({ line: "oc", outcome: "enviada" }, extra, { botonRojo: false, incluirTask: false })));
-  assert.doesNotMatch(off, /botón rojo|Task:/);
+  assert.doesNotMatch(N.buildNote(make(Object.assign({ line: "oc", outcome: "enviada" }, extra, { botonRojo: false }))), /botón rojo/);
 });
 
-test("nota: NPN con las iniciales del agente y colaborador cuando es otra persona", () => {
+test("nota: NPN con las iniciales del agente; quién habló y quién procesó si no es quien escribe", () => {
   const d = make({ line: "oc", outcome: "enviada", gestion: "nueva", agente: "Ana Torres", agenteIni: "LI", net: {} });
   assert.match(N.buildNote(d), /\nNPN: LI(\n|$)/);
-  assert.doesNotMatch(N.buildNote(d), /Colaborador/);
-  assert.match(N.buildNote(Object.assign({}, d, { colaboradorNombre: "My Access" })), /\nNPN: LI\nColaborador: MY ACCESS/);
+  assert.doesNotMatch(N.buildNote(d), /Habló|Colaborador/);
+  assert.match(N.buildNote(Object.assign({}, d, { talkerNombre: "Rosa Mendez", colaboradorNombre: "My Access" })),
+    /\nNPN: LI\nHabló con el cliente: ROSA MENDEZ\nColaborador: MY ACCESS/);
 });
 
 test("nota: todas empiezan igual y sin contacto lleva intento", () => {
@@ -231,24 +291,36 @@ test("nota: todas empiezan igual y sin contacto lleva intento", () => {
     const note = N.buildNote(make({ line, outcome: o.id, gestion: C.LINES[line].gestiones[0].v, net: {} }));
     assert.match(note.split("\n")[0], /^LI_02\/01\/2026: Se [a-záéíóú]+ /, line + "/" + o.id);
   }));
-  assert.equal(N.buildNote(make({ line: "oc", outcome: "sincontacto", gestion: "renovacion", genero: "a", metodo: "TEXT", intento: "2" })),
-    "LI_02/01/2026: Se llama a la cliente para la renovación de su OC 2026, sin respuesta. Se le envía un mensaje de texto. Intento #2.\n" +
-    "Pendiente: Lograr contacto con la cliente");
+  assert.equal(N.buildNote(make({ line: "mc", outcome: "sincontacto", gestion: "nueva", genero: "a", metodo: "TEXT", intento: "2" })),
+    "LI_02/01/2026: Se llama a la cliente para revisar su plan de MC 2026, sin respuesta. Se le envía un mensaje de texto. Intento #2.\n" +
+    "Name: Diaz, Beatriz\nPendiente: Lograr contacto con la cliente");
+  /* Obamacare ya no lleva pendiente ni seguimiento */
+  assert.doesNotMatch(N.buildNote(make({ line: "oc", outcome: "pendiente", gestion: "nueva", pendiente: "algo", fechaSeg: "02/03/2026", net: {} })), /Pendiente:|Seguimiento:/);
+});
+
+test("nota: al cliente / del cliente según el género", () => {
+  const walk = (genero) => N.buildNote(make({ line: "oc", outcome: "pendiente", canal: "Walk In", genero, net: {} })).split("\n")[0];
+  assert.match(walk("o"), /Se atiende al cliente en la oficina \(09:00\)/);
+  assert.match(walk("a"), /Se atiende a la cliente en la oficina \(09:00\)/);
+  const cancel = (genero) => N.buildNote(make({ line: "oc", outcome: "cancelada", compania: "UHC", genero })).split("\n")[0];
+  assert.match(cancel("o"), /a solicitud del cliente\.$/);
+  assert.match(cancel("a"), /a solicitud de la cliente\.$/);
+  assert.match(N.buildNote(make({ line: "mc", outcome: "sincontacto" })), /^LI_02\/01\/2026: Se llama al cliente /);
 });
 
 test("nota: cita con fecha y hora, y seguimiento solo si hay fecha", () => {
-  const cita = N.buildNote(make({ line: "oc", outcome: "cita", gestion: "renovacion", fechaSeg: "02/05/2026", hora: "10:30", plan: "Plan X" }));
-  assert.match(cita, /^LI_02\/01\/2026: Se conversa con el cliente \(10:30\), desea renovar su OC 2026\. Se agenda cita para el 02\/05\/2026 a las 10:30 AM\./);
-  const tarde = N.buildNote(make({ line: "oc", outcome: "cita", gestion: "renovacion", fechaSeg: "02/05/2026", hora: "15:00" }));
+  const cita = N.buildNote(make({ line: "mc", outcome: "cita", gestion: "nueva", fechaSeg: "02/05/2026", hora: "10:30" }));
+  assert.match(cita, /^LI_02\/01\/2026: Se conversa con el cliente \(10:30\), desea revisar su plan de MC 2026\. Se agenda cita para el 02\/05\/2026 a las 10:30 AM\./);
+  assert.doesNotMatch(cita, /Seguimiento/);
+  const tarde = N.buildNote(make({ line: "mc", outcome: "cita", gestion: "nueva", fechaSeg: "02/05/2026", hora: "15:00" }));
   assert.match(tarde, /\(03:00\).*a las 3:00 PM\./);
-  assert.match(N.buildTask(make({ line: "oc", outcome: "cita", hora: "15:00" })), /VER NOTA 02\/01\/2026 \(03:00\)$/);
-  assert.doesNotMatch(cita, /Plan X|Seguimiento/);
-  const seg = N.buildNote(make({ line: "oc", outcome: "consent", gestion: "nueva", fechaSeg: "02/03/2026" }));
-  assert.match(seg, /\nSeguimiento: Procesar la app al recibir el consent - 02\/03\/2026$/);
+  assert.match(N.buildTask(make({ line: "mc", outcome: "cita", hora: "15:00" })), /VER NOTA 02\/01\/2026 \(03:00\)$/);
+  const seg = N.buildNote(make({ line: "mc", outcome: "soa", gestion: "nueva", fechaSeg: "02/03/2026" }));
+  assert.match(seg, /\nSeguimiento: Atender al cliente al recibir el SOA - 02\/03\/2026$/);
 });
 
 test("nota: sin acentos cuando se pide", () => {
-  const note = N.buildNote(make({ line: "oc", outcome: "consent", gestion: "nueva", compania: "Ambetter" }), { sinAcentos: true });
+  const note = N.buildNote(make({ line: "oc", outcome: "pendiente", gestion: "nueva", planes: [{ compania: "Ambetter", plan: "Bronze" }], net: {} }), { sinAcentos: true });
   assert.doesNotMatch(note, /[áéíóúñÁÉÍÓÚÑ]/);
   assert.match(note, /Compania_Plan: Ambetter/);
 });
@@ -256,14 +328,16 @@ test("nota: sin acentos cuando se pide", () => {
 /* ----------------------------------------------------------------- SMS -- */
 
 test("SMS: lleva la oficina, el nombre del cliente y el teléfono", () => {
-  const sms = N.buildSms(make({ line: "oc", outcome: "consent", gestion: "nueva", anio: "2027", oficina: "ATH Insurance" }));
-  assert.equal(sms, "Hola Beatriz, le saluda el equipo de ATH Insurance. Le enviamos la carta de consentimiento para su seguro de Obamacare 2027. Por favor fírmela cuando pueda para continuar con el proceso.");
-  const tel = N.buildSms(make({ line: "oc", outcome: "sincontacto", oficina: "QAgency", telefono: "(305) 555-0100" }));
+  const sms = N.buildSms(make({ line: "oc", outcome: "cancelada", gestion: "nueva", anio: "2027", compania: "UHC", oficina: "ATH Insurance" }));
+  assert.equal(sms, "Hola Beatriz, le saluda el equipo de ATH Insurance. Su seguro de Obamacare 2027 con UHC quedó cancelado según lo solicitado. Cualquier duda, estamos a la orden.");
+  const tel = N.buildSms(make({ line: "mc", outcome: "sincontacto", oficina: "QAgency", telefono: "(305) 555-0100" }));
   assert.match(tel, /^Hola Beatriz, le saluda el equipo de QAgency\. .*llámenos al \(305\) 555-0100 o responda/);
-  const sent = N.buildSms(make({ line: "oc", outcome: "enviada", gestion: "nueva", oficina: "QAgency", compania: "UHC", primaPagar: "0", efectiva: "1/1/26" }));
-  assert.match(sent, /Su aplicación de Obamacare 2026 con UHC quedó procesada\. No tiene pago mensual\. Su cobertura inicia el 01\/01\/2026\./);
+  const sent = N.buildSms(make({ line: "oc", outcome: "enviada", gestion: "nueva", oficina: "QAgency", compania: "UHC", prima: "0", efectiva: "1/1/26",
+    docs: [{ cat: "income", persona: "BEATRIZ DIAZ", fecha: "02/12/2026" }] }));
+  assert.match(sent, /Su aplicación de Obamacare 2026 con UHC quedó procesada\. No tiene pago mensual\. Su cobertura inicia el 01\/01\/2026\. El Mercado pide documentos de ingresos \(Beatriz\) antes del 02\/12\/2026; envíenoslos lo antes posible\./);
   Object.keys(C.LINES).forEach((line) => C.LINES[line].outcomes.forEach((o) => {
     const s = N.buildSms(make({ line, outcome: o.id, oficina: "QAgency" }));
+    if (o.noSms) { assert.equal(s, "", line + "/" + o.id); return; }
     assert.match(s, /^Hola Beatriz, le saluda el equipo de QAgency\. \S/, line + "/" + o.id);
     assert.doesNotMatch(s, /undefined|null|NaN/, line + "/" + o.id);
   }));
@@ -303,6 +377,22 @@ test("nombres de archivo como en NOMBRE DE ARCHIVOS", () => {
 
 /* -------------------------------------------------------------- avisos -- */
 
+test("documentos del Mercado: las 11 inconsistencias de healthcare.gov", () => {
+  assert.deepEqual(C.MKPL_DOCS.map((c) => c.v), ["income", "immigration", "citizenship", "ssn", "esi", "medicaid", "medicare", "aian", "tricare", "va", "peace"]);
+  assert.ok(C.MKPL_DOCS.find((c) => c.v === "income").docs.includes("Pay stub"));
+  assert.ok(C.MKPL_DOCS.find((c) => c.v === "immigration").docs.includes("Employment Authorization Card (I-766)"));
+  assert.ok(C.MKPL_DOCS.every((c) => c.docs.length >= 2));
+});
+
+test("avisos de Obamacare: fecha tope, cobertura, conteo de taxes y motivo de cancelación", () => {
+  const w = N.warnings(make({ line: "oc", outcome: "enviada", codigoQ: "1", compania: "UHC", pagoEstado: "PAYMENT", hogarDoc: "4",
+    personas: [{ titular: true, taxes: true, cobertura: false }], docs: [{ cat: "income", persona: "BEATRIZ DIAZ" }] }), "");
+  assert.ok(w.some((x) => /fecha tope de ingresos \(Beatriz\)/.test(x)));
+  assert.ok(w.some((x) => /quién pide cobertura/.test(x)));
+  assert.ok(w.some((x) => /indica 4 en los taxes y la lista tiene 1/.test(x)));
+  assert.ok(N.warnings(make({ line: "oc", outcome: "cancelada", compania: "UHC" }), "").some((x) => /motivo de la cancelación/.test(x)));
+});
+
 test("avisos: faltantes y Seguro Social en la nota", () => {
   const w = N.warnings(make({ line: "oc", outcome: "enviada", ini: "", nombres: "", apellidos: "" }), "SSN 123-45-6789");
   assert.ok(w.some((x) => /quién hace la nota/.test(x)));
@@ -310,5 +400,5 @@ test("avisos: faltantes y Seguro Social en la nota", () => {
   assert.ok(w.some((x) => /código Q/.test(x)));
   assert.ok(w.some((x) => /referencia de pago/.test(x)));
   assert.ok(w.some((x) => /Seguro Social/.test(x)));
-  assert.deepEqual(N.warnings(make({ line: "oc", outcome: "consent" }), "todo bien"), []);
+  assert.deepEqual(N.warnings(make({ line: "oc", outcome: "pendiente" }), "todo bien"), []);
 });

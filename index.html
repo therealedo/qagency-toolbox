@@ -185,7 +185,7 @@
         <div class="card tasks-panel">
           <div class="tasks-pair">
             <label class="mini"><span>Iniciales</span><input type="text" id="tkOwner" class="upper" maxlength="4" list="tkOwnerList" autocomplete="off"></label>
-            <label class="mini"><span>Hora de revisión</span><select id="tkHora"></select></label>
+            <label class="mini"><span>Hora de revisión</span><input type="text" id="tkHora"></label>
           </div>
           <datalist id="tkOwnerList"></datalist>
           <label class="mini"><span>Fecha después de VER NOTA</span><input type="text" id="tkFecha" class="num" placeholder="MM/DD/AAAA"></label>
@@ -226,7 +226,7 @@
   <button type="button" class="btn primary" data-copy="note">Copiar nota</button>
   <button type="button" class="btn" data-copy="task">Task</button>
   <button type="button" class="btn" data-copy="report" id="dockReport">Reporte</button>
-  <button type="button" class="btn" data-copy="sms">SMS</button>
+  <button type="button" class="btn" data-copy="sms" id="dockSms">SMS</button>
 </div>
 
 <div class="dropveil" id="dropveil" hidden>
@@ -257,7 +257,6 @@
     <button type="button" class="btn small" id="teamAdd">Agregar persona</button>
 
     <h3>Formato de la nota</h3>
-    <label class="check"><input type="checkbox" id="optTask"><span>Terminar con el task cuando es una aplicación enviada</span></label>
     <label class="check"><input type="checkbox" id="optRojo"><span>Agregar «Se reporta en el botón rojo» cuando es una aplicación enviada</span></label>
     <label class="check"><input type="checkbox" id="optAcentos"><span>Escribir la nota sin acentos ni ñ</span></label>
 

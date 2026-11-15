@@ -266,13 +266,20 @@
            find(doc, /(?:cobertura(?:[ \t]+m[eé]dica)?|solicitud|a[nñ]o del plan)[ \t]*:?[ \t]+(?:de[ \t]+|para[ \t]+|del[ \t]+)?(20[2-4]\d)\b/i);
   }
 
+  /* Tipo de inconsistencia (como en config.MKPL_DOCS) según las palabras
+     que usa la carta del Mercado. */
   var DOC_KINDS = [
-    [/income|ingresos?/i, "Prueba de ingresos"],
-    [/citizenship|ciudadan[ií]a/i, "Prueba de ciudadanía"],
-    [/immigration|inmigraci[oó]n|migratori/i, "Documentos migratorios"],
-    [/social security number|\bSSN\b|n[uú]mero de seguro social/i, "Prueba de Seguro Social"],
-    [/american indian|alaska native/i, "Prueba de estatus tribal"],
-    [/incarcerat|encarcela/i, "Prueba de no encarcelamiento"]
+    [/income|ingresos?/i, "income"],
+    [/citizenship|ciudadan[ií]a/i, "citizenship"],
+    [/immigration|inmigraci[oó]n|migratori/i, "immigration"],
+    [/social security number|\bSSN\b|n[uú]mero de seguro social/i, "ssn"],
+    [/american indian|alaska native|ind[ií]gena/i, "aian"],
+    [/job[\s-]based|employer|empleador|cobertura del trabajo/i, "esi"],
+    [/medicaid|\bCHIP\b/i, "medicaid"],
+    [/medicare/i, "medicare"],
+    [/tricare/i, "tricare"],
+    [/veterans|\bVA\b/i, "va"],
+    [/peace corps/i, "peace"]
   ];
 
   function extractElig(doc) {
@@ -283,28 +290,31 @@
     var dear = find(doc, /(?:^|\n)\s*(?:Dear|Estimad[oa](?:\(a\))?)\s+([^\n:,]{3,60})[:,]/i);
     if (dear && vFullName(dear)) { setName(f, dear); }
 
-    var credit = doc.flat.match(/\$\s?([\d,]+(?:\.\d{2})?)\s*(?:each|per|a|every)\s*month/i) ||
-                 doc.flat.match(/\$\s?([\d,]+(?:\.\d{2})?)\s*(?:cada|por|al)\s*mes/i);
-    if (credit && /tax credit|cr[eé]dito (fiscal|tributario)/i.test(doc.flat)) { f.subsidio = U.parseMoney(credit[1]); }
-
     var inc = doc.flat.match(/(?:yearly|annual)\s*(?:household\s*)?income\s*(?:of|is|:)?\s*\$\s?([\d,]+(?:\.\d{2})?)/i) ||
               doc.flat.match(/ingresos?\s*anual(?:es)?(?:\s*del\s*hogar)?\s*(?:de|es|:)?\s*\$\s?([\d,]+(?:\.\d{2})?)/i);
     if (inc) { f.ingreso = U.parseMoney(inc[1]); }
     var size = find(doc, /household size (?:of|is|:)?\s*(\d{1,2})\b/i) || find(doc, /tama[nñ]o del hogar (?:de|es|:)?\s*(\d{1,2})\b/i);
     if (size) { f.hogar = size; }
 
-    /* Documentos que pide el Mercado y su fecha tope */
+    /* Documentos que pide el Mercado: por cada fila, la persona, el tipo y
+       la fecha tope. Si la carta no trae tabla, la fecha general. */
     var ask = /send (the marketplace )?(us )?(more information|documents|proof)|data matching|we need more information|env[ií]e(nos)? .{0,30}(documentos|informaci[oó]n|prueba)|necesitamos m[aá]s informaci[oó]n/i;
     if (ask.test(doc.flat)) {
-      var kinds = [];
-      doc.lines.forEach(function (l) {
-        if (!/proof|document|verify|confirm|prueba|document|verificar|confirmar/i.test(l)) { return; }
-        DOC_KINDS.forEach(function (k) { if (k[0].test(l) && kinds.indexOf(k[1]) < 0) { kinds.push(k[1]); } });
-      });
-      if (kinds.length) { f.docReq = kinds.join(", "); }
       var by = doc.flat.match(/(?:send|submit|upload|provide)[^\n.]{0,80}?\b(?:by|before|no later than)\s+([A-Za-z]{3,12}\.?\s+\d{1,2},?\s+\d{4}|\d{1,2}\/\d{1,2}\/\d{2,4})/i) ||
                doc.flat.match(/(?:env[ií]e|enviar|presentar|suba)[^\n.]{0,80}?\b(?:antes del?|a m[aá]s tardar el?|hasta el?)\s+(\d{1,2}\s+de\s+[A-Za-záéíóú]{3,12}\s+de\s+\d{4}|\d{1,2}\/\d{1,2}\/\d{2,4})/i);
-      if (by) { f.docFecha = U.parseDate(by[1]) || U.parseDateWords(by[1]); }
+      var general = by ? (U.parseDate(by[1]) || U.parseDateWords(by[1])) : "";
+      var docs = [];
+      doc.lines.forEach(function (l) {
+        if (!/proof|document|verify|confirm|prueba|verificar|confirmar|deadline|fecha/i.test(l)) { return; }
+        DOC_KINDS.forEach(function (k) {
+          if (!k[0].test(l)) { return; }
+          var person = vFullName(firstCell(l)) || "";
+          var ds = datesIn(l);
+          if (docs.some(function (x) { return x.cat === k[1] && x.persona === person; })) { return; }
+          docs.push({ cat: k[1], persona: person.toUpperCase(), fecha: ds.length ? ds[ds.length - 1].value : general });
+        });
+      });
+      if (docs.length) { f.docs = docs; }
     }
     return f;
   }
@@ -345,15 +355,17 @@
   function extractPlans(doc) {
     var f = {};
     var p = planAboveId(doc);
-    if (p) { f.planId = p.id; if (p.name) { f.plan = p.name; } }
+    if (p && p.name) { f.plan = p.name; }
     if (!f.plan) { f.plan = after(doc, [/\bPlan\s*name\b/i, /Nombre del plan/i, /\bSelected\s*plan\b/i], vText(90), 1); }
 
-    f.primaTotal = after(doc, [/\b(Base|Total|Full|Monthly)\s*premium\b/i, /Prima\s*(total|mensual|base)/i, /^\s*Premium\b(?!\s*tax)/i, /^\s*Prima\b(?!\s*a\s*pagar)/i], vMoney, 1);
-    f.subsidio = after(doc, [/Premium\s*tax\s*credit/i, /\bTax\s*credit\b/i, /\bAPTC\b/, /Cr[eé]dito\s*(fiscal|tributario)/i], vMoney, 1);
-    f.primaPagar = after(doc, [/\bYou\s*pay\b/i, /Usted\s*paga/i, /\bYour\s*(monthly\s*)?(payment|cost|premium)\b/i, /(Prima|Monto)\s*a\s*pagar/i], vMoney, 1);
-    f.deducible = after(doc, [/\bDeductible\b/i, /\bDeducible\b/i], vMoney, 1);
-    f.maximo = after(doc, [/Out[\s-]of[\s-]pocket\s*(max\w*|limit)?/i, /M[aá]ximo de (gastos de )?bolsillo/i], vMoney, 1);
-    f.poliza = after(doc, [/\bPolicy\s*(ID|number|#|no\.?)/i, /\b(Member|Subscriber)\s*ID\b/i, /N[uú]mero de p[oó]liza/i], vCode(6, 20), 1);
+    /* Prima mensual: lo que paga el cliente; si no aparece, prima menos crédito */
+    var pay = after(doc, [/\bYou\s*pay\b/i, /Usted\s*paga/i, /\bYour\s*(monthly\s*)?(payment|cost|premium)\b/i, /(Prima|Monto)\s*a\s*pagar/i], vMoney, 1);
+    if (!pay) {
+      var total = U.moneyNumber(after(doc, [/\b(Base|Total|Full|Monthly)\s*premium\b/i, /Prima\s*(total|mensual|base)/i, /^\s*Premium\b(?!\s*tax)/i], vMoney, 1));
+      var credit = U.moneyNumber(after(doc, [/Premium\s*tax\s*credit/i, /\bAPTC\b/, /Cr[eé]dito\s*(fiscal|tributario)/i], vMoney, 1)) || 0;
+      if (total !== null) { pay = U.parseMoney(Math.max(0, total - credit)); }
+    }
+    if (pay) { f.prima = pay; }
     f.appId = appId(doc);
 
     /* Tabla de miembros: nombre seguido de las fechas de cobertura */
@@ -372,20 +384,16 @@
       setName(f, names[0]);
       all.sort(function (a, b) { return sortKey(a) < sortKey(b) ? -1 : 1; });
       f.efectiva = all[0];
-      if (all.length > 1 && all[all.length - 1] !== all[0]) { f.fin = all[all.length - 1]; }
     } else {
       f.efectiva = after(doc, [/\b(Coverage\s*)?start\s*date\b/i, /\bEffective\s*date\b/i, /Fecha de inicio/i, /Fecha efectiva/i], vDate, 1);
-      f.fin = after(doc, [/\b(Coverage\s*)?end\s*date\b/i, /Fecha de finalizaci[oó]n/i], vDate, 1);
     }
 
     var st = doc.flat.match(/(?:^|\n)\s*(?:status:\s*|estado:\s*)?(active|activo|pending|pendiente|unpaid binder|terminated|cancell?ed|canceled)\s*(?:\n|$)/i);
     if (st) { f.estado = { activo: "Active", pendiente: "Pending" }[st[1].toLowerCase()] || U.titleCase(st[1]).replace("Binder", "binder"); }
     f.compania = carrierIn("oc", (f.plan || "") + "\n" + doc.flat);
-    var metal = ((f.plan || "") + " " + doc.flat).match(/\b(expanded bronze|bronze|silver|gold|platinum|catastrophic)\b/i);
-    if (metal) { f.metal = U.titleCase(metal[1]); }
     f.anio = planYear(doc) || (f.efectiva ? f.efectiva.slice(-4) : "");
     if (/healthsherpa/i.test(doc.flat)) { f.plataforma = "HealthSherpa"; }
-    else if (/healthcare\.gov|cuidadodesalud\.gov/i.test(doc.flat)) { f.plataforma = "HealthCare.gov"; }
+    else if (/healthcare\.gov|cuidadodesalud\.gov/i.test(doc.flat)) { f.plataforma = "MKPL"; }
     return f;
   }
 
@@ -399,7 +407,7 @@
     f.hogar = after(doc, [/\bHousehold\s*size\b/i, /\bTax\s*household\s*size\b/i, /Tama[nñ]o del hogar/i,
       /Personas en (el|su) hogar/i], vDigits(1, 2), 1);
     if (/healthsherpa/i.test(doc.flat)) { f.plataforma = "HealthSherpa"; }
-    else if (/healthcare\.gov|cuidadodesalud\.gov/i.test(doc.flat)) { f.plataforma = "HealthCare.gov"; }
+    else if (/healthcare\.gov|cuidadodesalud\.gov/i.test(doc.flat)) { f.plataforma = "MKPL"; }
     return f;
   }
 
@@ -413,13 +421,10 @@
       /N[uú]mero de (confirmaci[oó]n|referencia|transacci[oó]n)/i], vCode(5, 24), 1);
     f.pagoFecha = after(doc, [/\bPayment\s*date\b/i, /\bDate\s*(paid|of payment)\b/i, /Fecha\s*(del|de)\s*pago/i,
       /^\s*(Date|Fecha)\b/i], vDate, 1);
-    var last4 = doc.flat.match(/(?:ending in|terminad[ao] en|\*{2,}|x{3,}|•{2,})\s*-?\s*(\d{4})\b/i);
-    if (last4) {
-      var kind = /checking|savings|bank|account|cuenta|ACH|routing/i.test(doc.flat) && !/card|tarjeta|visa|mastercard|amex|discover/i.test(doc.flat) ? "Cuenta" : "Tarjeta";
-      f.pagoMetodo = kind + " ****" + last4[1];
-    }
+    if (/card|tarjeta|visa|mastercard|amex|american express|discover/i.test(doc.flat)) { f.pagoMetodo = "Tarjeta CC"; }
+    else if (/checking|savings|bank account|cuenta (de banco|bancaria|corriente|de ahorros)|\bACH\b|routing/i.test(doc.flat)) { f.pagoMetodo = "Cuenta de banco"; }
     if (/auto\s*pay|autopay|pago autom[aá]tico|recurring/i.test(doc.flat)) {
-      if (/(enrolled|enabled|activ[eo]|on)\b[^\n]{0,20}(auto\s*pay|autopay)|(auto\s*pay|autopay|pago autom[aá]tico)[^\n]{0,25}\b(yes|s[ií]|enrolled|enabled|activ[eo]|on)\b/i.test(doc.flat)) { f.autopay = "SI"; }
+      if (/(enrolled|enabled|activ[eo]|on)\b[^\n]{0,20}(auto\s*pay|autopay)|(auto\s*pay|autopay|pago autom[aá]tico)[^\n]{0,25}\b(yes|s[ií]|enrolled|enabled|activ[eo]|on)\b/i.test(doc.flat)) { f.autopay = "On"; }
     }
     return f;
   }
