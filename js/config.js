@@ -356,21 +356,21 @@
       ],
       /* estados del pago que se ofrecen en Suplementario */
       pagos: ["PAYMENT", "NO PAYMENT"],
-      /* v: lo que se elige; es: cómo se nombra en la nota; sms: cómo se le
-         nombra al cliente; file: cómo va en el nombre del archivo y en el
-         reporte de Cliq */
+      /* v: lo que se elige; es: cómo se nombra en la nota; sms y smsEn: cómo
+         se le nombra al cliente en español y en inglés; file: cómo va en el
+         nombre del archivo y en el reporte de Cliq */
       productos: [
-        { v: "Dental", es: "Dental", sms: "seguro dental", file: "Dental" },
-        { v: "Vision", es: "Visión", sms: "seguro de visión", file: "Vision" },
-        { v: "Dental + Vision", es: "Dental y Visión", sms: "seguro dental y de visión", file: "Dental" },
-        { v: "Hospital", es: "Hospital", sms: "seguro de hospital", file: "Hospital" },
-        { v: "Accident", es: "Accidente", sms: "seguro de accidentes", file: "Accident" },
-        { v: "Cancer", es: "Cáncer", sms: "seguro de cáncer", file: "Cancer" },
-        { v: "Short Term", es: "Short Term", sms: "seguro Short Term", file: "Short Term" },
-        { v: "Life", es: "Vida", sms: "seguro de vida", file: "Life" },
-        { v: "International", es: "Internacional", sms: "seguro internacional", file: "International" },
-        { v: "Discount Plan", es: "Plan de descuento", sms: "plan de descuento", file: "Discount" },
-        { v: "Otro", es: "", sms: "seguro", file: "Supp" }
+        { v: "Dental", es: "Dental", sms: "seguro dental", smsEn: "dental insurance", file: "Dental" },
+        { v: "Vision", es: "Visión", sms: "seguro de visión", smsEn: "vision insurance", file: "Vision" },
+        { v: "Dental + Vision", es: "Dental y Visión", sms: "seguro dental y de visión", smsEn: "dental and vision insurance", file: "Dental" },
+        { v: "Hospital", es: "Hospital", sms: "seguro de hospital", smsEn: "hospital insurance", file: "Hospital" },
+        { v: "Accident", es: "Accidente", sms: "seguro de accidentes", smsEn: "accident insurance", file: "Accident" },
+        { v: "Cancer", es: "Cáncer", sms: "seguro de cáncer", smsEn: "cancer insurance", file: "Cancer" },
+        { v: "Short Term", es: "Short Term", sms: "seguro Short Term", smsEn: "Short Term insurance", file: "Short Term" },
+        { v: "Life", es: "Vida", sms: "seguro de vida", smsEn: "life insurance", file: "Life" },
+        { v: "International", es: "Internacional", sms: "seguro internacional", smsEn: "international insurance", file: "International" },
+        { v: "Discount Plan", es: "Plan de descuento", sms: "plan de descuento", smsEn: "discount plan", file: "Discount" },
+        { v: "Otro", es: "", sms: "seguro", smsEn: "insurance", file: "Supp" }
       ],
       network: [
         { k: "appsummary", label: "Aplicación", file: "{product}_{carrier}", date: "effective" },

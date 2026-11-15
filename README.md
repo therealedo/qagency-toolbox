@@ -72,14 +72,14 @@ A change is a value edited, cleared or toggled after a document filled it (shown
 
 There are two situations:
 
-- **App enviada.** Whoever writes the note talked to the client and processed the app, so there is no collaborator. *Fecha del SOA* is the date of the note unless it is changed, and the SOA is ticked in Network like any other document. The contract (H-PBP) is part of the plan name; when the application shows it apart, the reader appends it. **Tiene prima mensual** shows the premium; off, the note says `Premium: $0.00`. The note says `App ID: …` and `Medicaid ID: 12345678`, and Network has the SOA and the App. The SMS keeps its current text until the agency's standard format is ready, and there is no email.
+- **App enviada.** Whoever writes the note talked to the client and processed the app, so there is no collaborator. *Fecha del SOA* is the date of the note unless it is changed, and the SOA is ticked in Network like any other document. The contract (H-PBP) is part of the plan name; when the application shows it apart, the reader appends it. **Tiene prima mensual** shows the premium; off, the note says `Premium: $0.00`. The note says `App ID: …` and `Medicaid ID: 12345678`, and Network has the SOA and the App. The SMS is the agency's official Medicare SMS (see *SMS, email and file names*), and there is no email.
 - **Sin cambios.** The client reviews their plan and keeps it, so it only asks for the client, the plan name and the SOA: `ER_11/14/2026: Se atiende al cliente en cita telefónica (09:00), se revisan los beneficios de su plan para 2027 y decide mantenerse en su plan actual - Humana Gold Plus H1036-077 (HMO)`. The report line is for the NO CHANGE channel in Cliq: `Diaz, Beatriz se quedara en su mismo plan Humana Gold Plus H1036-077 (HMO)`. The task is `MC MANTENIMIENTO`, or `FOLLOW UP LEAD_INACTIVE CLIENT MC` when **Es cliente** is off. No SMS.
 
 ### Suplementario
 
 There are two situations, and *Tipo de gestión* is a new application or a renewal:
 
-- **App enviada.** *Members* works like the Obamacare household: the titular's address, phone and email, and each person with a **Cobertura** toggle and their DOB. The note names whoever has coverage by first name: `Se procesa app de Hospital de GR para el cliente, Maria y Luis.` The plan keeps the product, company, plan name, premium, effective date and Policy # (no App ID or plan type). *Pago* is **Pago confirmado** or **Pendiente de pago**. Whoever writes the note processed the app, so there is no collaborator. **Email para el cliente** has one part with its own **Copiar**, in Español or English: the company, `ID #` (the Policy #), the coverage start and the monthly premium, signed by whoever talked to the client. The SMS and the note keep their current text until the agency's standard format is ready.
+- **App enviada.** *Members* works like the Obamacare household: the titular's address, phone and email, and each person with a **Cobertura** toggle and their DOB. The note names whoever has coverage by first name: `Se procesa app de Hospital de GR para el cliente, Maria y Luis.` The plan keeps the product, company, plan name, premium, effective date and Policy # (no App ID or plan type). *Pago* is **Pago confirmado** or **Pendiente de pago**. Whoever writes the note processed the app, so there is no collaborator. **Email para el cliente** has one part with its own **Copiar**, in Español or English: the company, `ID #` (the Policy #), the coverage start and the monthly premium, signed by whoever talked to the client. The SMS is the agency's official Supplemental SMS (see *SMS, email and file names*); the note keeps its current text until the agency's standard format is ready.
 - **Cotización.** Same *Members* and *Gestión*; the plan has no App ID or Policy #, and the date is **Fecha efectiva estimada**, which goes in the note after the quoted plan. Covered people besides the titular are named: `desea cotizar seguro dental para el cliente y Maria.` The SMS keeps its current text, and the quote email is not in the app yet.
 
 ### Companies
@@ -93,7 +93,7 @@ The note, the report and the file names use the short form: `FB` for Florida Blu
 
 ### People
 
-Each person in **Ajustes → Equipo** has the initials they sign notes and tasks with, and, if different, the initials they appear with as agent in the Cliq report (Ana signs notes as DI and is agent LI), plus an optional direct phone that goes under their signature in the Obamacare SMS. Phones are typed in Ajustes and stay in that browser; they are not in the code.
+Each person in **Ajustes → Equipo** has the initials they sign notes and tasks with, and, if different, the initials they appear with as agent in the Cliq report (Ana signs notes as DI and is agent LI), plus an optional direct phone that goes under their signature in the SMS of a sent app. Phones are typed in Ajustes and stay in that browser; they are not in the code.
 
 *Agente y colaborador* has three roles: **Habló con el cliente**, **Agente (NPN)** (a list of the agents with their NPN) and **Colaborador** (who processed the application). They default to whoever writes the note. Medicare and Suplementario have no **Colaborador**: whoever writes the note processed the app. The note says `NPN: LI` (the NPN is enough, so there is no Writing ID), and names who talked to the client and who processed the app only when it was someone else. When the person who talked to the client is not the one who processed the app, the report line starts with their initials (`FV: Q1234 - … (LI)`); a checkbox under the report switches that on or off.
 
@@ -123,6 +123,35 @@ Oficina: (239) 555-0102
 ```
 
 It is signed by whoever talked to the client, with their direct phone from Ajustes and the office phone. The first sentence follows *Tipo de gestión*: renewed, enrolled (new application) or updated (life change). *Estimado* becomes *Estimada* with *la cliente*.
+
+Medicare and Supplemental **App enviada** use the agency's official SMS, with the same switch, signature and office name:
+
+```
+Estimado Miguel:
+Somos ATH Insurance. Le confirmamos que su inscripción en Medicare para el 2027 se ha completado con éxito.
+Compañía: Humana
+Plan: Gold Plus - Diabetes and Heart (HMO C-SNP) H1036-311-000
+Fecha de efectividad: 01/01/2027
+Para cualquier duda, comuníquese de inmediato con nosotros. Saludos
+Ana Ruiz
+Directo: (305) 555-0101
+Oficina: (305) 555-0100
+```
+
+```
+Estimada Aleida:
+Somos ATH Insurance. Hemos completado la solicitud de su seguro de hospital con Golden Rule
+Plan: AdvantageGuard Hospital
+Inicio: 01/01/2027
+Premium: $78.03/mes
+Policy #: 900000123
+Detalles en su email. Si tiene dudas, llámeme de inmediato. Saludos
+Ana Ruiz
+Directo: (305) 555-0101
+Oficina: (305) 555-0100
+```
+
+The Medicare year is the plan year, or the effective date's year when it is empty. A line whose value is empty is left out.
 
 Below it, **Email para el cliente** has two parts, each with its own **Copiar**: part 1 with the policy (company, coverage start, plan and monthly premium) and part 2 with what the Marketplace is requesting (every requested document with its due date, left out when nothing is requested) and the closing signed by whoever talked to the client. Both follow the same Español / English switch.
 

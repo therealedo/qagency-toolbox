@@ -430,12 +430,13 @@ test("nota: sin acentos cuando se pide", () => {
 test("SMS: lleva la oficina, el nombre del cliente y el teléfono", () => {
   const sms = N.buildSms(make({ line: "oc", outcome: "cancelada", gestion: "nueva", anio: "2027", compania: "UHC", oficina: "ATH Insurance" }));
   assert.equal(sms, "Hola Beatriz, le saluda el equipo de ATH Insurance. Su seguro de Obamacare 2027 con UHC quedó cancelado según lo solicitado. Cualquier duda, estamos a la orden.");
-  const tel = N.buildSms(make({ line: "supp", outcome: "enviada", gestion: "nueva", producto: "Dental", oficina: "QAgency", telefono: "(305) 555-0100" }));
+  const tel = N.buildSms(make({ line: "supp", outcome: "cotizacion", gestion: "nueva", producto: "Dental", oficina: "QAgency", telefono: "(305) 555-0100" }));
   assert.match(tel, /^Hola Beatriz, le saluda el equipo de QAgency\. .* Cualquier duda, llámenos al \(305\) 555-0100\.$/);
   Object.keys(C.LINES).forEach((line) => C.LINES[line].outcomes.forEach((o) => {
     const s = N.buildSms(make({ line, outcome: o.id, oficina: "QAgency" }));
     if (o.noSms) { assert.equal(s, "", line + "/" + o.id); return; }
     if (line === "oc" && o.id === "enviada") { assert.match(s, /^Estimado Beatriz: Somos QAgency Insurance\. /); return; }
+    if (o.id === "enviada") { assert.match(s, /^Estimado Beatriz:\nSomos QAgency Insurance\. /, line + "/" + o.id); return; }
     assert.match(s, /^Hola Beatriz, le saluda el equipo de QAgency\. \S/, line + "/" + o.id);
     assert.doesNotMatch(s, /undefined|null|NaN/, line + "/" + o.id);
   }));
@@ -479,6 +480,88 @@ test("SMS Obamacare enviada: formato de la agencia en español e inglés", () =>
     /^Dear Beatriz:\nWe are QAgency Insurance\. We have updated your 2027 health insurance with UnitedHealthcare\.\n/);
   assert.match(N.buildSms(make({ line: "oc", outcome: "enviada", gestion: "cambio", compania: "UHC", anio: "2027" })),
     /^Estimado Beatriz: Somos QAgency Insurance\. Hemos actualizado su seguro de salud 2027 con UnitedHealthcare\.\n/);
+});
+
+test("SMS Medicare enviada: formato oficial de la agencia en español e inglés", () => {
+  const d = make({ line: "mc", outcome: "enviada", gestion: "nueva", anio: "2027", nombres: "MIGUEL ANGEL", genero: "o", oficina: "ATH Insurance",
+    compania: "HUMANA", plan: "Gold Plus - Diabetes and Heart (HMO C-SNP) H1036-311-000", efectiva: "1/1/2027", prima: "0",
+    firmaNombre: "ANA RUIZ", firmaTel: "(305) 555-0101", telefono: "(305) 555-0100" });
+  assert.equal(N.buildSms(d), [
+    "Estimado Miguel:",
+    "Somos ATH Insurance. Le confirmamos que su inscripción en Medicare para el 2027 se ha completado con éxito.",
+    "Compañía: Humana",
+    "Plan: Gold Plus - Diabetes and Heart (HMO C-SNP) H1036-311-000",
+    "Fecha de efectividad: 01/01/2027",
+    "Para cualquier duda, comuníquese de inmediato con nosotros. Saludos",
+    "Ana Ruiz",
+    "Directo: (305) 555-0101",
+    "Oficina: (305) 555-0100"
+  ].join("\n"));
+  /* la agencia sale de la oficina elegida en Ajustes */
+  assert.equal(N.buildSms(Object.assign({}, d, { idioma: "en", oficina: "QAgency" })), [
+    "Dear Miguel:",
+    "We are QAgency Insurance. We confirm that your 2027 Medicare enrollment has been completed successfully.",
+    "Company: Humana",
+    "Plan: Gold Plus - Diabetes and Heart (HMO C-SNP) H1036-311-000",
+    "Effective date: 01/01/2027",
+    "If you have any questions, contact us right away. Regards",
+    "Ana Ruiz",
+    "Direct: (305) 555-0101",
+    "Office: (305) 555-0100"
+  ].join("\n"));
+  /* sin año del plan, el de la fecha efectiva; sin ninguno de los dos, sin año */
+  assert.match(N.buildSms(Object.assign({}, d, { anio: "", efectiva: "2/1/2027" })), /su inscripción en Medicare para el 2027 se ha completado/);
+  assert.match(N.buildSms(Object.assign({}, d, { anio: "", efectiva: "", idioma: "en" })), /We confirm that your Medicare enrollment has been completed successfully\./);
+  /* una cliente, sin compañía, plan, fecha, firma ni teléfonos */
+  assert.equal(N.buildSms(make({ line: "mc", outcome: "enviada", gestion: "cambio", anio: "2027", genero: "a", oficina: "QAgency" })), [
+    "Estimada Beatriz:",
+    "Somos QAgency Insurance. Le confirmamos que su inscripción en Medicare para el 2027 se ha completado con éxito.",
+    "Para cualquier duda, comuníquese de inmediato con nosotros. Saludos"
+  ].join("\n"));
+});
+
+test("SMS Suplementario enviada: formato oficial de la agencia en español e inglés", () => {
+  const d = make({ line: "supp", outcome: "enviada", gestion: "nueva", nombres: "ALEIDA", genero: "a", oficina: "ATH Insurance",
+    producto: "Hospital", compania: "Golden Rule", plan: "AdvantageGuard Hospital", efectiva: "1/1/2027", prima: "78.03", poliza: "900000123",
+    firmaNombre: "ANA RUIZ", firmaTel: "(305) 555-0101", telefono: "(305) 555-0100" });
+  assert.equal(N.buildSms(d), [
+    "Estimada Aleida:",
+    "Somos ATH Insurance. Hemos completado la solicitud de su seguro de hospital con Golden Rule",
+    "Plan: AdvantageGuard Hospital",
+    "Inicio: 01/01/2027",
+    "Premium: $78.03/mes",
+    "Policy #: 900000123",
+    "Detalles en su email. Si tiene dudas, llámeme de inmediato. Saludos",
+    "Ana Ruiz",
+    "Directo: (305) 555-0101",
+    "Oficina: (305) 555-0100"
+  ].join("\n"));
+  assert.equal(N.buildSms(Object.assign({}, d, { idioma: "en", oficina: "QAgency" })), [
+    "Dear Aleida:",
+    "We are QAgency Insurance. We have completed the application for your hospital insurance with Golden Rule",
+    "Plan: AdvantageGuard Hospital",
+    "Start: 01/01/2027",
+    "Premium: $78.03/month",
+    "Policy #: 900000123",
+    "Details in your email. If you have any questions, call me right away. Regards",
+    "Ana Ruiz",
+    "Direct: (305) 555-0101",
+    "Office: (305) 555-0100"
+  ].join("\n"));
+  /* cada producto se nombra en los dos idiomas */
+  C.LINES.supp.productos.forEach((p) => {
+    const es = N.buildSms(make({ line: "supp", outcome: "enviada", producto: p.v, compania: "Allstate" }));
+    const en = N.buildSms(make({ line: "supp", outcome: "enviada", producto: p.v, compania: "Allstate", idioma: "en" }));
+    assert.match(es, new RegExp("la solicitud de su " + p.sms + " con Allstate\\n"), p.v);
+    assert.ok(p.smsEn, p.v + " sin nombre en inglés");
+    assert.match(en, new RegExp("the application for your " + p.smsEn + " with Allstate\\n"), p.v);
+  });
+  /* sin compañía, plan, fecha, prima, póliza, firma ni teléfonos */
+  assert.equal(N.buildSms(make({ line: "supp", outcome: "enviada", producto: "Dental", oficina: "QAgency" })), [
+    "Estimado Beatriz:",
+    "Somos QAgency Insurance. Hemos completado la solicitud de su seguro dental",
+    "Detalles en su email. Si tiene dudas, llámeme de inmediato. Saludos"
+  ].join("\n"));
 });
 
 test("email Obamacare: parte 1 con la póliza y parte 2 con lo que pide el Mercado", () => {
