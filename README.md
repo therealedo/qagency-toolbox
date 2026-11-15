@@ -8,7 +8,7 @@ One app that turns a client contact into everything the team has to write afterw
 - the **SMS for the client**, signed with the office (QAgency or ATH Insurance)
 - the **file names** for saving each document to the Network, per NOMBRE DE ARCHIVOS
 
-Pick the line of business and how the contact ended, drop the PDFs saved for the case, check the fields, copy.
+Pick the line of business and how the contact ended, drop the PDFs or screenshots saved for the case, check the fields, copy.
 
 ![The note screen with three Marketplace documents loaded](docs/screenshot.png)
 
@@ -26,6 +26,8 @@ There are three ways to run it. All of them are the same app.
 | **Single file** | Open `dist/QAgency-Toolbox.html` in Brave, Chrome or Edge | Trying it, or a computer where nothing can be installed. |
 | **Hosted** | Put the repository root on any static web host (no build step needed) | One address for everyone, an **Instalar** button in the browser, works offline after the first visit, and updates reach the whole team on their own. |
 
+The OCR engine and its Spanish and English models are bundled, so the single file is about 10 MB.
+
 The Windows installer copies the app to `%LOCALAPPDATA%\QAgencyToolbox` and creates shortcuts that open it with Brave, Chrome or Edge (whichever it finds first) in app mode. To update, run `Instalar.bat` from the new package; settings are kept. `Desinstalar.bat` removes it. The installer has not been run on a real Windows machine yet, so try it on one computer before sending it to the team.
 
 If you host it, keep the host private or clear the roster first: `js/config.js` contains the team's names and NPNs.
@@ -34,7 +36,7 @@ If you host it, keep the host private or clear the roster first: `js/config.js` 
 
 1. Choose who you are at the top right (once; the browser remembers it).
 2. **Nota** tab: choose Obamacare / Medicare / Suplementario and the situation.
-3. Drop the PDFs anywhere on the window. Fields filled from a document get a gold edge, and the list on the left shows how many are waiting to be reviewed in each section.
+3. Drop the PDFs or images anywhere on the window, or paste a screenshot with Ctrl + V. Fields filled from a document get a gold edge, and the list on the left shows how many are waiting to be reviewed in each section.
 4. Complete what the documents don't carry.
 5. **Copiar nota** (or Ctrl + Enter), then copy the task and the report line.
 
@@ -139,13 +141,17 @@ In **Ajustes → Carpeta del Network**, choose your folder in the NETW once. The
 | Payment receipt | amount, date, confirmation, last 4 digits, autopay |
 | Supplemental application (dental, vision, hospital, accident, cancer, short term, life, international, discount) | product, carrier, plan, premium, effective date, policy number, beneficiary |
 
-Scanned PDFs and screenshots have no text to read; they are still ticked in the *Documentos en Network* list by file name, and the fields are typed by hand. **Pegar texto** is the fallback when a PDF will not open.
+### Scans and screenshots
+
+Scanned PDFs (the first 6 pages), images (PNG, JPG, WebP, BMP, GIF) and screenshots pasted with Ctrl + V on the **Nota** tab are read with OCR, in Spanish and English, inside the browser and without internet. The text goes through the same reader as a PDF with text, so the same fields are filled. Each one takes a few seconds (the first one of the session a little longer), and the file shows *leído con OCR, revísalo*: OCR can misread a letter or a digit, so check those fields with care.
+
+OCR needs Chrome or Edge up to date. In a browser that cannot run it, scans and images are listed without data and the fields are typed by hand. **Pegar texto** is the fallback when a PDF will not open.
 
 The reader was built against the sample documents in `samples/` (all data fictitious). Real documents vary by carrier and portal, so expect to tune it: the **Ver texto** link next to each file shows exactly what was read, which is what is needed to adjust a rule in `js/extract.js`.
 
 ## Privacy
 
-- Documents are read inside the browser. The page makes no network requests with client data, and its Content-Security-Policy blocks them (`connect-src 'none'`). Fonts and the PDF reader are bundled, so nothing loads from a CDN.
+- Documents are read inside the browser. The page makes no network requests with client data, and its Content-Security-Policy blocks them (`connect-src 'none'`). Fonts, the PDF reader and the OCR engine with its language models are bundled, so nothing loads from a CDN. The policy allows WebAssembly (`'wasm-unsafe-eval'`) only so the bundled OCR engine can run; it still cannot connect anywhere.
 - Client data lives only in memory and is gone when the window closes. Only settings are stored in the browser: the team list, your name, the office and its phone, the theme, and the permission for the Network folder (not its files). Saving to the Network writes only to the folder you chose.
 - Social Security numbers are never extracted, and a warning appears if the note contains something shaped like one.
 - When hosted, a service worker keeps a copy of the app's own files so it opens offline. It never handles documents or client data.
@@ -158,17 +164,20 @@ css/app.css             styles, light and dark
 js/config.js            catalogs: team, offices, carriers, tasks, situations and their wording
 js/notes.js             builds the note, task and report (pure functions)
 js/extract.js           recognises documents and pulls the fields out
+js/ocr.js               reads scans and screenshots offline (OCR in a worker)
 js/app.js               the screen: note form, Tasks tab, settings, install
 js/util.js              dates, money, names
 sw.js                   offline copy when hosted
 manifest.webmanifest    install metadata when hosted
 vendor/pdfjs/           PDF.js 3.11.174 (Apache-2.0)
+vendor/tesseract/       tesseract.js-core 7.0.0 and the spa/eng models (Apache-2.0)
 vendor/fonts/           Inter and JetBrains Mono (OFL-1.1)
 samples/                fictitious PDFs for demos and testing
 tests/                  unit tests (node --test)
 tools/build.js          makes dist/QAgency-Toolbox.html and the Windows zip
 tools/windows/          installer scripts that go into the zip
 tools/make-samples.js   regenerates samples/ (needs Playwright)
+tools/vendor-ocr.js     regenerates vendor/tesseract/ from npm packages
 ```
 
 Most day-to-day changes are edits to `js/config.js`: adding a carrier, a task type, a situation, or changing the suggested wording.
