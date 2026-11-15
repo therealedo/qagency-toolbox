@@ -971,13 +971,13 @@ kbd {
           </div>
           <div class="email-part">
             <div class="out-sub">
-              <h3>1 · Documentos y plan</h3>
+              <h3 id="emailHead1">1 · Documentos y plan</h3>
               <button type="button" class="link-btn" id="email1Regen" hidden>Regenerar</button>
               <button type="button" class="btn small" id="copyEmail1" data-label="Copiar">Copiar</button>
             </div>
             <textarea class="email-box" id="email1" rows="6" spellcheck="true" aria-label="Email para el cliente, parte 1: documentos y plan"></textarea>
           </div>
-          <div class="email-part">
+          <div class="email-part" id="emailPart2">
             <div class="out-sub">
               <h3>2 · Lo que pide el Mercado y firma</h3>
               <button type="button" class="link-btn" id="email2Regen" hidden>Regenerar</button>
@@ -1161,7 +1161,7 @@ kbd {
 (function (root) {
   "use strict";
 
-  var VERSION = "1.5.0";
+  var VERSION = "1.6.0";
 
   /* Equipo por defecto. Cada persona puede editarlo en Ajustes; los cambios
      se guardan en su navegador.
@@ -1221,24 +1221,24 @@ kbd {
       { re: /anthem/i, name: "ANTHEM", short: "Anthem" }
     ],
     supp: [
-      { re: /florida\s*combined\s*life|\bFCL\b|bluedental|florida\s*blue/i, name: "FLORIDA BLUE (FCL)", short: "FB" },
+      { re: /florida\s*combined\s*life|\bFCL\b|bluedental|florida\s*blue/i, name: "FLORIDA BLUE (FCL)", short: "FB", display: "Florida Blue" },
       { re: /golden\s*rule|\bGR\b/i, name: "GOLDEN RULE", short: "GR" },
-      { re: /unitedhealthcare|united\s*healthcare|\bUHC\b/i, name: "UNITED HEALTHCARE", short: "UHC" },
+      { re: /unitedhealthcare|united\s*healthcare|\bUHC\b/i, name: "UNITED HEALTHCARE", short: "UHC", display: "UnitedHealthcare" },
       { re: /allstate/i, name: "ALLSTATE", short: "Allstate" },
-      { re: /usable/i, name: "USABLE LIFE", short: "USAble" },
+      { re: /usable/i, name: "USABLE LIFE", short: "USAble", display: "USAble Life" },
       { re: /occidental/i, name: "OCCIDENTAL", short: "Occidental" },
-      { re: /geo\s*blue/i, name: "GEOBLUE", short: "Geoblue" },
+      { re: /geo\s*blue/i, name: "GEOBLUE", short: "Geoblue", display: "GeoBlue" },
       { re: /ameritas|primestar/i, name: "AMERITAS", short: "Ameritas" },
       { re: /humana/i, name: "HUMANA", short: "Humana" },
       { re: /delta\s*dental/i, name: "DELTA DENTAL", short: "Delta Dental" },
       { re: /cigna/i, name: "CIGNA", short: "Cigna" },
       { re: /aetna/i, name: "AETNA", short: "Aetna" },
-      { re: /metlife/i, name: "METLIFE", short: "MetLife" },
+      { re: /metlife/i, name: "METLIFE", short: "MetLife", display: "MetLife" },
       { re: /guardian/i, name: "GUARDIAN", short: "Guardian" },
-      { re: /mutual\s*of\s*omaha/i, name: "MUTUAL OF OMAHA", short: "Mutual of Omaha" },
+      { re: /mutual\s*of\s*omaha/i, name: "MUTUAL OF OMAHA", short: "Mutual of Omaha", display: "Mutual of Omaha" },
       { re: /manhattan\s*life/i, name: "MANHATTAN LIFE", short: "Manhattan Life" },
       { re: /solstice/i, name: "SOLSTICE", short: "Solstice" },
-      { re: /dentaquest/i, name: "DENTAQUEST", short: "DentaQuest" },
+      { re: /dentaquest/i, name: "DENTAQUEST", short: "DentaQuest", display: "DentaQuest" },
       { re: /spirit\s*dental/i, name: "SPIRIT DENTAL", short: "Spirit" }
     ]
   };
@@ -1406,8 +1406,7 @@ kbd {
 
   /* Secciones del formulario. Cada situación decide cuáles se muestran. */
   var S_FULL_MC = ["cliente", "medicare", "proceso", "plan", "agente", "network"];
-  var S_FULL_SU = ["cliente", "proceso", "plan", "pago", "agente", "network", "seguimiento"];
-  var S_LIGHT = ["cliente", "proceso", "seguimiento"];
+  var S_FULL_SU = ["cliente", "proceso", "plan", "pago", "agente", "network"];
 
   /* Situaciones (resultado de la gestión) por línea de negocio. El texto de
      la nota y del SMS para cada una está en notes.js.
@@ -1484,26 +1483,16 @@ kbd {
       code: "SUPP",
       gestiones: [
         { v: "nueva", label: "Aplicación nueva", proc: "App" },
-        { v: "renovacion", label: "Renovación", proc: "Renew" },
-        { v: "cambio", label: "Cambio de plan", proc: "App", suffix: "_Change" }
+        { v: "renovacion", label: "Renovación", proc: "Renew" }
       ],
       outcomes: [
         { id: "enviada", label: "App enviada", desc: "Aplicación enviada a la compañía",
-          submission: true, pendiente: "", proximo: "Seguimiento de servicio al cliente",
-          task: "supp_cs", report: true, sections: S_FULL_SU },
+          submission: true, task: "supp_cs", report: true, sections: S_FULL_SU },
         { id: "cotizacion", label: "Cotización", desc: "Se cotizó, el cliente queda en decidir",
-          pendiente: "Cliente debe confirmar el plan", proximo: "Contactar al cliente para definir el plan",
-          task: "supp_quote", sections: ["cliente", "proceso", "plan", "seguimiento"] },
-        { id: "pago", label: "Pago", desc: "Se gestiona o verifica el pago",
-          pendiente: "", proximo: "Seguimiento de servicio al cliente",
-          task: "supp_cs", sections: ["cliente", "plan", "pago", "network", "seguimiento"] },
-        { id: "shortterm", label: "Renovar Short Term", desc: "Seguimiento para renovar un Short Term",
-          pendiente: "Renovar el plan antes del vencimiento", proximo: "Contactar al cliente para renovar",
-          task: "supp_st", sections: ["cliente", "proceso", "plan", "seguimiento"] },
-        { id: "cancelada", label: "Cancelación", desc: "Se cancela la póliza",
-          pendiente: "", proximo: "Verificar que la cancelación se refleje",
-          task: "supp_cs", report: true, cancelled: true, sections: ["cliente", "proceso", "plan", "agente", "seguimiento"] }
+          task: "supp_quote", sections: ["cliente", "proceso", "plan"] }
       ],
+      /* estados del pago que se ofrecen en Suplementario */
+      pagos: ["PAYMENT", "NO PAYMENT"],
       /* v: lo que se elige; es: cómo se nombra en la nota; sms: cómo se le
          nombra al cliente; file: cómo va en el nombre del archivo y en el
          reporte de Cliq */
@@ -1874,7 +1863,6 @@ kbd {
   function has(O, section) { return O.sections.indexOf(section) >= 0; }
   function val(v) { return U.collapse(v); }
   function upper(v) { return val(v).toUpperCase(); }
-  function members(d) { return U.parseList(d.miembros).map(function (x) { return x.toUpperCase(); }); }
   function first(name) { return U.titleCase(val(name).split(" ")[0] || ""); }
 
   /* Personas del hogar (Obamacare). La primera es el titular: su nombre sale
@@ -1894,6 +1882,12 @@ kbd {
   function enTaxes(d) { return personas(d).filter(function (p) { return p.taxes; }); }
   function conCobertura(d) { return personas(d).filter(function (p) { return p.cobertura; }); }
   function names(list) { return list.length ? " (" + list.map(function (p) { return p.first; }).join(", ") + ")" : ""; }
+  /* Suplementario: quienes tienen cobertura, el titular como "el cliente" y
+     los demás por su nombre de pila: "el cliente, Maria y Luis" */
+  function cubiertos(d) {
+    var list = conCobertura(d).map(function (p) { return p.titular ? cliente(d) : p.first; });
+    return list.length > 1 ? list.slice(0, -1).join(", ") + " y " + list[list.length - 1] : (list[0] || "");
+  }
   /* Ingreso del hogar: la suma de lo que gana cada persona en los taxes. */
   function ingresoHogar(d) {
     return enTaxes(d).reduce(function (sum, p) { return p.ingreso ? (sum || 0) + p.ingreso : sum; }, null);
@@ -1956,7 +1950,7 @@ kbd {
       return (m[1] === "-" ? "-" : "+") + (+m[2]);
     }
     if (d.line === "mc") { return ""; }
-    var n = d.line === "oc" ? conCobertura(d).length : members(d).length;
+    var n = conCobertura(d).length;
     return n > 1 ? "+" + (n - 1) : "";
   }
 
@@ -2112,16 +2106,15 @@ kbd {
       }
     }
     if (d.line === "supp") {
-      var P = productOf(d), others = members(d).slice(1);
-      var who = cliente(d) + (others.length ? (others.length === 1 ? " y " + others[0] : ", " + others.slice(0, -1).join(", ") + " y " + others[others.length - 1]) : "");
+      var P = productOf(d), who = cubiertos(d);
       var what = (P.es ? " de " + P.es : "") + (carrier ? " de " + carrier : "") + (val(d.plan) ? ", plan " + val(d.plan) + "," : "");
       switch (O.id) {
         case "enviada":
-          return ({ renovacion: "Se renueva app", cambio: "Se procesa cambio de plan" }[G.v] || "Se procesa app") + what + " para " + who + ".";
-        case "cancelada": return "Se cancela" + (P.es ? " " + P.es : " el plan") + (carrier ? " de " + carrier : "") + " a solicitud " + delCliente(d) + ".";
-        case "cotizacion": return talk(d) + ", desea cotizar " + P.sms + ".";
-        case "pago": return talk(d) + " sobre el pago de su " + P.sms + (carrier ? " con " + carrier : "") + ".";
-        case "shortterm": return talk(d) + " sobre la renovación de su Short Term" + (carrier ? " de " + carrier : "") + ".";
+          return (G.v === "renovacion" ? "Se renueva app" : "Se procesa app") + what + (who ? " para " + who : "") + ".";
+        /* en la cotización se nombra a los miembros solo si hay más que el titular */
+        case "cotizacion":
+          var otros = conCobertura(d).some(function (p) { return !p.titular; });
+          return talk(d) + ", desea cotizar " + P.sms + (otros ? " para " + who : "") + ".";
       }
     }
     return talk(d) + ".";
@@ -2153,8 +2146,8 @@ kbd {
     if (d.line === "mc") { add("Writing ID", d.escritura); }
     /* solo cuando no fue quien escribe la nota */
     add("Habló con el cliente", upper(d.talkerNombre));
-    /* en Medicare la app la hace quien escribe la nota: no hay colaborador */
-    if (d.line !== "mc") { add("Colaborador", upper(d.colaboradorNombre)); }
+    /* en Medicare y Suplementario la app la hace quien escribe la nota: no hay colaborador */
+    if (d.line === "oc") { add("Colaborador", upper(d.colaboradorNombre)); }
   }
 
   /* ------------------------------------------------------------ cambios --
@@ -2326,16 +2319,14 @@ kbd {
         raw("Se explica y da detalles del plan cotizado:");
         raw("Compañía_Plan: " + [carrier, val(d.plan)].filter(Boolean).join("_") + (prima ? " - " + prima : ""));
       }
+      add("Fecha efectiva estimada", U.parseDate(d.efectiva) || d.efectiva);
       return;
     }
     if (has(O, "plan")) {
-      if (O.id !== "enviada") { add("Plan", d.plan); }
       add("Effective Date", U.parseDate(d.efectiva) || d.efectiva);
       add("Monthly Premium", U.parseMoney(d.prima));
-      add("App ID", d.appId);
       add("Policy #", d.poliza);
       add("Periodo", d.plazo);
-      add("Tipo de plan", d.tipoPlan);
       add("Beneficiario", d.beneficiario);
     }
     if (has(O, "pago")) { add("Pago", paymentLine(d)); add("AutoPay", d.autopay); }
@@ -2486,27 +2477,13 @@ kbd {
       case "cotizacion":
         parts.push("Gracias por su tiempo. Le cotizamos " + (carrier || plan ? "el plan " + [carrier, plan].filter(Boolean).join(" ") : what) + (pay ? " por " + pay + " al mes" : "") + ". Avísenos si desea continuar con la aplicación.");
         break;
-      case "pago":
-        var plano = what + (carrier ? " con " + carrier : "");
-        parts.push({
-          "PAYMENT": "Confirmamos el pago de " + plano + (U.parseMoney(d.pagoMonto) ? " por " + U.parseMoney(d.pagoMonto) : "") + ". ¡Gracias!",
-          "NO PAYMENT": "Le recordamos realizar el pago de " + plano + (pay ? " por " + pay : "") + (U.parseDate(d.pagoFecha) ? " el " + U.parseDate(d.pagoFecha) : "") + ".",
-          "PAYMENT NOT VERIFIED": "Queremos confirmar el pago de " + plano + ". Por favor llámenos cuando pueda.",
-          "NO PREMIUM": plano.charAt(0).toUpperCase() + plano.slice(1) + " no tiene pago mensual; no necesita pagar nada."
-        }[d.pagoEstado] || "Le escribimos sobre el pago de " + plano + ".");
-        break;
       case "cancelada":
         parts.push((what.charAt(0).toUpperCase() + what.slice(1)) + (carrier ? " con " + carrier : "") + " quedó cancelado según lo solicitado.");
-        break;
-      case "shortterm":
-        parts.push("Su plan Short Term" + (plan ? " " + plan : "") + " está por vencer. Llámenos para renovarlo a tiempo.");
         break;
     }
 
     var text = parts.join(" ");
-    /* el teléfono va donde ya se le pide que llame; si no, al final */
-    if (tel && /llámenos/.test(text)) { text = text.replace("llámenos", "llámenos al " + tel); }
-    else if (tel) { text += " Cualquier duda, llámenos al " + tel + "."; }
+    if (tel) { text += " Cualquier duda, llámenos al " + tel + "."; }
     else if (["enviada", "cancelada"].indexOf(O.id) >= 0) { text += " Cualquier duda, estamos a la orden."; }
 
     return text;
@@ -2518,7 +2495,9 @@ kbd {
      (todo lo pedido, enviado o no) y la firma de quien habló con el cliente. */
   function buildEmail(d, part) {
     var O = outcomeOf(d);
-    if (d.line !== "oc" || O.id !== "enviada") { return ""; }
+    if (O.id !== "enviada") { return ""; }
+    if (d.line === "supp") { return part === 1 ? emailSupp(d) : ""; }
+    if (d.line !== "oc") { return ""; }
     var en = d.idioma === "en", lines = [];
     if (part === 1) {
       var y = val(d.anio), carrier = carrierName("oc", d.compania), plan = val(d.plan);
@@ -2556,6 +2535,31 @@ kbd {
     lines.push(en ? "Please feel free to contact us, if you have any questions or concerns." : "Por favor comuníquese con nosotros por cualquier duda.");
     lines.push("");
     lines.push(en ? "Best Regards," : "Saludos");
+    if (val(d.firmaNombre)) { lines.push(U.titleCase(d.firmaNombre)); }
+    return lines.join("\n");
+  }
+
+  /* Email de una app de Suplementario enviada: una sola parte, con la
+     compañía, el Policy #, la fecha efectiva y la prima. */
+  function emailSupp(d) {
+    var en = d.idioma === "en", lines = [];
+    var carrier = carrierName("supp", d.compania), id = val(d.poliza);
+    var ef = U.parseDate(d.efectiva), pay = U.parseMoney(d.prima);
+    if (en) {
+      lines.push("Dear Client", "", "We attached the application for:");
+      if (carrier) { lines.push("Company " + carrier); }
+      if (id) { lines.push("ID # " + id); }
+      if (ef) { lines.push("Effective date: " + ef); }
+      if (pay) { lines.push("Monthly Premium: " + pay); }
+      lines.push("Please feel free to contact us, if you have any questions or concerns.", "", "Best regards,");
+    } else {
+      lines.push((d.genero === "a" ? "Estimada" : "Estimado") + " Cliente", "", "Se adjunta Aplicación al Plan:");
+      if (carrier) { lines.push("Compañía " + carrier); }
+      if (id) { lines.push("ID # " + id); }
+      if (ef) { lines.push("Cobertura a partir del " + ef); }
+      if (pay) { lines.push("Prima Mensual: " + pay); }
+      lines.push("Le llegará por correo postal la póliza, beneficios.", "Cualquier duda u observación se puede comunicar con nosotros.", "", "Saludos,");
+    }
     if (val(d.firmaNombre)) { lines.push(U.titleCase(d.firmaNombre)); }
     return lines.join("\n");
   }
@@ -3110,16 +3114,16 @@ kbd {
     f.plan = after(doc, [/\bPlan\s*name\b/i, /Nombre del plan/i, /\b(Selected\s*plan|Plan\s*selected)\b/i, /\bProduct\s*name\b/i], vText(70), 1);
     f.prima = after(doc, [/\b(Total\s*)?monthly\s*premium\b/i, /Prima\s*mensual/i, /\bPremium\b/i, /\bPrima\b/i], vMoney, 1);
     f.efectiva = after(doc, [/\b(Requested\s*)?effective\s*date\b/i, /\bCoverage\s*start\s*date\b/i, /Fecha efectiva/i], vDate, 1);
-    f.appId = after(doc, [/\bApplication\s*(ID|number|#|no\.?)/i, /\bApp\s*ID\b/i,
+    /* Suplementario solo guarda el Policy #; el número de la aplicación se
+       lee para no confundirlo con la póliza */
+    var app = after(doc, [/\bApplication\s*(ID|number|#|no\.?)/i, /\bApp\s*ID\b/i,
       /N[uú]mero de (solicitud|aplicaci[oó]n)/i, /\bConfirmation\s*(number|#)/i], vCode(5, 24), 1);
     f.poliza = after(doc, [/\bPolicy\s*(ID|number|#|no\.?)/i, /\bCertificate\s*(number|#)/i, /N[uú]mero de p[oó]liza/i], vCode(5, 24), 1);
-    if (f.poliza && f.poliza === f.appId) { delete f.poliza; }
+    if (f.poliza && f.poliza === app) { delete f.poliza; }
     if (/beneficiar/i.test(doc.flat)) {
       var ben = after(doc, [/\bPrimary\s*beneficiary(\s*name)?\b/i, /\bBeneficiary(\s*name)?\b/i, /Beneficiario(\s*principal)?/i], vText(60), 1);
       if (ben && !/%|percent|porcentaje/i.test(ben)) { f.beneficiario = ben; }
     }
-    if (/\bDHMO\b/.test(doc.flat)) { f.tipoPlan = "DHMO"; }
-    else if (/\bDPPO\b|\bPPO\b/.test(doc.flat)) { f.tipoPlan = "DPPO"; }
     agentInfo(doc, f);
     return f;
   }
@@ -3391,6 +3395,7 @@ kbd {
   function L() { return C.LINES[S.line]; }
   function O() { return N.outcomeOf({ line: S.line, outcome: S.outcome }); }
   function isOC(id) { return S.line === "oc" && (!id || O().id === id); }
+  function isSupp(id) { return S.line === "supp" && (!id || O().id === id); }
   /* Medicare sin cambios: solo el nombre del plan, sin datos de Medicare */
   function mcSin() { return S.line === "mc" && O().id === "sincambio"; }
 
@@ -3398,14 +3403,14 @@ kbd {
 
   var GROUPS = [
     { id: "contacto", title: "Contacto" },
-    { id: "cliente", title: function () { return S.line === "oc" ? "Hogar" : "Cliente"; } },
+    { id: "cliente", title: function () { return { oc: "Hogar", supp: "Members" }[S.line] || "Cliente"; } },
     { id: "cancelacion", title: "Cancelación" },
     { id: "gestion", title: "Gestión" },
     { id: "plan", title: function () { return isOC("pendiente") ? "Planes cotizados" : "Plan"; } },
     { id: "pago", title: "Pago" },
     { id: "docs", title: "Documentos que pide el Mercado", short: "Docs pedidos" },
     { id: "seguimiento", title: "Pendiente y próximo paso", short: "Seguimiento" },
-    { id: "agente", title: function () { return S.line === "mc" ? "Agente" : "Agente y colaborador"; }, short: "Agente" },
+    { id: "agente", title: function () { return S.line === "oc" ? "Agente y colaborador" : "Agente"; }, short: "Agente" },
     { id: "network", title: "Network: documentos y nombres de archivo", short: "Network" }
   ];
 
@@ -3455,7 +3460,7 @@ kbd {
     { k: "modalidad", g: "contacto", type: "select", label: "Modalidad de la cita", options: C.MODALIDADES,
       when: function (f) { return f.canal === "Appointment"; } },
 
-    { k: "nombres", g: "cliente", sec: "cliente", type: "text", label: function () { return S.line === "oc" ? "Nombre(s) del titular" : "Nombre(s)"; },
+    { k: "nombres", g: "cliente", sec: "cliente", type: "text", label: function () { return S.line !== "mc" ? "Nombre(s) del titular" : "Nombre(s)"; },
       w: "w2", upper: true, hint: "Como aparece en Zoho" },
     { k: "apellidos", g: "cliente", sec: "cliente", type: "text", label: "Apellido(s)", w: "w2", upper: true },
     { k: "genero", g: "cliente", sec: "cliente", type: "seg", label: "En la nota", w: "w2",
@@ -3466,15 +3471,13 @@ kbd {
       when: function (f) { return f.codigoTipo === "Q"; } },
     { k: "esCliente", g: "cliente", sec: "cliente", type: "check", w: "w2", lines: ["mc"],
       label: "Es cliente (si no, el task es FOLLOW UP LEAD_INACTIVE CLIENT MC)", when: mcSin },
-    { k: "direccion", g: "cliente", sec: "cliente", type: "text", label: "Dirección", w: "full", lines: ["oc"],
+    { k: "direccion", g: "cliente", sec: "cliente", type: "text", label: "Dirección", w: "full", lines: ["oc", "supp"],
       ph: "Calle, ciudad, estado y código postal", when: function () { return !isOC("cancelada"); } },
-    { k: "clienteTel", g: "cliente", sec: "cliente", type: "text", label: "Teléfono del titular", w: "w2", lines: ["oc"], mode: "tel",
+    { k: "clienteTel", g: "cliente", sec: "cliente", type: "text", label: "Teléfono del titular", w: "w2", lines: ["oc", "supp"], mode: "tel",
       ph: "(305) 555-0100", when: function () { return !isOC("cancelada"); } },
-    { k: "clienteEmail", g: "cliente", sec: "cliente", type: "text", label: "Email del titular", w: "w2", lines: ["oc"], mode: "email",
+    { k: "clienteEmail", g: "cliente", sec: "cliente", type: "text", label: "Email del titular", w: "w2", lines: ["oc", "supp"], mode: "email",
       when: function () { return !isOC("cancelada"); } },
-    { k: "personas", g: "cliente", sec: "cliente", type: "personas", w: "full", lines: ["oc"] },
-    { k: "miembros", g: "cliente", sec: "cliente", type: "area", label: "Miembros en cobertura", w: "w3", rows: 3, upper: true,
-      lines: ["supp"], hint: "Uno por línea, empezando por el titular" },
+    { k: "personas", g: "cliente", sec: "cliente", type: "personas", w: "full", lines: ["oc", "supp"] },
     { k: "adicionales", g: "cliente", sec: "cliente", type: "text", label: "Miembros ±", lines: ["supp"],
       hint: "Para el reporte: +2, o -1 si se quitó" },
     { k: "mbi", g: "cliente", sec: "medicare", type: "text", label: "Número de Medicare (MBI)", w: "w2", upper: true, lines: ["mc"] },
@@ -3503,8 +3506,7 @@ kbd {
       when: function (f) { return f.periodo === "SEP"; } },
     { k: "plataforma", g: "gestion", sec: "proceso", type: "select", label: "Plataforma", lines: ["oc"],
       options: ["MKPL", "HealthSherpa", "Portal de la compañía"] },
-    { k: "appId", g: "gestion", sec: "proceso", type: "text", lines: ["oc", "supp"],
-      label: function () { return S.line === "oc" ? "ID de aplicación (ID#)" : "App ID"; },
+    { k: "appId", g: "gestion", sec: "proceso", type: "text", lines: ["oc"], label: "ID de aplicación (ID#)",
       when: function () { return !isOC("pendiente"); } },
     { k: "cuentaMkpl", g: "gestion", sec: "proceso", type: "seg", label: "Cuenta MKPL", w: "w2", lines: ["oc"], clearable: true,
       options: [{ v: "si", l: "Creada" }, { v: "no", l: "No creada" }],
@@ -3526,17 +3528,17 @@ kbd {
     { k: "plan", g: "plan", sec: "plan", type: "text", label: "Nombre del plan", w: "w2",
       hint: function () { return S.line === "mc" ? "Con el contrato (H-PBP): Humana Gold Plus H1036-077 (HMO)" : ""; } },
     { k: "estado", g: "plan", sec: "plan", type: "text", label: "Status", lines: ["oc"], list: ["Active", "Pending", "Unpaid binder", "Terminated"] },
-    { k: "tipoPlan", g: "plan", sec: "plan", type: "text", label: "Tipo de plan", lines: ["supp"], list: ["DHMO", "DPPO", "Indemnidad", "Copago"] },
     { k: "tienePrima", g: "plan", sec: "plan", type: "check", lines: ["mc"], label: "Tiene prima mensual (si no, Premium $0.00)",
       when: function () { return !mcSin(); } },
     { k: "prima", g: "plan", sec: "plan", type: "money", label: "Prima mensual",
       hint: function () { return S.line === "oc" ? "Lo que paga el cliente, ya con el subsidio" : ""; },
       when: function (f) { return S.line !== "mc" || (!!f.tienePrima && !mcSin()); } },
     { k: "efectiva", g: "plan", sec: ["plan", "planes"], type: "date",
-      label: function () { return S.line === "oc" ? "Cobertura desde" : "Fecha efectiva"; }, when: function () { return !mcSin(); } },
+      label: function () { return S.line === "oc" ? "Cobertura desde" : (isSupp("cotizacion") ? "Fecha efectiva estimada" : "Fecha efectiva"); },
+      when: function () { return !mcSin(); } },
     { k: "revisaPlanes", g: "plan", sec: "planes", type: "check", w: "w3", lines: ["oc"],
       label: "Revisará los planes: se le envía o entrega la cotización" },
-    { k: "poliza", g: "plan", sec: "plan", type: "text", label: "Policy #", lines: ["supp"] },
+    { k: "poliza", g: "plan", sec: "plan", type: "text", label: "Policy #", lines: ["supp"], when: function () { return !isSupp("cotizacion"); } },
     { k: "plazo", g: "plan", sec: "plan", type: "text", label: "Periodo", ph: "3 years", lines: ["supp"],
       when: function (f) { return f.producto === "Short Term"; } },
     { k: "beneficiario", g: "plan", sec: "plan", type: "text", label: "Beneficiario", w: "w2", lines: ["supp"],
@@ -3549,7 +3551,12 @@ kbd {
       when: function () { return O().task === "mc_mant" && !O().cancelled && !mcSin(); } },
 
     { k: "pagoEstado", g: "pago", sec: "pago", type: "seg", label: "Estado del pago", w: "full",
-      options: C.PAYMENT.map(function (p) { return { v: p.v, l: p.label, t: p.hint }; }), clearable: true },
+      options: function () {
+        /* Suplementario solo ofrece Pago confirmado y Pendiente de pago */
+        var allowed = S.line === "supp" ? C.LINES.supp.pagos : null;
+        return C.PAYMENT.filter(function (p) { return !allowed || allowed.indexOf(p.v) >= 0; })
+          .map(function (p) { return { v: p.v, l: p.label, t: p.hint }; });
+      }, clearable: true },
     { k: "pagoMonto", g: "pago", sec: "pago", type: "money", label: "Monto",
       when: function (f) { return f.pagoEstado === "PAYMENT" || f.pagoEstado === "NO PAYMENT"; } },
     { k: "pagoFecha", g: "pago", sec: "pago", type: "date",
@@ -3578,7 +3585,7 @@ kbd {
       options: function () { return teamOptions("—"); } },
     { k: "npnAgente", g: "agente", sec: "agente", type: "select", label: "Agente (NPN)", w: "w2",
       options: npnOptions, hint: "El NPN con el que se hace la app" },
-    { k: "colaborador", g: "agente", sec: "agente", type: "select", label: "Colaborador", w: "w2", lines: ["oc", "supp"],
+    { k: "colaborador", g: "agente", sec: "agente", type: "select", label: "Colaborador", w: "w2", lines: ["oc"],
       hint: "Quién procesó la aplicación", options: function () { return teamOptions("—"); } },
     { k: "escritura", g: "agente", sec: "agente", type: "text", label: "Writing ID", w: "w2", lines: ["mc"] }
   ];
@@ -3799,7 +3806,7 @@ kbd {
     var box = $("list_personas");
     if (!box) { return; }
     box.textContent = "";
-    var cancel = isOC("cancelada");
+    var cancel = isOC("cancelada"), supp = S.line === "supp";
     var listEl = el("div", "people");
     S.f.personas.forEach(function (p, i) {
       var row = listItem("person" + (p.open ? " open" : "") + (p.auto ? " is-auto" : ""), i);
@@ -3813,16 +3820,16 @@ kbd {
       if (rel) { t.appendChild(el("span", "person-rel", rel)); }
       head.appendChild(t);
       var tg = el("div", "person-tags");
-      if (!cancel) {
+      if (!cancel && !supp) {
         var tx = actBtn("taxes", i, "Taxes", "tog" + (p.taxes ? " on" : ""));
         tx.setAttribute("aria-pressed", p.taxes ? "true" : "false"); tx.title = "Está en la declaración de impuestos";
         tg.appendChild(tx);
       }
       var cv = actBtn("cobertura", i, cancel ? "Se cancela" : "Cobertura", "tog" + (p.cobertura ? " on" : ""));
       cv.setAttribute("aria-pressed", p.cobertura ? "true" : "false");
-      cv.title = cancel ? "Está en la póliza que se cancela" : "Pide cobertura";
+      cv.title = cancel ? "Está en la póliza que se cancela" : (supp ? "Tiene cobertura" : "Pide cobertura");
       tg.appendChild(cv);
-      if (!cancel) { var inc = el("span", "person-inc num", U.parseMoney(p.ingreso) ? U.parseMoney(p.ingreso).replace(/\.00$/, "") : ""); inc.dataset.incFor = i; tg.appendChild(inc); }
+      if (!cancel && !supp) { var inc = el("span", "person-inc num", U.parseMoney(p.ingreso) ? U.parseMoney(p.ingreso).replace(/\.00$/, "") : ""); inc.dataset.incFor = i; tg.appendChild(inc); }
       head.appendChild(tg);
       head.appendChild(p.titular ? el("span", "person-gap") : actBtn("remove-person", i, "✕", "icon-btn tiny", "Quitar a " + personLabel(p)));
       row.appendChild(head);
@@ -3833,6 +3840,12 @@ kbd {
           body.appendChild(el("p", "hint person-note", "El nombre del titular se escribe arriba, como aparece en Zoho."));
         } else {
           body.appendChild(labeled("Nombre completo", itemInput("personas", i, "nombre", p.nombre, { cls: "upper", ph: "Nombre y apellido" }), "grow"));
+        }
+        if (supp) {
+          body.appendChild(labeled("DOB", itemInput("personas", i, "dob", p.dob, { cls: "num", ph: "MM/DD/AAAA" }), "w-date"));
+          row.appendChild(body);
+          listEl.appendChild(row);
+          return;
         }
         body.appendChild(labeled("Parentesco", itemSelect("personas", i, "parentesco", p.parentesco,
           [{ v: "", l: "—" }].concat(C.PARENTESCOS.map(function (r) { return { v: r, l: r }; })))));
@@ -3864,7 +3877,9 @@ kbd {
     var sum = el("span", "list-sum"); sum.id = "peopleSum";
     foot.appendChild(sum);
     box.appendChild(foot);
-    if (!cancel) {
+    if (supp) {
+      box.appendChild(el("p", "hint people-hint", "La nota nombra a quienes tienen cobertura, por su nombre de pila."));
+    } else if (!cancel) {
       box.appendChild(el("p", "hint people-hint",
         "Sale en la nota como «Cambios» lo que quede distinto de los documentos, y la dirección, teléfono, email, estatus y DOB que llenes."));
     }
@@ -3880,6 +3895,7 @@ kbd {
     var inc = tax.reduce(function (s, p) { return s + (p.ingreso || 0); }, 0);
     sum.textContent = isOC("cancelada")
       ? "Se cancelan " + cov.length + (cov.length ? " (" + firsts(cov) + ")" : "")
+      : S.line === "supp" ? "Cobertura " + cov.length + (cov.length ? " (" + firsts(cov) + ")" : "")
       : "Taxes " + tax.length + (tax.length ? " (" + firsts(tax) + ")" : "") + " · Cobertura " + cov.length +
         (cov.length ? " (" + firsts(cov) + ")" : "") + (inc ? " · Ingreso " + U.parseMoney(inc).replace(/\.00$/, "") : "");
     each(document.querySelectorAll("[data-name-for]"), function (n) {
@@ -4287,7 +4303,7 @@ kbd {
   /* ------------------------------------------------------------ salidas */
 
   function hasClientData() {
-    return ["nombres", "apellidos", "plan", "compania", "mbi", "appId", "miembros", "notas", "pendiente", "codigoQ"]
+    return ["nombres", "apellidos", "plan", "compania", "mbi", "appId", "notas", "pendiente", "codigoQ"]
       .some(function (k) { return U.collapse(S.f[k]); });
   }
 
@@ -4317,8 +4333,8 @@ kbd {
       me: memberByName(settings.autor),
       talker: memberByName(S.f.talker),
       agent: S.f.npnAgente === "__extra" && x ? { name: x.name, npn: x.npn, ini: U.initials(x.name) } : memberByName(S.f.npnAgente),
-      /* en Medicare la app la hace quien escribe la nota */
-      collab: S.line === "mc" ? memberByName(settings.autor) : memberByName(S.f.colaborador)
+      /* en Medicare y Suplementario la app la hace quien escribe la nota */
+      collab: S.line === "oc" ? memberByName(S.f.colaborador) : memberByName(settings.autor)
     };
   }
 
@@ -4419,14 +4435,21 @@ kbd {
     $("smsCount").textContent = info.length + " caracteres · " + info.parts + (info.parts === 1 ? " mensaje" : " mensajes");
     $("smsCount").title = info.unicode ? "Con acentos o emojis cada mensaje admite 70 caracteres; si no, 160." : "";
 
-    /* SMS y email de una app de Obamacare: en español o en inglés */
-    var bilingual = isOC("enviada");
-    each(document.querySelectorAll("[data-lang-seg]"), function (seg) { seg.hidden = !bilingual; syncSeg(seg, S.f.idioma || "es"); });
-    $("emailCard").hidden = !bilingual;
-    if (bilingual) {
+    /* SMS de una app de Obamacare y email de una app de Obamacare o de
+       Suplementario: en español o en inglés */
+    var smsLang = isOC("enviada"), email = isOC("enviada") || isSupp("enviada");
+    each(document.querySelectorAll("[data-lang-seg]"), function (seg) {
+      seg.hidden = !(seg.closest("#emailCard") ? email : smsLang);
+      syncSeg(seg, S.f.idioma || "es");
+    });
+    $("emailCard").hidden = !email;
+    if (email) {
+      var one = isSupp();
+      $("emailPart2").hidden = one;
+      $("emailHead1").textContent = one ? "Aplicación y póliza" : "1 · Documentos y plan";
       setOut("email1", N.buildEmail(d, 1));
-      setOut("email2", N.buildEmail(d, 2));
-      fitHeight($("email1")); fitHeight($("email2"));
+      if (!one) { setOut("email2", N.buildEmail(d, 2)); }
+      fitHeight($("email1")); if (!one) { fitHeight($("email2")); }
     }
     updateFileNames();
 
@@ -4542,7 +4565,7 @@ kbd {
     /* lo que va a las listas o a los selectores se aparta del resto */
     var special = {};
     ["miembros", "ingreso", "hogar", "docs", "agente", "npn", "dob"].forEach(function (k) {
-      if (k in fields && !(k === "miembros" && S.line === "supp")) { special[k] = fields[k]; delete fields[k]; }
+      if (k in fields) { special[k] = fields[k]; delete fields[k]; }
     });
     Object.keys(fields).forEach(function (k) {
       var v = fields[k];
@@ -4554,8 +4577,8 @@ kbd {
       if (!empty && !replaceable) { return; }
       S.f[k] = v; S.auto[k] = true; S.rank[k] = rank; S.base[k] = v; applied++;
     });
+    if (special.miembros && S.line !== "mc") { applied += mergePersonas(U.parseList(special.miembros)); }
     if (S.line === "oc") {
-      if (special.miembros) { applied += mergePersonas(U.parseList(special.miembros)); }
       var tit = S.f.personas[0];
       /* el ingreso y la fecha de nacimiento del documento son del titular */
       [["ingreso", U.parseMoney(special.ingreso)], ["dob", U.parseDate(special.dob)]].forEach(function (x) {
