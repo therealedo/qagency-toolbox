@@ -86,13 +86,14 @@
   };
 
   /* IDs de los campos en las plantillas de SignWell (los escribió el usuario
-     en SignWell): el enlace los llena con los mismos datos. */
+     en SignWell): el enlace los llena con los mismos datos. El SOA de
+     SignWell solo tiene la firma y la fecha del cliente (la parte del agente
+     se llena y se firma después), así que su enlace va sin datos. */
   var SIGN_IDS = {
     consent: [["client_name", "clientName"], ["client_name_sign", "clientName"], ["consent_date", "date"], ["agent_name", "agentName"],
       ["agent_npn", "npn"], ["plan", "plan"], ["premium", "premium"], ["marital_status", "marital"], ["income", "income"],
       ["tax_people", "taxPeople"], ["covered_people", "coveredPeople"]],
-    soa: [["beneficiary_name", "beneficiaryName"], ["beneficiary_phone", "beneficiaryPhone"], ["agent_name", "agentName"],
-      ["agent_npn", "npn"], ["contact_method", "contactMethod"], ["plans", "plans"]]
+    soa: []
   };
 
   /* Consent en Obamacare Pendiente (cotización); SOA en las situaciones de
@@ -275,18 +276,138 @@
 
   function fillPdf(pdfjsLib, bytes, map) {
     return pdfjsLib.getDocument({ data: bytes, isEvalSupported: false }).promise.then(function (pdf) {
+      var parents = [];
       return pdf.getFieldObjects().then(function (objs) {
         Object.keys(map).forEach(function (name) {
           ((objs && objs[name]) || []).forEach(function (o) {
             if (o.id && o.type) { pdf.annotationStorage.setValue(o.id, { value: map[name] }); }
+            else if (o.id && o.kidIds) { parents.push({ ref: o.id, value: map[name] }); }
           });
         });
         return pdf.saveDocument();
       }).then(function (out) {
         pdf.destroy();
-        return out;
+        return setFieldValues(out, parents);
       });
     });
+  }
+
+  /* --------------------------------------------- valor en el campo padre --
+     Cuando un campo tiene sus lugares aparte (la Fecha del Consent, en dos
+     páginas), PDF.js guarda el valor en cada lugar pero no en el campo. Si
+     el PDF pide que el visor redibuje los campos (pasa cuando la letra del
+     formulario no tiene «é» o «ñ»), Chrome los dibuja con el valor del
+     campo, que queda vacío. Por eso se agrega al final del archivo una
+     actualización con el valor en cada campo (sus objetos, otra vez, y una
+     tabla de referencias nueva). Si el archivo no es como se espera (por
+     ejemplo, el campo va comprimido dentro de otro objeto, como en el SOA en
+     inglés, que no pide redibujar), sale tal como lo guardó PDF.js. */
+  var PDF_WS = /[\0\t\n\f\r ]/, PDF_DELIM = /[\0\t\n\f\r ()<>\[\]{}\/%]/;
+
+  function skipWs(s, i) { while (i < s.length && PDF_WS.test(s.charAt(i))) { i++; } return i; }
+
+  /* Fin del valor que empieza en i (diccionario, arreglo, texto, nombre,
+     número, referencia «12 0 R» o palabra), o -1 si no se entiende. */
+  function skipValue(s, i) {
+    i = skipWs(s, i);
+    var c = s.charAt(i), depth = 0, m;
+    if (c === "(") {
+      for (; i < s.length; i++) {
+        c = s.charAt(i);
+        if (c === "\\") { i++; } else if (c === "(") { depth++; } else if (c === ")" && --depth === 0) { return i + 1; }
+      }
+      return -1;
+    }
+    if (c === "<" && s.charAt(i + 1) === "<") { return skipList(s, i + 2, ">>", true); }
+    if (c === "<") { var e = s.indexOf(">", i); return e < 0 ? -1 : e + 1; }
+    if (c === "[") { return skipList(s, i + 1, "]", false); }
+    var start = i;
+    if (c === "/") { i++; }
+    while (i < s.length && !PDF_DELIM.test(s.charAt(i))) { i++; }
+    if (i === start) { return -1; }
+    m = /^\d+$/.test(s.slice(start, i)) && /^[\0\t\n\f\r ]+\d+[\0\t\n\f\r ]+R(?![^\0\t\n\f\r ()<>\[\]{}\/%])/.exec(s.slice(i, i + 32));
+    return m ? i + m[0].length : i;
+  }
+  function skipList(s, i, close, pairs) {
+    for (;;) {
+      i = skipWs(s, i);
+      if (s.substr(i, close.length) === close) { return i + close.length; }
+      if (i >= s.length) { return -1; }
+      if (pairs) { i = skipValue(s, i); if (i < 0) { return -1; } }
+      i = skipValue(s, i);
+      if (i < 0) { return -1; }
+    }
+  }
+  /* Las entradas de un diccionario que empieza en i: { clave: texto }, en orden, y su fin. */
+  function readDict(s, i) {
+    i = skipWs(s, i);
+    if (s.substr(i, 2) !== "<<") { return null; }
+    var keys = [], raw = {};
+    i += 2;
+    for (;;) {
+      i = skipWs(s, i);
+      if (s.substr(i, 2) === ">>") { return { keys: keys, raw: raw, end: i + 2 }; }
+      if (s.charAt(i) !== "/") { return null; }
+      var k = skipValue(s, i), v = k < 0 ? -1 : skipValue(s, k);
+      if (v < 0) { return null; }
+      var key = s.slice(i, k);
+      keys.push(key); raw[key] = s.slice(k, v).trim();
+      i = v;
+    }
+  }
+
+  /* Texto de PDF: ASCII entre paréntesis; si no, UTF-16 en hexadecimal. */
+  function pdfText(v) {
+    v = String(v);
+    if (/^[\x20-\x7e]*$/.test(v)) { return "(" + v.replace(/[\\()]/g, "\\$&") + ")"; }
+    var hex = "FEFF";
+    for (var i = 0; i < v.length; i++) { hex += ("000" + v.charCodeAt(i).toString(16).toUpperCase()).slice(-4); }
+    return "<" + hex + ">";
+  }
+
+  function setFieldValues(bytes, parents) {
+    if (!parents.length) { return bytes; }
+    var s = "", i;
+    for (i = 0; i < bytes.length; i += 8192) { s += String.fromCharCode.apply(null, bytes.subarray(i, i + 8192)); }
+    var sx = s.lastIndexOf("startxref"), prev = sx < 0 ? NaN : parseInt(s.slice(sx + 9, sx + 40).trim(), 10);
+    if (isNaN(prev)) { return bytes; }
+    var at = /^xref\b/.test(s.slice(prev, prev + 4)) ? s.indexOf("trailer", prev) + 7 : s.indexOf("obj", prev) + 3;
+    var trailer = at > 6 && readDict(s, at);
+    if (!trailer || !trailer.raw["/Size"] || !trailer.raw["/Root"] || trailer.raw["/Encrypt"]) { return bytes; }
+
+    var size = parseInt(trailer.raw["/Size"], 10), body = "\n", entries = [];
+    parents.forEach(function (p) {
+      var ref = /^(\d+)R(\d*)$/.exec(p.ref);
+      if (!ref) { return; }
+      var num = +ref[1], gen = +(ref[2] || 0), re = new RegExp("(^|[^0-9])" + num + "[\\0\\t\\n\\f\\r ]+" + gen + "[\\0\\t\\n\\f\\r ]+obj\\b", "g");
+      var m, last = -1;
+      while ((m = re.exec(s))) { last = m.index + m[1].length; }
+      var dict = last >= 0 && readDict(s, s.indexOf("obj", last) + 3);
+      if (!dict || !/^[\0\t\n\f\r ]*endobj/.test(s.slice(dict.end, dict.end + 16))) { return; }
+      var parts = dict.keys.filter(function (k) { return k !== "/V"; }).map(function (k) { return k + " " + dict.raw[k]; });
+      parts.push("/V " + pdfText(p.value));
+      entries.push({ num: num, gen: gen, off: s.length + body.length });
+      body += num + " " + gen + " obj\n<<" + parts.join(" ") + ">>\nendobj\n";
+    });
+    if (!entries.length) { return bytes; }
+
+    /* tabla de referencias como objeto (como la que escribe PDF.js): tipo, posición y generación */
+    var xrefAt = s.length + body.length;
+    entries.push({ num: size, gen: 0, off: xrefAt });
+    entries.sort(function (a, b) { return a.num - b.num; });
+    var data = entries.map(function (e) {
+      return String.fromCharCode(1, (e.off >>> 24) & 255, (e.off >>> 16) & 255, (e.off >>> 8) & 255, e.off & 255, (e.gen >>> 8) & 255, e.gen & 255);
+    }).join("");
+    var index = entries.map(function (e) { return e.num + " 1"; }).join(" ");
+    body += size + " 0 obj\n<< /Type /XRef /Size " + (size + 1) + " /Prev " + prev + " /Root " + trailer.raw["/Root"] +
+      (trailer.raw["/Info"] ? " /Info " + trailer.raw["/Info"] : "") + (trailer.raw["/ID"] ? " /ID " + trailer.raw["/ID"] : "") +
+      " /Index [" + index + "] /W [1 4 2] /Length " + data.length + " >>\nstream\n" + data + "\nendstream\nendobj\nstartxref\n" +
+      xrefAt + "\n%%EOF\n";
+
+    var out = new Uint8Array(bytes.length + body.length);
+    out.set(bytes);
+    for (i = 0; i < body.length; i++) { out[bytes.length + i] = body.charCodeAt(i) & 255; }
+    return out;
   }
 
   var api = {

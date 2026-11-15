@@ -92,7 +92,7 @@ Every value can be changed in the section; changed values stay until **Volver a 
 | Form | Field API IDs |
 | --- | --- |
 | Consent | `client_name`, `client_name_sign`, `consent_date`, `agent_name`, `agent_npn`, `plan`, `premium`, `marital_status`, `income`, `tax_people`, `covered_people` |
-| SOA | `beneficiary_name`, `beneficiary_phone`, `agent_name`, `agent_npn`, `contact_method`, `plans` |
+| SOA | none: the SignWell SOA only has the client's signature and date, because the agent completes and signs their section after the client signs, so the SOA link is sent as it is |
 
 The English SOA came without form fields, so `tools/make-fillable-soa.js` added them once, in the same places as the Spanish one (the phone goes in its digit boxes). To change a template, put the six PDFs in a folder and run `node tools/vendor-forms.js <folder>`.
 
