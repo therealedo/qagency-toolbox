@@ -579,7 +579,15 @@ kbd {
 .net-row .check { padding: 0; }
 .net-acts { display: flex; gap: 6px; }
 .net-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 10px; }
-.netdir-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.netdirs { display: grid; gap: 6px; }
+/* columnas fijas: los botones quedan alineados aunque los nombres midan distinto */
+.netdir-row { display: grid; grid-template-columns: 160px minmax(0, 1fr) auto minmax(52px, auto); align-items: center; gap: 10px; }
+.netdir-row strong { overflow-wrap: anywhere; }
+.netdir-line { color: var(--ink-2); }
+@media (max-width: 560px) {
+  .netdir-row { grid-template-columns: minmax(0, 1fr) auto minmax(52px, auto); }
+  .netdir-line { grid-column: 1 / -1; }
+}
 .net-file {
   font-family: var(--mono); font-size: 12px; color: var(--ink-2);
   background: var(--inset); border: 1px solid var(--line); border-radius: 7px;
@@ -635,10 +643,33 @@ kbd {
 /* copiado rápido y ventana flotante */
 .quickbar { display: flex; gap: 8px; }
 .quickbar .btn { flex: 1; min-width: 0; }
-.float-body { margin: 0; padding: 10px 12px; min-height: 100vh; }
-.float-head { margin-bottom: 8px; font-size: 13px; font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* la ventana flotante es una burbuja: sin bordes, botones en forma de píldora
+   y el contenido centrado, sin espacio vacío abajo */
+.float-body {
+  margin: 0; padding: 12px 14px; min-height: 100vh;
+  display: flex; flex-direction: column; justify-content: center; gap: 10px;
+  background: var(--surface);
+}
+.float-head { display: flex; align-items: center; gap: 9px; min-width: 0; font-size: 13.5px; font-weight: 650; }
+.float-avatar {
+  flex: none; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%;
+  background: var(--brand-soft); color: var(--brand-ink); font-size: 11.5px; font-weight: 700; letter-spacing: .02em;
+}
+.float-name { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .float-row { display: flex; flex-wrap: wrap; gap: 6px; }
-.float-row .btn.primary { flex-basis: 100%; }
+.float-row .btn {
+  flex: 1 1 auto; min-height: 30px; padding: 0 9px; border-color: transparent; border-radius: 999px;
+  background: color-mix(in srgb, var(--ink) 7%, transparent); font-size: 12.5px;
+}
+.float-row .btn:hover { border-color: transparent; background: color-mix(in srgb, var(--ink) 12%, transparent); }
+.float-row .btn.primary {
+  flex-basis: 100%; min-height: 36px; background: var(--btn); color: #fff; font-size: 13px;
+  box-shadow: 0 6px 16px -8px color-mix(in srgb, var(--btn) 75%, transparent);
+}
+.float-row .btn.primary:hover { background: var(--btn-hover); }
+.float-row .btn.done { background: var(--ok); color: #fff; box-shadow: none; }
+:root[data-theme="dark"] .float-row .btn.done { color: #06140D; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .float-row .btn.done { color: #06140D; } }
 
 .one-line { min-height: 0; padding: 8px 11px; line-height: 1.55; resize: none; overflow: hidden; background: var(--inset); border-color: var(--line); }
 .one-line:focus { background: var(--field); }
@@ -1092,13 +1123,9 @@ kbd {
     <div class="team" id="teamRows"></div>
     <button type="button" class="btn small" id="teamAdd">Agregar persona</button>
 
-    <h3>Carpeta del Network</h3>
-    <div class="netdir-row" id="netDirBox">
-      <span>Carpeta: <strong id="netDirName">Sin elegir</strong></span>
-      <button type="button" class="btn small" id="netDirPick">Elegir carpeta</button>
-      <button type="button" class="link-btn" id="netDirClear" hidden>Quitar</button>
-    </div>
-    <p class="muted" id="netDirHelp">Elige tu folder del NETW. Los PDF que sueltes se guardan ahí con su nombre de archivo desde la sección Network. Si ya existe un archivo con ese nombre, se pregunta antes de reemplazarlo.</p>
+    <h3>Carpetas del Network</h3>
+    <div class="netdirs" id="netDirBox"></div>
+    <p class="muted" id="netDirHelp">Elige tu folder del NETW en General. Si una línea guarda sus documentos en otra carpeta (por ejemplo una para OC y otra para MA), elígela en su fila; las líneas sin carpeta propia usan la general. Los PDF que sueltes se guardan con su nombre de archivo desde la sección Network, en la carpeta de la línea en que estás. Si ya existe un archivo con ese nombre, se pregunta antes de reemplazarlo.</p>
     <p class="muted" id="netDirNA" hidden>Este navegador no permite guardar en carpetas. Usa Chrome o Edge.</p>
 
     <h3>Formato de la nota</h3>
@@ -1188,7 +1215,7 @@ kbd {
 (function (root) {
   "use strict";
 
-  var VERSION = "1.7.0";
+  var VERSION = "1.8.0";
 
   /* Equipo por defecto. Cada persona puede editarlo en Ajustes; los cambios
      se guardan en su navegador.
@@ -1944,6 +1971,12 @@ kbd {
     return ap && no ? ap + ", " + no : (ap || no);
   }
 
+  /* "BD": inicial del nombre y del apellido, para la burbuja de la ventana flotante */
+  function clientInitials(d) {
+    var first = function (s) { return U.collapse(s).charAt(0).toUpperCase(); };
+    return first(d.nombres) + first(d.apellidos);
+  }
+
   /* Cómo se le escribe la compañía al cliente: "Florida Blue". */
   function carrierName(line, name) {
     var n = val(name);
@@ -2687,13 +2720,24 @@ kbd {
     return String(name || "").replace(/[\\/:*?"<>|]/g, "-").replace(/[\s.]+$/, "").replace(/^\s+/, "");
   }
 
+  /* Carpetas del Network: una general y, si hace falta, una propia por
+     línea (por ejemplo una para OC y otra para MA). Una línea sin carpeta
+     propia guarda en la general. */
+  var NET_DIRS = ["general"].concat(Object.keys(C.LINES));
+  function netDirFor(dirs, line) {
+    var own = dirs && line !== "general" && dirs[line];
+    if (own) { return { key: line, dir: own }; }
+    return { key: "general", dir: (dirs && dirs.general) || null };
+  }
+
   var api = {
     copyOrder: copyOrder, smsLink: smsLink, mailtoLink: mailtoLink, safeFileName: safeFileName,
     buildNote: buildNote, buildTask: buildTask, formatTask: formatTask, buildReport: buildReport,
     buildSms: buildSms, buildEmail: buildEmail, smsInfo: smsInfo, buildFileNames: buildFileNames, warnings: warnings, cambios: cambios,
     autoTaskId: autoTaskId, taskById: taskById, outcomeOf: outcomeOf, lineOf: lineOf, gestionOf: gestionOf,
-    productOf: productOf, carrierShort: carrierShort, memberDelta: memberDelta, zohoName: zohoName,
-    personas: personas, docsOf: docsOf, pendingDocs: pendingDocs, planesOf: planesOf, networkOf: networkOf
+    productOf: productOf, carrierShort: carrierShort, memberDelta: memberDelta, zohoName: zohoName, clientInitials: clientInitials,
+    personas: personas, docsOf: docsOf, pendingDocs: pendingDocs, planesOf: planesOf, networkOf: networkOf,
+    NET_DIRS: NET_DIRS, netDirFor: netDirFor
   };
   root.QA = root.QA || {};
   root.QA.notes = api;
@@ -4447,17 +4491,23 @@ window.QA_OCR_LANG.eng = "H4sICDJv42QAA2VuZy50cmFpbmVkZGF0YQDM/IWXXceVwI0evHQuM2
     });
     var keys = savableKeys();
     $("netFoot").hidden = !keys.length;
-    $("netWhere").textContent = netDir ? "Carpeta: " + (netDir.name || "elegida") : "Elige la carpeta en Ajustes o al guardar.";
+    var dir = N.netDirFor(netDirs, S.line);
+    $("netWhere").textContent = !dir.dir ? "Elige la carpeta en Ajustes o al guardar."
+      : (dir.key === "general" ? "Carpeta: " : "Carpeta de " + netDirLabel(dir.key) + ": ") + (dir.dir.name || "elegida");
     updateFileNames();
   }
 
-  /* --------------------------------------------- carpeta del Network --
-     Se elige en Ajustes y el navegador la recuerda (IndexedDB guarda el
-     permiso, no una ruta). Solo Chrome y Edge pueden escribir en una
-     carpeta. Un archivo con el mismo nombre se reemplaza solo si se confirma. */
+  /* -------------------------------------------- carpetas del Network --
+     Una general y, si hace falta, una propia por línea (N.netDirFor). Se
+     eligen en Ajustes y el navegador las recuerda (IndexedDB guarda el
+     permiso, no una ruta; la general sigue en la clave "network" de
+     siempre). Solo Chrome y Edge pueden escribir en una carpeta. Un archivo
+     con el mismo nombre se reemplaza solo si se confirma. */
   var canSave = typeof window.showDirectoryPicker === "function" && !!window.indexedDB;
-  var netDir = null;
+  var netDirs = {};
 
+  function netDirKey(k) { return k === "general" ? "network" : "network-" + k; }
+  function netDirLabel(k) { return k === "general" ? "General" : C.LINES[k].label; }
   function handleStore(mode, fn) {
     return new Promise(function (resolve, reject) {
       var req = indexedDB.open("qa-toolbox", 1);
@@ -4465,40 +4515,66 @@ window.QA_OCR_LANG.eng = "H4sICDJv42QAA2VuZy50cmFpbmVkZGF0YQDM/IWXXceVwI0evHQuM2
       req.onerror = function () { reject(req.error); };
       req.onsuccess = function () {
         var db = req.result, tx = db.transaction("handles", mode), r = fn(tx.objectStore("handles"));
-        tx.oncomplete = function () { db.close(); resolve(r && r.result); };
+        tx.oncomplete = function () { db.close(); resolve(r); };
         tx.onerror = function () { db.close(); reject(tx.error); };
       };
     });
   }
-  function loadNetDir() {
-    renderNetDir();
+  function loadNetDirs() {
+    renderNetDirs();
     if (!canSave) { return; }
-    handleStore("readonly", function (st) { return st.get("network"); })
-      .then(function (h) { netDir = h || null; renderNetDir(); renderNetwork(); })
-      .catch(function () { netDir = null; });
+    handleStore("readonly", function (st) {
+      var reqs = {};
+      N.NET_DIRS.forEach(function (k) { reqs[k] = st.get(netDirKey(k)); });
+      return reqs;
+    }).then(function (reqs) {
+      N.NET_DIRS.forEach(function (k) { if (reqs[k].result) { netDirs[k] = reqs[k].result; } });
+      renderNetDirs(); renderNetwork();
+    }).catch(function () { netDirs = {}; });
   }
-  function pickNetDir() {
+  function pickNetDir(k) {
     return window.showDirectoryPicker({ id: "qa-network", mode: "readwrite" }).then(function (h) {
-      netDir = h; renderNetDir(); renderNetwork();
-      return handleStore("readwrite", function (st) { return st.put(h, "network"); }).then(function () { return h; }, function () { return h; });
+      netDirs[k] = h; renderNetDirs(); renderNetwork();
+      return handleStore("readwrite", function (st) { return st.put(h, netDirKey(k)); }).then(function () { return h; }, function () { return h; });
     });
   }
-  function clearNetDir() {
-    netDir = null; renderNetDir(); renderNetwork();
-    handleStore("readwrite", function (st) { return st.delete("network"); }).catch(function () {});
+  function clearNetDir(k) {
+    delete netDirs[k]; renderNetDirs(); renderNetwork();
+    handleStore("readwrite", function (st) { return st.delete(netDirKey(k)); }).catch(function () {});
   }
-  function renderNetDir() {
-    $("netDirBox").hidden = !canSave; $("netDirHelp").hidden = !canSave; $("netDirNA").hidden = canSave;
-    $("netDirName").textContent = netDir ? (netDir.name || "Elegida") : "Sin elegir";
-    $("netDirClear").hidden = !netDir;
+  function renderNetDirs() {
+    var box = $("netDirBox");
+    box.hidden = !canSave; $("netDirHelp").hidden = !canSave; $("netDirNA").hidden = canSave;
+    if (!box.children.length) {
+      N.NET_DIRS.forEach(function (k) {
+        var row = el("div", "netdir-row");
+        row.appendChild(el("span", "netdir-line", netDirLabel(k)));
+        var name = el("strong"); name.dataset.netDirName = k;
+        row.appendChild(name);
+        var pick = el("button", "btn small", "Elegir carpeta"); pick.type = "button"; pick.dataset.netDirPick = k;
+        pick.setAttribute("aria-label", "Elegir la carpeta " + (k === "general" ? "general" : "de " + netDirLabel(k)));
+        row.appendChild(pick);
+        var clear = el("button", "link-btn", "Quitar"); clear.type = "button"; clear.dataset.netDirClear = k;
+        clear.setAttribute("aria-label", "Quitar la carpeta " + (k === "general" ? "general" : "de " + netDirLabel(k)));
+        row.appendChild(clear);
+        box.appendChild(row);
+      });
+    }
+    N.NET_DIRS.forEach(function (k) {
+      var h = netDirs[k];
+      box.querySelector('[data-net-dir-name="' + k + '"]').textContent = h ? (h.name || "Elegida") : (k === "general" ? "Sin elegir" : "Usa la general");
+      box.querySelector('[data-net-dir-clear="' + k + '"]').hidden = !h;
+    });
   }
+  /* la carpeta donde se guarda la línea de ahora; si no hay ninguna, se pide la general */
   function ensureNetDir() {
-    if (!netDir) { return pickNetDir(); }
-    return netDir.queryPermission({ mode: "readwrite" }).then(function (p) {
-      if (p === "granted") { return netDir; }
-      return netDir.requestPermission({ mode: "readwrite" }).then(function (q) {
+    var t = N.netDirFor(netDirs, S.line), dir = t.dir;
+    if (!dir) { return pickNetDir("general"); }
+    return dir.queryPermission({ mode: "readwrite" }).then(function (p) {
+      if (p === "granted") { return dir; }
+      return dir.requestPermission({ mode: "readwrite" }).then(function (q) {
         if (q !== "granted") { throw new Error("permiso"); }
-        return netDir;
+        return dir;
       });
     });
   }
@@ -5030,11 +5106,14 @@ window.QA_OCR_LANG.eng = "H4sICDJv42QAA2VuZy50cmFpbmVkZGF0YQDM/IWXXceVwI0evHQuM2
 
   /* ------------------------------------------------- ventana flotante --
      Document Picture-in-Picture: una ventana pequeña que queda encima de las
-     demás, con los botones de copiar. Copia siempre el texto actual. */
+     demás, con los botones de copiar. Copia siempre el texto actual. El marco
+     y la barra de título los dibuja el navegador; por dentro es una burbuja
+     sin bordes. Sin el botón "volver a la pestaña": se vuelve con la barra de
+     tareas. */
   var pip = null;
   function openFloat() {
     if (pip) { pip.focus(); return; }
-    window.documentPictureInPicture.requestWindow({ width: 440, height: 150 }).then(function (w) {
+    window.documentPictureInPicture.requestWindow({ width: 400, height: 140, disallowReturnToOpener: true }).then(function (w) {
       pip = w;
       each(document.styleSheets, function (sheet) {
         var css = "";
@@ -5063,6 +5142,9 @@ window.QA_OCR_LANG.eng = "H4sICDJv42QAA2VuZy50cmFpbmVkZGF0YQDM/IWXXceVwI0evHQuM2
     if (body.dataset.sig !== sig || !body.querySelector("[data-next]")) {
       body.textContent = "";
       var head = doc.createElement("div"); head.className = "float-head";
+      var avatar = doc.createElement("span"); avatar.className = "float-avatar"; avatar.setAttribute("aria-hidden", "true");
+      var name = doc.createElement("span"); name.className = "float-name";
+      head.appendChild(avatar); head.appendChild(name);
       var row = doc.createElement("div"); row.className = "float-row";
       var next = doc.createElement("button"); next.type = "button"; next.className = "btn primary small"; next.dataset.next = "1";
       row.appendChild(next);
@@ -5073,7 +5155,10 @@ window.QA_OCR_LANG.eng = "H4sICDJv42QAA2VuZy50cmFpbmVkZGF0YQDM/IWXXceVwI0evHQuM2
       body.appendChild(head); body.appendChild(row);
       body.dataset.sig = sig;
     }
-    body.querySelector(".float-head").textContent = N.zohoName(data()) || "Sin cliente";
+    var d = data(), initials = N.clientInitials(d), avatar = body.querySelector(".float-avatar");
+    body.querySelector(".float-name").textContent = N.zohoName(d) || "Sin cliente";
+    avatar.textContent = initials;
+    avatar.hidden = !initials;
     var label = function (b, text) { b.dataset.label = text; if (!b.classList.contains("done")) { b.textContent = text; } };
     label(body.querySelector("[data-next]"), nextLabel());
     each(body.querySelectorAll("[data-copy]"), function (b) { label(b, copyLabel(b.dataset.copy, list)); });
@@ -5955,11 +6040,15 @@ window.QA_OCR_LANG.eng = "H4sICDJv42QAA2VuZy50cmFpbmVkZGF0YQDM/IWXXceVwI0evHQuM2
     bind();
     bindTasks();
     setupInstall();
-    loadNetDir();
-    $("netDirPick").addEventListener("click", function () {
-      pickNetDir().catch(function (e) { if (!e || e.name !== "AbortError") { toast("No se pudo usar esa carpeta."); } });
+    loadNetDirs();
+    $("netDirBox").addEventListener("click", function (e) {
+      var b = e.target.closest("button");
+      if (!b) { return; }
+      if (b.dataset.netDirPick) {
+        pickNetDir(b.dataset.netDirPick).catch(function (err) { if (!err || err.name !== "AbortError") { toast("No se pudo usar esa carpeta."); } });
+      }
+      if (b.dataset.netDirClear) { clearNetDir(b.dataset.netDirClear); }
     });
-    $("netDirClear").addEventListener("click", clearNetDir);
     refresh();
     setView(viewFromHash());
   }
