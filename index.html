@@ -138,11 +138,10 @@
           <div class="task-opts">
             <label class="mini"><span>Tipo de task</span><select id="taskId"></select></label>
             <label class="mini"><span>Iniciales</span><select id="taskOwner"></select></label>
-            <label class="mini"><span>Etiqueta al final</span><input type="text" id="obsTask" placeholder="URGENT" list="obsList"></label>
+            <div class="mini"><span>Etiquetas al final</span><div class="seg seg-multi" id="obsTags" role="group" aria-label="Etiquetas al final del task"></div></div>
             <label class="mini" id="taxYearBox" hidden><span>Año fiscal</span><input type="text" id="taxYear" inputmode="numeric" maxlength="4"></label>
             <label class="check" id="reviewBox" hidden><input type="checkbox" id="review"><span>Solo revisión (REVIEW)</span></label>
           </div>
-          <datalist id="obsList"><option value="URGENT"></datalist>
         </div>
 
         <div class="card out-card" id="reportCard">
@@ -152,6 +151,7 @@
             <button type="button" class="btn" id="copyReport" data-label="Copiar">Copiar</button>
           </div>
           <textarea class="mono one-line" id="report" rows="2" spellcheck="false" aria-label="Línea para el reporte de Cliq"></textarea>
+          <p class="muted" id="reportHint" hidden>Para el canal NO CHANGE de Cliq.</p>
           <label class="check" id="prefixBox"><input type="checkbox" id="prefix"><span id="prefixLabel">Anteponer al colaborador</span></label>
           <p class="muted" id="reportNA" hidden>Esta situación no se reporta en Cliq.</p>
         </div>
@@ -166,7 +166,6 @@
           <textarea id="sms" rows="4" spellcheck="true" aria-label="Mensaje de texto para el cliente"></textarea>
           <div class="out-foot">
             <span id="smsCount"></span>
-            <label class="check sms-opt"><input type="checkbox" id="smsPlain"><span>Sin acentos (cabe en menos mensajes)</span></label>
           </div>
         </div>
 

@@ -4,7 +4,7 @@
 (function (root) {
   "use strict";
 
-  var VERSION = "1.4.0";
+  var VERSION = "1.5.0";
 
   /* Equipo por defecto. Cada persona puede editarlo en Ajustes; los cambios
      se guardan en su navegador.
@@ -158,9 +158,14 @@
     { v: "NO PAYMENT", group: "pago", hint: "Tiene prima y no ha pagado" },
     { v: "PAYMENT NOT VERIFIED", group: "pago", hint: "Tiene prima; el cliente no contestó para confirmar" },
     { v: "NO PREMIUM", group: "pago", hint: "Revisado y no tiene prima" },
+    { v: "CRONIC", hint: "Cliente con una condición crónica" },
     { v: "URGENT", hint: "Requiere atención inmediata" },
     { v: "REVIEW", hint: "Task que solo es de revisión (Medicaid)" }
   ];
+
+  /* Etiquetas finales que se eligen en la nota (selección múltiple), en el
+     orden en que se escriben: CRONIC URGENT. */
+  var OBS_TAGS = ["CRONIC", "URGENT"];
 
   /* Reglas del documento TASK Q AGENCY, para mostrarlas junto al catálogo. */
   var TASK_RULES = [
@@ -243,8 +248,7 @@
   var MODALIDADES = ["presencial", "telefónica", "Zoom", "en casa"];
 
   /* Secciones del formulario. Cada situación decide cuáles se muestran. */
-  var S_FULL_MC = ["cliente", "medicare", "proceso", "plan", "agente", "network", "seguimiento"];
-  var S_PLAN_MC = ["cliente", "medicare", "proceso", "plan", "network", "seguimiento"];
+  var S_FULL_MC = ["cliente", "medicare", "proceso", "plan", "agente", "network"];
   var S_FULL_SU = ["cliente", "proceso", "plan", "pago", "agente", "network", "seguimiento"];
   var S_LIGHT = ["cliente", "proceso", "seguimiento"];
 
@@ -296,7 +300,7 @@
     },
 
     mc: {
-      label: "Medicare",
+      label: "Medicare Advantage",
       code: "MC",
       gestiones: [
         { v: "nueva", label: "Solicitud nueva", proc: "App MC" },
@@ -306,31 +310,15 @@
         { id: "enviada", label: "App enviada", desc: "Solicitud enviada en el portal de la compañía",
           submission: true, pendiente: "", proximo: "Seguimiento de mantenimiento",
           task: "mc_mant", report: true, sections: S_FULL_MC },
-        { id: "soa", label: "SOA pendiente", desc: "Falta el Scope of Appointment firmado",
-          pendiente: "Firma del SOA", proximo: "Atender al cliente al recibir el SOA",
-          task: "mc_soa", sections: S_PLAN_MC },
-        { id: "cita", label: "Cita AEP", desc: "Quiere cambiar o está interesado; queda con cita",
-          pendiente: "Atender la cita", proximo: "Cita con el cliente",
-          task: "mc_oe", sections: S_PLAN_MC },
         { id: "sincambio", label: "Sin cambios", desc: "Se revisa y se queda con su plan actual",
-          pendiente: "", proximo: "Seguimiento de mantenimiento",
-          task: "mc_mant", sections: ["cliente", "medicare", "plan", "network", "seguimiento"] },
-        { id: "interesado", label: "Interesado", desc: "Próximo a cumplir 65 o fuera del AEP",
-          pendiente: "", proximo: "Contactar cuando se abra su período de elección",
-          task: "mc_fu", sections: ["cliente", "medicare", "proceso", "seguimiento"] },
-        { id: "sincontacto", label: "Sin contacto", desc: "No contesta",
-          pendiente: "Lograr contacto con el cliente", proximo: "Volver a llamar",
-          task: "mc_lost", sections: ["cliente", "proceso", "contacto", "seguimiento"] },
-        { id: "nointeresado", label: "No interesado", desc: "Contactado para recuperar, no por ahora",
-          pendiente: "", proximo: "Contactar más adelante para recuperar",
-          task: "mc_inactive", sections: S_LIGHT },
-        { id: "cancelada", label: "Cancelación", desc: "Se cancela la solicitud o el plan",
-          pendiente: "", proximo: "Verificar que la cancelación se refleje",
-          task: "mc_mant", report: true, cancelled: true, sections: ["cliente", "medicare", "proceso", "plan", "agente", "network", "seguimiento"] }
+          pendiente: "", proximo: "", noSms: true,
+          /* el reporte va al canal NO CHANGE de Cliq; solo se guarda el SOA */
+          task: "mc_mant", report: true, sections: ["cliente", "plan", "network"],
+          network: [{ k: "soa", label: "SOA", file: "Medicare_SOA", date: "soa" }] }
       ],
       network: [
         { k: "soa", label: "SOA", file: "Medicare_SOA", date: "soa" },
-        { k: "appsummary", label: "App Summary", file: "Medicare_{carrier}", date: "effective" }
+        { k: "appsummary", label: "App", file: "Medicare_{carrier}", date: "effective" }
       ]
     },
 
@@ -385,7 +373,7 @@
 
   var api = {
     VERSION: VERSION, TEAM: TEAM, OFFICES: OFFICES, OFFICE_NAMES: OFFICE_NAMES, CARRIERS: CARRIERS, TASKS: TASKS, PAYMENT: PAYMENT,
-    TASK_TAGS: TASK_TAGS, TASK_RULES: TASK_RULES,
+    TASK_TAGS: TASK_TAGS, OBS_TAGS: OBS_TAGS, TASK_RULES: TASK_RULES,
     CHANNELS: CHANNELS, MODALIDADES: MODALIDADES, LINES: LINES, LINE_TASK_CATS: LINE_TASK_CATS,
     PAY_METHODS: PAY_METHODS, CANCEL_REASONS: CANCEL_REASONS, PARENTESCOS: PARENTESCOS, ESTATUS: ESTATUS, MKPL_DOCS: MKPL_DOCS
   };
