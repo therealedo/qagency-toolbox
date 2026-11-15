@@ -21,20 +21,22 @@ if ($Quitar) {
   exit 0
 }
 
-# Se usa el primer navegador que exista: Brave, Chrome o Edge.
+# Se usa el primer navegador que exista: Chrome, Edge o Brave. Brave va al
+# final porque no deja elegir carpetas, y sin eso no se guarda en el Network.
+# Edge viene con Windows 10 y 11.
 $navegadores = @(
-  "$env:ProgramFiles\BraveSoftware\Brave-Browser\Application\brave.exe",
-  "${env:ProgramFiles(x86)}\BraveSoftware\Brave-Browser\Application\brave.exe",
-  "$env:LOCALAPPDATA\BraveSoftware\Brave-Browser\Application\brave.exe",
   "$env:ProgramFiles\Google\Chrome\Application\chrome.exe",
   "${env:ProgramFiles(x86)}\Google\Chrome\Application\chrome.exe",
   "$env:LOCALAPPDATA\Google\Chrome\Application\chrome.exe",
   "${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe",
-  "$env:ProgramFiles\Microsoft\Edge\Application\msedge.exe"
+  "$env:ProgramFiles\Microsoft\Edge\Application\msedge.exe",
+  "$env:ProgramFiles\BraveSoftware\Brave-Browser\Application\brave.exe",
+  "${env:ProgramFiles(x86)}\BraveSoftware\Brave-Browser\Application\brave.exe",
+  "$env:LOCALAPPDATA\BraveSoftware\Brave-Browser\Application\brave.exe"
 )
 $navegador = $navegadores | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
 if (-not $navegador) {
-  Write-Host "No se encontro Brave, Chrome ni Edge en esta computadora."
+  Write-Host "No se encontro Chrome, Edge ni Brave en esta computadora."
   exit 1
 }
 

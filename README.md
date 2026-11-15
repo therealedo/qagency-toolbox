@@ -23,12 +23,12 @@ There are three ways to run it. All of them are the same app.
 | | How | Good for |
 | --- | --- | --- |
 | **Windows package** | Unzip `dist/QAgency-Toolbox-Windows.zip`, double-click `Instalar.bat` | A real desktop app: Start menu and Desktop shortcut with the agency icon, its own window, pin to the taskbar. No admin rights, no internet. |
-| **Single file** | Open `dist/QAgency-Toolbox.html` in Brave, Chrome or Edge | Trying it, or a computer where nothing can be installed. |
+| **Single file** | Open `dist/QAgency-Toolbox.html` in Chrome or Edge (Brave works, but cannot save to the Network) | Trying it, or a computer where nothing can be installed. |
 | **Hosted** | Put the repository root on any static web host (no build step needed) | One address for everyone, an **Instalar** button in the browser, works offline after the first visit, and updates reach the whole team on their own. |
 
 The OCR engine and its Spanish and English models are bundled, so the single file is about 10 MB.
 
-The Windows installer copies the app to `%LOCALAPPDATA%\QAgencyToolbox` and creates shortcuts that open it with Brave, Chrome or Edge (whichever it finds first) in app mode. To update, run `Instalar.bat` from the new package; settings are kept. `Desinstalar.bat` removes it. The installer has not been run on a real Windows machine yet, so try it on one computer before sending it to the team.
+The Windows installer copies the app to `%LOCALAPPDATA%\QAgencyToolbox` and creates shortcuts that open it in app mode with Chrome or Edge, whichever it finds first. Brave is used only when neither is installed, because Brave blocks choosing a folder, so it cannot save to the Network. To update, run `Instalar.bat` from the new package; settings are kept as long as the same browser opens it. Each browser keeps its own settings, so after an update that moves the app from Brave to Chrome or Edge, fill in Ajustes once more. `Desinstalar.bat` removes it. The installer has not been run on a real Windows machine yet, so try it on one computer before sending it to the team.
 
 If you host it, keep the host private or clear the roster first: `js/config.js` contains the team's names and NPNs.
 
