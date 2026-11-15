@@ -167,7 +167,7 @@ test("Comprobante de pago: método y autopay", () => {
   assert.equal(r.type, "pay");
   assert.deepEqual(r.fields, {
     pagoEstado: "PAYMENT", pagoMonto: "$25.40", pagoConf: "PAY123456789", pagoFecha: "11/14/2026",
-    pagoMetodo: "Tarjeta CC", autopay: "On"
+    pagoMetodo: "Tarjeta CC", autopay: "On", compania: "AMBETTER"
   });
 });
 
@@ -210,4 +210,138 @@ test("un documento desconocido no inventa datos", () => {
   const r = X.extract("Lista de compras\nLeche 2\nPan 1\nHuevos 12\nGracias por su visita, vuelva pronto.", "nota.txt", "oc");
   assert.equal(r.type, "unknown");
   assert.deepEqual(r.fields, {});
+});
+
+/* ------------------------------------------------ Suplementario y pagos */
+
+/* Un PDF con formulario (AcroForm) guarda lo que se escribió en sus campos,
+   no en el texto de la página: pdfToText los agrega al final, uno por línea. */
+const fakePdf = (pages) => ({
+  getDocument: () => ({
+    promise: Promise.resolve({
+      numPages: pages.length,
+      getPage: (i) => Promise.resolve({
+        getTextContent: () => Promise.resolve({ items: pages[i - 1].items }),
+        getAnnotations: () => Promise.resolve(pages[i - 1].annots || [])
+      })
+    })
+  })
+});
+const textItem = (str, x, y) => ({ str, transform: [10, 0, 0, 10, x, y], width: str.length * 5, height: 10 });
+
+test("pdfToText: los valores de un formulario PDF van al final del texto", async () => {
+  const lib = fakePdf([
+    { items: [textItem("Name (Last, First)", 10, 700)], annots: [
+      { subtype: "Widget", fieldName: "Last1", fieldValue: "Doe" },
+      { subtype: "Widget", fieldName: "First1", fieldValue: "  Jane  " },
+      { subtype: "Widget", fieldName: "Empty", fieldValue: "" },
+      { subtype: "Widget", fieldName: "Agree", fieldValue: "Off", checkBox: true },
+      { subtype: "Widget", fieldName: "Plan", fieldValue: "Plan100Max", radioButton: true },
+      { subtype: "Widget", fieldName: "Plan", fieldValue: "Plan100Max", radioButton: true },
+      { subtype: "Widget", fieldName: "Sign", fieldValue: { sig: true } },
+      { subtype: "Link", url: "https://example.com" }
+    ] },
+    { items: [textItem("Page two", 10, 700)], annots: [{ subtype: "Widget", fieldName: "Last1", fieldValue: "Doe" }] }
+  ]);
+  const text = await X.pdfToText(lib, new Uint8Array());
+  assert.equal(text, "Name (Last, First)\n\nPage two\n\nCampos del formulario:\nLast1: Doe\nFirst1: Jane\nPlan: Plan100Max");
+});
+
+test("pdfToText: un PDF sin formulario da solo el texto de sus páginas", async () => {
+  const lib = fakePdf([{ items: [textItem("Payment receipt", 10, 700)] }, { items: [textItem("Total: $27.65", 10, 700)] }]);
+  assert.equal(await X.pdfToText(lib, new Uint8Array()), "Payment receipt\n\nTotal: $27.65");
+});
+
+/* Documentos reales de Suplementario y comprobantes de pago (texto sacado
+   del PDF por pdfToText; nombres, IDs, teléfonos y direcciones ficticios).
+   Cada uno se reconoce sin ayuda del nombre del archivo y da sus datos; un
+   campo que el documento no muestra queda vacío. `read` es la pestaña
+   abierta al soltar el documento. */
+const carrierOf = (line, word) => (C.CARRIERS[line].find((c) => c.re.test(word)) || { name: "(sin compañía para " + word + ")" }).name;
+const fixture = (name) => fs.readFileSync(path.join(__dirname, "fixtures", name + ".txt"), "utf8");
+const GR = carrierOf("supp", "Golden Rule");
+const ALLSTATE = carrierOf("supp", "Integon Indemnity Corporation");
+const AGENT_GR = { agente: "MARTA R QUINTERO", npn: "19876543" };
+const SUPP_APP = { type: "supp_app", line: "supp", net: "appsummary", read: "supp" };
+const PAY = { type: "pay", line: "", net: "payment" };
+const SUPP_DOCS = {
+  "Supp App Golden Rule Hospital AdvantageGuard": Object.assign({}, SUPP_APP, { fields: Object.assign({
+    nombres: "ROSA", apellidos: "MEDINA", compania: GR, producto: "Hospital", plan: "AdvantageGuard Hospital", prima: "$78.03",
+    efectiva: "01/01/2027", poliza: "900123456", beneficiario: "Hector Medina (Spouse)" }, AGENT_GR) }),
+  "Supp App Golden Rule Short Term": Object.assign({}, SUPP_APP, { fields: Object.assign({
+    nombres: "DANIEL E", apellidos: "VEGA CASTILLO", compania: GR, producto: "Short Term", plan: "Plan 100 Max", prima: "$367.00",
+    efectiva: "01/01/2027", poliza: "900234567" }, AGENT_GR) }),
+  "Supp App Golden Rule ProtectorGuard": Object.assign({}, SUPP_APP, { fields: Object.assign({
+    nombres: "NICOLAS", apellidos: "SALINAS MORA", compania: GR, producto: "Hospital", plan: "Health ProtectorGuard Select 2000",
+    prima: "$59.66", efectiva: "01/01/2027", poliza: "900345678", beneficiario: "Paula Rios (Significant other)" }, AGENT_GR) }),
+  "Supp App Golden Rule Hospital Indemnity": Object.assign({}, SUPP_APP, { fields: Object.assign({
+    nombres: "SILVIA", apellidos: "LUNA PRIETO", compania: GR, producto: "Hospital", plan: "Hospital Indemnity", prima: "$38.38",
+    efectiva: "01/01/2027", poliza: "900456789" }, AGENT_GR) }),
+  /* la prima es el total mensual de la tabla, no un rider ni "Premium Amount Sent" */
+  "Supp App Allstate Accident": Object.assign({}, SUPP_APP, { fields: {
+    nombres: "JULIO", apellidos: "MENA DUARTE", compania: ALLSTATE, producto: "Accident", plan: "Accident Medical Expense Plan",
+    prima: "$12.89", efectiva: "01/01/2027", beneficiario: "Mena Ochoa, Alba", agente: "LUCIA FERRER CAMPOS" } }),
+  "Supp App Allstate Accident Spouse": Object.assign({}, SUPP_APP, { fields: {
+    nombres: "SILVIA", apellidos: "LUNA PRIETO", compania: ALLSTATE, producto: "Accident", plan: "Accident Medical Expense Plan",
+    prima: "$26.61", efectiva: "01/01/2027", beneficiario: "Luna Prieto, Ramon", agente: "LUCIA FERRER CAMPOS" } }),
+  /* Florida Blue no muestra la prima en la aplicación */
+  "Supp App Dental Florida Blue": Object.assign({}, SUPP_APP, { fields: {
+    nombres: "MARIO", apellidos: "BENITEZ", compania: carrierOf("supp", "Florida Combined Life"), producto: "Dental",
+    plan: "BlueDental Copayment QF", efectiva: "10/01/2026", agente: "LUCIA FERRER CAMPOS" } }),
+  "Supp App Dental Cigna": Object.assign({}, SUPP_APP, { fields: {
+    nombres: "LAURA", apellidos: "PINEDA", compania: carrierOf("supp", "Cigna"), producto: "Dental", plan: "Cigna Dental Vision Hearing 3500",
+    prima: "$62.66", efectiva: "09/01/2026", agente: "MARTA QUINTERO" } }),
+  /* "No Dependents added" no es un beneficiario; el NPN viene en el enlace */
+  "Supp App Dental Humana": Object.assign({}, SUPP_APP, { fields: {
+    nombres: "TOMAS", apellidos: "IBARRA", compania: carrierOf("supp", "Humana"), producto: "Dental", plan: "Dental Value HI215",
+    prima: "$11.99", efectiva: "08/01/2026", agente: "MARTA QUINTERO", npn: "19876543" } }),
+  "Supp App Dental Allstate": Object.assign({}, SUPP_APP, { fields: {
+    nombres: "ANDRES", apellidos: "FERRO LIMA", compania: carrierOf("supp", "National Health Insurance Company"), producto: "Dental",
+    plan: "Copay Plan 2", efectiva: "07/03/2026", agente: "LUCIA FERRER CAMPOS" } }),
+  /* la tarjeta es un escaneo: este es el texto que da el OCR */
+  "Supp ID Card Allstate Dental OCR": { type: "supp_card", line: "supp", net: "card", read: "supp", fields: {
+    nombres: "ANDRES", apellidos: "FERRO LIMA", compania: carrierOf("supp", "Allstate"), producto: "Dental", plan: "Select Dental PPO Plan",
+    poliza: "2011223344", efectiva: "07/03/2026" } },
+  "Payment Oscar": Object.assign({}, PAY, { read: "oc", fields: {
+    pagoEstado: "PAYMENT", pagoMonto: "$530.95", pagoFecha: "10/19/2026", pagoConf: "0Qk3TzWbN7pLs2HdVx9RfM4cYa6EuJ1oGi8BnK5wPq3Z",
+    compania: carrierOf("oc", "Oscar"), nombres: "VICTOR", apellidos: "PAZ" } }),
+  "Payment UHC": Object.assign({}, PAY, { read: "oc", fields: {
+    pagoEstado: "PAYMENT", pagoMonto: "$27.65", pagoFecha: "10/19/2026", pagoConf: "301928374655", autopay: "On",
+    compania: carrierOf("oc", "UHC"), nombres: "ANA DEL CARMEN", apellidos: "RIOS SOTO" } }),
+  /* Wellpoint no muestra ni el monto ni la fecha */
+  "Payment Wellpoint": Object.assign({}, PAY, { read: "oc", fields: {
+    pagoEstado: "PAYMENT", pagoConf: "PSTG261001QWERTY7Z", compania: carrierOf("oc", "Wellpoint") } }),
+  /* la fecha es la del encabezado que pone el navegador al imprimir */
+  "Payment Ambetter": Object.assign({}, PAY, { read: "oc", fields: {
+    pagoEstado: "PAYMENT", pagoMonto: "$79.15", pagoFecha: "09/28/2026", pagoConf: "817263540", pagoMetodo: "Tarjeta CC",
+    compania: carrierOf("oc", "Ambetter") } }),
+  /* en Suplementario el comprobante trae también producto, plan y póliza */
+  "Payment GeoBlue International": Object.assign({}, PAY, { read: "supp", fields: {
+    pagoEstado: "PAYMENT", pagoMonto: "$149.94", compania: carrierOf("supp", "Blue Cross Blue Shield Global Solutions"),
+    producto: "International", plan: "Medical Coverage for Travel - Single Trip Platinum", poliza: "905512348", efectiva: "09/10/2026",
+    nombres: "RAUL", apellidos: "PONCE MEDINA" } }),
+  "Payment Florida Blue Dental": Object.assign({}, PAY, { read: "supp", fields: {
+    pagoEstado: "PAYMENT", pagoMonto: "$69.46", pagoFecha: "08/14/2026", pagoConf: "150099887", pagoMetodo: "Tarjeta CC",
+    compania: carrierOf("supp", "Florida Combined Life"), producto: "Dental", plan: "BlueDental Copayment QF", efectiva: "09/01/2026" } })
+};
+
+for (const [name, exp] of Object.entries(SUPP_DOCS)) {
+  test(name + ": tipo y datos", () => {
+    const r = X.extract(fixture(name), name + ".pdf", exp.read);
+    assert.equal(r.type, exp.type);
+    assert.equal(r.line, exp.line);
+    assert.equal(r.net, exp.net);
+    assert.deepEqual(r.fields, exp.fields);
+  });
+
+  test(name + ": se reconoce sin el nombre del archivo", () => {
+    assert.equal(X.extract(fixture(name), "document.pdf", "oc").type, exp.type);
+    assert.equal(X.extract(fixture(name), "scan0001.pdf", "mc").type, exp.type);
+  });
+}
+
+test("una firma de tutor (Parent/Legal Guardian) no es la compañía Guardian", () => {
+  const text = "Application for Dental Insurance\nSignature of Parent/Legal Guardian\nGuardian’s Signature\n" +
+    "Underwritten by Ameritas Life Insurance Corp.\nFirst Name: Rosa\nLast Name: Medina\nMonthly Premium: $30.10";
+  assert.equal(X.extract(text, "document.pdf", "supp").fields.compania, carrierOf("supp", "Ameritas"));
 });
