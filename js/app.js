@@ -93,6 +93,8 @@
       talker: "", npnAgente: "", colaborador: "", prefijo: "",
       personas: [{ titular: true, parentesco: "Titular", taxes: true, cobertura: true, ingreso: "", estatus: "", dob: "" }],
       docs: [], planes: [], revisaPlanes: false, motivoCancel: "", motivoOtro: "", hogarDoc: "",
+      /* compañía elegida en el selector (Obamacare y Medicare) y estado de BCBS of */
+      companiaSel: "", bcbsEstado: "", tipoCancel: "cancelled", fechaTermino: "",
       direccion: "", clienteTel: "", clienteEmail: "", idioma: "es",
       /* Cambios: personas de un documento que se quitaron y si el hogar vino de un documento */
       quitados: [], hogarPdf: false
@@ -162,6 +164,16 @@
     return out;
   }
 
+  /* Compañía en Obamacare y Medicare: la lista oficial de la agencia y «Otra»,
+     que pide escribir el nombre. BCBS of pide además el estado. */
+  function carrierSelectOptions() {
+    return [{ v: "", l: "Elige la compañía" }]
+      .concat(N.carrierOptions(S.line).map(function (o) { return { v: o.v, l: o.l }; }))
+      .concat([{ v: N.CARRIER_OTHER, l: "Otra" }]);
+  }
+  function needsState(sel) { return N.carrierOptions(S.line).some(function (o) { return o.state && o.v === sel; }); }
+  function otherCarrier(f) { return f.companiaSel === N.CARRIER_OTHER; }
+
   /* k        clave del control (única)
      store    clave en S.f si no es k (dos controles para el mismo dato)
      sec      sección (o lista de secciones) que debe estar activa
@@ -210,8 +222,15 @@
       when: function (f) { return f.motivoCancel === "Otro"; } },
     { k: "gestionC", store: "gestion", g: "cancelacion", sec: "cancelacion", type: "seg", label: "Proceso que se cancela", w: "full",
       options: [{ v: "nueva", l: "App nueva" }, { v: "renovacion", l: "Renovación" }, { v: "cambio", l: "Póliza activa (Life Change)" }] },
-    { k: "companiaC", store: "compania", g: "cancelacion", sec: "cancelacion", type: "text", label: "Compañía", w: "w2",
-      list: function () { return C.CARRIERS.oc.map(function (c) { return c.name; }); } },
+    { k: "tipoCancel", g: "cancelacion", sec: "cancelacion", type: "seg", label: "Tipo de cancelación", w: "w2", options: C.CANCEL_TYPES },
+    { k: "efectivaC", store: "efectiva", g: "cancelacion", sec: "cancelacion", type: "date", label: "Cobertura desde",
+      hint: "El archivo CANCELLED lleva este mes", when: function (f) { return f.tipoCancel !== "terminated"; } },
+    { k: "fechaTermino", g: "cancelacion", sec: "cancelacion", type: "date", label: "Fecha de terminación",
+      hint: "El archivo TERMINATED lleva este mes", when: function (f) { return f.tipoCancel === "terminated"; } },
+    { k: "companiaSelC", store: "companiaSel", g: "cancelacion", sec: "cancelacion", type: "select", label: "Compañía", w: "w2",
+      options: carrierSelectOptions },
+    { k: "companiaC", store: "compania", g: "cancelacion", sec: "cancelacion", type: "text", label: "Nombre de la compañía", w: "w2",
+      when: otherCarrier },
     { k: "npnAgenteC", store: "npnAgente", g: "cancelacion", sec: "cancelacion", type: "select", label: "Agente (NPN)", w: "w2",
       options: npnOptions, hint: "Va entre paréntesis en el reporte" },
 
@@ -242,8 +261,15 @@
     { k: "intento", g: "gestion", sec: "contacto", type: "int", label: "Intento #", max: 2 },
 
     { k: "planes", g: "plan", sec: "planes", type: "planeslist", w: "full", lines: ["oc"] },
-    { k: "compania", g: "plan", sec: "plan", type: "text", label: "Compañía", w: "w2",
-      list: function () { return C.CARRIERS[S.line].map(function (c) { return c.name; }); }, when: function () { return !mcSin(); } },
+    { k: "companiaSel", g: "plan", sec: "plan", type: "select", label: "Compañía", w: "w2", lines: ["oc", "mc"],
+      options: carrierSelectOptions, when: function () { return !mcSin(); } },
+    { k: "bcbsEstado", g: "plan", sec: "plan", type: "text", label: "Estado de BCBS", ph: "GA", max: 2, upper: true, lines: ["mc"],
+      hint: "Dos letras", when: function (f) { return !mcSin() && needsState(f.companiaSel); } },
+    /* Suplementario escribe la compañía; Obamacare y Medicare, solo con «Otra» */
+    { k: "compania", g: "plan", sec: "plan", type: "text", w: "w2",
+      label: function () { return S.line === "supp" ? "Compañía" : "Nombre de la compañía"; },
+      list: function () { return S.line === "supp" ? C.CARRIERS.supp.map(function (c) { return c.name; }) : []; },
+      when: function (f) { return !mcSin() && (S.line === "supp" || otherCarrier(f)); } },
     { k: "plan", g: "plan", sec: "plan", type: "text", label: "Nombre del plan", w: "w2",
       hint: function () { return S.line === "mc" ? "Con el contrato (H-PBP): Humana Gold Plus H1036-077 (HMO)" : ""; } },
     { k: "estado", g: "plan", sec: "plan", type: "text", label: "Status", lines: ["oc"], list: ["Active", "Pending", "Unpaid binder", "Terminated"] },
@@ -305,8 +331,7 @@
     { k: "npnAgente", g: "agente", sec: "agente", type: "select", label: "Agente (NPN)", w: "w2",
       options: npnOptions, hint: "El NPN con el que se hace la app" },
     { k: "colaborador", g: "agente", sec: "agente", type: "select", label: "Colaborador", w: "w2", lines: ["oc"],
-      hint: "Quién procesó la aplicación", options: function () { return teamOptions("—"); } },
-    { k: "escritura", g: "agente", sec: "agente", type: "text", label: "Writing ID", w: "w2", lines: ["mc"] }
+      hint: "Quién procesó la aplicación", options: function () { return teamOptions("—"); } }
   ];
 
   var FIELD = {};
@@ -371,7 +396,8 @@
       ctl = el("input"); ctl.type = "text";
       if (F.type === "money") { ctl.inputMode = "decimal"; ctl.placeholder = "$0.00"; ctl.classList.add("num"); }
       if (F.type === "date") { ctl.placeholder = "MM/DD/AAAA"; ctl.classList.add("num"); }
-      if (F.type === "int") { ctl.inputMode = "numeric"; ctl.classList.add("num"); if (F.max) { ctl.maxLength = F.max; } }
+      if (F.type === "int") { ctl.inputMode = "numeric"; ctl.classList.add("num"); }
+      if (F.max) { ctl.maxLength = F.max; }
       if (F.mode) { ctl.inputMode = F.mode; }
       if (F.list) { ctl.setAttribute("list", "dl_" + F.k); }
     }
@@ -675,7 +701,8 @@
     box.textContent = "";
     var dlId = "dl_planCarriers";
     var dl = el("datalist"); dl.id = dlId;
-    C.CARRIERS.oc.forEach(function (c) { var o = el("option"); o.value = c.name; dl.appendChild(o); });
+    /* se sugieren las compañías oficiales; otra se puede escribir */
+    N.carrierOptions("oc").forEach(function (c) { var o = el("option"); o.value = c.v; dl.appendChild(o); });
     box.appendChild(dl);
     S.f.planes.forEach(function (p, i) {
       var item = listItem("plan-item" + (p.sel ? " sel" : ""), i);
@@ -726,6 +753,31 @@
     var p = S.f.planes.filter(function (x) { return x.sel; })[0];
     if (!p) { return; }
     S.f.compania = p.compania; S.f.plan = p.plan; S.f.prima = p.prima;
+    syncCarrierChoice();
+  }
+
+  /* La opción del selector de compañía sale del nombre cuando este no lo
+     escribió el agente: al leer un documento, al elegir un plan cotizado o
+     al cambiar de línea. Lo leído queda en dorado en el selector o, con
+     «Otra», en el campo del nombre. */
+  function syncCarrierChoice() {
+    var c = N.carrierChoice(S.line, S.f.compania);
+    S.f.companiaSel = c.sel; S.f.bcbsEstado = c.state;
+    if (S.auto.compania === true && c.sel && c.sel !== N.CARRIER_OTHER) { S.auto.companiaSel = true; }
+    else { delete S.auto.companiaSel; }
+  }
+
+  /* El agente elige una compañía o escribe el estado de BCBS of. «Otra»
+     empieza vacía, salvo que el nombre ya fuera de una compañía fuera de la lista. */
+  function chooseCarrier() {
+    var sel = S.f.companiaSel;
+    if (sel === N.CARRIER_OTHER) {
+      if (N.carrierChoice(S.line, S.f.compania).sel !== N.CARRIER_OTHER) { S.f.compania = ""; }
+    } else {
+      S.f.compania = N.carrierFromChoice(S.line, sel, S.f.bcbsEstado);
+    }
+    touched("compania");
+    syncInputsLight();
   }
 
   function listAction(b) {
@@ -1032,10 +1084,12 @@
   }
 
   /* Controles que comparten un dato con otro (Compañía en Plan y en
-     Cancelación) y nombres de personas, sin volver a dibujar las listas. */
+     Cancelación, con su selector y el estado de BCBS) y nombres de personas,
+     sin volver a dibujar las listas. */
+  var CARRIER_KEYS = ["compania", "companiaSel", "bcbsEstado"];
   function syncInputsLight() {
     FIELDS.forEach(function (F) {
-      if (!F.store && F.k !== "compania") { return; }
+      if (!F.store && CARRIER_KEYS.indexOf(F.k) < 0) { return; }
       var ctl = $("f_" + F.k);
       if (ctl && document.activeElement !== ctl && F.type !== "seg") { ctl.value = S.f[key(F)] == null ? "" : S.f[key(F)]; }
     });
@@ -1110,6 +1164,8 @@
     S.outcome = same ? same.id : L().outcomes[0].id;
     S.f.gestion = "";
     S.f.taskId = "";
+    /* cada línea tiene su lista oficial de compañías */
+    syncCarrierChoice();
     afterOutcomeChange();
     renderPicker(); syncInputs(); refresh();
   }
@@ -1515,6 +1571,7 @@
   var RANK = { oc_plans: 3, mc_app: 3, supp_app: 3, oc_elig: 2, pay: 2, oc_app: 1, mc_soa: 1 };
 
   function applyExtraction(res) {
+    var lineBefore = S.line, carrierBefore = S.f.compania;
     /* solo se cambia de línea si el documento realmente aportó datos */
     if (res.line && res.line !== S.line && res.count > 0) {
       S.line = res.line; settings.line = res.line; saveSettings();
@@ -1525,6 +1582,8 @@
     }
     var rank = RANK[res.type] || 0, applied = 0;
     var fields = Object.assign({}, res.fields);
+    /* el Writing ID ya no se usa (basta el NPN): si un documento lo trae, se ignora */
+    delete fields.escritura;
     /* lo que va a las listas o a los selectores se aparta del resto */
     var special = {};
     ["miembros", "ingreso", "hogar", "docs", "agente", "npn", "dob"].forEach(function (k) {
@@ -1557,6 +1616,7 @@
     if (S.line === "mc" && fields.prima && U.moneyNumber(fields.prima) > 0) { S.f.tienePrima = true; }
     if (special.agente || special.npn) { applied += mapAgent(special.agente, special.npn); }
     if (res.net) { S.f.net[res.net] = true; }
+    if (S.line !== lineBefore || S.f.compania !== carrierBefore) { syncCarrierChoice(); }
     return applied;
   }
 
@@ -2069,6 +2129,7 @@
       S.f[key(F)] = F.type === "check" ? t.checked : t.value;
       touched(key(F));
       if (k === "talker" || k === "colaborador") { S.f.prefijo = ""; }
+      if (key(F) === "companiaSel" || k === "bcbsEstado") { chooseCarrier(); }
       if (k === "nombres" || k === "apellidos") { updatePeopleSummary(); }
       if (k === "nombres" || k === "apellidos" || k === "companiaC" || k === "compania") { syncInputsLight(); }
       refresh();
@@ -2096,6 +2157,8 @@
         syncSeg(seg, S.f[k]);
         /* el mismo dato puede tener dos controles (p. ej. en Cancelación) */
         each($("form").querySelectorAll("[data-seg]"), function (o) { var G = FIELD[o.dataset.seg]; if (o !== seg && key(G) === k) { syncSeg(o, S.f[k]); } });
+        /* CANCELLED o TERMINATED cambia el documento del Network */
+        if (k === "tipoCancel") { renderNetwork(); }
         refresh();
         return;
       }

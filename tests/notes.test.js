@@ -581,17 +581,17 @@ test("SMS: cuenta caracteres y mensajes", () => {
 
 /* --------------------------------------------------- nombres de archivo -- */
 
-test("nombres de archivo como en NOMBRE DE ARCHIVOS", () => {
+test("nombres de archivo que no cambian: My Plans & Programs, SOA sin cambios y Suplementario", () => {
   const names = (d) => Object.fromEntries(N.buildFileNames(d).map((f) => [f.k, f.name]));
   const oc = names(make({ line: "oc", nombres: "KARLA ALEJANDRA", apellidos: "AGUILAR", fecha: "03/20/2026", compania: "Ambetter", efectiva: "04/01/2026", pagoFecha: "09/01/2026" }));
-  assert.equal(oc.appsummary, "Aguilar, Karla Alejandra - OC_App Summary 2026 MAR");
-  assert.equal(oc.eligibility, "Aguilar, Karla Alejandra - OC_EligibilityNotice 2026 MAR");
   assert.equal(oc.plans, "Aguilar, Karla Alejandra - OC_My Plans & Programs Ambetter 2026 APR");
-  assert.equal(oc.payment, "Aguilar, Karla Alejandra - OC_Ambetter Payment 2026 SEP");
 
-  const mc = names(make({ line: "mc", nombres: "ANGEL", apellidos: "CASO", fecha: "09/15/2026", soaFecha: "09/10/2026", compania: "Humana", efectiva: "10/01/2026" }));
-  assert.equal(mc.appsummary, "Caso, Angel - Medicare_Humana 2026 OCT");
-  assert.equal(mc.soa, "Caso, Angel - Medicare_SOA 2026 SEP");
+  /* SOA de Medicare sin cambios: sin la compañía */
+  const mc = names(make({ line: "mc", outcome: "sincambio", nombres: "ANGEL", apellidos: "CASO", fecha: "09/15/2026", soaFecha: "09/10/2026", compania: "Humana", efectiva: "10/01/2026" }));
+  assert.deepEqual(mc, { soa: "Caso, Angel - Medicare_SOA 2026 SEP" });
+
+  const accident = names(make({ line: "supp", producto: "Accident", nombres: "BEATRIZ ELENA", apellidos: "DIAZ", compania: "ALLSTATE", efectiva: "01/01/2027" }));
+  assert.equal(accident.appsummary, "Diaz, Beatriz Elena - Accident_Allstate 2027 JAN");
 
   const dental = names(make({ line: "supp", producto: "Dental", nombres: "ADNIE VIRGEN", apellidos: "TELLEZ ARMAS", compania: "Florida Blue", pagoFecha: "07/02/2026", efectiva: "07/01/2026" }));
   assert.equal(dental.payment, "Tellez Armas, Adnie Virgen - Payment Confirmation - Dental_FB 2026 JUL");
@@ -601,6 +601,111 @@ test("nombres de archivo como en NOMBRE DE ARCHIVOS", () => {
   assert.equal(st.appsummary, "Varona De La Pena, Florinda - Short Term_GR 2026 DEC");
   const life = names(make({ line: "supp", producto: "Life", nombres: "KATHERINA", apellidos: "COLLANTES VASQUEZ", compania: "Occidental", efectiva: "05/15/2026" }));
   assert.equal(life.appsummary, "Collantes Vasquez, Katherina - Life_Occidental 2026 MAY");
+});
+
+/* Formatos oficiales de la agencia (Lastname, Firstname OptionalMiddleName - …). */
+const cliente = { nombres: "BEATRIZ ELENA", apellidos: "DIAZ", fecha: "11/15/2026" };
+const conCliente = (extra) => make(Object.assign({}, cliente, extra));
+const fileOf = (extra, k) => (N.buildFileNames(conCliente(extra)).find((f) => f.k === k) || {}).name;
+
+test("archivo oficial: App Summary (OC) con el año del plan", () => {
+  assert.equal(fileOf({ line: "oc", anio: "2027", efectiva: "01/01/2027" }, "appsummary"), "Diaz, Beatriz Elena - OC_App Summary 2027");
+  /* sin año del plan: el de la cobertura y, si tampoco hay, el de la nota */
+  assert.equal(fileOf({ line: "oc", anio: "", efectiva: "01/01/2027" }, "appsummary"), "Diaz, Beatriz Elena - OC_App Summary 2027");
+  assert.equal(fileOf({ line: "oc", anio: "", efectiva: "" }, "appsummary"), "Diaz, Beatriz Elena - OC_App Summary 2026");
+});
+
+test("archivo oficial: Consent (OC) con la compañía y el mes de la nota", () => {
+  assert.equal(fileOf({ line: "oc", compania: "AMBETTER" }, "consent"), "Diaz, Beatriz Elena - OC_Consent Ambetter 2026 NOV");
+  assert.equal(fileOf({ line: "oc", outcome: "pendiente", compania: "AMBETTER" }, "consent"), "Diaz, Beatriz Elena - OC_Consent Ambetter 2026 NOV");
+});
+
+test("archivo oficial: Eligibility letter (OC) con el año del plan", () => {
+  assert.equal(fileOf({ line: "oc", anio: "2027", efectiva: "01/01/2027" }, "eligibility"), "Diaz, Beatriz Elena - OC_EligibilityNotice 2027");
+});
+
+test("archivo oficial: Cancelled OC con el mes en que iba a empezar la cobertura", () => {
+  assert.equal(fileOf({ line: "oc", outcome: "cancelada", compania: "AMBETTER", efectiva: "01/01/2027" }, "plans"),
+    "Diaz, Beatriz Elena - OC_My Plans & Programs Ambetter 2027 JAN CANCELLED");
+});
+
+test("archivo oficial: Terminated OC con el mes en que termina la cobertura", () => {
+  const d = conCliente({ line: "oc", outcome: "cancelada", gestion: "cambio", tipoCancel: "terminated", compania: "AMBETTER",
+    efectiva: "01/01/2026", fechaTermino: "01/31/2027", motivoCancel: "Seguro por el trabajo", net: { plans: true } });
+  assert.deepEqual(N.buildFileNames(d).map((f) => [f.k, f.label, f.name]),
+    [["plans", "My Plans & Programs (TERMINATED)", "Diaz, Beatriz Elena - OC_My Plans & Programs Ambetter 2027 JAN TERMINATED"]]);
+  assert.match(N.buildNote(d), /\nDocs en mi folder del NETW: My Plans & Programs \(TERMINATED\)\.$/);
+  /* sin la fecha de terminación, se avisa */
+  assert.ok(N.warnings(Object.assign({}, d, { fechaTermino: "" }), "").some((x) => /fecha de terminación/.test(x)));
+  assert.ok(!N.warnings(d, "").some((x) => /fecha de terminación/.test(x)));
+});
+
+test("archivo oficial: App MC con la compañía", () => {
+  assert.equal(fileOf({ line: "mc", compania: "HUMANA", efectiva: "01/01/2027" }, "appsummary"), "Diaz, Beatriz Elena - Medicare_Humana_App 2027 JAN");
+});
+
+test("archivo oficial: SOA de MC con app o cambio lleva la compañía", () => {
+  assert.equal(fileOf({ line: "mc", outcome: "enviada", gestion: "nueva", compania: "HUMANA", soaFecha: "11/10/2026" }, "soa"),
+    "Diaz, Beatriz Elena - Medicare_Humana_SOA 2026 NOV");
+  assert.equal(fileOf({ line: "mc", outcome: "enviada", gestion: "cambio", compania: "HUMANA", soaFecha: "11/10/2026" }, "soa"),
+    "Diaz, Beatriz Elena - Medicare_Humana_SOA 2026 NOV");
+});
+
+test("archivo oficial: Payment confirmation (OC)", () => {
+  assert.equal(fileOf({ line: "oc", compania: "FLORIDA BLUE", pagoFecha: "07/02/2026" }, "payment"),
+    "Diaz, Beatriz Elena - Payment Confirmation - OC_FB 2026 JUL");
+});
+
+/* ----------------------------------------------------------- compañías -- */
+
+test("compañías oficiales de Obamacare y Medicare, en el orden de la agencia", () => {
+  assert.deepEqual(N.carrierOptions("oc").map((o) => o.l), ["Florida Blue", "Ambetter", "Wellpoint", "UHC", "Oscar", "Cigna"]);
+  assert.deepEqual(N.carrierOptions("mc").map((o) => o.l),
+    ["Humana", "UHC", "Aetna", "Florida Blue", "BCBS of", "Healthspring", "Devoted", "Freedom", "Simply"]);
+});
+
+test("compañía leída de un documento: su opción oficial, o Otra con el nombre", () => {
+  const sel = (line, name) => N.carrierChoice(line, name).sel;
+  ["FLORIDA BLUE", "AMBETTER", "WELLPOINT", "UNITED HEALTHCARE", "OSCAR", "CIGNA"].forEach((n) => assert.equal(sel("oc", n), n, n));
+  ["HUMANA", "UNITED HEALTHCARE", "AETNA", "FLORIDA BLUE", "HEALTHSPRING", "DEVOTED HEALTH", "FREEDOM HEALTH", "SIMPLY HEALTHCARE"]
+    .forEach((n) => assert.equal(sel("mc", n), n, n));
+  /* Healthspring ya no es Cigna */
+  assert.equal(sel("mc", "CIGNA HEALTHSPRING"), "HEALTHSPRING");
+  ["MOLINA", "AVMED", "AETNA CVS HEALTH", "HUMANA"].forEach((n) => assert.equal(sel("oc", n), N.CARRIER_OTHER, n));
+  ["WELLCARE", "MOLINA", "CIGNA"].forEach((n) => assert.equal(sel("mc", n), N.CARRIER_OTHER, n));
+  assert.deepEqual(N.carrierChoice("mc", "BCBS OF GA"), { sel: "BCBS OF", state: "GA" });
+  assert.deepEqual(N.carrierChoice("oc", ""), { sel: "", state: "" });
+  /* lo elegido vuelve a ser el nombre que usan la nota, el reporte y los archivos */
+  assert.equal(N.carrierFromChoice("mc", "BCBS OF", "ga"), "BCBS OF GA");
+  assert.equal(N.carrierFromChoice("mc", "BCBS OF", ""), "BCBS OF");
+  assert.equal(N.carrierFromChoice("oc", "AMBETTER", "GA"), "AMBETTER");
+});
+
+test("BCBS of, Healthspring y Otra en la nota, el reporte y los archivos", () => {
+  const d = conCliente({ line: "mc", outcome: "enviada", gestion: "nueva", codigoQ: "1234", compania: "BCBS OF GA",
+    efectiva: "01/01/2027", soaFecha: "11/10/2026" });
+  assert.match(N.buildNote(d), /^LI_11\/15\/2026: Se procesa app de MC con BCBS of GA\.\n/);
+  assert.equal(N.buildReport(d), "Q1234 - Diaz, Beatriz Elena - App MC BCBS of GA 2026 - Call (LI)");
+  assert.deepEqual(N.buildFileNames(d).map((f) => f.name), [
+    "Diaz, Beatriz Elena - Medicare_BCBS of GA_SOA 2026 NOV",
+    "Diaz, Beatriz Elena - Medicare_BCBS of GA_App 2027 JAN"
+  ]);
+  assert.equal(N.carrierShort("mc", "HEALTHSPRING"), "Healthspring");
+  assert.equal(N.buildReport(Object.assign({}, d, { compania: "HEALTHSPRING" })), "Q1234 - Diaz, Beatriz Elena - App MC Healthspring 2026 - Call (LI)");
+  /* una compañía fuera de la lista va con su nombre */
+  assert.equal(fileOf({ line: "oc", compania: "MOLINA", efectiva: "01/01/2027" }, "plans"), "Diaz, Beatriz Elena - OC_My Plans & Programs Molina 2027 JAN");
+  assert.equal(fileOf({ line: "mc", compania: "SUNRISE HEALTH", efectiva: "01/01/2027" }, "appsummary"), "Diaz, Beatriz Elena - Medicare_Sunrise Health_App 2027 JAN");
+  /* las formas cortas de siempre */
+  assert.equal(N.carrierShort("oc", "FLORIDA BLUE"), "FB");
+  assert.equal(N.carrierShort("mc", "UNITED HEALTHCARE"), "UHC");
+  assert.equal(N.carrierShort("mc", "CIGNA"), "Cigna");
+  assert.equal(N.carrierShort("supp", "GOLDEN RULE"), "GR");
+});
+
+test("nota de Medicare: NPN y sin Writing ID", () => {
+  const note = N.buildNote(make({ line: "mc", outcome: "enviada", gestion: "nueva", agente: "Ana Torres", agenteIni: "LI", escritura: "1234567" }));
+  assert.match(note, /\nNPN: LI(\n|$)/);
+  assert.doesNotMatch(note, /Writing ID|1234567/);
 });
 
 /* -------------------------------------------------------------- avisos -- */

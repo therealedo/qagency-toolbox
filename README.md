@@ -52,7 +52,7 @@ There are three situations:
 
 - **App enviada.** *Hogar* has the titular's address, phone and email, and lists the people in the application: the titular (named as in Zoho) and everyone else, each with *Taxes* and *Cobertura* toggles and, when opened, their relationship, US status (citizen, resident, work permit or something else, typed), DOB and yearly income. The note counts taxes and coverage and names them: `Sus ingresos anuales son $32,000 (Beatriz $25,000, Juan $7,000). Son 3 en los taxes (Beatriz, Juan, Ana) y 2 pidiendo cobertura (Beatriz, Juan).` *Plan* keeps company, plan name, status, coverage start and the monthly premium the client pays. *Documentos que pide el Mercado* is a checklist: what the Marketplace asked for (the 11 data matching issues from healthcare.gov), for whom, the due date, and once **Enviado** is ticked, which document was sent. While the Marketplace is asking for any document, sent or not, the automatic task is `FOLLOW UP DOCS BY` the earliest due date of all of them; otherwise `FOLLOW UP CUSTOMER SERVICE` with the payment tag. The note always goes in the principal's profile, so there is no dependent option (`FOLLOW UP CUSTOMER SERVICE DEP` can still be picked by hand).
 - **Pendiente** covers quotes, consents waiting for signature and apps ready to process. *Planes cotizados* takes as many plans as were discussed, one line each in the note, with **Seleccionar** for the one the client chose and **Revisará los planes** when the quote is sent or handed over for review. Network only has the consent: the note ends with `Carta de consentimiento enviada.` or, once received, `Se firmó la carta de consentimiento en línea` (call) or `en la oficina` (in person). The task is `FOLLOW UP CONSENT`, `MKPL APP PENDING` once the consent is in, or `FOLLOW UP OPEN ENROLLMENT OC` if the client will review the plans. No SMS.
-- **Cancelación** asks for the reason (too expensive, coverage through work, immigration status or other), what is being cancelled, the company and the agent, and ticks *My Plans & Programs (CANCELLED)*, whose file name ends in `CANCELLED`. The task is `FOLLOW UP LEAD_INACTIVE CLIENT OC`.
+- **Cancelación** asks for the reason (too expensive, coverage through work, immigration status or other), what is being cancelled, the company and the agent, and whether it is **Cancelada** (the coverage never started: a renewal for next year, or an application cancelled before the effective date, or after it without payment) or **Terminada** (the coverage ends in a given month, for example when moving to Medicare or to job-based insurance). Cancelada asks for the coverage start and ticks *My Plans & Programs (CANCELLED)*, whose file name takes that month and ends in `CANCELLED`; Terminada asks for the termination date and ticks *My Plans & Programs (TERMINATED)*, whose file name takes the month the coverage ends and ends in `TERMINATED`. The task is `FOLLOW UP LEAD_INACTIVE CLIENT OC`.
 
 **Cambios.** In *App enviada* and *Pendiente*, whatever ends up different from what the documents filled in goes in the note under `Cambios:`, one line per change, right after the household line:
 
@@ -82,11 +82,20 @@ There are two situations, and *Tipo de gestión* is a new application or a renew
 - **App enviada.** *Members* works like the Obamacare household: the titular's address, phone and email, and each person with a **Cobertura** toggle and their DOB. The note names whoever has coverage by first name: `Se procesa app de Hospital de GR para el cliente, Maria y Luis.` The plan keeps the product, company, plan name, premium, effective date and Policy # (no App ID or plan type). *Pago* is **Pago confirmado** or **Pendiente de pago**. Whoever writes the note processed the app, so there is no collaborator. **Email para el cliente** has one part with its own **Copiar**, in Español or English: the company, `ID #` (the Policy #), the coverage start and the monthly premium, signed by whoever talked to the client. The SMS and the note keep their current text until the agency's standard format is ready.
 - **Cotización.** Same *Members* and *Gestión*; the plan has no App ID or Policy #, and the date is **Fecha efectiva estimada**, which goes in the note after the quoted plan. Covered people besides the titular are named: `desea cotizar seguro dental para el cliente y Maria.` The SMS keeps its current text, and the quote email is not in the app yet.
 
+### Companies
+
+Obamacare and Medicare pick the company from the agency's official list, in this order, or **Otra**, which asks for the name:
+
+- Obamacare: Florida Blue, Ambetter, Wellpoint, UHC, Oscar, Cigna.
+- Medicare: Humana, UHC, Aetna, Florida Blue, BCBS of (with the state in two letters), Healthspring, Devoted, Freedom, Simply.
+
+The note, the report and the file names use the short form: `FB` for Florida Blue, `BCBS of GA`, `Healthspring`. A company read from a document is matched to its option; one outside the list (Molina, AvMed, Wellcare…) comes in as **Otra** with its name. Suplementario keeps a free company field with suggestions. The list lives in `js/config.js`: the carriers with `option` are the official ones.
+
 ### People
 
 Each person in **Ajustes → Equipo** has the initials they sign notes and tasks with, and, if different, the initials they appear with as agent in the Cliq report (Ana signs notes as DI and is agent LI), plus an optional direct phone that goes under their signature in the Obamacare SMS. Phones are typed in Ajustes and stay in that browser; they are not in the code.
 
-*Agente y colaborador* has three roles: **Habló con el cliente**, **Agente (NPN)** (a list of the agents with their NPN) and **Colaborador** (who processed the application). They default to whoever writes the note. Medicare and Suplementario have no **Colaborador**: whoever writes the note processed the app. The note says `NPN: LI`, and names who talked to the client and who processed the app only when it was someone else. When the person who talked to the client is not the one who processed the app, the report line starts with their initials (`FV: Q1234 - … (LI)`); a checkbox under the report switches that on or off.
+*Agente y colaborador* has three roles: **Habló con el cliente**, **Agente (NPN)** (a list of the agents with their NPN) and **Colaborador** (who processed the application). They default to whoever writes the note. Medicare and Suplementario have no **Colaborador**: whoever writes the note processed the app. The note says `NPN: LI` (the NPN is enough, so there is no Writing ID), and names who talked to the client and who processed the app only when it was someone else. When the person who talked to the client is not the one who processed the app, the report line starts with their initials (`FV: Q1234 - … (LI)`); a checkbox under the report switches that on or off.
 
 ### The note
 
@@ -117,7 +126,24 @@ It is signed by whoever talked to the client, with their direct phone from Ajust
 
 Below it, **Email para el cliente** has two parts, each with its own **Copiar**: part 1 with the policy (company, coverage start, plan and monthly premium) and part 2 with what the Marketplace is requesting (every requested document with its due date, left out when nothing is requested) and the closing signed by whoever talked to the client. Both follow the same Español / English switch.
 
-The Network section lists the documents for the line of business, each with its file name ready to copy, for example `Caso, Angel - Medicare_Humana 2026 OCT`. Copying a name also ticks the document, so it is listed in the note. Plan documents (My Plans & Programs, the Medicare application, supplemental applications and ID cards) take the year and month of the coverage start; the rest take the date of the note, the SOA signature or the payment.
+The Network section lists the documents for the line of business, each with its file name ready to copy. Copying a name also ticks the document, so it is listed in the note. Names follow the agency's official formats, `Lastname, Firstname MiddleName - …`:
+
+| Document | File name | Date |
+|---|---|---|
+| App Summary (OC) | `Diaz, Beatriz - OC_App Summary 2027` | plan year |
+| Consent (OC) | `Diaz, Beatriz - OC_Consent Ambetter 2026 NOV` | note |
+| Eligibility letter (OC) | `Diaz, Beatriz - OC_EligibilityNotice 2027` | plan year |
+| My Plans & Programs (OC) | `Diaz, Beatriz - OC_My Plans & Programs Ambetter 2027 JAN` | coverage start |
+| Cancelled (OC) | `Diaz, Beatriz - OC_My Plans & Programs Ambetter 2027 JAN CANCELLED` | coverage start |
+| Terminated (OC) | `Diaz, Beatriz - OC_My Plans & Programs Ambetter 2027 JAN TERMINATED` | termination date |
+| App (MC) | `Diaz, Beatriz - Medicare_Humana_App 2027 JAN` | coverage start |
+| SOA (MC, app or change) | `Diaz, Beatriz - Medicare_Humana_SOA 2026 NOV` | SOA signature |
+| SOA (MC, no change) | `Diaz, Beatriz - Medicare_SOA 2026 NOV` | SOA signature |
+| App (Supp) | `Diaz, Beatriz - Accident_Allstate 2027 JAN` | coverage start |
+| Payment confirmation (OC, Supp) | `Diaz, Beatriz - Payment Confirmation - OC_FB 2026 JUL`, `… - Payment Confirmation - Dental_FB 2026 JUL` | payment |
+| ID card (Supp) | `Diaz, Beatriz - Dental_FB - CARD 2026 JUL` | coverage start |
+
+The plan year is *Año del plan*, or the year of the coverage start when it is empty, or the year of the note.
 
 ### Saving to the Network
 
