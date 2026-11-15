@@ -16,25 +16,21 @@ test("My Plans & Programs", () => {
   assert.equal(r.line, "oc");
   assert.equal(r.net, "plans");
   assert.deepEqual(r.fields, {
-    planId: "68398FL0030046", plan: "Ambetter Standard Silver",
-    primaTotal: "$850.12", subsidio: "$824.72", primaPagar: "$25.40",
+    plan: "Ambetter Standard Silver", prima: "$25.40",
     miembros: "BEATRIZ DIAZ\nJUAN CARLOS DIAZ\nANA DIAZ", nombres: "BEATRIZ", apellidos: "DIAZ",
-    efectiva: "01/01/2027", fin: "12/31/2027", estado: "Active", compania: "AMBETTER", metal: "Silver", anio: "2027",
-    plataforma: "HealthCare.gov"
+    efectiva: "01/01/2027", estado: "Active", compania: "AMBETTER", anio: "2027", plataforma: "MKPL"
   });
 });
 
-test("Eligibility Letter: subsidio, ingreso y documentos con fecha tope", () => {
+test("Eligibility Letter: ingreso, hogar y documentos pedidos con persona y fecha tope", () => {
   const r = read("Eligibility Letter");
   assert.equal(r.type, "oc_elig");
   assert.equal(r.net, "eligibility");
   assert.equal(r.fields.appId, "4412345678");
   assert.equal(r.fields.anio, "2027");
-  assert.equal(r.fields.subsidio, "$824.72");
   assert.equal(r.fields.ingreso, "$32,000.00");
   assert.equal(r.fields.hogar, "4");
-  assert.equal(r.fields.docReq, "Prueba de ingresos");
-  assert.equal(r.fields.docFecha, "02/12/2027");
+  assert.deepEqual(r.fields.docs, [{ cat: "income", persona: "BEATRIZ DIAZ", fecha: "02/12/2027" }]);
   assert.equal(r.fields.nombres + " " + r.fields.apellidos, "BEATRIZ DIAZ");
 });
 
@@ -92,12 +88,12 @@ test("SOA", () => {
   assert.equal(r.fields.nombres, "BEATRIZ");
 });
 
-test("Comprobante de pago: solo los últimos 4 dígitos", () => {
+test("Comprobante de pago: método y autopay", () => {
   const r = read("Payment Receipt");
   assert.equal(r.type, "pay");
   assert.deepEqual(r.fields, {
     pagoEstado: "PAYMENT", pagoMonto: "$25.40", pagoConf: "PAY123456789", pagoFecha: "11/14/2026",
-    pagoMetodo: "Tarjeta ****4242", autopay: "SI"
+    pagoMetodo: "Tarjeta CC", autopay: "On"
   });
 });
 

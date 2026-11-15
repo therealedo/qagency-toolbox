@@ -47,6 +47,47 @@
   function val(v) { return U.collapse(v); }
   function upper(v) { return val(v).toUpperCase(); }
   function members(d) { return U.parseList(d.miembros).map(function (x) { return x.toUpperCase(); }); }
+  function first(name) { return U.titleCase(val(name).split(" ")[0] || ""); }
+
+  /* Personas del hogar (Obamacare). La primera es el titular: su nombre sale
+     de los campos de Zoho. Cada una dice si está en los taxes, si pide
+     cobertura y su ingreso anual. */
+  function personas(d) {
+    var list = Array.isArray(d.personas) && d.personas.length ? d.personas : [{ titular: true, taxes: true, cobertura: true }];
+    return list.map(function (p) {
+      var name = p.titular ? upper(val(d.nombres) + " " + val(d.apellidos)) : upper(p.nombre);
+      return {
+        name: name, first: p.titular ? (first(d.nombres) || "Titular") : first(p.nombre),
+        titular: !!p.titular, taxes: !!p.taxes, cobertura: !!p.cobertura,
+        ingreso: U.moneyNumber(p.ingreso), parentesco: val(p.parentesco)
+      };
+    }).filter(function (p) { return p.titular || p.name; });
+  }
+  function enTaxes(d) { return personas(d).filter(function (p) { return p.taxes; }); }
+  function conCobertura(d) { return personas(d).filter(function (p) { return p.cobertura; }); }
+  function names(list) { return list.length ? " (" + list.map(function (p) { return p.first; }).join(", ") + ")" : ""; }
+  /* Ingreso del hogar: la suma de lo que gana cada persona en los taxes. */
+  function ingresoHogar(d) {
+    return enTaxes(d).reduce(function (sum, p) { return p.ingreso ? (sum || 0) + p.ingreso : sum; }, null);
+  }
+
+  /* Documentos que pide el Mercado y si ya se enviaron. */
+  function docCat(v) {
+    for (var i = 0; i < C.MKPL_DOCS.length; i++) { if (C.MKPL_DOCS[i].v === v) { return C.MKPL_DOCS[i]; } }
+    return null;
+  }
+  function docsOf(d) { return (Array.isArray(d.docs) ? d.docs : []).filter(function (x) { return docCat(x.cat); }); }
+  function pendingDocs(d) { return docsOf(d).filter(function (x) { return !x.enviado; }); }
+  function earliestDue(list) {
+    var dates = list.map(function (x) { return U.parseDate(x.fecha); }).filter(Boolean);
+    dates.sort(function (a, b) { var p = a.split("/"), q = b.split("/"); return (p[2] + p[0] + p[1]) < (q[2] + q[0] + q[1]) ? -1 : 1; });
+    return dates[0] || "";
+  }
+
+  /* Planes que se cotizaron (Obamacare pendiente). */
+  function planesOf(d) {
+    return (Array.isArray(d.planes) ? d.planes : []).filter(function (p) { return val(p.compania) || val(p.plan); });
+  }
 
   /* "Diaz, Beatriz": como se escriben los nombres en el reporte y los archivos */
   function zohoName(d) {
@@ -78,7 +119,7 @@
       return (m[1] === "-" ? "-" : "+") + (+m[2]);
     }
     if (d.line === "mc") { return ""; }
-    var n = members(d).length;
+    var n = d.line === "oc" ? conCobertura(d).length : members(d).length;
     return n > 1 ? "+" + (n - 1) : "";
   }
 
@@ -87,7 +128,12 @@
   function autoTaskId(d) {
     var O = outcomeOf(d);
     var id = O.task;
-    if (id === "oc_cs" && d.dep) { id = "oc_cs_dep"; }
+    if (d.line === "oc") {
+      if (O.id === "enviada") { id = pendingDocs(d).length ? "oc_docs" : (d.dep ? "oc_cs_dep" : "oc_cs"); }
+      /* pendiente: si va a pensarlo sigue en open enrollment; si ya firmó el
+         consent solo falta procesar; si no, se espera el consent */
+      if (O.id === "pendiente") { id = d.revisaPlanes ? "oc_oe" : (d.net && d.net.consent ? "oc_app_pending" : "oc_consent"); }
+    }
     if (id === "mc_mant" && d.cmd) { id = "mc_mant_cmd"; }
     /* el seguro de vida tiene sus propios tasks */
     if (d.line === "supp" && d.producto === "Life") {
@@ -127,7 +173,7 @@
     if (val(d.obsTask)) { tags.push(d.obsTask); }
     return formatTask(T, {
       owner: d.taskOwner || d.ini, fecha: d.fecha, hora: d.hora, metodo: d.metodo, intento: d.intento,
-      docFecha: d.docFecha, taxYear: d.taxYear, tags: tags
+      docFecha: d.docFecha || earliestDue(pendingDocs(d)), taxYear: d.taxYear, tags: tags
     });
   }
 
@@ -172,6 +218,9 @@
   /* --------------------------------------------------------------- nota -- */
 
   function cliente(d) { return d.genero === "a" ? "la cliente" : "el cliente"; }
+  /* contracciones: "al cliente", "del cliente" */
+  function alCliente(d) { return d.genero === "a" ? "a la cliente" : "al cliente"; }
+  function delCliente(d) { return d.genero === "a" ? "de la cliente" : "del cliente"; }
   /* "interesado" -> "interesada" cuando es una cliente */
   function adj(d, word) { return d.genero === "a" ? word.replace(/o$/, "a") : word; }
 
@@ -182,8 +231,8 @@
      lleva el task después de VER NOTA. */
   function talk(d) {
     var t = U.parseTime(d.hora) ? " (" + U.to12h(d.hora) + ")" : "";
-    if (d.canal === "Appointment") { return "Se atiende a " + cliente(d) + " " + (MODO_CITA[d.modalidad] || "en cita") + t; }
-    if (d.canal === "Walk In") { return "Se atiende a " + cliente(d) + " en la oficina" + t; }
+    if (d.canal === "Appointment") { return "Se atiende " + alCliente(d) + " " + (MODO_CITA[d.modalidad] || "en cita") + t; }
+    if (d.canal === "Walk In") { return "Se atiende " + alCliente(d) + " en la oficina" + t; }
     return "Se conversa con " + cliente(d) + t;
   }
 
@@ -211,20 +260,20 @@
     if (d.line === "oc") {
       switch (O.id) {
         case "enviada": return ({ renovacion: "Se renueva", cambio: "Se actualiza" }[G.v] || "Se procesa") + " app OC" + y + con + ".";
-        case "cancelada": return "Se cancela app OC" + y + con + " a solicitud de " + cliente(d) + ".";
-        case "cotizacion":
-        case "consent": return talk(d) + ", nos indicó que desea cotizar con los siguientes datos:";
-        case "lista": return talk(d) + ", nos indicó que desea " + { nueva: "aplicar", renovacion: "renovar", cambio: "actualizar su app" }[G.v] + " con los siguientes datos:";
-        case "docs": return talk(d) + " sobre los documentos que pide el MKPL para su app OC" + y + ".";
-        case "pago": return talk(d) + " sobre el pago de su plan OC" + y + con + ".";
-        case "cita": return talk(d) + ", " + { nueva: "está " + adj(d, "interesado") + " en aplicar al OC", renovacion: "desea renovar su OC", cambio: "desea actualizar su app OC" }[G.v] + y + ". Se agenda cita" + citaWhen(d) + ".";
-        case "nointeresado": return talk(d) + ", indica que no está " + adj(d, "interesado") + " por el momento.";
+        case "cancelada":
+          return ({ renovacion: "Se cancela la renovación OC", cambio: "Se cancela la póliza OC" }[G.v] || "Se cancela app OC") + y + con +
+                 " a solicitud " + delCliente(d) + ".";
+        case "pendiente":
+          /* con un plan elegido ya quiere aplicar; si no, solo cotiza */
+          var sel = planesOf(d).some(function (p) { return p.sel; }) && !d.revisaPlanes;
+          return talk(d) + ", nos indicó que desea " +
+                 (sel ? { nueva: "aplicar", renovacion: "renovar", cambio: "actualizar su app" }[G.v] : "cotizar") + " con los siguientes datos:";
       }
     }
     if (d.line === "mc") {
       switch (O.id) {
         case "enviada": return G.v === "cambio" ? "Se procesa cambio de plan de MC" + (carrier ? " a " + carrier : "") + "." : "Se procesa app de MC" + con + ".";
-        case "cancelada": return "Se cancela app de MC" + con + " a solicitud de " + cliente(d) + ".";
+        case "cancelada": return "Se cancela app de MC" + con + " a solicitud " + delCliente(d) + ".";
         case "soa": return talk(d) + " sobre su plan de MC" + y + ". Se envía el SOA para firma antes de revisar los planes.";
         case "cita": return talk(d) + ", desea revisar su plan de MC" + y + ". Se agenda cita" + citaWhen(d) + ".";
         case "sincambio": return talk(d) + ", se revisan los beneficios de su plan para" + (y || " el próximo año") + " y decide mantenerse en su plan actual.";
@@ -239,7 +288,7 @@
       switch (O.id) {
         case "enviada":
           return ({ renovacion: "Se renueva app", cambio: "Se procesa cambio de plan" }[G.v] || "Se procesa app") + what + " para " + who + ".";
-        case "cancelada": return "Se cancela" + (P.es ? " " + P.es : " el plan") + (carrier ? " de " + carrier : "") + " a solicitud de " + cliente(d) + ".";
+        case "cancelada": return "Se cancela" + (P.es ? " " + P.es : " el plan") + (carrier ? " de " + carrier : "") + " a solicitud " + delCliente(d) + ".";
         case "cotizacion": return talk(d) + ", desea cotizar " + P.sms + ".";
         case "pago": return talk(d) + " sobre el pago de su " + P.sms + (carrier ? " con " + carrier : "") + ".";
         case "shortterm": return talk(d) + " sobre la renovación de su Short Term" + (carrier ? " de " + carrier : "") + ".";
@@ -248,14 +297,14 @@
     /* sin contacto: igual para todas las líneas */
     var por = { nueva: "su app " + lbl, renovacion: "la renovación de su " + lbl, cambio: "su " + lbl }[G.v] || ("su " + lbl);
     if (d.line === "mc") { por = "revisar su plan de MC"; }
-    var s = "Se llama a " + cliente(d) + " para " + por + y + ", sin respuesta.";
+    var s = "Se llama " + alCliente(d) + " para " + por + y + ", sin respuesta.";
     if (METODO_ES[d.metodo]) { s += " Se le envía " + METODO_ES[d.metodo] + "."; }
     if (val(d.intento)) { s += " Intento #" + val(d.intento) + "."; }
     return s;
   }
 
   function paymentLine(d) {
-    var monto = U.parseMoney(d.pagoMonto) || (d.line === "oc" ? U.parseMoney(d.primaPagar) : U.parseMoney(d.prima));
+    var monto = U.parseMoney(d.pagoMonto) || U.parseMoney(d.prima);
     var fecha = U.parseDate(d.pagoFecha);
     switch (d.pagoEstado) {
       case "PAYMENT":
@@ -278,74 +327,79 @@
     /* el NPN se anota con las iniciales del agente, como en los templates */
     if (val(d.agente) || val(d.agenteIni)) { add("NPN", upper(d.agenteIni) || U.initials(d.agente)); }
     if (d.line === "mc") { add("Writing ID", d.escritura); }
+    /* solo cuando no fue quien escribe la nota */
+    add("Habló con el cliente", upper(d.talkerNombre));
     add("Colaborador", upper(d.colaboradorNombre));
   }
 
   function bodyOC(d, add, raw) {
-    var O = outcomeOf(d), m = members(d);
-    var nTax = val(d.hogar), nCov = m.length;
-    var names = nCov ? " (" + m.join(", ") + ")" : "";
-    var cov = nCov ? nCov + names : "";
-    var quoteLike = O.id === "cotizacion" || O.id === "consent" || O.id === "lista";
+    var O = outcomeOf(d);
+    var tax = enTaxes(d), cov = conCobertura(d), inc = ingresoHogar(d);
 
-    if (quoteLike) {
-      var portal = { "HealthSherpa": "HEALTHSHERPA", "el portal de la compañía": "PORTAL DE LA COMPAÑÍA" }[d.plataforma] || "MARKETPLACE";
-      raw("PROCESAR POR EL PORTAL: " + portal + ".");
-      if (val(d.ingreso)) { raw("Income: " + moneyShort(d.ingreso) + "."); }
-      if (nTax) { raw("En taxes: " + nTax + "."); }
-      if (cov) { raw("Solicitan cobertura: " + cov + "."); }
-      add("ID#", d.appId);
-      if (d.periodo === "SEP") { add("Enrollment Period", "SEP" + (val(d.motivoSep) ? " - " + val(d.motivoSep) : "")); }
-      var carrier = carrierShort("oc", d.compania), prima = moneyShort(d.primaPagar);
-      if (carrier || val(d.plan)) {
-        raw("Se explica y da detalles del plan cotizado:");
-        raw("Compañía_Plan: " + [carrier, val(d.plan)].filter(Boolean).join("_") + (prima ? " - " + prima : ""));
-      }
-      if (O.id === "consent") { raw("Se envía carta de consentimiento."); }
-      if (O.id === "lista") { raw("Se recibe la carta de consentimiento firmada."); agentRows(d, add); }
+    if (O.id === "cancelada") {
+      add("Motivo", d.motivoCancel === "Otro" ? val(d.motivoOtro) || "Otro" : d.motivoCancel);
+      if (cov.length > 1) { raw("Miembros en la cancelación: " + cov.length + names(cov) + "."); }
+      if (val(d.agente) || val(d.agenteIni)) { add("NPN", upper(d.agenteIni) || U.initials(d.agente)); }
       return;
     }
 
-    if (has(O, "hogar") && (val(d.ingreso) || nTax || nCov)) {
-      var s = val(d.ingreso) ? "Sus ingresos anuales son " + moneyShort(d.ingreso) + ". " : "";
-      if (nTax && nCov) { s += (nTax === "1" ? "Es " : "Son ") + nTax + " en los taxes y " + nCov + " pidiendo cobertura" + names + "."; }
-      else if (nTax) { s += (nTax === "1" ? "Es " : "Son ") + nTax + " en los taxes."; }
-      else if (nCov) { s += nCov + " pidiendo cobertura" + names + "."; }
+    if (O.id === "pendiente") {
+      var portal = { "HealthSherpa": "HEALTHSHERPA", "Portal de la compañía": "PORTAL DE LA COMPAÑÍA" }[d.plataforma] || "MARKETPLACE";
+      raw("PROCESAR POR EL PORTAL: " + portal + ".");
+      if (inc !== null) { raw("Income: " + moneyShort(inc) + "."); }
+      if (tax.length) { raw("En taxes: " + tax.length + names(tax) + "."); }
+      if (cov.length) { raw("Solicitan cobertura: " + cov.length + names(cov) + "."); }
+      if (d.periodo === "SEP") { add("Enrollment Period", "SEP" + (val(d.motivoSep) ? " - " + val(d.motivoSep) : "")); }
+      var plans = planesOf(d);
+      if (plans.length) {
+        raw(plans.length === 1 ? "Se explica y da detalles del plan cotizado:" : "Se explica y da detalles de los planes cotizados:");
+        plans.forEach(function (p) {
+          var prima = moneyShort(p.prima);
+          raw("Compañía_Plan: " + [carrierShort("oc", p.compania), val(p.plan)].filter(Boolean).join("_") +
+              (prima ? " - " + prima : "") + (p.sel ? " (SELECCIONADO)" : ""));
+        });
+      }
+      add("Inicia cobertura", U.parseDate(d.efectiva));
+      agentRows(d, add);
+      return;
+    }
+
+    /* App enviada, como el template OBAMACARE APP */
+    if (inc !== null || tax.length || cov.length) {
+      var s = "";
+      if (inc !== null) {
+        var earners = tax.filter(function (p) { return p.ingreso; });
+        s += "Sus ingresos anuales son " + moneyShort(inc) +
+             (earners.length > 1 ? " (" + earners.map(function (p) { return p.first + " " + moneyShort(p.ingreso); }).join(", ") + ")" : "") + ". ";
+      }
+      if (tax.length) { s += (tax.length === 1 ? "Es " : "Son ") + tax.length + " en los taxes" + names(tax) + (cov.length ? " y " : "."); }
+      if (cov.length) { s += cov.length + " pidiendo cobertura" + names(cov) + "."; }
       raw(s.trim());
     }
     var idLine = [val(d.appId) ? "ID#: " + val(d.appId) : "", val(d.estado) ? "Status: " + val(d.estado) : ""].filter(Boolean).join("   ");
-    if (idLine && (has(O, "proceso") || O.id === "pago")) { raw(idLine); }
-    if (has(O, "plan")) {
-      add(O.id === "enviada" ? "Se inscribe en plan" : "Plan", d.plan);
-      add("Plan ID", upper(d.planId));
-      if (val(d.metal) && val(d.plan).toLowerCase().indexOf(val(d.metal).toLowerCase()) < 0) { add("Nivel", d.metal); }
-      var ef = U.parseDate(d.efectiva), fin = U.parseDate(d.fin);
-      if (ef) { add("Inicia cobertura", ef + (fin ? " (hasta " + fin + ")" : "")); }
-    }
-    if (has(O, "costos")) {
-      var pay = U.parseMoney(d.primaPagar), tot = U.parseMoney(d.primaTotal), sub = U.parseMoney(d.subsidio);
-      if (pay || tot) {
-        add("Premium", (pay || tot) + (pay && tot && sub ? " (prima " + tot + " - APTC " + sub + ")" : ""));
-      }
-      var ded = U.parseMoney(d.deducible), max = U.parseMoney(d.maximo);
-      if (ded || max) { raw([ded ? "Deducible: " + ded : "", max ? "Máx. de bolsillo: " + max : ""].filter(Boolean).join(" / ")); }
-    }
-    if (has(O, "plan")) { add("Póliza #", d.poliza); }
-    if (has(O, "proceso") && O.id === "enviada") {
-      add("Enrollment Period", d.periodo === "SEP" ? "SEP" + (val(d.motivoSep) ? " - " + val(d.motivoSep) : "") : d.periodo);
-    }
+    raw(idLine);
+    add("Se inscribe en plan", d.plan);
+    add("Inicia cobertura", U.parseDate(d.efectiva));
+    add("Premium", U.parseMoney(d.prima));
+    add("Enrollment Period", d.periodo === "SEP" ? "SEP" + (val(d.motivoSep) ? " - " + val(d.motivoSep) : "") : d.periodo);
     agentRows(d, add);
-    if (has(O, "docsreq")) {
-      if (val(d.docReq)) { raw("MKPL pide docs: " + val(d.docReq) + (U.parseDate(d.docFecha) ? " antes del " + U.parseDate(d.docFecha) : "") + "."); }
-      else if (O.id === "enviada" && d.net && d.net.eligibility) { raw("MKPL no pide docs."); }
+    var docs = docsOf(d);
+    if (docs.length) {
+      raw("MKPL pide docs:");
+      docs.forEach(function (x) {
+        var who = val(x.persona) ? " (" + first(x.persona) + ")" : "";
+        var due = U.parseDate(x.fecha) ? " - fecha tope " + U.parseDate(x.fecha) : "";
+        raw("- " + docCat(x.cat).label + who + due + " - " + (x.enviado ? "Enviado" + (val(x.doc) ? ": " + val(x.doc) : "") : "Pendiente"));
+      });
+    } else if (d.net && d.net.eligibility) {
+      raw("MKPL no pide docs.");
     }
-    if (O.id === "enviada") {
-      var acct = d.cuentaMkpl === "no" ? "No hay cuenta MKPL creada. " : (d.cuentaMkpl === "si" ? "Tiene cuenta MKPL creada. " : "");
-      var how = { "HealthSherpa": "La app se hizo con HealthSherpa.", "HealthCare.gov": "La app se hizo en el MKPL (HealthCare.gov).",
-                  "el portal de la compañía": "La app se hizo en el portal de la compañía." }[d.plataforma] || "";
-      if (acct || how) { raw((acct + how).trim()); }
-    }
-    if (has(O, "pago")) { add("Pago", paymentLine(d)); add("AutoPay", d.pagoEstado === "PAYMENT" ? d.autopay : ""); }
+    var acct = d.cuentaMkpl === "no" ? "No hay cuenta MKPL creada. " : (d.cuentaMkpl === "si" ? "Tiene cuenta MKPL creada. " : "");
+    var how = { "HealthSherpa": "La app se hizo con HealthSherpa.", "MKPL": "La app se hizo en el MKPL.",
+                "Portal de la compañía": "La app se hizo en el portal de la compañía." }[d.plataforma] || "";
+    if (acct || how) { raw((acct + how).trim()); }
+    add("Pago", paymentLine(d));
+    if (d.pagoEstado === "PAYMENT") { add("AutoPay", d.autopay); }
   }
 
   function bodyMC(d, add) {
@@ -403,11 +457,16 @@
     agentRows(d, add);
   }
 
+  function networkOf(d) { var O = outcomeOf(d); return O.network || lineOf(d).network; }
+
   function networkDocs(d) {
-    var L = lineOf(d), O = outcomeOf(d);
+    var O = outcomeOf(d);
     if (!has(O, "network") || !d.net) { return []; }
-    return L.network.filter(function (n) { return d.net[n.k]; }).map(function (n) { return n.label; });
+    return networkOf(d).filter(function (n) { return d.net[n.k]; }).map(function (n) { return n.label; });
   }
+
+  var CONSENT_DONDE = { "Call": " en línea", "Walk In": " en la oficina" };
+  var CONSENT_CITA = { "presencial": " en la oficina", "en casa": " en persona", "telefónica": " en línea", "Zoom": " en línea" };
 
   function buildNote(d, opts) {
     opts = opts || {};
@@ -422,21 +481,32 @@
     else if (d.line === "supp") { bodySupp(d, add, raw); }
     else { bodyOC(d, add, raw); }
 
-    String(d.notas || "").split(/\n/).map(U.collapse).filter(Boolean).forEach(function (x, i) {
-      out.push(i === 0 ? "Observaciones: " + x : x);
-    });
+    if (has(O, "seguimiento")) {
+      String(d.notas || "").split(/\n/).map(U.collapse).filter(Boolean).forEach(function (x, i) {
+        out.push(i === 0 ? "Observaciones: " + x : x);
+      });
+      var g = function (t) { return String(t || "").replace(/el cliente/g, cliente(d)); };
+      add("Pendiente", val(d.pendiente) || g(O.pendiente));
+      var f = U.parseDate(d.fechaSeg);
+      var prox = val(d.proximo) || (f ? g(O.proximo) : "");
+      if (O.id !== "cita" && (prox || f)) { add("Seguimiento", [prox, f].filter(Boolean).join(" - ")); }
+    }
 
-    var g = function (t) { return String(t || "").replace(/el cliente/g, cliente(d)); };
-    add("Pendiente", val(d.pendiente) || g(O.pendiente));
-    var f = U.parseDate(d.fechaSeg);
-    var prox = val(d.proximo) || (f ? g(O.proximo) : "");
-    if (O.id !== "cita" && (prox || f)) { add("Seguimiento", [prox, f].filter(Boolean).join(" - ")); }
-
-    var docs = networkDocs(d);
-    if (docs.length) { out.push("Docs en mi folder del NETW: " + docs.join(", ") + "."); }
-    /* el botón rojo y el task solo cierran la nota de una aplicación enviada */
+    if (d.line === "oc" && O.id === "pendiente") {
+      /* la cotización y el consentimiento cierran la nota */
+      if (d.revisaPlanes) {
+        var entrega = (d.canal === "Walk In" || (d.canal === "Appointment" && (d.modalidad === "presencial" || d.modalidad === "en casa"))) ? "entrega" : "envía";
+        out.push("Se le " + entrega + " la cotización para que revise los planes.");
+      }
+      out.push(d.net && d.net.consent
+        ? "Se firmó la carta de consentimiento" + (d.canal === "Appointment" ? (CONSENT_CITA[d.modalidad] || "") : (CONSENT_DONDE[d.canal] || "")) + "."
+        : "Carta de consentimiento enviada.");
+    } else {
+      var docs = networkDocs(d);
+      if (docs.length) { out.push("Docs en mi folder del NETW: " + docs.join(", ") + "."); }
+    }
+    /* el botón rojo solo cierra la nota de una aplicación enviada */
     if (d.botonRojo && O.submission) { out.push("Se reporta en el botón rojo."); }
-    if (d.incluirTask && O.submission) { var t = buildTask(d); if (t) { out.push("Task: " + t); } }
 
     var text = out.join("\n");
     return opts.sinAcentos ? U.stripAccents(text) : text;
@@ -449,6 +519,7 @@
   function buildSms(d, opts) {
     opts = opts || {};
     var O = outcomeOf(d);
+    if (O.noSms) { return ""; }
     var office = val(d.oficina) || "QAgency";
     var carrier = carrierShort(d.line, d.compania);
     var y = year(d);
@@ -457,7 +528,7 @@
     var what = d.line === "mc" ? "su plan de Medicare" + y : (d.line === "supp" ? "su " + productOf(d).sms : "su seguro de Obamacare" + y);
     var plan = val(d.plan);
     var ef = U.parseDate(d.efectiva);
-    var pay = d.line === "oc" ? U.parseMoney(d.primaPagar) : U.parseMoney(d.prima);
+    var pay = U.parseMoney(d.prima);
     var name = firstName(d);
     var tel = val(d.telefono);
     var parts = [];
@@ -474,22 +545,17 @@
         if (d.pagoEstado === "NO PAYMENT") {
           parts.push("Recuerde hacer su primer pago para activar la cobertura" + (U.parseDate(d.pagoFecha) ? " (fecha acordada: " + U.parseDate(d.pagoFecha) + ")" : "") + ".");
         }
-        if (d.line === "oc" && val(d.docReq)) {
-          parts.push("El Mercado pide " + val(d.docReq).toLowerCase() + (U.parseDate(d.docFecha) ? " antes del " + U.parseDate(d.docFecha) : "") + "; envíenoslo lo antes posible.");
+        var pend = d.line === "oc" ? pendingDocs(d) : [];
+        if (pend.length) {
+          var due = earliestDue(pend);
+          parts.push("El Mercado pide documentos de " + pend.map(function (x) {
+            return docCat(x.cat).label.toLowerCase() + (val(x.persona) ? " (" + first(x.persona) + ")" : "");
+          }).join(", ") + (due ? " antes del " + due : "") + "; envíenoslos lo antes posible.");
         }
         if (d.line === "mc") { parts.push("Cuando reciba su tarjeta nueva, úsela desde esa fecha."); }
         break;
-      case "lista":
-        parts.push("Recibimos su consentimiento firmado. Procesaremos " + what + " y le avisaremos cuando quede listo.");
-        break;
-      case "consent":
-        parts.push("Le enviamos la carta de consentimiento para " + what + ". Por favor fírmela cuando pueda para continuar con el proceso.");
-        break;
       case "cotizacion":
         parts.push("Gracias por su tiempo. Le cotizamos " + (carrier || plan ? "el plan " + [carrier, plan].filter(Boolean).join(" ") : what) + (pay ? " por " + pay + " al mes" : "") + ". Avísenos si desea continuar con la aplicación.");
-        break;
-      case "docs":
-        parts.push("El Mercado necesita " + (val(d.docReq) ? val(d.docReq).toLowerCase() : "unos documentos") + " para " + what + (U.parseDate(d.docFecha) ? ", con fecha límite el " + U.parseDate(d.docFecha) : "") + ". Por favor envíenoslos lo antes posible para mantener su cobertura.");
         break;
       case "pago":
         var plano = what + (carrier ? " con " + carrier : "");
@@ -531,7 +597,7 @@
     /* el teléfono va donde ya se le pide que llame; si no, al final */
     if (tel && /llámenos/.test(text)) { text = text.replace("llámenos", "llámenos al " + tel); }
     else if (tel) { text += " Cualquier duda, llámenos al " + tel + "."; }
-    else if (["enviada", "sincambio", "cancelada", "lista"].indexOf(O.id) >= 0) { text += " Cualquier duda, estamos a la orden."; }
+    else if (["enviada", "sincambio", "cancelada"].indexOf(O.id) >= 0) { text += " Cualquier duda, estamos a la orden."; }
 
     return opts.sinAcentos ? U.stripAccents(text) : text;
   }
@@ -550,7 +616,6 @@
   /* ----------------------------------------------------- nombres archivo -- */
 
   function buildFileNames(d) {
-    var L = lineOf(d);
     var carrier = carrierShort(d.line, d.compania) || "Compania";
     var product = productOf(d).file;
     var who = U.stripAccents(zohoName(d)) || "Apellido, Nombre";
@@ -561,8 +626,9 @@
       soa: U.parseDate(d.soaFecha) || base,
       payment: U.parseDate(d.pagoFecha) || base
     };
-    return L.network.map(function (n) {
-      var name = who + " - " + n.file.replace("{carrier}", carrier).replace("{product}", product) + " " + U.yearMonth(dates[n.date] || base);
+    return networkOf(d).map(function (n) {
+      var name = who + " - " + n.file.replace("{carrier}", carrier).replace("{product}", product) + " " +
+                 U.yearMonth(dates[n.date] || base) + (n.suffix || "");
       return { k: n.k, label: n.label, name: U.stripAccents(name).replace(/[\\/:*?"<>|]/g, "") };
     });
   }
@@ -585,7 +651,15 @@
     if (T && T.extra === "payment" && has(O, "pago") && !d.pagoEstado) {
       w.push("Task: falta la referencia de pago (PAYMENT, NO PAYMENT, PAYMENT NOT VERIFIED o NO PREMIUM).");
     }
-    if (T && T.extra === "docs" && !U.parseDate(d.docFecha)) { w.push("Task: falta la fecha tope de los documentos."); }
+    if (d.line === "oc" && O.id === "enviada") {
+      pendingDocs(d).forEach(function (x) {
+        if (!U.parseDate(x.fecha)) { w.push("Docs: falta la fecha tope de " + docCat(x.cat).label.toLowerCase() + (val(x.persona) ? " (" + first(x.persona) + ")" : "") + "."); }
+      });
+      if (!conCobertura(d).length) { w.push("Hogar: marca quién pide cobertura."); }
+      var hd = parseInt(d.hogarDoc, 10);
+      if (hd && hd !== enTaxes(d).length) { w.push("Hogar: el documento indica " + hd + " en los taxes y la lista tiene " + enTaxes(d).length + "."); }
+    }
+    if (d.line === "oc" && O.id === "cancelada" && !val(d.motivoCancel)) { w.push("Falta el motivo de la cancelación."); }
     if (O.id === "cita" && !U.parseDate(d.fechaSeg)) { w.push("Falta la fecha de la cita."); }
     if (noteText && SSN_RE.test(noteText)) { w.push("La nota parece contener un número de Seguro Social. Quítalo antes de pegarla."); }
     return w;
@@ -595,7 +669,8 @@
     buildNote: buildNote, buildTask: buildTask, formatTask: formatTask, buildReport: buildReport,
     buildSms: buildSms, smsInfo: smsInfo, buildFileNames: buildFileNames, warnings: warnings,
     autoTaskId: autoTaskId, taskById: taskById, outcomeOf: outcomeOf, lineOf: lineOf, gestionOf: gestionOf,
-    productOf: productOf, carrierShort: carrierShort, memberDelta: memberDelta, zohoName: zohoName
+    productOf: productOf, carrierShort: carrierShort, memberDelta: memberDelta, zohoName: zohoName,
+    personas: personas, docsOf: docsOf, pendingDocs: pendingDocs, planesOf: planesOf, networkOf: networkOf
   };
   root.QA = root.QA || {};
   root.QA.notes = api;

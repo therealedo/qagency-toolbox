@@ -4,7 +4,7 @@
 (function (root) {
   "use strict";
 
-  var VERSION = "1.2.1";
+  var VERSION = "1.3.0";
 
   /* Equipo por defecto. Cada persona puede editarlo en Ajustes; los cambios
      se guardan en su navegador.
@@ -176,16 +176,71 @@
   ];
 
   var CHANNELS = ["Call", "Appointment", "Walk In"];
+
+  /* Tasks que se ofrecen en la nota según la línea. Los demás (Medicaid,
+     Life, Taxes…) están en la pestaña Tasks. */
+  var LINE_TASK_CATS = { oc: ["Marketplace (OC)"], mc: ["Medicare (MC)"], supp: ["Supp"] };
+
+  var PAY_METHODS = ["Tarjeta CC", "Cuenta de banco"];
+  var CANCEL_REASONS = ["Demasiado caro", "Seguro por el trabajo", "Estatus migratorio", "Otro"];
+  var PARENTESCOS = ["Titular", "Cónyuge", "Hijo/a", "Padre/Madre", "Hermano/a", "Otro"];
+
+  /* Documentos que puede pedir el Mercado por una inconsistencia (data
+     matching issue), según healthcare.gov/help/how-do-i-resolve-an-inconsistency.
+     label: cómo sale en la nota; docs: lo que se puede enviar, con el nombre
+     que usa el Mercado. */
+  var MKPL_DOCS = [
+    { v: "income", label: "Ingresos", docs: [
+      "Pay stub", "W-2 and/or 1099", "1040 federal or state tax return (with Schedule 1 if filed)",
+      "Self-employment ledger / Schedule C / profit and loss statement", "1040 SE with Schedule C, F, or SE",
+      "Social Security Benefits Letter", "Unemployment Benefits Letter", "Statement of pension distribution",
+      "Annuity statement", "Worker's compensation letter", "Interests and dividends income statement",
+      "Letter from employer", "Written explanation form (Other)"] },
+    { v: "immigration", label: "Estatus migratorio", docs: [
+      "Permanent Resident Card, Green Card (I-551)", "Employment Authorization Card (I-766)",
+      "Arrival/Departure Record (I-94/I-94A)", "Arrival/Departure Record in foreign passport (I-94)",
+      "Notice of Action (I-797)", "USCIS Acknowledgement of Receipt (I-797C)", "Foreign passport",
+      "Reentry Permit (I-327)", "Refugee Travel Document (I-571)",
+      "Machine Readable Immigrant Visa (with temporary I-551 language)", "Temporary I-551 Stamp (on Passport or I-94/I-94A)",
+      "Certificate of Eligibility for Nonimmigrant Student Status (I-20)",
+      "Certificate of Eligibility for Exchange Visitor Status (DS-2019)",
+      "Certification from HHS Office of Refugee Resettlement (ORR)", "ORR eligibility letter (if under 18)",
+      "Document indicating withholding of removal", "Document of federally recognized Indian tribe or American Indian born in Canada"] },
+    { v: "citizenship", label: "Ciudadanía", docs: [
+      "U.S. passport", "Certificate of Naturalization (N-550/N-570)", "Certificate of Citizenship (N-560/N-561)",
+      "U.S. public birth certificate + photo ID", "Consular Report of Birth Abroad (FS-240) + photo ID",
+      "State-issued enhanced driver's license", "Tribal document (enrollment card, CDIB, census or letterhead)",
+      "Other U.S. record of birth + photo ID"] },
+    { v: "ssn", label: "Seguro Social (SSN)", docs: [
+      "Social Security card", "1040 Tax Return", "W2 and/or 1099s", "Pay stub documentation",
+      "Social Security Administration documentation", "1095 (A, B or C)", "W4 Withholding Allowance Certificate",
+      "Unemployment Benefits Letter", "Military record", "U.S. Military ID card", "Military dependent's ID card",
+      "Court Order Granting a Name Change", "Divorce decree"] },
+    { v: "esi", label: "Cobertura del trabajo", docs: [
+      "Employer Coverage Tool + cover letter signed by employer", "Letter from employer",
+      "Health insurance letter with coverage and expiration dates"] },
+    { v: "medicaid", label: "Medicaid / CHIP", docs: [
+      "Letter from Medicaid/CHIP agency: not enrolled or eligible", "Letter from Medicaid agency: program is not qualifying coverage",
+      "Letter describing recent coverage (Other)"] },
+    { v: "medicare", label: "Medicare", docs: [
+      "Letter from Medicare or SSA: not eligible for premium-free Part A", "Letter describing why not eligible for Part A (Other)"] },
+    { v: "aian", label: "Indígena americano / nativo de Alaska", docs: [
+      "Tribal Enrollment/Membership card", "Document issued by Bureau of Indian Affairs (BIA)",
+      "Certificate of Degree of Indian Blood", "Document from Indian Health Service (IHS)",
+      "Authentic document from a federally recognized tribe", "Certificate of Indian status card", "I-872 American Indian Card"] },
+    { v: "tricare", label: "TRICARE", docs: [
+      "Letter from TRICARE with end or un-enrollment date", "Letter from TRICARE confirming ineligibility",
+      "Document showing life change that ends TRICARE eligibility", "Letter describing TRICARE enrollment (Other)"] },
+    { v: "va", label: "VA", docs: ["Letter from the VA with expiration date of coverage", "Letter describing no VA coverage (Other)"] },
+    { v: "peace", label: "Peace Corps", docs: ["Letter from the Peace Corps with expiration date of coverage", "Letter describing no Peace Corps coverage (Other)"] }
+  ];
   var MODALIDADES = ["presencial", "telefónica", "Zoom", "en casa"];
 
   /* Secciones del formulario. Cada situación decide cuáles se muestran. */
-  var S_FULL_OC = ["cliente", "hogar", "proceso", "plan", "costos", "pago", "docsreq", "agente", "network"];
-  var S_PLAN_OC = ["cliente", "hogar", "proceso", "plan", "costos", "agente", "network"];
-  var S_QUOTE_OC = ["cliente", "hogar", "proceso", "plan", "costos", "network"];
-  var S_FULL_MC = ["cliente", "medicare", "proceso", "plan", "agente", "network"];
-  var S_PLAN_MC = ["cliente", "medicare", "proceso", "plan", "network"];
-  var S_FULL_SU = ["cliente", "proceso", "plan", "pago", "agente", "network"];
-  var S_LIGHT = ["cliente", "proceso"];
+  var S_FULL_MC = ["cliente", "medicare", "proceso", "plan", "agente", "network", "seguimiento"];
+  var S_PLAN_MC = ["cliente", "medicare", "proceso", "plan", "network", "seguimiento"];
+  var S_FULL_SU = ["cliente", "proceso", "plan", "pago", "agente", "network", "seguimiento"];
+  var S_LIGHT = ["cliente", "proceso", "seguimiento"];
 
   /* Situaciones (resultado de la gestión) por línea de negocio. El texto de
      la nota y del SMS para cada una está en notes.js.
@@ -193,7 +248,10 @@
        task       id del task por defecto
        report     true si la gestión se reporta en Cliq
        submission true si es una aplicación enviada: la nota termina con
-                  «Se reporta en el botón rojo» y el task
+                  «Se reporta en el botón rojo»
+       noSms      la situación no lleva mensaje para el cliente
+       network    documentos de Network propios de la situación (si no, los
+                  de la línea); `suffix` va al final del nombre del archivo
 
      Documentos de Network: `file` es el nombre con que se guarda el archivo
      (NOMBRE DE ARCHIVOS), sin el cliente delante ni el año y mes detrás.
@@ -211,35 +269,16 @@
       ],
       outcomes: [
         { id: "enviada", label: "App enviada", desc: "Aplicación procesada y plan seleccionado",
-          submission: true, pendiente: "", proximo: "Seguimiento de servicio al cliente",
-          task: "oc_cs", report: true, sections: S_FULL_OC },
-        { id: "lista", label: "Lista para procesar", desc: "Consent firmado, solo falta procesar",
-          pendiente: "Procesar la app", proximo: "Procesar la app",
-          task: "oc_app_pending", sections: S_PLAN_OC },
-        { id: "consent", label: "Esperando consent", desc: "Se cotizó y se envió la carta de consentimiento",
-          pendiente: "Firma del consentimiento", proximo: "Procesar la app al recibir el consent",
-          task: "oc_consent", sections: S_QUOTE_OC },
-        { id: "cotizacion", label: "Cotización", desc: "Se cotizó, el cliente queda en decidir",
-          pendiente: "Cliente debe confirmar el plan", proximo: "Contactar al cliente para definir el plan",
-          task: "oc_quote", sections: S_QUOTE_OC },
-        { id: "docs", label: "Docs pendientes", desc: "El Mercado pide documentos",
-          pendiente: "Cliente debe enviar los documentos", proximo: "Subir los documentos al MKPL",
-          task: "oc_docs", sections: ["cliente", "proceso", "plan", "docsreq", "network"] },
-        { id: "pago", label: "Pago", desc: "Se gestiona o verifica el pago de la prima",
-          pendiente: "", proximo: "Seguimiento de servicio al cliente",
-          task: "oc_cs", sections: ["cliente", "plan", "costos", "pago", "network"] },
-        { id: "cita", label: "Cita OEP", desc: "Quiere renovar o está interesado; queda con cita",
-          pendiente: "Atender la cita", proximo: "Cita con el cliente",
-          task: "oc_oe", sections: S_LIGHT },
-        { id: "sincontacto", label: "Sin contacto", desc: "No contesta",
-          pendiente: "Lograr contacto con el cliente", proximo: "Volver a llamar",
-          task: "oc_lost", sections: ["cliente", "proceso", "contacto"] },
-        { id: "nointeresado", label: "No interesado", desc: "Prospecto o cliente inactivo por ahora",
-          pendiente: "", proximo: "Contactar más adelante para recuperar",
-          task: "oc_inactive", sections: S_LIGHT },
+          submission: true, task: "oc_cs", report: true,
+          sections: ["cliente", "proceso", "plan", "pago", "docsreq", "agente", "network"] },
+        { id: "pendiente", label: "Pendiente", desc: "Cotización, consent por firmar o app lista para procesar",
+          task: "oc_consent", noSms: true,
+          sections: ["cliente", "proceso", "planes", "agente", "network"],
+          network: [{ k: "consent", label: "Carta de consentimiento recibida", file: "OC_Consent", date: "note" }] },
         { id: "cancelada", label: "Cancelación", desc: "Se cancela o termina la póliza",
-          pendiente: "", proximo: "Verificar que la cancelación se refleje",
-          task: "oc_cs", report: true, cancelled: true, sections: ["cliente", "proceso", "plan", "agente", "network"] }
+          task: "oc_inactive", report: true, cancelled: true,
+          sections: ["cliente", "cancelacion", "network"],
+          network: [{ k: "plans", label: "My Plans & Programs (CANCELLED)", file: "OC_My Plans & Programs {carrier}", date: "note", suffix: " CANCELLED" }] }
       ],
       network: [
         { k: "appsummary", label: "App Summary", file: "OC_App Summary", date: "note" },
@@ -269,19 +308,19 @@
           task: "mc_oe", sections: S_PLAN_MC },
         { id: "sincambio", label: "Sin cambios", desc: "Se revisa y se queda con su plan actual",
           pendiente: "", proximo: "Seguimiento de mantenimiento",
-          task: "mc_mant", sections: ["cliente", "medicare", "plan", "network"] },
+          task: "mc_mant", sections: ["cliente", "medicare", "plan", "network", "seguimiento"] },
         { id: "interesado", label: "Interesado", desc: "Próximo a cumplir 65 o fuera del AEP",
           pendiente: "", proximo: "Contactar cuando se abra su período de elección",
-          task: "mc_fu", sections: ["cliente", "medicare", "proceso"] },
+          task: "mc_fu", sections: ["cliente", "medicare", "proceso", "seguimiento"] },
         { id: "sincontacto", label: "Sin contacto", desc: "No contesta",
           pendiente: "Lograr contacto con el cliente", proximo: "Volver a llamar",
-          task: "mc_lost", sections: ["cliente", "proceso", "contacto"] },
+          task: "mc_lost", sections: ["cliente", "proceso", "contacto", "seguimiento"] },
         { id: "nointeresado", label: "No interesado", desc: "Contactado para recuperar, no por ahora",
           pendiente: "", proximo: "Contactar más adelante para recuperar",
           task: "mc_inactive", sections: S_LIGHT },
         { id: "cancelada", label: "Cancelación", desc: "Se cancela la solicitud o el plan",
           pendiente: "", proximo: "Verificar que la cancelación se refleje",
-          task: "mc_mant", report: true, cancelled: true, sections: ["cliente", "medicare", "proceso", "plan", "agente", "network"] }
+          task: "mc_mant", report: true, cancelled: true, sections: ["cliente", "medicare", "proceso", "plan", "agente", "network", "seguimiento"] }
       ],
       network: [
         { k: "soa", label: "SOA", file: "Medicare_SOA", date: "soa" },
@@ -303,16 +342,16 @@
           task: "supp_cs", report: true, sections: S_FULL_SU },
         { id: "cotizacion", label: "Cotización", desc: "Se cotizó, el cliente queda en decidir",
           pendiente: "Cliente debe confirmar el plan", proximo: "Contactar al cliente para definir el plan",
-          task: "supp_quote", sections: ["cliente", "proceso", "plan"] },
+          task: "supp_quote", sections: ["cliente", "proceso", "plan", "seguimiento"] },
         { id: "pago", label: "Pago", desc: "Se gestiona o verifica el pago",
           pendiente: "", proximo: "Seguimiento de servicio al cliente",
-          task: "supp_cs", sections: ["cliente", "plan", "pago", "network"] },
+          task: "supp_cs", sections: ["cliente", "plan", "pago", "network", "seguimiento"] },
         { id: "shortterm", label: "Renovar Short Term", desc: "Seguimiento para renovar un Short Term",
           pendiente: "Renovar el plan antes del vencimiento", proximo: "Contactar al cliente para renovar",
-          task: "supp_st", sections: ["cliente", "proceso", "plan"] },
+          task: "supp_st", sections: ["cliente", "proceso", "plan", "seguimiento"] },
         { id: "cancelada", label: "Cancelación", desc: "Se cancela la póliza",
           pendiente: "", proximo: "Verificar que la cancelación se refleje",
-          task: "supp_cs", report: true, cancelled: true, sections: ["cliente", "proceso", "plan", "agente"] }
+          task: "supp_cs", report: true, cancelled: true, sections: ["cliente", "proceso", "plan", "agente", "seguimiento"] }
       ],
       /* v: lo que se elige; es: cómo se nombra en la nota; sms: cómo se le
          nombra al cliente; file: cómo va en el nombre del archivo y en el
@@ -341,7 +380,8 @@
   var api = {
     VERSION: VERSION, TEAM: TEAM, OFFICES: OFFICES, CARRIERS: CARRIERS, TASKS: TASKS, PAYMENT: PAYMENT,
     TASK_TAGS: TASK_TAGS, TASK_RULES: TASK_RULES,
-    CHANNELS: CHANNELS, MODALIDADES: MODALIDADES, LINES: LINES
+    CHANNELS: CHANNELS, MODALIDADES: MODALIDADES, LINES: LINES, LINE_TASK_CATS: LINE_TASK_CATS,
+    PAY_METHODS: PAY_METHODS, CANCEL_REASONS: CANCEL_REASONS, PARENTESCOS: PARENTESCOS, MKPL_DOCS: MKPL_DOCS
   };
   root.QA = root.QA || {};
   root.QA.config = api;
