@@ -7,6 +7,7 @@ One app that turns a client contact into everything the team has to write afterw
 - the **Cliq report line**, in the STANDARD FORMs - REPORT format
 - the **SMS for the client**, signed with the office (QAgency or ATH Insurance)
 - the **file names** for saving each document to the Network, per NOMBRE DE ARCHIVOS
+- the **Consent** (Obamacare) and the **SOA** (Medicare) PDFs filled in with the client's data, with the Cliq line that asks Support to send them
 
 Pick the line of business and how the contact ended, drop the PDFs or screenshots saved for the case, check the fields, copy.
 
@@ -26,7 +27,7 @@ There are three ways to run it. All of them are the same app.
 | **Single file** | Open `dist/QAgency-Toolbox.html` in Chrome or Edge (Brave works, but cannot save to the Network) | Trying it, or a computer where nothing can be installed. |
 | **Hosted** | Put the repository root on any static web host (no build step needed) | One address for everyone, an **Instalar** button in the browser, works offline after the first visit, and updates reach the whole team on their own. |
 
-The OCR engine and its Spanish and English models are bundled, so the single file is about 10 MB.
+The OCR engine with its Spanish and English models and the six Consent and SOA templates are bundled, so the single file is about 17 MB.
 
 The Windows installer copies the app to `%LOCALAPPDATA%\QAgencyToolbox` and creates shortcuts that open it in app mode with Chrome or Edge, whichever it finds first. Brave is used only when neither is installed, because Brave blocks choosing a folder, so it cannot save to the Network. To update, run `Instalar.bat` from the new package; settings are kept as long as the same browser opens it. Each browser keeps its own settings, so after an update that moves the app from Brave to Chrome or Edge, fill in Ajustes once more. `Desinstalar.bat` removes it. The installer has not been run on a real Windows machine yet, so try it on one computer before sending it to the team.
 
@@ -51,7 +52,7 @@ The task dropdown only lists the tasks of the line you are in (Marketplace for O
 There are three situations:
 
 - **App enviada.** *Hogar* has the titular's address, phone and email, and lists the people in the application: the titular (named as in Zoho) and everyone else, each with *Taxes* and *Cobertura* toggles and, when opened, their relationship, US status (citizen, resident, work permit or something else, typed), DOB and yearly income. The note counts taxes and coverage and names them: `Sus ingresos anuales son $32,000 (Beatriz $25,000, Juan $7,000). Son 3 en los taxes (Beatriz, Juan, Ana) y 2 pidiendo cobertura (Beatriz, Juan).` *Plan* keeps company, plan name, status, coverage start and the monthly premium the client pays. *Documentos que pide el Mercado* is a checklist: what the Marketplace asked for (the 11 data matching issues from healthcare.gov), for whom, the due date, and once **Enviado** is ticked, which document was sent. While the Marketplace is asking for any document, sent or not, the automatic task is `FOLLOW UP DOCS BY` the earliest due date of all of them; otherwise `FOLLOW UP CUSTOMER SERVICE` with the payment tag. The note always goes in the principal's profile, so there is no dependent option (`FOLLOW UP CUSTOMER SERVICE DEP` can still be picked by hand).
-- **Pendiente** covers quotes, consents waiting for signature and apps ready to process. *Planes cotizados* takes as many plans as were discussed, one line each in the note, with **Seleccionar** for the one the client chose and **Revisará los planes** when the quote is sent or handed over for review. Network only has the consent: the note ends with `Carta de consentimiento enviada.` or, once received, `Se firmó la carta de consentimiento en línea` (call) or `en la oficina` (in person). The task is `FOLLOW UP CONSENT`, `MKPL APP PENDING` once the consent is in, or `FOLLOW UP OPEN ENROLLMENT OC` if the client will review the plans. No SMS.
+- **Pendiente** covers quotes, consents waiting for signature and apps ready to process. *Planes cotizados* takes as many plans as were discussed, one line each in the note, with **Seleccionar** for the one the client chose and **Revisará los planes** when the quote is sent or handed over for review. Network only has the consent: the note ends with `Carta de consentimiento enviada.` or, once received, `Se firmó la carta de consentimiento en línea` (call) or `en la oficina` (in person). The task is `FOLLOW UP CONSENT`, `MKPL APP PENDING` once the consent is in, or `FOLLOW UP OPEN ENROLLMENT OC` if the client will review the plans. No SMS. Below the form, **Consent para firmar** fills in the consent letter (see *Consent and SOA*).
 - **Cancelación** asks for the reason (too expensive, coverage through work, immigration status or other), what is being cancelled, the company and the agent, and whether it is **Cancelada** (the coverage never started: a renewal for next year, or an application cancelled before the effective date, or after it without payment) or **Terminada** (the coverage ends in a given month, for example when moving to Medicare or to job-based insurance). Cancelada asks for the coverage start and ticks *My Plans & Programs (CANCELLED)*, whose file name takes that month and ends in `CANCELLED`; Terminada asks for the termination date and ticks *My Plans & Programs (TERMINATED)*, whose file name takes the month the coverage ends and ends in `TERMINATED`. The task is `FOLLOW UP LEAD_INACTIVE CLIENT OC`.
 
 **Cambios.** In *App enviada* and *Pendiente*, whatever ends up different from what the documents filled in goes in the note under `Cambios:`, one line per change, right after the household line:
@@ -74,6 +75,26 @@ There are two situations:
 
 - **App enviada.** Whoever writes the note talked to the client and processed the app, so there is no collaborator. *Fecha del SOA* is the date of the note unless it is changed, and the SOA is ticked in Network like any other document. The contract (H-PBP) is part of the plan name; when the application shows it apart, the reader appends it. **Tiene prima mensual** shows the premium; off, the note says `Premium: $0.00`. The note says `App ID: …` and `Medicaid ID: 12345678`, and Network has the SOA and the App. The SMS is the agency's official Medicare SMS (see *SMS, email and file names*), and there is no email.
 - **Sin cambios.** The client reviews their plan and keeps it, so it only asks for the client, the plan name and the SOA: `ER_11/14/2026: Se atiende al cliente en cita telefónica (09:00), se revisan los beneficios de su plan para 2027 y decide mantenerse en su plan actual - Humana Gold Plus H1036-077 (HMO)`. The report line is for the NO CHANGE channel in Cliq: `Diaz, Beatriz se quedara en su mismo plan Humana Gold Plus H1036-077 (HMO)`. The task is `MC MANTENIMIENTO`, or `FOLLOW UP LEAD_INACTIVE CLIENT MC` when **Es cliente** is off. No SMS.
+
+In both, *Cliente* also has the client's phone and email, which only feed the SOA and its Cliq line, and below the form **SOA para firmar** fills in the Scope of Appointment (see *Consent and SOA*).
+
+### Consent and SOA
+
+**Consent para firmar** (Obamacare *Pendiente*) and **SOA para firmar** (Medicare, both situations) fill in the agency's PDF forms, which are bundled with the app. The consent template follows the office in **Ajustes** (QAgency or ATH Insurance); both follow the language switch in the section (Español / English), which is the same client language the SMS uses.
+
+- **Consent:** client name, consent date (the note date, also on page 2), agent and NPN (from *Agente (NPN)*), marital status (*Casado/a* or *Married* when the household has a *Cónyuge*, otherwise typed), yearly household income, people in the taxes, people asking for coverage, and the selected quoted plan with its premium (the only quoted plan when none is selected).
+- **SOA:** beneficiary name and phone, agent and agent ID (the NPN), initial method of contact (from *Canal*: phone call, office, Zoom, home visit…) and the plans to explain (the plan of the note, or *Medicare Advantage (Parte C)*). The five product boxes stay checked as they are on both SOAs.
+
+Every value can be changed in the section; changed values stay until **Volver a los datos de la nota**. **Descargar PDF lleno** fills the PDF in the browser and downloads it with the Network file name (`Diaz, Beatriz - OC_Consent Ambetter 2026 NOV.pdf`, `Diaz, Beatriz - Medicare_Humana_SOA 2026 NOV.pdf`). Signature fields are left empty. **Para pedirlo en Cliq** has the line to copy: `Enviar CONSENT a Beatriz Diaz al bea@example.com y al (305) 555-0100 pls @Support QAgency` (or `Enviar SOA a …`), without the email or the phone when it is missing.
+
+**Signing link (SignWell test).** In **Ajustes → Enlaces de firma (SignWell)**, paste the Template Link of each SignWell template: Consent QAgency Español, Consent QAgency English, Consent ATH Español, Consent ATH English, SOA Español and SOA English. When the link for the current form, office and language is set, the section shows **Enviar enlace de firma**: the link with the values added as query parameters (empty ones are skipped), plus a short SMS and an email in the client's language, signed with the office name, each with **Copiar** and with **Abrir en el teléfono** / **Abrir en el correo** when the client's phone or email is valid. Without a link, the section says which one to add. The app only builds the link; it never contacts SignWell. The parameters use these field API IDs, which must match the SignWell templates:
+
+| Form | Field API IDs |
+| --- | --- |
+| Consent | `client_name`, `client_name_sign`, `consent_date`, `agent_name`, `agent_npn`, `plan`, `premium`, `marital_status`, `income`, `tax_people`, `covered_people` |
+| SOA | `beneficiary_name`, `beneficiary_phone`, `agent_name`, `agent_npn`, `contact_method`, `plans` |
+
+The English SOA came without form fields, so `tools/make-fillable-soa.js` added them once, in the same places as the Spanish one (the phone goes in its digit boxes). To change a template, put the six PDFs in a folder and run `node tools/vendor-forms.js <folder>`.
 
 ### Suplementario
 
@@ -207,7 +228,8 @@ The reader was built against the sample documents in `samples/` (all data fictit
 ## Privacy
 
 - Documents are read inside the browser. The page makes no network requests with client data, and its Content-Security-Policy blocks them (`connect-src 'none'`). Fonts, the PDF reader and the OCR engine with its language models are bundled, so nothing loads from a CDN. The policy allows WebAssembly (`'wasm-unsafe-eval'`) only so the bundled OCR engine can run; it still cannot connect anywhere.
-- Client data lives only in memory and is gone when the window closes. Only settings are stored in the browser: the team list, your name, the office and its phone, the theme, and the permission for the Network folders (not their files). Saving to the Network writes only to the folders you chose.
+- Client data lives only in memory and is gone when the window closes. Only settings are stored in the browser: the team list, your name, the office and its phone, the SignWell template links, the theme, and the permission for the Network folders (not their files). Saving to the Network writes only to the folders you chose.
+- The Consent and SOA PDFs are filled inside the browser and downloaded; nothing is uploaded. A signing link carries the client's values in its address, so it is only built, never opened by the app, and it is meant for SignWell test data until there is a BAA.
 - Social Security numbers are never extracted, and a warning appears if the note contains something shaped like one.
 - When hosted, a service worker keeps a copy of the app's own files so it opens offline. It never handles documents or client data.
 
@@ -218,6 +240,7 @@ index.html              the page (works opened from disk or served)
 css/app.css             styles, light and dark
 js/config.js            catalogs: team, offices, carriers, tasks, situations and their wording
 js/notes.js             builds the note, task and report (pure functions)
+js/forms.js             Consent and SOA: template choice, PDF field values, Cliq line, signing link
 js/extract.js           recognises documents and pulls the fields out
 js/ocr.js               reads scans and screenshots offline (OCR in a worker)
 js/app.js               the screen: note form, Tasks tab, settings, install
@@ -227,12 +250,15 @@ manifest.webmanifest    install metadata when hosted
 vendor/pdfjs/           PDF.js 3.11.174 (Apache-2.0)
 vendor/tesseract/       tesseract.js-core 7.0.0 and the spa/eng models (Apache-2.0)
 vendor/fonts/           Inter and JetBrains Mono (OFL-1.1)
+vendor/forms/           the agency's Consent and SOA templates, as scripts
 samples/                fictitious PDFs for demos and testing
 tests/                  unit tests (node --test)
 tools/build.js          makes dist/QAgency-Toolbox.html and the Windows zip
 tools/windows/          installer scripts that go into the zip
 tools/make-samples.js   regenerates samples/ (needs Playwright)
 tools/vendor-ocr.js     regenerates vendor/tesseract/ from npm packages
+tools/vendor-forms.js   regenerates vendor/forms/ from the six template PDFs
+tools/make-fillable-soa.js  adds the form fields to the English SOA (one time; pdf-lib from a scratch folder)
 ```
 
 Most day-to-day changes are edits to `js/config.js`: adding a carrier, a task type, a situation, or changing the suggested wording.

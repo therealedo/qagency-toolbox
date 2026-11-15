@@ -866,3 +866,14 @@ test("ventana flotante: iniciales del cliente, nombre y apellido", () => {
   assert.equal(N.clientInitials({ apellidos: "Diaz" }), "D");
   assert.equal(N.clientInitials({}), "");
 });
+
+test("Medicare: el teléfono y el email del cliente (para el SOA) no cambian la nota, el SMS ni el reporte", () => {
+  ["enviada", "sincambio"].forEach((outcome) => {
+    const d = make({ line: "mc", outcome: outcome, gestion: "nueva", compania: "Humana", plan: "Gold Plus", efectiva: "01/01/2027", oficina: "ATH Insurance" });
+    const con = Object.assign({}, d, { clienteTel: "(305) 555-0100", clienteEmail: "bea@example.com" });
+    assert.equal(N.buildNote(con), N.buildNote(d));
+    assert.equal(N.buildSms(con), N.buildSms(d));
+    assert.equal(N.buildReport(con), N.buildReport(d));
+    assert.deepEqual(N.warnings(con, ""), N.warnings(d, ""));
+  });
+});
