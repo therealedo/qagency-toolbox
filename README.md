@@ -42,7 +42,7 @@ The note, task and report can be edited by hand before copying. If you edit the 
 
 **Hora de revisión del task** is the time the task should be looked at again. Type it (`2`, `230`, `2:30pm`, `14:30`; from 1 to 6 without AM/PM means the afternoon) or pick it from the grid; it always lands on :00 or :30, and the arrow keys move it half an hour. It goes in parentheses in the note (`Se conversa con la cliente (02:30)`) and in the task after VER NOTA.
 
-The task dropdown only lists the tasks of the line you are in (Marketplace for Obamacare, Medicare for Medicare, Supp for Suplementario); every other task is in the **Tasks** tab.
+The task dropdown only lists the tasks of the line you are in (Marketplace for Obamacare, Medicare for Medicare, Supp for Suplementario); every other task is in the **Tasks** tab. **Etiquetas al final** has *CRONIC* and *URGENT*: tick one or both and they go at the end of the task in that order (`… VER NOTA 11/15/2026 (09:00) CRONIC URGENT`).
 
 ### Obamacare
 
@@ -66,11 +66,18 @@ Cambios:
 
 A change is a value edited, cleared or toggled after a document filled it (shown with `antes`), a person added by hand to a household that came from a document, or a person from a document removed. Address, phone, email, US status and DOB also count when they are typed where no document had them. With no documents loaded there is nothing to compare against, so only those last five can appear.
 
+### Medicare Advantage
+
+There are two situations:
+
+- **App enviada.** Whoever writes the note talked to the client and processed the app, so there is no collaborator. *Fecha del SOA* is the date of the note unless it is changed, and the SOA is ticked in Network like any other document. The contract (H-PBP) is part of the plan name; when the application shows it apart, the reader appends it. **Tiene prima mensual** shows the premium; off, the note says `Premium: $0.00`. The note says `App ID: …` and `Medicaid ID: 12345678`, and Network has the SOA and the App. The SMS keeps its current text until the agency's standard format is ready, and there is no email.
+- **Sin cambios.** The client reviews their plan and keeps it, so it only asks for the client, the plan name and the SOA: `ER_11/14/2026: Se atiende al cliente en cita telefónica (09:00), se revisan los beneficios de su plan para 2027 y decide mantenerse en su plan actual - Humana Gold Plus H1036-077 (HMO)`. The report line is for the NO CHANGE channel in Cliq: `Diaz, Beatriz se quedara en su mismo plan Humana Gold Plus H1036-077 (HMO)`. The task is `MC MANTENIMIENTO`, or `FOLLOW UP LEAD_INACTIVE CLIENT MC` when **Es cliente** is off. No SMS.
+
 ### People
 
 Each person in **Ajustes → Equipo** has the initials they sign notes and tasks with, and, if different, the initials they appear with as agent in the Cliq report (Ana signs notes as DI and is agent LI), plus an optional direct phone that goes under their signature in the Obamacare SMS. Phones are typed in Ajustes and stay in that browser; they are not in the code.
 
-*Agente y colaborador* has three roles: **Habló con el cliente**, **Agente (NPN)** (a list of the agents with their NPN) and **Colaborador** (who processed the application). They default to whoever writes the note. The note says `NPN: LI`, and names who talked to the client and who processed the app only when it was someone else. When the person who talked to the client is not the one who processed the app, the report line starts with their initials (`FV: Q1234 - … (LI)`); a checkbox under the report switches that on or off.
+*Agente y colaborador* has three roles: **Habló con el cliente**, **Agente (NPN)** (a list of the agents with their NPN) and **Colaborador** (who processed the application). They default to whoever writes the note. Medicare has no **Colaborador**: whoever writes the note processed the app. The note says `NPN: LI`, and names who talked to the client and who processed the app only when it was someone else. When the person who talked to the client is not the one who processed the app, the report line starts with their initials (`FV: Q1234 - … (LI)`); a checkbox under the report switches that on or off.
 
 ### The note
 
@@ -82,7 +89,7 @@ The note never asks for or includes Marketplace usernames, passwords or security
 
 ### SMS, email and file names
 
-The SMS card writes a short message for the client: what was done and what they need to do next, greeting them by first name and signed by the office chosen in Ajustes, with that office's phone number if one is set. The counter shows how many text messages it takes; accents or emoji make each one hold 70 characters instead of 160, and **Sin acentos** removes the accents.
+The SMS card writes a short message for the client: what was done and what they need to do next, greeting them by first name and signed by the office chosen in Ajustes, with that office's phone number if one is set. The counter shows how many text messages it takes; accents or emoji make each one hold 70 characters instead of 160.
 
 For an Obamacare **App enviada**, the SMS follows the agency's format, in **Español** or **English** (the switch on the SMS and email cards):
 
@@ -110,7 +117,7 @@ The Network section lists the documents for the line of business, each with its 
 | My Plans & Programs (HealthCare.gov) | plan, monthly premium, status, people covered, coverage start |
 | Eligibility Letter | application ID, income, household size, documents requested with the person and due date |
 | App Summary (HealthCare.gov) | application ID, applicant, DOB, home address, income, household size |
-| Medicare application summary (carrier portal, Spanish or English) | MBI, Part A/B, plan, contract, election period, PCP, confirmation, agent |
+| Medicare application summary (carrier portal, Spanish or English) | MBI, Part A/B, plan (with its contract), election period, PCP, App ID, agent |
 | Scope of Appointment | beneficiary, signature date |
 | Payment receipt | amount, date, confirmation, last 4 digits, autopay |
 | Supplemental application (dental, vision, hospital, accident, cancer, short term, life, international, discount) | product, carrier, plan, premium, effective date, App ID, policy number, beneficiary |

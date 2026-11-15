@@ -55,8 +55,9 @@ test("Aplicación de Medicare en español", () => {
   assert.equal(f.parteA, "01/01/2023");
   assert.equal(f.parteB, "02/01/2023");
   assert.equal(f.efectiva, "01/01/2027");
-  assert.equal(f.plan, "AARP Medicare Advantage from UHC FL-0020 (HMO-POS)");
-  assert.equal(f.contrato, "H1045-012-000");
+  /* el contrato (H-PBP) va dentro del nombre del plan */
+  assert.equal(f.plan, "AARP Medicare Advantage from UHC FL-0020 (HMO-POS) H1045-012-000");
+  assert.equal(f.contrato, undefined);
   assert.equal(f.periodoMC, "AEP");
   assert.equal(f.medicaid, "9876543210");
   assert.equal(f.pcp, "Dr. Carlos Rivera");
@@ -74,7 +75,8 @@ test("Aplicación de Medicare en inglés, en tabla", () => {
   assert.equal(f.parteA, "01/01/2023");
   assert.equal(f.parteB, "02/01/2023");
   assert.equal(f.efectiva, "01/01/2027");
-  assert.equal(f.contrato, "H1036-077");
+  assert.equal(f.plan, "Humana Gold Plus H1036-077", "ya trae el contrato: no se repite");
+  assert.equal(f.contrato, undefined);
   assert.equal(f.periodoMC, "AEP");
   assert.equal(f.pcp, "Carlos Rivera MD");
   assert.equal(f.confirmacion, "7H2K99Q1");

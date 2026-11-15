@@ -213,8 +213,14 @@
       }
     }
 
+    /* el contrato (H-PBP) va dentro del nombre del plan, si no lo trae ya */
     var ct = doc.flat.match(CONTRACT_RE);
-    if (ct) { f.contrato = ct[1] + "-" + ct[2] + (ct[3] ? "-" + ct[3] : ""); }
+    if (ct) {
+      var contrato = ct[1] + "-" + ct[2] + (ct[3] ? "-" + ct[3] : "");
+      var base = ct[1] + "-" + ct[2];
+      if (!f.plan) { f.plan = contrato; }
+      else if (f.plan.toUpperCase().replace(/\s+/g, "").indexOf(base.toUpperCase()) < 0) { f.plan += " " + contrato; }
+    }
 
     f.medicaid = after(doc, [/N[uú]mero de (ID de )?Medicaid/i, /\bMedicaid\s*(ID|number|#)/i], vCode(6, 14), 1);
 

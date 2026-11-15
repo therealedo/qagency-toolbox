@@ -24,7 +24,7 @@
   function loadSettings() {
     var def = {
       v: SETTINGS_VERSION, autor: "", team: clone(C.TEAM), oficina: C.OFFICES[0], telefonos: {},
-      botonRojo: true, sinAcentos: false, smsSinAcentos: false, theme: "", line: "oc"
+      botonRojo: true, sinAcentos: false, theme: "", line: "oc"
     };
     try {
       var saved = JSON.parse(localStorage.getItem(STORE) || "null");
@@ -86,7 +86,7 @@
       fecha: U.today(), genero: "o",
       canal: "Call", modalidad: "presencial", anio: U.defaultPlanYear(),
       codigoTipo: "Q", gestion: "", periodo: season.periodo, plataforma: "MKPL",
-      periodoMC: season.periodoMC, soaEstado: "firmado", producto: "Dental",
+      periodoMC: season.periodoMC, soaFecha: "", tienePrima: false, esCliente: true, obsTags: [], producto: "Dental",
       metodo: "TEXT", intento: "1", hora: "09:00", net: {}, taskId: "", taskOwner: "",
       talker: "", npnAgente: "", colaborador: "", prefijo: "",
       personas: [{ titular: true, parentesco: "Titular", taxes: true, cobertura: true, ingreso: "", estatus: "", dob: "" }],
@@ -112,6 +112,8 @@
   function L() { return C.LINES[S.line]; }
   function O() { return N.outcomeOf({ line: S.line, outcome: S.outcome }); }
   function isOC(id) { return S.line === "oc" && (!id || O().id === id); }
+  /* Medicare sin cambios: solo el nombre del plan, sin datos de Medicare */
+  function mcSin() { return S.line === "mc" && O().id === "sincambio"; }
 
   /* --------------------------------------------------------- formulario */
 
@@ -124,7 +126,7 @@
     { id: "pago", title: "Pago" },
     { id: "docs", title: "Documentos que pide el Mercado", short: "Docs pedidos" },
     { id: "seguimiento", title: "Pendiente y próximo paso", short: "Seguimiento" },
-    { id: "agente", title: "Agente y colaborador", short: "Agente" },
+    { id: "agente", title: function () { return S.line === "mc" ? "Agente" : "Agente y colaborador"; }, short: "Agente" },
     { id: "network", title: "Network: documentos y nombres de archivo", short: "Network" }
   ];
 
@@ -183,6 +185,8 @@
       options: [{ v: "Q", l: "Código Q" }, { v: "New", l: "New" }, { v: "Sin Code", l: "Sin Code" }] },
     { k: "codigoQ", g: "cliente", sec: "cliente", type: "text", label: "Número Q", ph: "1234", prefix: "Q",
       when: function (f) { return f.codigoTipo === "Q"; } },
+    { k: "esCliente", g: "cliente", sec: "cliente", type: "check", w: "w2", lines: ["mc"],
+      label: "Es cliente (si no, el task es FOLLOW UP LEAD_INACTIVE CLIENT MC)", when: mcSin },
     { k: "direccion", g: "cliente", sec: "cliente", type: "text", label: "Dirección", w: "full", lines: ["oc"],
       ph: "Calle, ciudad, estado y código postal", when: function () { return !isOC("cancelada"); } },
     { k: "clienteTel", g: "cliente", sec: "cliente", type: "text", label: "Teléfono del titular", w: "w2", lines: ["oc"], mode: "tel",
@@ -230,10 +234,8 @@
       options: ["AEP", "OEP", "ICEP / IEP", "SEP"] },
     { k: "motivoSepMC", g: "gestion", sec: "proceso", type: "text", label: "Motivo del SEP", w: "w2", lines: ["mc"], list: SEP_MC,
       when: function (f) { return f.periodoMC === "SEP"; } },
-    { k: "soaEstado", g: "gestion", sec: "proceso", type: "seg", label: "SOA", lines: ["mc"],
-      options: [{ v: "firmado", l: "Firmado" }, { v: "pendiente", l: "Pendiente" }] },
     { k: "soaFecha", g: "gestion", sec: "proceso", type: "date", label: "Fecha del SOA", lines: ["mc"],
-      when: function (f) { return f.soaEstado === "firmado"; } },
+      hint: "La de la nota, si no se cambia" },
     { k: "anterior", g: "gestion", sec: "proceso", type: "text", label: "Plan anterior", w: "w2", lines: ["mc"],
       when: function (f) { return f.gestion === "cambio"; } },
     { k: "metodo", g: "gestion", sec: "contacto", type: "seg", label: "Se le envió", w: "w2", options: ["TEXT", "EMAIL", "LETTER"] },
@@ -241,15 +243,18 @@
 
     { k: "planes", g: "plan", sec: "planes", type: "planeslist", w: "full", lines: ["oc"] },
     { k: "compania", g: "plan", sec: "plan", type: "text", label: "Compañía", w: "w2",
-      list: function () { return C.CARRIERS[S.line].map(function (c) { return c.name; }); } },
-    { k: "plan", g: "plan", sec: "plan", type: "text", label: "Nombre del plan", w: "w2" },
+      list: function () { return C.CARRIERS[S.line].map(function (c) { return c.name; }); }, when: function () { return !mcSin(); } },
+    { k: "plan", g: "plan", sec: "plan", type: "text", label: "Nombre del plan", w: "w2",
+      hint: function () { return S.line === "mc" ? "Con el contrato (H-PBP): Humana Gold Plus H1036-077 (HMO)" : ""; } },
     { k: "estado", g: "plan", sec: "plan", type: "text", label: "Status", lines: ["oc"], list: ["Active", "Pending", "Unpaid binder", "Terminated"] },
-    { k: "contrato", g: "plan", sec: "plan", type: "text", label: "Contrato (H-PBP)", ph: "H1036-077", lines: ["mc"], upper: true },
     { k: "tipoPlan", g: "plan", sec: "plan", type: "text", label: "Tipo de plan", lines: ["supp"], list: ["DHMO", "DPPO", "Indemnidad", "Copago"] },
+    { k: "tienePrima", g: "plan", sec: "plan", type: "check", lines: ["mc"], label: "Tiene prima mensual (si no, Premium $0.00)",
+      when: function () { return !mcSin(); } },
     { k: "prima", g: "plan", sec: "plan", type: "money", label: "Prima mensual",
-      hint: function () { return S.line === "oc" ? "Lo que paga el cliente, ya con el subsidio" : ""; } },
+      hint: function () { return S.line === "oc" ? "Lo que paga el cliente, ya con el subsidio" : ""; },
+      when: function (f) { return S.line !== "mc" || (!!f.tienePrima && !mcSin()); } },
     { k: "efectiva", g: "plan", sec: ["plan", "planes"], type: "date",
-      label: function () { return S.line === "oc" ? "Cobertura desde" : "Fecha efectiva"; } },
+      label: function () { return S.line === "oc" ? "Cobertura desde" : "Fecha efectiva"; }, when: function () { return !mcSin(); } },
     { k: "revisaPlanes", g: "plan", sec: "planes", type: "check", w: "w3", lines: ["oc"],
       label: "Revisará los planes: se le envía o entrega la cotización" },
     { k: "poliza", g: "plan", sec: "plan", type: "text", label: "Policy #", lines: ["supp"] },
@@ -257,12 +262,12 @@
       when: function (f) { return f.producto === "Short Term"; } },
     { k: "beneficiario", g: "plan", sec: "plan", type: "text", label: "Beneficiario", w: "w2", lines: ["supp"],
       ph: "Apellido, Nombre (parentesco)", when: function (f) { return f.producto === "Life" || f.producto === "Accident"; } },
-    { k: "pcp", g: "plan", sec: "plan", type: "text", label: "PCP", w: "w2", lines: ["mc"] },
-    { k: "pcpId", g: "plan", sec: "plan", type: "text", label: "ID del PCP", lines: ["mc"] },
-    { k: "confirmacion", g: "plan", sec: "plan", type: "text", label: "No. de confirmación", lines: ["mc"] },
-    { k: "afeccion", g: "plan", sec: "plan", type: "text", label: "Afección crónica que califica", w: "w2", lines: ["mc"] },
+    { k: "pcp", g: "plan", sec: "plan", type: "text", label: "PCP", w: "w2", lines: ["mc"], when: function () { return !mcSin(); } },
+    { k: "pcpId", g: "plan", sec: "plan", type: "text", label: "ID del PCP", lines: ["mc"], when: function () { return !mcSin(); } },
+    { k: "confirmacion", g: "plan", sec: "plan", type: "text", label: "App ID", lines: ["mc"], when: function () { return !mcSin(); } },
+    { k: "afeccion", g: "plan", sec: "plan", type: "text", label: "Afección crónica que califica", w: "w2", lines: ["mc"], when: function () { return !mcSin(); } },
     { k: "cmd", g: "plan", sec: "plan", type: "check", w: "w2", lines: ["mc"], label: "Condiciones médicas diversas (task CMD)",
-      when: function () { return O().task === "mc_mant" && !O().cancelled; } },
+      when: function () { return O().task === "mc_mant" && !O().cancelled && !mcSin(); } },
 
     { k: "pagoEstado", g: "pago", sec: "pago", type: "seg", label: "Estado del pago", w: "full",
       options: C.PAYMENT.map(function (p) { return { v: p.v, l: p.label, t: p.hint }; }), clearable: true },
@@ -294,7 +299,7 @@
       options: function () { return teamOptions("—"); } },
     { k: "npnAgente", g: "agente", sec: "agente", type: "select", label: "Agente (NPN)", w: "w2",
       options: npnOptions, hint: "El NPN con el que se hace la app" },
-    { k: "colaborador", g: "agente", sec: "agente", type: "select", label: "Colaborador", w: "w2",
+    { k: "colaborador", g: "agente", sec: "agente", type: "select", label: "Colaborador", w: "w2", lines: ["oc", "supp"],
       hint: "Quién procesó la aplicación", options: function () { return teamOptions("—"); } },
     { k: "escritura", g: "agente", sec: "agente", type: "text", label: "Writing ID", w: "w2", lines: ["mc"] }
   ];
@@ -957,10 +962,6 @@
   function afterOutcomeChange() {
     var valid = L().gestiones.some(function (g) { return g.v === S.f.gestion; });
     if (!valid) { S.f.gestion = L().gestiones[0].v; }
-    if (S.line === "mc") {
-      if (O().id === "soa") { S.f.soaEstado = "pendiente"; S.auto.soaEstado = "calc"; }
-      else if (S.f.soaEstado === "pendiente" && S.auto.soaEstado === "calc") { S.f.soaEstado = "firmado"; delete S.auto.soaEstado; }
-    }
   }
 
   /* ------------------------------------------------------------- carril */
@@ -1021,6 +1022,12 @@
     else if (pay !== null && pay > 0 && f.pagoEstado === "NO PREMIUM" && S.auto.pagoEstado === "calc") { f.pagoEstado = ""; delete S.auto.pagoEstado; }
     var segPay = $("form").querySelector('[data-seg="pagoEstado"]');
     if (segPay) { syncSeg(segPay, f.pagoEstado || ""); }
+    /* Medicare: el SOA es del día de la nota mientras nadie lo cambie */
+    if (!U.collapse(f.soaFecha) || S.auto.soaFecha === "calc") {
+      f.soaFecha = U.parseDate(f.fecha) || f.fecha; S.auto.soaFecha = "calc";
+      var soa = $("f_soaFecha");
+      if (soa && document.activeElement !== soa) { soa.value = f.soaFecha; }
+    }
   }
 
   /* Quién escribe la nota, quién habló con el cliente, con qué NPN se hizo
@@ -1031,7 +1038,8 @@
       me: memberByName(settings.autor),
       talker: memberByName(S.f.talker),
       agent: S.f.npnAgente === "__extra" && x ? { name: x.name, npn: x.npn, ini: U.initials(x.name) } : memberByName(S.f.npnAgente),
-      collab: memberByName(S.f.colaborador)
+      /* en Medicare la app la hace quien escribe la nota */
+      collab: S.line === "mc" ? memberByName(settings.autor) : memberByName(S.f.colaborador)
     };
   }
 
@@ -1053,6 +1061,8 @@
     d.telefono = settings.telefonos[settings.oficina] || "";
     d.botonRojo = settings.botonRojo;
     d.base = S.base;
+    /* Medicare sin el interruptor de prima: el plan no cuesta nada */
+    if (S.line === "mc" && !S.f.tienePrima) { d.prima = "0"; }
     /* el SMS y el email los firma quien habló con el cliente */
     var signer = p.talker || p.me;
     d.firmaNombre = signer ? signer.name : "";
@@ -1112,7 +1122,9 @@
     $("copyReport").hidden = !reportable;
     $("reportNA").hidden = reportable;
     $("dockReport").hidden = !reportable;
-    $("prefixBox").hidden = !reportable || !p.talker;
+    /* Medicare sin cambios va al canal NO CHANGE y no lleva iniciales delante */
+    $("reportHint").hidden = !mcSin();
+    $("prefixBox").hidden = !reportable || !p.talker || mcSin();
     $("prefix").checked = !!d.reportPrefix;
     $("prefixLabel").textContent = p.talker ? "Anteponer a quien habló con el cliente (" + p.talker.ini + ":)" : "Anteponer a quien habló con el cliente";
     setOut("report", report);
@@ -1122,12 +1134,11 @@
     var noSms = !!O().noSms;
     $("smsCard").hidden = noSms;
     $("dockSms").hidden = noSms;
-    setOut("sms", N.buildSms(d, { sinAcentos: settings.smsSinAcentos }));
+    setOut("sms", N.buildSms(d));
     fitHeight($("sms"));
     var info = N.smsInfo($("sms").value);
     $("smsCount").textContent = info.length + " caracteres · " + info.parts + (info.parts === 1 ? " mensaje" : " mensajes");
     $("smsCount").title = info.unicode ? "Con acentos o emojis cada mensaje admite 70 caracteres; si no, 160." : "";
-    $("smsPlain").checked = settings.smsSinAcentos;
 
     /* SMS y email de una app de Obamacare: en español o en inglés */
     var bilingual = isOC("enviada");
@@ -1186,7 +1197,11 @@
     $("reviewBox").hidden = !(T && T.review);
     $("taxYearBox").hidden = !(T && T.extra === "tax");
     $("review").checked = !!S.f.review;
-    if (document.activeElement !== $("obsTask")) { $("obsTask").value = S.f.obsTask || ""; }
+    each($("obsTags").querySelectorAll("button"), function (b) {
+      var on = (S.f.obsTags || []).indexOf(b.dataset.v) >= 0;
+      b.classList.toggle("on", on);
+      b.setAttribute("aria-pressed", on ? "true" : "false");
+    });
     if (document.activeElement !== $("taxYear")) { $("taxYear").value = S.f.taxYear || ""; }
     $("taxYear").placeholder = String(new Date().getFullYear());
   }
@@ -1273,6 +1288,8 @@
       if (special.hogar) { S.f.hogarDoc = special.hogar; }
       if (special.docs) { applied += mergeDocs(special.docs); }
     }
+    /* Medicare: un documento con prima prende el interruptor de la prima */
+    if (S.line === "mc" && fields.prima && U.moneyNumber(fields.prima) > 0) { S.f.tienePrima = true; }
     if (special.agente || special.npn) { applied += mapAgent(special.agente, special.npn); }
     if (res.net) { S.f.net[res.net] = true; }
     return applied;
@@ -1853,7 +1870,6 @@
         refresh();
       });
     });
-    $("smsPlain").addEventListener("change", function () { settings.smsSinAcentos = this.checked; saveSettings(); S.edited.sms = false; refresh(); });
     $("dock").addEventListener("click", function (e) {
       var b = e.target.closest("[data-copy]");
       if (b) { copyOut(b.dataset.copy, b); }
@@ -1865,7 +1881,20 @@
     /* opciones del task y del reporte */
     $("taskId").addEventListener("change", function () { S.f.taskId = this.value; S.edited.task = false; refresh(); });
     $("taskOwner").addEventListener("change", function () { S.f.taskOwner = this.value; S.edited.task = false; refresh(); });
-    $("obsTask").addEventListener("input", function () { S.f.obsTask = this.value; refresh(); });
+    /* etiquetas al final: se pueden elegir varias (CRONIC URGENT) */
+    C.OBS_TAGS.forEach(function (v) {
+      var b = el("button", null, v);
+      b.type = "button"; b.dataset.v = v; b.setAttribute("aria-pressed", "false");
+      $("obsTags").appendChild(b);
+    });
+    $("obsTags").addEventListener("click", function (e) {
+      var b = e.target.closest("button[data-v]");
+      if (!b) { return; }
+      var list = (S.f.obsTags || []).slice(), i = list.indexOf(b.dataset.v);
+      if (i >= 0) { list.splice(i, 1); } else { list.push(b.dataset.v); }
+      S.f.obsTags = list; S.edited.task = false;
+      refresh();
+    });
     $("taxYear").addEventListener("input", function () { S.f.taxYear = this.value.replace(/[^\d]/g, ""); refresh(); });
     $("review").addEventListener("change", function () { S.f.review = this.checked; refresh(); });
     $("prefix").addEventListener("change", function () { S.f.prefijo = this.checked ? "si" : "no"; S.edited.report = false; refresh(); });

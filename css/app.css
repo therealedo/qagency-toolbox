@@ -580,8 +580,6 @@ kbd {
 .email-box { min-height: 92px; line-height: 1.55; background: var(--inset); border-color: var(--line); resize: none; overflow: hidden; }
 .email-box:focus { background: var(--field); }
 .people-hint { margin: 6px 0 0; }
-.sms-opt { margin-left: auto; padding: 0; font-size: 12px; }
-.sms-opt span { color: var(--ink-3); }
 
 .privacy { font-size: 12.5px; color: var(--ink-3); padding: 2px 4px 0; }
 
@@ -622,6 +620,9 @@ kbd {
 .mini > span { font-size: 12px; color: var(--ink-3); font-weight: 550; }
 .mini select, .mini input { min-height: 32px; font-size: 13px; }
 .task-opts .check { grid-column: 1 / -1; padding: 0; font-size: 13px; }
+/* etiquetas al final: varias a la vez */
+.seg-multi { flex-wrap: nowrap; }
+.seg-multi button { min-height: 30px; padding: 2px 8px; font-size: 12.5px; }
 #prefixBox { padding: 0; font-size: 13px; }
 
 .dock { display: none; }
