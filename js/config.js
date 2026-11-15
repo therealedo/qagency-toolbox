@@ -4,7 +4,7 @@
 (function (root) {
   "use strict";
 
-  var VERSION = "1.3.0";
+  var VERSION = "1.4.0";
 
   /* Equipo por defecto. Cada persona puede editarlo en Ajustes; los cambios
      se guardan en su navegador.
@@ -23,22 +23,25 @@
   ];
 
   var OFFICES = ["QAgency", "ATH Insurance"];
+  /* Cómo se presenta cada oficina en el SMS: "Somos QAgency Insurance." */
+  var OFFICE_NAMES = { "QAgency": "QAgency Insurance", "ATH Insurance": "ATH Insurance" };
 
   /* Compañías: `re` reconoce el nombre dentro de un documento, `name` es como
-     sale en la nota y `short` como sale en el reporte de Cliq. */
+     sale en la nota, `short` como sale en el reporte de Cliq y `display` como
+     se le escribe al cliente en el SMS y el email. */
   var CARRIERS = {
     oc: [
-      { re: /florida\s*blue|blue\s*cross|bluecare|blueselect|blueoptions|myblue/i, name: "FLORIDA BLUE", short: "FB" },
-      { re: /ambetter|celtic|sunshine\s*health/i, name: "AMBETTER", short: "Ambetter" },
-      { re: /\boscar\b/i, name: "OSCAR", short: "Oscar" },
-      { re: /molina/i, name: "MOLINA", short: "Molina" },
-      { re: /aetna/i, name: "AETNA CVS HEALTH", short: "Aetna" },
-      { re: /cigna/i, name: "CIGNA", short: "Cigna" },
-      { re: /unitedhealthcare|united\s*healthcare|\bUHC\b/i, name: "UNITED HEALTHCARE", short: "UHC" },
-      { re: /avmed/i, name: "AVMED", short: "AvMed" },
-      { re: /health\s*first/i, name: "HEALTH FIRST", short: "Health First" },
-      { re: /wellpoint/i, name: "WELLPOINT", short: "Wellpoint" },
-      { re: /amerihealth/i, name: "AMERIHEALTH CARITAS", short: "AmeriHealth" }
+      { re: /florida\s*blue|blue\s*cross|bluecare|blueselect|blueoptions|myblue/i, name: "FLORIDA BLUE", display: "Florida Blue", short: "FB" },
+      { re: /ambetter|celtic|sunshine\s*health/i, name: "AMBETTER", display: "Ambetter", short: "Ambetter" },
+      { re: /\boscar\b/i, name: "OSCAR", display: "Oscar", short: "Oscar" },
+      { re: /molina/i, name: "MOLINA", display: "Molina", short: "Molina" },
+      { re: /aetna/i, name: "AETNA CVS HEALTH", display: "Aetna CVS Health", short: "Aetna" },
+      { re: /cigna/i, name: "CIGNA", display: "Cigna", short: "Cigna" },
+      { re: /unitedhealthcare|united\s*healthcare|\bUHC\b/i, name: "UNITED HEALTHCARE", display: "UnitedHealthcare", short: "UHC" },
+      { re: /avmed/i, name: "AVMED", display: "AvMed", short: "AvMed" },
+      { re: /health\s*first/i, name: "HEALTH FIRST", display: "Health First", short: "Health First" },
+      { re: /wellpoint/i, name: "WELLPOINT", display: "Wellpoint", short: "Wellpoint" },
+      { re: /amerihealth/i, name: "AMERIHEALTH CARITAS", display: "AmeriHealth Caritas", short: "AmeriHealth" }
     ],
     mc: [
       { re: /humana/i, name: "HUMANA", short: "Humana" },
@@ -184,19 +187,22 @@
   var PAY_METHODS = ["Tarjeta CC", "Cuenta de banco"];
   var CANCEL_REASONS = ["Demasiado caro", "Seguro por el trabajo", "Estatus migratorio", "Otro"];
   var PARENTESCOS = ["Titular", "Cónyuge", "Hijo/a", "Padre/Madre", "Hermano/a", "Otro"];
+  /* Estatus en EE. UU. de cada persona del hogar. "Otro" pide escribirlo. */
+  var ESTATUS = [{ v: "ciudadano", l: "Ciudadano" }, { v: "residente", l: "Residente" },
+    { v: "permiso", l: "Permiso de trabajo" }, { v: "otro", l: "Otro" }];
 
   /* Documentos que puede pedir el Mercado por una inconsistencia (data
      matching issue), según healthcare.gov/help/how-do-i-resolve-an-inconsistency.
-     label: cómo sale en la nota; docs: lo que se puede enviar, con el nombre
-     que usa el Mercado. */
+     label: cómo sale en la nota; es / en: cómo sale en el email al cliente;
+     docs: lo que se puede enviar, con el nombre que usa el Mercado. */
   var MKPL_DOCS = [
-    { v: "income", label: "Ingresos", docs: [
+    { v: "income", label: "Ingresos", es: "Pruebas de Ingresos", en: "Proof of Income", docs: [
       "Pay stub", "W-2 and/or 1099", "1040 federal or state tax return (with Schedule 1 if filed)",
       "Self-employment ledger / Schedule C / profit and loss statement", "1040 SE with Schedule C, F, or SE",
       "Social Security Benefits Letter", "Unemployment Benefits Letter", "Statement of pension distribution",
       "Annuity statement", "Worker's compensation letter", "Interests and dividends income statement",
       "Letter from employer", "Written explanation form (Other)"] },
-    { v: "immigration", label: "Estatus migratorio", docs: [
+    { v: "immigration", label: "Estatus migratorio", es: "Pruebas de Estatus Migratorio", en: "Proof of Immigration Status", docs: [
       "Permanent Resident Card, Green Card (I-551)", "Employment Authorization Card (I-766)",
       "Arrival/Departure Record (I-94/I-94A)", "Arrival/Departure Record in foreign passport (I-94)",
       "Notice of Action (I-797)", "USCIS Acknowledgement of Receipt (I-797C)", "Foreign passport",
@@ -206,33 +212,33 @@
       "Certificate of Eligibility for Exchange Visitor Status (DS-2019)",
       "Certification from HHS Office of Refugee Resettlement (ORR)", "ORR eligibility letter (if under 18)",
       "Document indicating withholding of removal", "Document of federally recognized Indian tribe or American Indian born in Canada"] },
-    { v: "citizenship", label: "Ciudadanía", docs: [
+    { v: "citizenship", label: "Ciudadanía", es: "Pruebas de Ciudadanía", en: "Proof of Citizenship", docs: [
       "U.S. passport", "Certificate of Naturalization (N-550/N-570)", "Certificate of Citizenship (N-560/N-561)",
       "U.S. public birth certificate + photo ID", "Consular Report of Birth Abroad (FS-240) + photo ID",
       "State-issued enhanced driver's license", "Tribal document (enrollment card, CDIB, census or letterhead)",
       "Other U.S. record of birth + photo ID"] },
-    { v: "ssn", label: "Seguro Social (SSN)", docs: [
+    { v: "ssn", label: "Seguro Social (SSN)", es: "Pruebas de Seguro Social", en: "Proof of Social Security Number", docs: [
       "Social Security card", "1040 Tax Return", "W2 and/or 1099s", "Pay stub documentation",
       "Social Security Administration documentation", "1095 (A, B or C)", "W4 Withholding Allowance Certificate",
       "Unemployment Benefits Letter", "Military record", "U.S. Military ID card", "Military dependent's ID card",
       "Court Order Granting a Name Change", "Divorce decree"] },
-    { v: "esi", label: "Cobertura del trabajo", docs: [
+    { v: "esi", label: "Cobertura del trabajo", es: "Pruebas de Cobertura del Trabajo", en: "Proof of Job-Based Coverage", docs: [
       "Employer Coverage Tool + cover letter signed by employer", "Letter from employer",
       "Health insurance letter with coverage and expiration dates"] },
-    { v: "medicaid", label: "Medicaid / CHIP", docs: [
+    { v: "medicaid", label: "Medicaid / CHIP", es: "Pruebas de Medicaid / CHIP", en: "Proof of Medicaid / CHIP", docs: [
       "Letter from Medicaid/CHIP agency: not enrolled or eligible", "Letter from Medicaid agency: program is not qualifying coverage",
       "Letter describing recent coverage (Other)"] },
-    { v: "medicare", label: "Medicare", docs: [
+    { v: "medicare", label: "Medicare", es: "Pruebas de Medicare", en: "Proof of Medicare", docs: [
       "Letter from Medicare or SSA: not eligible for premium-free Part A", "Letter describing why not eligible for Part A (Other)"] },
-    { v: "aian", label: "Indígena americano / nativo de Alaska", docs: [
+    { v: "aian", label: "Indígena americano / nativo de Alaska", es: "Pruebas de Indígena Americano / Nativo de Alaska", en: "Proof of American Indian / Alaska Native Status", docs: [
       "Tribal Enrollment/Membership card", "Document issued by Bureau of Indian Affairs (BIA)",
       "Certificate of Degree of Indian Blood", "Document from Indian Health Service (IHS)",
       "Authentic document from a federally recognized tribe", "Certificate of Indian status card", "I-872 American Indian Card"] },
-    { v: "tricare", label: "TRICARE", docs: [
+    { v: "tricare", label: "TRICARE", es: "Pruebas de TRICARE", en: "Proof of TRICARE", docs: [
       "Letter from TRICARE with end or un-enrollment date", "Letter from TRICARE confirming ineligibility",
       "Document showing life change that ends TRICARE eligibility", "Letter describing TRICARE enrollment (Other)"] },
-    { v: "va", label: "VA", docs: ["Letter from the VA with expiration date of coverage", "Letter describing no VA coverage (Other)"] },
-    { v: "peace", label: "Peace Corps", docs: ["Letter from the Peace Corps with expiration date of coverage", "Letter describing no Peace Corps coverage (Other)"] }
+    { v: "va", label: "VA", es: "Pruebas de Cobertura de VA", en: "Proof of VA Coverage", docs: ["Letter from the VA with expiration date of coverage", "Letter describing no VA coverage (Other)"] },
+    { v: "peace", label: "Peace Corps", es: "Pruebas de Peace Corps", en: "Proof of Peace Corps Coverage", docs: ["Letter from the Peace Corps with expiration date of coverage", "Letter describing no Peace Corps coverage (Other)"] }
   ];
   var MODALIDADES = ["presencial", "telefónica", "Zoom", "en casa"];
 
@@ -378,10 +384,10 @@
   };
 
   var api = {
-    VERSION: VERSION, TEAM: TEAM, OFFICES: OFFICES, CARRIERS: CARRIERS, TASKS: TASKS, PAYMENT: PAYMENT,
+    VERSION: VERSION, TEAM: TEAM, OFFICES: OFFICES, OFFICE_NAMES: OFFICE_NAMES, CARRIERS: CARRIERS, TASKS: TASKS, PAYMENT: PAYMENT,
     TASK_TAGS: TASK_TAGS, TASK_RULES: TASK_RULES,
     CHANNELS: CHANNELS, MODALIDADES: MODALIDADES, LINES: LINES, LINE_TASK_CATS: LINE_TASK_CATS,
-    PAY_METHODS: PAY_METHODS, CANCEL_REASONS: CANCEL_REASONS, PARENTESCOS: PARENTESCOS, MKPL_DOCS: MKPL_DOCS
+    PAY_METHODS: PAY_METHODS, CANCEL_REASONS: CANCEL_REASONS, PARENTESCOS: PARENTESCOS, ESTATUS: ESTATUS, MKPL_DOCS: MKPL_DOCS
   };
   root.QA = root.QA || {};
   root.QA.config = api;

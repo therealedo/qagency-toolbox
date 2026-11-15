@@ -4,6 +4,7 @@
      buildTask      nombre del task (formato TASK Q AGENCY)
      buildReport    línea para el canal de Cliq (STANDARD FORMs - REPORT)
      buildSms       mensaje de texto para el cliente, con el nombre de la oficina
+     buildEmail     email al cliente de una app de Obamacare, en dos partes
      buildFileNames nombres para guardar los documentos (NOMBRE DE ARCHIVOS)
    Son funciones puras: no tocan la pantalla, así que se pueden probar solas. */
 (function (root) {
@@ -95,6 +96,15 @@
     return ap && no ? ap + ", " + no : (ap || no);
   }
 
+  /* Cómo se le escribe la compañía al cliente: "Florida Blue". */
+  function carrierName(line, name) {
+    var n = val(name);
+    if (!n) { return ""; }
+    var list = C.CARRIERS[line] || [];
+    for (var i = 0; i < list.length; i++) { if (list[i].re.test(n)) { return list[i].display || U.titleCase(list[i].name); } }
+    return n;
+  }
+
   function carrierShort(line, name) {
     var n = val(name);
     if (!n) { return ""; }
@@ -129,7 +139,9 @@
     var O = outcomeOf(d);
     var id = O.task;
     if (d.line === "oc") {
-      if (O.id === "enviada") { id = pendingDocs(d).length ? "oc_docs" : (d.dep ? "oc_cs_dep" : "oc_cs"); }
+      /* mientras el Mercado pida documentos hay que darle seguimiento, aunque
+         ya se hayan enviado */
+      if (O.id === "enviada") { id = docsOf(d).length ? "oc_docs" : "oc_cs"; }
       /* pendiente: si va a pensarlo sigue en open enrollment; si ya firmó el
          consent solo falta procesar; si no, se espera el consent */
       if (O.id === "pendiente") { id = d.revisaPlanes ? "oc_oe" : (d.net && d.net.consent ? "oc_app_pending" : "oc_consent"); }
@@ -173,7 +185,7 @@
     if (val(d.obsTask)) { tags.push(d.obsTask); }
     return formatTask(T, {
       owner: d.taskOwner || d.ini, fecha: d.fecha, hora: d.hora, metodo: d.metodo, intento: d.intento,
-      docFecha: d.docFecha || earliestDue(pendingDocs(d)), taxYear: d.taxYear, tags: tags
+      docFecha: d.docFecha || earliestDue(docsOf(d)), taxYear: d.taxYear, tags: tags
     });
   }
 
@@ -332,6 +344,69 @@
     add("Colaborador", upper(d.colaboradorNombre));
   }
 
+  /* ------------------------------------------------------------ cambios --
+     Lo que quedó distinto de lo que llenaron los PDF. Cada persona guarda en
+     `orig` los valores que puso un documento; `quitados` son las personas de
+     un documento que se quitaron, `base` los datos de contacto leídos y
+     `hogarPdf` dice si el hogar vino de un documento (entonces una persona
+     agregada a mano es un cambio). La dirección, el teléfono, el email, el
+     estatus y el DOB cuentan también cuando se llenan sin que un documento
+     los trajera. */
+  function estatusLabel(v, otro) {
+    if (v === "otro") { return val(otro) || "Otro"; }
+    for (var i = 0; i < C.ESTATUS.length; i++) { if (C.ESTATUS[i].v === v) { return C.ESTATUS[i].l; } }
+    return "";
+  }
+  function antes(was) { return was ? " (antes " + was + ")" : ""; }
+  function same(a, b) { return U.stripAccents(val(a)).toUpperCase() === U.stripAccents(val(b)).toUpperCase(); }
+  function dateOrText(v) { return U.parseDate(v) || val(v); }
+
+  /* el teléfono se compara por sus dígitos: (305) 555-0199 es 305-555-0199 */
+  var CONTACTO = [
+    { k: "direccion", label: "Dirección", eq: same },
+    { k: "clienteTel", label: "Teléfono", eq: function (a, b) { return String(a || "").replace(/\D/g, "") === String(b || "").replace(/\D/g, ""); } },
+    { k: "clienteEmail", label: "Email", eq: same }
+  ];
+
+  function cambios(d) {
+    var out = [], base = d.base || {};
+    (Array.isArray(d.personas) ? d.personas : []).forEach(function (p) {
+      var o = p.orig || {}, ch = [];
+      var dob = dateOrText(p.dob), est = estatusLabel(p.estatus, p.estatusOtro);
+      if (!p.titular && !p.orig && d.hogarPdf && val(p.nombre)) {
+        out.push("- Se agrega a " + upper(p.nombre) + (val(p.parentesco) ? " (" + val(p.parentesco) + ")" : "") +
+                 (dob ? ", DOB " + dob : "") + (est ? ", estatus " + est : ""));
+        return;
+      }
+      if (!p.titular && "nombre" in o && !same(o.nombre, p.nombre)) { ch.push("nombre " + (upper(p.nombre) || "sin dato") + antes(upper(o.nombre))); }
+      if ("parentesco" in o && !same(o.parentesco, p.parentesco)) { ch.push("parentesco " + (val(p.parentesco) || "sin dato") + antes(val(o.parentesco))); }
+      if ("taxes" in o && !!o.taxes !== !!p.taxes) { ch.push(p.taxes ? "está en los taxes" : "no está en los taxes"); }
+      if ("cobertura" in o && !!o.cobertura !== !!p.cobertura) { ch.push(p.cobertura ? "pide cobertura" : "no pide cobertura"); }
+      if ("ingreso" in o && U.moneyNumber(o.ingreso) !== U.moneyNumber(p.ingreso)) {
+        ch.push("ingreso anual " + (moneyShort(p.ingreso) || "sin dato") + antes(moneyShort(o.ingreso)));
+      }
+      var oEst = "estatus" in o ? estatusLabel(o.estatus, o.estatusOtro) : "";
+      if (!same(est, oEst)) { ch.push("estatus " + (est || "sin dato") + antes(oEst)); }
+      var oDob = "dob" in o ? dateOrText(o.dob) : "";
+      if (!same(dob, oDob)) { ch.push("DOB " + (dob || "sin dato") + antes(oDob)); }
+      if (ch.length) {
+        var who = p.titular ? (first(d.nombres) || "Titular") : (first(p.nombre) || "Persona sin nombre");
+        out.push("- " + who + ": " + ch.join(", "));
+      }
+    });
+    (Array.isArray(d.quitados) ? d.quitados : []).forEach(function (n) { if (val(n)) { out.push("- Se quita a " + upper(n)); } });
+    CONTACTO.forEach(function (c) {
+      var now = val(d[c.k]), was = val(base[c.k]);
+      if (!c.eq(now, was)) { out.push("- " + c.label + ": " + (now || "sin dato") + antes(was)); }
+    });
+    return out;
+  }
+
+  function cambiosBlock(d, raw) {
+    var list = cambios(d);
+    if (list.length) { raw("Cambios:"); list.forEach(function (x) { raw(x); }); }
+  }
+
   function bodyOC(d, add, raw) {
     var O = outcomeOf(d);
     var tax = enTaxes(d), cov = conCobertura(d), inc = ingresoHogar(d);
@@ -349,6 +424,7 @@
       if (inc !== null) { raw("Income: " + moneyShort(inc) + "."); }
       if (tax.length) { raw("En taxes: " + tax.length + names(tax) + "."); }
       if (cov.length) { raw("Solicitan cobertura: " + cov.length + names(cov) + "."); }
+      cambiosBlock(d, raw);
       if (d.periodo === "SEP") { add("Enrollment Period", "SEP" + (val(d.motivoSep) ? " - " + val(d.motivoSep) : "")); }
       var plans = planesOf(d);
       if (plans.length) {
@@ -376,6 +452,7 @@
       if (cov.length) { s += cov.length + " pidiendo cobertura" + names(cov) + "."; }
       raw(s.trim());
     }
+    cambiosBlock(d, raw);
     var idLine = [val(d.appId) ? "ID#: " + val(d.appId) : "", val(d.estado) ? "Status: " + val(d.estado) : ""].filter(Boolean).join("   ");
     raw(idLine);
     add("Se inscribe en plan", d.plan);
@@ -516,10 +593,56 @@
 
   function firstName(d) { return U.titleCase(val(d.nombres).split(" ")[0] || ""); }
 
+  var GIFT = "🎁";
+
+  /* SMS de una app de Obamacare enviada, con el formato de la agencia en
+     español o en inglés (d.idioma). Lo firma quien habló con el cliente, con
+     su teléfono directo y el de la oficina. */
+  function smsOC(d) {
+    var en = d.idioma === "en", G = gestionOf(d);
+    var name = firstName(d), oficina = val(d.oficina) || "QAgency";
+    var office = C.OFFICE_NAMES[oficina] || oficina;
+    var y = val(d.anio) ? " " + val(d.anio) : "", carrier = carrierName("oc", d.compania);
+    var plan = val(d.plan), ef = U.parseDate(d.efectiva), pay = U.parseMoney(d.prima);
+    var firma = U.titleCase(d.firmaNombre), direct = val(d.firmaTel), tel = val(d.telefono);
+    var lines = [];
+    if (en) {
+      var what = { renovacion: "We have renewed your" + y + " health insurance", cambio: "We have updated your" + y + " health insurance" }[G.v] ||
+                 "We have completed your" + y + " health insurance enrollment";
+      lines.push("Dear " + (name || "client") + ":");
+      lines.push("We are " + office + ". " + what + (carrier ? " with " + carrier : "") + ".");
+      if (plan) { lines.push("Plan: " + plan); }
+      if (ef) { lines.push("Start: " + ef); }
+      if (pay) { lines.push("Premium: " + pay + "/month"); }
+      lines.push("Please check your email and, if you have any questions, contact us right away. Best regards");
+      if (firma) { lines.push(firma); }
+      if (direct) { lines.push("Direct: " + direct); }
+      if (tel) { lines.push("Office: " + tel); }
+      lines.push(GIFT + " For every 4 people you refer to us, you get a GIFT CARD!");
+    } else {
+      var accion = { renovacion: "Hemos renovado su seguro de salud", cambio: "Hemos actualizado su seguro de salud" }[G.v] ||
+                   "Hemos completado su inscripción al seguro de salud";
+      lines.push((d.genero === "a" ? "Estimada " : "Estimado ") + (name || "cliente") + ": Somos " + office + ". " +
+                 accion + y + (carrier ? " con " + carrier : "") + ".");
+      if (plan) { lines.push("Plan: " + plan); }
+      if (ef) { lines.push("Inicio: " + ef); }
+      if (pay) { lines.push("Premium: " + pay + "/mes"); }
+      lines.push("Revise su email y para cualquier duda, comuníquese de inmediato con nosotros. Saludos" + (firma ? " " + firma : ""));
+      if (direct) { lines.push("Directo: " + direct); }
+      if (tel) { lines.push("Oficina: " + tel); }
+      lines.push(GIFT + " ¡Por cada 4 personas que nos refiera, gana una GIFT CARD!");
+    }
+    return lines.join("\n");
+  }
+
   function buildSms(d, opts) {
     opts = opts || {};
     var O = outcomeOf(d);
     if (O.noSms) { return ""; }
+    if (d.line === "oc" && O.id === "enviada") {
+      var oc = smsOC(d);
+      return opts.sinAcentos ? U.stripAccents(oc) : oc;
+    }
     var office = val(d.oficina) || "QAgency";
     var carrier = carrierShort(d.line, d.compania);
     var y = year(d);
@@ -602,6 +725,54 @@
     return opts.sinAcentos ? U.stripAccents(text) : text;
   }
 
+  /* -------------------------------------------------------------- email --
+     Email al cliente de una app de Obamacare enviada, en dos partes que se
+     copian por separado: 1, la póliza y el plan; 2, lo que pide el Mercado
+     (todo lo pedido, enviado o no) y la firma de quien habló con el cliente. */
+  function buildEmail(d, part) {
+    var O = outcomeOf(d);
+    if (d.line !== "oc" || O.id !== "enviada") { return ""; }
+    var en = d.idioma === "en", lines = [];
+    if (part === 1) {
+      var y = val(d.anio), carrier = carrierName("oc", d.compania), plan = val(d.plan);
+      var ef = U.parseDate(d.efectiva), pay = U.parseMoney(d.prima);
+      if (en) {
+        lines.push("Dear Client:");
+        lines.push("Attached are documents for your" + (y ? " " + y : "") + " policy" + (carrier ? " with " + carrier : "") + ", your application is complete.");
+        if (ef) { lines.push("Effective date: " + ef); }
+        if (plan) { lines.push("PLAN: " + plan); }
+        lines.push("Attached is a detailed description of your benefits with this plan.");
+        if (pay) { lines.push("Primary Monthly Payment: " + pay); }
+      } else {
+        lines.push((d.genero === "a" ? "Estimada" : "Estimado") + " Cliente:");
+        lines.push("Adjunto documentos por su póliza" + (y ? " del " + y : "") + (carrier ? " con " + carrier : "") + ", ya la aplicación fue completada.");
+        if (ef) { lines.push("Cobertura a partir del " + ef); }
+        if (plan) { lines.push("PLAN: " + plan); }
+        lines.push("Adjuntamos detalles de beneficios del plan");
+        if (pay) { lines.push("Prima Mensual: " + pay); }
+      }
+      return lines.join("\n");
+    }
+    var docs = docsOf(d), who = {};
+    docs.forEach(function (x) { if (val(x.persona)) { who[upper(x.persona)] = true; } });
+    /* el nombre solo hace falta cuando se pide para más de una persona */
+    var named = Object.keys(who).length > 1;
+    if (docs.length) {
+      lines.push(en ? "MARKETPLACE IS REQUESTING:" : "MARKETPLACE SOLICITA:");
+      docs.forEach(function (x) {
+        var c = docCat(x.cat), due = U.parseDate(x.fecha);
+        lines.push((en ? c.en : c.es) + (named && val(x.persona) ? " (" + first(x.persona) + ")" : "") +
+                   (due ? (en ? ", Due Date " : ", fecha límite ") + due : ""));
+      });
+      lines.push("");
+    }
+    lines.push(en ? "Please feel free to contact us, if you have any questions or concerns." : "Por favor comuníquese con nosotros por cualquier duda.");
+    lines.push("");
+    lines.push(en ? "Best Regards," : "Saludos");
+    if (val(d.firmaNombre)) { lines.push(U.titleCase(d.firmaNombre)); }
+    return lines.join("\n");
+  }
+
   /* Caracteres y cantidad de mensajes. Con letras fuera del alfabeto GSM
      (á, í, ó, ú…) cada mensaje admite 70 caracteres en vez de 160. */
   var GSM = "@£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞÆæßÉ !\"#¤%&'()*+,-./0123456789:;<=>?¡ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÑÜ§¿abcdefghijklmnopqrstuvwxyzäöñüà";
@@ -652,7 +823,7 @@
       w.push("Task: falta la referencia de pago (PAYMENT, NO PAYMENT, PAYMENT NOT VERIFIED o NO PREMIUM).");
     }
     if (d.line === "oc" && O.id === "enviada") {
-      pendingDocs(d).forEach(function (x) {
+      docsOf(d).forEach(function (x) {
         if (!U.parseDate(x.fecha)) { w.push("Docs: falta la fecha tope de " + docCat(x.cat).label.toLowerCase() + (val(x.persona) ? " (" + first(x.persona) + ")" : "") + "."); }
       });
       if (!conCobertura(d).length) { w.push("Hogar: marca quién pide cobertura."); }
@@ -667,7 +838,7 @@
 
   var api = {
     buildNote: buildNote, buildTask: buildTask, formatTask: formatTask, buildReport: buildReport,
-    buildSms: buildSms, smsInfo: smsInfo, buildFileNames: buildFileNames, warnings: warnings,
+    buildSms: buildSms, buildEmail: buildEmail, smsInfo: smsInfo, buildFileNames: buildFileNames, warnings: warnings, cambios: cambios,
     autoTaskId: autoTaskId, taskById: taskById, outcomeOf: outcomeOf, lineOf: lineOf, gestionOf: gestionOf,
     productOf: productOf, carrierShort: carrierShort, memberDelta: memberDelta, zohoName: zohoName,
     personas: personas, docsOf: docsOf, pendingDocs: pendingDocs, planesOf: planesOf, networkOf: networkOf
