@@ -1359,9 +1359,9 @@
     $("smsCount").textContent = info.length + " caracteres · " + info.parts + (info.parts === 1 ? " mensaje" : " mensajes");
     $("smsCount").title = info.unicode ? "Con acentos o emojis cada mensaje admite 70 caracteres; si no, 160." : "";
 
-    /* SMS de una app de Obamacare y email de una app de Obamacare o de
-       Suplementario: en español o en inglés */
-    var smsLang = isOC("enviada"), email = isOC("enviada") || isSupp("enviada");
+    /* SMS de una app enviada (Obamacare, Medicare o Suplementario) y email
+       de una app de Obamacare o de Suplementario: en español o en inglés */
+    var smsLang = O().id === "enviada", email = isOC("enviada") || isSupp("enviada");
     each(document.querySelectorAll("[data-lang-seg]"), function (seg) {
       seg.hidden = !(seg.closest("#emailCard") ? email : smsLang);
       syncSeg(seg, S.f.idioma || "es");

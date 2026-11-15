@@ -670,11 +670,84 @@
     return lines.join("\n");
   }
 
+  /* Saludo y agencia con que abren los SMS oficiales de Medicare y de
+     Suplementario; la agencia es la oficina elegida en Ajustes. */
+  function smsGreeting(d) {
+    var en = d.idioma === "en", oficina = val(d.oficina) || "QAgency", name = firstName(d);
+    var office = C.OFFICE_NAMES[oficina] || oficina;
+    return {
+      hello: en ? "Dear " + (name || "client") + ":" : (d.genero === "a" ? "Estimada " : "Estimado ") + (name || "cliente") + ":",
+      we: (en ? "We are " : "Somos ") + office + ". "
+    };
+  }
+
+  /* Firma de los SMS oficiales: quien habló con el cliente, su teléfono
+     directo y el de la oficina, cada uno en su línea. */
+  function smsSignature(d, lines) {
+    var en = d.idioma === "en", firma = U.titleCase(d.firmaNombre), direct = val(d.firmaTel), tel = val(d.telefono);
+    if (firma) { lines.push(firma); }
+    if (direct) { lines.push((en ? "Direct: " : "Directo: ") + direct); }
+    if (tel) { lines.push((en ? "Office: " : "Oficina: ") + tel); }
+  }
+
+  /* SMS de una solicitud de Medicare enviada, con el formato oficial de la
+     agencia en español o en inglés. El año es el del plan o, si falta, el
+     de la fecha efectiva. */
+  function smsMC(d) {
+    var en = d.idioma === "en", g = smsGreeting(d);
+    var ef = U.parseDate(d.efectiva), carrier = carrierName("mc", d.compania), plan = val(d.plan);
+    var yr = /^\d{4}$/.test(val(d.anio)) ? val(d.anio) : (ef ? ef.split("/")[2] : "");
+    var lines = [g.hello];
+    if (en) {
+      lines.push(g.we + "We confirm that your " + (yr ? yr + " " : "") + "Medicare enrollment has been completed successfully.");
+      if (carrier) { lines.push("Company: " + carrier); }
+      if (plan) { lines.push("Plan: " + plan); }
+      if (ef) { lines.push("Effective date: " + ef); }
+      lines.push("If you have any questions, contact us right away. Regards");
+    } else {
+      lines.push(g.we + "Le confirmamos que su inscripción en Medicare" + (yr ? " para el " + yr : "") + " se ha completado con éxito.");
+      if (carrier) { lines.push("Compañía: " + carrier); }
+      if (plan) { lines.push("Plan: " + plan); }
+      if (ef) { lines.push("Fecha de efectividad: " + ef); }
+      lines.push("Para cualquier duda, comuníquese de inmediato con nosotros. Saludos");
+    }
+    smsSignature(d, lines);
+    return lines.join("\n");
+  }
+
+  /* SMS de una aplicación de Suplementario enviada, con el formato oficial
+     de la agencia en español (de usted) o en inglés. */
+  function smsSupp(d) {
+    var en = d.idioma === "en", g = smsGreeting(d), P = productOf(d);
+    var carrier = carrierName("supp", d.compania), plan = val(d.plan), id = val(d.poliza);
+    var ef = U.parseDate(d.efectiva), pay = U.parseMoney(d.prima);
+    var lines = [g.hello];
+    if (en) {
+      lines.push(g.we + "We have completed the application for your " + P.smsEn + (carrier ? " with " + carrier : ""));
+      if (plan) { lines.push("Plan: " + plan); }
+      if (ef) { lines.push("Start: " + ef); }
+      if (pay) { lines.push("Premium: " + pay + "/month"); }
+      if (id) { lines.push("Policy #: " + id); }
+      lines.push("Details in your email. If you have any questions, call me right away. Regards");
+    } else {
+      lines.push(g.we + "Hemos completado la solicitud de su " + P.sms + (carrier ? " con " + carrier : ""));
+      if (plan) { lines.push("Plan: " + plan); }
+      if (ef) { lines.push("Inicio: " + ef); }
+      if (pay) { lines.push("Premium: " + pay + "/mes"); }
+      if (id) { lines.push("Policy #: " + id); }
+      lines.push("Detalles en su email. Si tiene dudas, llámeme de inmediato. Saludos");
+    }
+    smsSignature(d, lines);
+    return lines.join("\n");
+  }
+
   function buildSms(d) {
     var O = outcomeOf(d);
     if (O.noSms) { return ""; }
-    if (d.line === "oc" && O.id === "enviada") {
-      return smsOC(d);
+    if (O.id === "enviada") {
+      if (d.line === "oc") { return smsOC(d); }
+      if (d.line === "mc") { return smsMC(d); }
+      if (d.line === "supp") { return smsSupp(d); }
     }
     var office = val(d.oficina) || "QAgency";
     var carrier = carrierShort(d.line, d.compania);
