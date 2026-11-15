@@ -561,6 +561,9 @@ kbd {
 }
 .net-row:first-child { border-top: none; }
 .net-row .check { padding: 0; }
+.net-acts { display: flex; gap: 6px; }
+.net-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 10px; }
+.netdir-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 .net-file {
   font-family: var(--mono); font-size: 12px; color: var(--ink-2);
   background: var(--inset); border: 1px solid var(--line); border-radius: 7px;
@@ -612,6 +615,14 @@ kbd {
 #note:focus { background: var(--field); }
 .out-foot { display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--ink-3); }
 .kbd-hint { margin-left: auto; white-space: nowrap; }
+
+/* copiado rápido y ventana flotante */
+.quickbar { display: flex; gap: 8px; }
+.quickbar .btn { flex: 1; min-width: 0; }
+.float-body { margin: 0; padding: 10px 12px; min-height: 100vh; }
+.float-head { margin-bottom: 8px; font-size: 13px; font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.float-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.float-row .btn.primary { flex-basis: 100%; }
 
 .one-line { min-height: 0; padding: 8px 11px; line-height: 1.55; resize: none; overflow: hidden; background: var(--inset); border-color: var(--line); }
 .one-line:focus { background: var(--field); }

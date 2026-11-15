@@ -784,6 +784,14 @@
         sec.appendChild(el("p", "hint net-hint", "Marca lo que guardaste: sale en la nota. El nombre ya viene en el formato de NOMBRE DE ARCHIVOS."));
       }
       sec.appendChild(grid);
+      if (G.id === "network") {
+        var foot = el("div", "net-foot"); foot.id = "netFoot"; foot.hidden = true;
+        var all = el("button", "btn small", "Guardar todo en el Network"); all.type = "button"; all.id = "netSaveAll";
+        foot.appendChild(all);
+        var where = el("span", "muted"); where.id = "netWhere";
+        foot.appendChild(where);
+        sec.appendChild(foot);
+      }
       form.appendChild(sec);
     });
     updateGroupTitles();
@@ -810,13 +818,122 @@
       row.appendChild(lab);
       var code = el("code", "net-file"); code.dataset.fileFor = n.k;
       row.appendChild(code);
+      var acts = el("span", "net-acts");
       var b = el("button", "btn small", "Copiar");
       b.type = "button"; b.dataset.copyFile = n.k; b.dataset.label = "Copiar";
       b.setAttribute("aria-label", "Copiar el nombre de archivo de " + n.label);
-      row.appendChild(b);
+      acts.appendChild(b);
+      /* el documento que se soltó se guarda en la carpeta del Network con este nombre */
+      if (canSave && savableFiles(n.k).length) {
+        var sv = el("button", "btn small", "Guardar");
+        sv.type = "button"; sv.dataset.saveFile = n.k; sv.dataset.label = "Guardar";
+        sv.setAttribute("aria-label", "Guardar " + n.label + " en la carpeta del Network");
+        acts.appendChild(sv);
+      }
+      row.appendChild(acts);
       grid.appendChild(row);
     });
+    var keys = savableKeys();
+    $("netFoot").hidden = !keys.length;
+    $("netWhere").textContent = netDir ? "Carpeta: " + (netDir.name || "elegida") : "Elige la carpeta en Ajustes o al guardar.";
     updateFileNames();
+  }
+
+  /* --------------------------------------------- carpeta del Network --
+     Se elige en Ajustes y el navegador la recuerda (IndexedDB guarda el
+     permiso, no una ruta). Solo Chrome y Edge pueden escribir en una
+     carpeta. Un archivo con el mismo nombre se reemplaza solo si se confirma. */
+  var canSave = typeof window.showDirectoryPicker === "function" && !!window.indexedDB;
+  var netDir = null;
+
+  function handleStore(mode, fn) {
+    return new Promise(function (resolve, reject) {
+      var req = indexedDB.open("qa-toolbox", 1);
+      req.onupgradeneeded = function () { req.result.createObjectStore("handles"); };
+      req.onerror = function () { reject(req.error); };
+      req.onsuccess = function () {
+        var db = req.result, tx = db.transaction("handles", mode), r = fn(tx.objectStore("handles"));
+        tx.oncomplete = function () { db.close(); resolve(r && r.result); };
+        tx.onerror = function () { db.close(); reject(tx.error); };
+      };
+    });
+  }
+  function loadNetDir() {
+    renderNetDir();
+    if (!canSave) { return; }
+    handleStore("readonly", function (st) { return st.get("network"); })
+      .then(function (h) { netDir = h || null; renderNetDir(); renderNetwork(); })
+      .catch(function () { netDir = null; });
+  }
+  function pickNetDir() {
+    return window.showDirectoryPicker({ id: "qa-network", mode: "readwrite" }).then(function (h) {
+      netDir = h; renderNetDir(); renderNetwork();
+      return handleStore("readwrite", function (st) { return st.put(h, "network"); }).then(function () { return h; }, function () { return h; });
+    });
+  }
+  function clearNetDir() {
+    netDir = null; renderNetDir(); renderNetwork();
+    handleStore("readwrite", function (st) { return st.delete("network"); }).catch(function () {});
+  }
+  function renderNetDir() {
+    $("netDirBox").hidden = !canSave; $("netDirHelp").hidden = !canSave; $("netDirNA").hidden = canSave;
+    $("netDirName").textContent = netDir ? (netDir.name || "Elegida") : "Sin elegir";
+    $("netDirClear").hidden = !netDir;
+  }
+  function ensureNetDir() {
+    if (!netDir) { return pickNetDir(); }
+    return netDir.queryPermission({ mode: "readwrite" }).then(function (p) {
+      if (p === "granted") { return netDir; }
+      return netDir.requestPermission({ mode: "readwrite" }).then(function (q) {
+        if (q !== "granted") { throw new Error("permiso"); }
+        return netDir;
+      });
+    });
+  }
+  function savableFiles(k) { return S.files.filter(function (f) { return f.file && f.res && f.res.net === k; }); }
+  function savableKeys() {
+    if (!canSave) { return []; }
+    return N.networkOf(data()).map(function (n) { return n.k; }).filter(function (k) { return savableFiles(k).length; });
+  }
+  function fileExt(name) { var m = /\.[A-Za-z0-9]{1,5}$/.exec(name || ""); return m ? m[0].toLowerCase() : ""; }
+
+  function writeOne(dir, job) {
+    return dir.getFileHandle(job.name)
+      .then(function () { return window.confirm("Ya existe «" + job.name + "» en la carpeta. ¿Reemplazarlo?"); }, function () { return true; })
+      .then(function (go) {
+        if (!go) { return false; }
+        return dir.getFileHandle(job.name, { create: true })
+          .then(function (h) { return h.createWritable(); })
+          .then(function (w) { return w.write(job.file).then(function () { return w.close(); }); })
+          .then(function () { return true; });
+      });
+  }
+  function saveToNetwork(keys, btn) {
+    var names = {};
+    N.buildFileNames(data()).forEach(function (f) { names[f.k] = f.name; });
+    var jobs = [];
+    keys.forEach(function (k) {
+      savableFiles(k).forEach(function (f, i) {
+        jobs.push({ k: k, file: f.file, name: N.safeFileName(names[k] + (i ? " (" + (i + 1) + ")" : "")) + fileExt(f.name) });
+      });
+    });
+    if (!jobs.length) { return; }
+    ensureNetDir().then(function (dir) {
+      return jobs.reduce(function (p, job) {
+        return p.then(function (saved) {
+          return writeOne(dir, job).then(function (ok) { if (ok) { S.f.net[job.k] = true; saved.push(job.name); } return saved; });
+        });
+      }, Promise.resolve([]));
+    }).then(function (saved) {
+      if (!saved || !saved.length) { return; }
+      S.dirty = true;
+      renderNetwork(); refresh();
+      if (btn && btn.isConnected) { flashButton(btn); }
+      toast(saved.length === 1 ? "Guardado en el Network: " + saved[0] : "Se guardaron " + saved.length + " archivos en el Network.");
+    }).catch(function (e) {
+      if (e && e.name === "AbortError") { return; }
+      toast("No se pudo guardar en la carpeta del Network. Revisa el permiso o elige la carpeta otra vez en Ajustes.");
+    });
   }
 
   function updateFileNames() {
@@ -1168,6 +1285,11 @@
       if (!one) { setOut("email2", N.buildEmail(d, 2)); }
       fitHeight($("email1")); if (!one) { fitHeight($("email2")); }
     }
+    /* abrir el SMS en el teléfono y el email en el correo, si hay número o email */
+    $("smsOpen").hidden = noSms || !N.smsLink(S.f.clienteTel, "x");
+    $("emailOpen").hidden = !email || !N.mailtoLink(S.f.clienteEmail, "x");
+    S.copyPos = 0;
+    syncNext();
     updateFileNames();
 
     var shown = $("note").value;
@@ -1236,16 +1358,19 @@
     toastTimer = setTimeout(function () { t.classList.remove("show"); }, 2600);
   }
 
-  function copyText(text, onDone) {
+  /* win: la ventana que tiene el foco (la flotante, cuando se copia desde ella) */
+  function copyText(text, onDone, win) {
+    win = win || window;
+    var doc = win.document;
     function fallback() {
-      var ta = el("textarea");
+      var ta = doc.createElement("textarea");
       ta.value = text; ta.setAttribute("readonly", ""); ta.style.position = "fixed"; ta.style.opacity = "0";
-      document.body.appendChild(ta); ta.select();
-      try { document.execCommand("copy"); onDone(); } catch (e) { toast("No se pudo copiar. Selecciona el texto y usa Ctrl + C."); }
-      document.body.removeChild(ta);
+      doc.body.appendChild(ta); ta.select();
+      try { doc.execCommand("copy"); onDone(); } catch (e) { toast("No se pudo copiar. Selecciona el texto y usa Ctrl + C."); }
+      doc.body.removeChild(ta);
     }
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text).then(onDone, fallback);
+    if (win.navigator.clipboard && win.navigator.clipboard.writeText) {
+      win.navigator.clipboard.writeText(text).then(onDone, fallback);
     } else { fallback(); }
   }
 
@@ -1257,11 +1382,89 @@
     setTimeout(function () { btn.textContent = label; btn.classList.remove("done"); }, 1600);
   }
 
-  function copyOut(key, btn) {
+  function copyOut(key, btn, win) {
     var text = $(OUT[key]).value;
     if (!text.trim()) { return; }
-    copyText(text, function () { flashButton(btn); });
+    copyText(text, function () { flashButton(btn); }, win);
     if (key === "note") { S.dirty = false; }
+  }
+
+  /* ------------------------------------------------- copiar siguiente --
+     Nota, task, reporte, SMS y email, en orden, sin lo que la situación no
+     muestra ni lo que está vacío. Vuelve a empezar cuando cambia un campo. */
+  var COPY_LABEL = { note: "Nota", task: "Task", report: "Reporte", sms: "SMS", email1: "Email", email2: "Email 2" };
+  function copyList() { return N.copyOrder(data()).filter(function (k) { return $(OUT[k]).value.trim(); }); }
+  function copyLabel(k, list) { return k === "email1" && list.indexOf("email2") >= 0 ? "Email 1" : COPY_LABEL[k]; }
+  function nextLabel() {
+    var list = copyList();
+    return list.length ? "Copiar siguiente: " + copyLabel(list[(S.copyPos || 0) % list.length], list) : "Copiar siguiente";
+  }
+  function copyNext(btn, win) {
+    var list = copyList();
+    if (!list.length) { return; }
+    var i = (S.copyPos || 0) % list.length;
+    S.copyPos = i + 1;
+    if (btn) { btn.dataset.label = nextLabel(); }
+    copyOut(list[i], btn, win);
+    if (!pip) { toast("Copiado: " + copyLabel(list[i], list)); }
+    syncNext();
+  }
+  function syncNext() {
+    var b = $("copyNext");
+    b.dataset.label = nextLabel();
+    if (!b.classList.contains("done")) { b.textContent = b.dataset.label; }
+    if (pip) { renderFloat(); }
+  }
+
+  /* ------------------------------------------------- ventana flotante --
+     Document Picture-in-Picture: una ventana pequeña que queda encima de las
+     demás, con los botones de copiar. Copia siempre el texto actual. */
+  var pip = null;
+  function openFloat() {
+    if (pip) { pip.focus(); return; }
+    window.documentPictureInPicture.requestWindow({ width: 440, height: 150 }).then(function (w) {
+      pip = w;
+      each(document.styleSheets, function (sheet) {
+        var css = "";
+        try { css = Array.prototype.map.call(sheet.cssRules, function (r) { return r.cssText; }).join("\n"); } catch (e) { css = ""; }
+        var st = w.document.createElement("style"); st.textContent = css; w.document.head.appendChild(st);
+      });
+      if (document.documentElement.hasAttribute("data-theme")) {
+        w.document.documentElement.setAttribute("data-theme", document.documentElement.getAttribute("data-theme"));
+      }
+      w.document.title = "Q Agency Toolbox";
+      w.document.body.className = "float-body";
+      w.document.body.addEventListener("click", function (e) {
+        var b = e.target.closest("button");
+        if (!b) { return; }
+        if (b.dataset.next) { copyNext(b, w); } else { copyOut(b.dataset.copy, b, w); }
+      });
+      w.addEventListener("pagehide", function () { pip = null; });
+      renderFloat();
+    }).catch(function () { toast("No se pudo abrir la ventana flotante."); });
+  }
+  /* se reconstruye solo si cambian los botones; si no, se actualizan los
+     textos sin cortar el "Copiado ✓" de un botón recién usado */
+  function renderFloat() {
+    if (!pip) { return; }
+    var doc = pip.document, body = doc.body, list = copyList(), sig = list.join(",");
+    if (body.dataset.sig !== sig || !body.querySelector("[data-next]")) {
+      body.textContent = "";
+      var head = doc.createElement("div"); head.className = "float-head";
+      var row = doc.createElement("div"); row.className = "float-row";
+      var next = doc.createElement("button"); next.type = "button"; next.className = "btn primary small"; next.dataset.next = "1";
+      row.appendChild(next);
+      list.forEach(function (k) {
+        var b = doc.createElement("button"); b.type = "button"; b.className = "btn small"; b.dataset.copy = k;
+        row.appendChild(b);
+      });
+      body.appendChild(head); body.appendChild(row);
+      body.dataset.sig = sig;
+    }
+    body.querySelector(".float-head").textContent = N.zohoName(data()) || "Sin cliente";
+    var label = function (b, text) { b.dataset.label = text; if (!b.classList.contains("done")) { b.textContent = text; } };
+    label(body.querySelector("[data-next]"), nextLabel());
+    each(body.querySelectorAll("[data-copy]"), function (b) { label(b, copyLabel(b.dataset.copy, list)); });
   }
 
   /* ---------------------------------------------------------- documentos */
@@ -1409,7 +1612,7 @@
   }
 
   function readFile(file) {
-    var entry = { name: file.name, status: "reading", applied: 0 };
+    var entry = { name: file.name, status: "reading", applied: 0, file: file };
     S.files.push(entry);
     renderFiles();
     var isPdf = /pdf/i.test(file.type) || /\.pdf$/i.test(file.name);
@@ -1439,7 +1642,7 @@
         var added = S.files.slice(before);
         var total = added.reduce(function (s, f) { return s + (f.applied || 0); }, 0);
         S.dirty = true;
-        renderPicker(); syncInputs(); refresh();
+        renderPicker(); syncInputs(); renderNetwork(); refresh();
         toast(total ? "Se llenaron " + total + (total === 1 ? " campo" : " campos") + ". Revísalos antes de copiar."
                     : "No se encontraron datos en " + (added.length === 1 ? "el documento" : "los documentos") + ".");
       });
@@ -1821,6 +2024,8 @@
         refresh();
         return;
       }
+      if (b.dataset.saveFile) { saveToNetwork([b.dataset.saveFile], b); return; }
+      if (b.id === "netSaveAll") { saveToNetwork(savableKeys(), b); return; }
       if (b.dataset.copyFile) {
         var k2 = b.dataset.copyFile;
         copyText($("netGrid").querySelector('[data-file-for="' + k2 + '"]').textContent, function () { flashButton(b); });
@@ -1889,11 +2094,21 @@
         refresh();
       });
     });
+    /* copiar siguiente, ventana flotante y abrir en el teléfono o el correo */
+    $("copyNext").addEventListener("click", function () { copyNext(this); });
+    $("btnFloat").hidden = !("documentPictureInPicture" in window);
+    $("btnFloat").addEventListener("click", openFloat);
+    $("smsOpen").addEventListener("click", function () { this.href = N.smsLink(S.f.clienteTel, $("sms").value); });
+    $("emailOpen").addEventListener("click", function () {
+      var body = $("email1").value + ($("emailPart2").hidden ? "" : "\n\n" + $("email2").value);
+      this.href = N.mailtoLink(S.f.clienteEmail, body);
+    });
     $("dock").addEventListener("click", function (e) {
       var b = e.target.closest("[data-copy]");
       if (b) { copyOut(b.dataset.copy, b); }
     });
     document.addEventListener("keydown", function (e) {
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === "Enter" && currentView === "nota") { e.preventDefault(); copyNext($("copyNext")); return; }
       if ((e.ctrlKey || e.metaKey) && e.key === "Enter" && currentView === "nota") { e.preventDefault(); copyOut("note", $("copyNote")); }
     });
 
@@ -1955,7 +2170,7 @@
     $("files").addEventListener("click", function (e) {
       var b = e.target.closest("button");
       if (!b) { return; }
-      if (b.dataset.remove != null) { S.files.splice(+b.dataset.remove, 1); renderFiles(); }
+      if (b.dataset.remove != null) { S.files.splice(+b.dataset.remove, 1); renderFiles(); renderNetwork(); }
       if (b.dataset.view != null) { openPaste(S.files[+b.dataset.view]); }
     });
 
@@ -2080,6 +2295,11 @@
     bind();
     bindTasks();
     setupInstall();
+    loadNetDir();
+    $("netDirPick").addEventListener("click", function () {
+      pickNetDir().catch(function (e) { if (!e || e.name !== "AbortError") { toast("No se pudo usar esa carpeta."); } });
+    });
+    $("netDirClear").addEventListener("click", clearNetDir);
     refresh();
     setView(viewFromHash());
   }
