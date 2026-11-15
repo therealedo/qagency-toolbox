@@ -117,6 +117,16 @@ Below it, **Email para el cliente** has two parts, each with its own **Copiar**:
 
 The Network section lists the documents for the line of business, each with its file name ready to copy, for example `Caso, Angel - Medicare_Humana 2026 OCT`. Copying a name also ticks the document, so it is listed in the note. Plan documents (My Plans & Programs, the Medicare application, supplemental applications and ID cards) take the year and month of the coverage start; the rest take the date of the note, the SOA signature or the payment.
 
+### Saving to the Network
+
+In **Ajustes → Carpeta del Network**, choose your folder in the NETW once. The browser remembers it, and may ask for permission again after it restarts. Each document you dropped gets **Guardar** in the Network section, and **Guardar todo en el Network** saves them all, with the generated file name and the original extension. Saving ticks the document for the note. If a file with that name already exists, it asks before replacing it. Only Chrome and Edge can write to a folder.
+
+### Copying faster
+
+- **Copiar siguiente** (at the top of the right column, or Ctrl + Shift + Enter) copies the note, then the task, the report, the SMS and the email, skipping what the situation does not show. It starts over with the note when a field changes.
+- **Ventana flotante** opens a small window that stays on top of Zoho, with the client's name and the same copy buttons (Chrome and Edge).
+- **Abrir en el teléfono** and **Abrir en el correo** open the SMS or the email with the text ready, when the titular's phone or email is filled in.
+
 ## What it reads
 
 | Document | Fills |
@@ -136,7 +146,7 @@ The reader was built against the sample documents in `samples/` (all data fictit
 ## Privacy
 
 - Documents are read inside the browser. The page makes no network requests with client data, and its Content-Security-Policy blocks them (`connect-src 'none'`). Fonts and the PDF reader are bundled, so nothing loads from a CDN.
-- Client data lives only in memory and is gone when the window closes. Only settings are stored in the browser: the team list, your name, the office and its phone, the theme.
+- Client data lives only in memory and is gone when the window closes. Only settings are stored in the browser: the team list, your name, the office and its phone, the theme, and the permission for the Network folder (not its files). Saving to the Network writes only to the folder you chose.
 - Social Security numbers are never extracted, and a warning appears if the note contains something shaped like one.
 - When hosted, a service worker keeps a copy of the app's own files so it opens offline. It never handles documents or client data.
 
