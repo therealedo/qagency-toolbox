@@ -286,13 +286,9 @@
     <div class="team" id="teamRows"></div>
     <button type="button" class="btn small" id="teamAdd">Agregar persona</button>
 
-    <h3>Carpeta del Network</h3>
-    <div class="netdir-row" id="netDirBox">
-      <span>Carpeta: <strong id="netDirName">Sin elegir</strong></span>
-      <button type="button" class="btn small" id="netDirPick">Elegir carpeta</button>
-      <button type="button" class="link-btn" id="netDirClear" hidden>Quitar</button>
-    </div>
-    <p class="muted" id="netDirHelp">Elige tu folder del NETW. Los PDF que sueltes se guardan ahí con su nombre de archivo desde la sección Network. Si ya existe un archivo con ese nombre, se pregunta antes de reemplazarlo.</p>
+    <h3>Carpetas del Network</h3>
+    <div class="netdirs" id="netDirBox"></div>
+    <p class="muted" id="netDirHelp">Elige tu folder del NETW en General. Si una línea guarda sus documentos en otra carpeta (por ejemplo una para OC y otra para MA), elígela en su fila; las líneas sin carpeta propia usan la general. Los PDF que sueltes se guardan con su nombre de archivo desde la sección Network, en la carpeta de la línea en que estás. Si ya existe un archivo con ese nombre, se pregunta antes de reemplazarlo.</p>
     <p class="muted" id="netDirNA" hidden>Este navegador no permite guardar en carpetas. Usa Chrome o Edge.</p>
 
     <h3>Formato de la nota</h3>

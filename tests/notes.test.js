@@ -657,3 +657,17 @@ test("nombre de archivo válido en Windows", () => {
   assert.equal(N.safeFileName('Diaz, Beatriz - Dental_A/B: "Plus"?'), "Diaz, Beatriz - Dental_A-B- -Plus--");
   assert.equal(N.safeFileName("  Diaz.  "), "Diaz");
 });
+
+test("carpeta del Network: cada línea usa la suya y, si no tiene, la general", () => {
+  assert.deepEqual(N.NET_DIRS, ["general", "oc", "mc", "supp"]);
+  const general = { name: "NETW" }, oc = { name: "OC" };
+  const own = N.netDirFor({ general: general, oc: oc }, "oc");
+  assert.equal(own.key, "oc");
+  assert.equal(own.dir, oc);
+  const shared = N.netDirFor({ general: general, oc: oc }, "mc");
+  assert.equal(shared.key, "general");
+  assert.equal(shared.dir, general);
+  assert.deepEqual(N.netDirFor({ oc: oc }, "supp"), { key: "general", dir: null });
+  assert.deepEqual(N.netDirFor({}, "mc"), { key: "general", dir: null });
+});
+

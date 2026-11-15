@@ -121,7 +121,7 @@ The Network section lists the documents for the line of business, each with its 
 
 ### Saving to the Network
 
-In **Ajustes → Carpeta del Network**, choose your folder in the NETW once. The browser remembers it, and may ask for permission again after it restarts. Each document you dropped gets **Guardar** in the Network section, and **Guardar todo en el Network** saves them all, with the generated file name and the original extension. Saving ticks the document for the note. If a file with that name already exists, it asks before replacing it. Only Chrome and Edge can write to a folder.
+In **Ajustes → Carpetas del Network**, choose your folder in the NETW once under **General**. When a line of business keeps its documents somewhere else (for example one folder for OC and another for MA), choose that folder in its own row; a line without a folder of its own uses the general one. Saving uses the folder of the line you are working in, and the Network section shows which one. The browser remembers the folders, and may ask for permission again after it restarts. Each document you dropped gets **Guardar** in the Network section, and **Guardar todo en el Network** saves them all, with the generated file name and the original extension. Saving ticks the document for the note. If a file with that name already exists, it asks before replacing it. Only Chrome and Edge can write to a folder.
 
 ### Copying faster
 
@@ -152,7 +152,7 @@ The reader was built against the sample documents in `samples/` (all data fictit
 ## Privacy
 
 - Documents are read inside the browser. The page makes no network requests with client data, and its Content-Security-Policy blocks them (`connect-src 'none'`). Fonts, the PDF reader and the OCR engine with its language models are bundled, so nothing loads from a CDN. The policy allows WebAssembly (`'wasm-unsafe-eval'`) only so the bundled OCR engine can run; it still cannot connect anywhere.
-- Client data lives only in memory and is gone when the window closes. Only settings are stored in the browser: the team list, your name, the office and its phone, the theme, and the permission for the Network folder (not its files). Saving to the Network writes only to the folder you chose.
+- Client data lives only in memory and is gone when the window closes. Only settings are stored in the browser: the team list, your name, the office and its phone, the theme, and the permission for the Network folders (not their files). Saving to the Network writes only to the folders you chose.
 - Social Security numbers are never extracted, and a warning appears if the note contains something shaped like one.
 - When hosted, a service worker keeps a copy of the app's own files so it opens offline. It never handles documents or client data.
 

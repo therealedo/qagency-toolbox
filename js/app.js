@@ -837,17 +837,23 @@
     });
     var keys = savableKeys();
     $("netFoot").hidden = !keys.length;
-    $("netWhere").textContent = netDir ? "Carpeta: " + (netDir.name || "elegida") : "Elige la carpeta en Ajustes o al guardar.";
+    var dir = N.netDirFor(netDirs, S.line);
+    $("netWhere").textContent = !dir.dir ? "Elige la carpeta en Ajustes o al guardar."
+      : (dir.key === "general" ? "Carpeta: " : "Carpeta de " + netDirLabel(dir.key) + ": ") + (dir.dir.name || "elegida");
     updateFileNames();
   }
 
-  /* --------------------------------------------- carpeta del Network --
-     Se elige en Ajustes y el navegador la recuerda (IndexedDB guarda el
-     permiso, no una ruta). Solo Chrome y Edge pueden escribir en una
-     carpeta. Un archivo con el mismo nombre se reemplaza solo si se confirma. */
+  /* -------------------------------------------- carpetas del Network --
+     Una general y, si hace falta, una propia por línea (N.netDirFor). Se
+     eligen en Ajustes y el navegador las recuerda (IndexedDB guarda el
+     permiso, no una ruta; la general sigue en la clave "network" de
+     siempre). Solo Chrome y Edge pueden escribir en una carpeta. Un archivo
+     con el mismo nombre se reemplaza solo si se confirma. */
   var canSave = typeof window.showDirectoryPicker === "function" && !!window.indexedDB;
-  var netDir = null;
+  var netDirs = {};
 
+  function netDirKey(k) { return k === "general" ? "network" : "network-" + k; }
+  function netDirLabel(k) { return k === "general" ? "General" : C.LINES[k].label; }
   function handleStore(mode, fn) {
     return new Promise(function (resolve, reject) {
       var req = indexedDB.open("qa-toolbox", 1);
@@ -855,40 +861,66 @@
       req.onerror = function () { reject(req.error); };
       req.onsuccess = function () {
         var db = req.result, tx = db.transaction("handles", mode), r = fn(tx.objectStore("handles"));
-        tx.oncomplete = function () { db.close(); resolve(r && r.result); };
+        tx.oncomplete = function () { db.close(); resolve(r); };
         tx.onerror = function () { db.close(); reject(tx.error); };
       };
     });
   }
-  function loadNetDir() {
-    renderNetDir();
+  function loadNetDirs() {
+    renderNetDirs();
     if (!canSave) { return; }
-    handleStore("readonly", function (st) { return st.get("network"); })
-      .then(function (h) { netDir = h || null; renderNetDir(); renderNetwork(); })
-      .catch(function () { netDir = null; });
+    handleStore("readonly", function (st) {
+      var reqs = {};
+      N.NET_DIRS.forEach(function (k) { reqs[k] = st.get(netDirKey(k)); });
+      return reqs;
+    }).then(function (reqs) {
+      N.NET_DIRS.forEach(function (k) { if (reqs[k].result) { netDirs[k] = reqs[k].result; } });
+      renderNetDirs(); renderNetwork();
+    }).catch(function () { netDirs = {}; });
   }
-  function pickNetDir() {
+  function pickNetDir(k) {
     return window.showDirectoryPicker({ id: "qa-network", mode: "readwrite" }).then(function (h) {
-      netDir = h; renderNetDir(); renderNetwork();
-      return handleStore("readwrite", function (st) { return st.put(h, "network"); }).then(function () { return h; }, function () { return h; });
+      netDirs[k] = h; renderNetDirs(); renderNetwork();
+      return handleStore("readwrite", function (st) { return st.put(h, netDirKey(k)); }).then(function () { return h; }, function () { return h; });
     });
   }
-  function clearNetDir() {
-    netDir = null; renderNetDir(); renderNetwork();
-    handleStore("readwrite", function (st) { return st.delete("network"); }).catch(function () {});
+  function clearNetDir(k) {
+    delete netDirs[k]; renderNetDirs(); renderNetwork();
+    handleStore("readwrite", function (st) { return st.delete(netDirKey(k)); }).catch(function () {});
   }
-  function renderNetDir() {
-    $("netDirBox").hidden = !canSave; $("netDirHelp").hidden = !canSave; $("netDirNA").hidden = canSave;
-    $("netDirName").textContent = netDir ? (netDir.name || "Elegida") : "Sin elegir";
-    $("netDirClear").hidden = !netDir;
+  function renderNetDirs() {
+    var box = $("netDirBox");
+    box.hidden = !canSave; $("netDirHelp").hidden = !canSave; $("netDirNA").hidden = canSave;
+    if (!box.children.length) {
+      N.NET_DIRS.forEach(function (k) {
+        var row = el("div", "netdir-row");
+        row.appendChild(el("span", "netdir-line", netDirLabel(k)));
+        var name = el("strong"); name.dataset.netDirName = k;
+        row.appendChild(name);
+        var pick = el("button", "btn small", "Elegir carpeta"); pick.type = "button"; pick.dataset.netDirPick = k;
+        pick.setAttribute("aria-label", "Elegir la carpeta " + (k === "general" ? "general" : "de " + netDirLabel(k)));
+        row.appendChild(pick);
+        var clear = el("button", "link-btn", "Quitar"); clear.type = "button"; clear.dataset.netDirClear = k;
+        clear.setAttribute("aria-label", "Quitar la carpeta " + (k === "general" ? "general" : "de " + netDirLabel(k)));
+        row.appendChild(clear);
+        box.appendChild(row);
+      });
+    }
+    N.NET_DIRS.forEach(function (k) {
+      var h = netDirs[k];
+      box.querySelector('[data-net-dir-name="' + k + '"]').textContent = h ? (h.name || "Elegida") : (k === "general" ? "Sin elegir" : "Usa la general");
+      box.querySelector('[data-net-dir-clear="' + k + '"]').hidden = !h;
+    });
   }
+  /* la carpeta donde se guarda la línea de ahora; si no hay ninguna, se pide la general */
   function ensureNetDir() {
-    if (!netDir) { return pickNetDir(); }
-    return netDir.queryPermission({ mode: "readwrite" }).then(function (p) {
-      if (p === "granted") { return netDir; }
-      return netDir.requestPermission({ mode: "readwrite" }).then(function (q) {
+    var t = N.netDirFor(netDirs, S.line), dir = t.dir;
+    if (!dir) { return pickNetDir("general"); }
+    return dir.queryPermission({ mode: "readwrite" }).then(function (p) {
+      if (p === "granted") { return dir; }
+      return dir.requestPermission({ mode: "readwrite" }).then(function (q) {
         if (q !== "granted") { throw new Error("permiso"); }
-        return netDir;
+        return dir;
       });
     });
   }
@@ -2345,11 +2377,15 @@
     bind();
     bindTasks();
     setupInstall();
-    loadNetDir();
-    $("netDirPick").addEventListener("click", function () {
-      pickNetDir().catch(function (e) { if (!e || e.name !== "AbortError") { toast("No se pudo usar esa carpeta."); } });
+    loadNetDirs();
+    $("netDirBox").addEventListener("click", function (e) {
+      var b = e.target.closest("button");
+      if (!b) { return; }
+      if (b.dataset.netDirPick) {
+        pickNetDir(b.dataset.netDirPick).catch(function (err) { if (!err || err.name !== "AbortError") { toast("No se pudo usar esa carpeta."); } });
+      }
+      if (b.dataset.netDirClear) { clearNetDir(b.dataset.netDirClear); }
     });
-    $("netDirClear").addEventListener("click", clearNetDir);
     refresh();
     setView(viewFromHash());
   }
