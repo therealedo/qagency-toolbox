@@ -145,6 +145,27 @@
     return pad2(h === 0 ? 12 : h) + t.slice(2);
   }
 
+  /* "14:30" -> "2:30 PM": para leerla sin dudas (citas, SMS, listas). */
+  function timeLabel(input) {
+    var t = parseTime(input);
+    if (!t) { return ""; }
+    var h = +t.slice(0, 2);
+    return (h % 12 === 0 ? 12 : h % 12) + t.slice(2) + (h < 12 ? " AM" : " PM");
+  }
+
+  /* Horas de revisión del task: solo en punto y y media, de 7:00 AM a 9:30 PM.
+     v se guarda en 24 h (sin ambigüedad); l es lo que se ve en la lista. */
+  function halfHourSlots() {
+    var out = [];
+    for (var h = 7; h <= 21; h++) {
+      [0, 30].forEach(function (m) {
+        var v = pad2(h) + ":" + pad2(m);
+        out.push({ v: v, l: to12h(v) + " · " + timeLabel(v) });
+      });
+    }
+    return out;
+  }
+
   /* "03/15/2026" -> "2026 MAR": año y mes como van en los nombres de archivo. */
   function yearMonth(mdy) {
     var p = parseDate(mdy);
@@ -233,7 +254,7 @@
   var api = {
     pad2: pad2, fmtDate: fmtDate, today: today, parseDate: parseDate, parseDateWords: parseDateWords,
     findDate: findDate, toDateObj: toDateObj, addDays: addDays, addMonths: addMonths, taskDate: taskDate,
-    parseTime: parseTime, to12h: to12h, yearMonth: yearMonth, defaultPlanYear: defaultPlanYear, moneyNumber: moneyNumber, parseMoney: parseMoney,
+    parseTime: parseTime, to12h: to12h, timeLabel: timeLabel, halfHourSlots: halfHourSlots, yearMonth: yearMonth, defaultPlanYear: defaultPlanYear, moneyNumber: moneyNumber, parseMoney: parseMoney,
     stripAccents: stripAccents, collapse: collapse, titleCase: titleCase, initials: initials,
     splitName: splitName, parseList: parseList, escapeHtml: escapeHtml, MONTHS: MONTHS
   };

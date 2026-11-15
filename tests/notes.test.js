@@ -87,7 +87,8 @@ test("task: referencia de pago, dependiente y etiquetas al final", () => {
   assert.equal(t({ pagoEstado: "PAYMENT NOT VERIFIED" }), "DI: FOLLOW UP CUSTOMER SERVICE - VER NOTA 02/01/2026 (09:00) PAYMENT NOT VERIFIED");
   assert.equal(t({ pagoEstado: "NO PREMIUM", obsTask: "urgent" }), "DI: FOLLOW UP CUSTOMER SERVICE - VER NOTA 02/01/2026 (09:00) NO PREMIUM URGENT");
   assert.equal(t({ dep: true, pagoEstado: "PAYMENT" }), "DI: FOLLOW UP CUSTOMER SERVICE DEP - VER NOTA 02/01/2026 (09:00)");
-  assert.equal(t({ hora: "2pm" }), "DI: FOLLOW UP CUSTOMER SERVICE - VER NOTA 02/01/2026 (14:00)");
+  /* en 12 horas, como en los templates: 2:30 PM sale (02:30) */
+  assert.equal(t({ hora: "14:30" }), "DI: FOLLOW UP CUSTOMER SERVICE - VER NOTA 02/01/2026 (02:30)");
 });
 
 test("task: elegido a mano del catálogo", () => {
@@ -141,12 +142,12 @@ test("nota: Obamacare enviada como el template OBAMACARE APP", () => {
 
 test("nota: cotización con consent como el template OC", () => {
   const note = N.buildNote(make({
-    ini: "ER", fecha: "11/09/2026", line: "oc", outcome: "consent", gestion: "nueva", genero: "a", horaLlamada: "14:44",
+    ini: "ER", fecha: "11/09/2026", line: "oc", outcome: "consent", gestion: "nueva", genero: "a", hora: "14:30",
     plataforma: "HealthCare.gov", ingreso: "22590", hogar: "1", miembros: "DAMARYS", compania: "Ambetter",
     plan: "Everyday Bronze", primaPagar: "0"
   }));
   assert.equal(note, [
-    "ER_11/09/2026: Se conversa con la cliente (02:44), nos indicó que desea cotizar con los siguientes datos:",
+    "ER_11/09/2026: Se conversa con la cliente (02:30), nos indicó que desea cotizar con los siguientes datos:",
     "PROCESAR POR EL PORTAL: MARKETPLACE.",
     "Income: $22,590.",
     "En taxes: 1.",
@@ -237,7 +238,10 @@ test("nota: todas empiezan igual y sin contacto lleva intento", () => {
 
 test("nota: cita con fecha y hora, y seguimiento solo si hay fecha", () => {
   const cita = N.buildNote(make({ line: "oc", outcome: "cita", gestion: "renovacion", fechaSeg: "02/05/2026", hora: "10:30", plan: "Plan X" }));
-  assert.match(cita, /desea renovar su OC 2026\. Se agenda cita para el 02\/05\/2026 a las 10:30\./);
+  assert.match(cita, /^LI_02\/01\/2026: Se conversa con el cliente \(10:30\), desea renovar su OC 2026\. Se agenda cita para el 02\/05\/2026 a las 10:30 AM\./);
+  const tarde = N.buildNote(make({ line: "oc", outcome: "cita", gestion: "renovacion", fechaSeg: "02/05/2026", hora: "15:00" }));
+  assert.match(tarde, /\(03:00\).*a las 3:00 PM\./);
+  assert.match(N.buildTask(make({ line: "oc", outcome: "cita", hora: "15:00" })), /VER NOTA 02\/01\/2026 \(03:00\)$/);
   assert.doesNotMatch(cita, /Plan X|Seguimiento/);
   const seg = N.buildNote(make({ line: "oc", outcome: "consent", gestion: "nueva", fechaSeg: "02/03/2026" }));
   assert.match(seg, /\nSeguimiento: Procesar la app al recibir el consent - 02\/03\/2026$/);

@@ -48,7 +48,7 @@ In the *Agente y colaborador* section of a note, **Agente escritor** is the agen
 
 ### The note
 
-Each situation writes the note the way PROCESS TEMPLATES does: `ER_11/09/2026:` and one sentence, then the case data in the agency's own labels (`ID#`, `Status`, `Inicia cobertura`, `Premium`, `Enrollment Period`, `MC #`, `PART A`, `Conf/App #`, `Effective Date`, `Monthly Premium`, `AutoPay`…), the agent as `NPN: LI`, and `Docs en mi folder del NETW: …`. Conversations start with the call time in 12-hour format, `Se conversa con la cliente (02:44)`, and **En la nota** switches between *el cliente* and *la cliente*.
+Each situation writes the note the way PROCESS TEMPLATES does: `ER_11/09/2026:` and one sentence, then the case data in the agency's own labels (`ID#`, `Status`, `Inicia cobertura`, `Premium`, `Enrollment Period`, `MC #`, `PART A`, `Conf/App #`, `Effective Date`, `Monthly Premium`, `AutoPay`…), the agent as `NPN: LI`, and `Docs en mi folder del NETW: …`. Conversations start with `Se conversa con la cliente (02:30)`: the time in parentheses is when the task should be reviewed again, the same one the task carries after VER NOTA, picked from a list of :00 and :30 times and written in 12-hour format. **En la nota** switches between *el cliente* and *la cliente*.
 
 When the situation is a submitted application, the note ends with «Se reporta en el botón rojo» and the task line. Other situations end without them. Both can be switched off in Ajustes.
 

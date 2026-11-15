@@ -81,7 +81,7 @@
   function freshFields() {
     var season = seasonDefaults();
     return {
-      fecha: U.today(), horaLlamada: U.to12h(new Date()), genero: "o",
+      fecha: U.today(), genero: "o",
       canal: "Call", modalidad: "presencial", anio: U.defaultPlanYear(),
       codigoTipo: "Q", gestion: "", periodo: season.periodo, plataforma: "HealthCare.gov",
       periodoMC: season.periodoMC, soaEstado: "firmado", producto: "Dental",
@@ -143,7 +143,8 @@
     { k: "fecha", g: "contacto", type: "date", label: "Fecha de la nota" },
     { k: "anio", g: "contacto", type: "int", label: "Año del plan", max: 4 },
     { k: "canal", g: "contacto", type: "seg", label: "Canal", w: "w2", options: C.CHANNELS },
-    { k: "horaLlamada", g: "contacto", type: "clock", label: "Hora de la llamada", hint: "En formato de 12 horas, como en las notas" },
+    { k: "hora", g: "contacto", type: "select", label: "Hora de revisión del task", w: "w2", options: U.halfHourSlots(),
+      hint: "Sale entre paréntesis en la nota y en el task. Solo en punto o y media." },
     { k: "modalidad", g: "contacto", type: "select", label: "Modalidad de la cita", options: C.MODALIDADES,
       when: function (f) { return f.canal === "Appointment"; } },
 
@@ -249,9 +250,8 @@
       ph: function () { return O().pendiente || "Ninguno"; } },
     { k: "proximo", g: "seguimiento", type: "text", label: "Próximo paso", w: "full",
       ph: function () { return O().proximo.replace("{plataforma}", S.f.plataforma || "el Mercado"); } },
-    { k: "fechaSeg", g: "seguimiento", type: "date", w: "w3", quick: quickDates(),
+    { k: "fechaSeg", g: "seguimiento", type: "date", w: "full", quick: quickDates(),
       label: function () { return O().id === "cita" ? "Fecha de la cita" : "Fecha de seguimiento"; } },
-    { k: "hora", g: "seguimiento", type: "time", label: "Hora de referencia" },
     { k: "notas", g: "seguimiento", type: "area", label: "Observaciones", w: "full", rows: 2,
       ph: "Detalles del caso que no caben en los campos" },
 
@@ -324,7 +324,6 @@
       if (F.type === "money") { ctl.inputMode = "decimal"; ctl.placeholder = "$0.00"; ctl.classList.add("num"); }
       if (F.type === "date") { ctl.placeholder = "MM/DD/AAAA"; ctl.classList.add("num"); }
       if (F.type === "time") { ctl.placeholder = "09:00"; ctl.classList.add("num"); }
-      if (F.type === "clock") { ctl.placeholder = "02:44"; ctl.classList.add("num"); }
       if (F.type === "int") { ctl.inputMode = "numeric"; ctl.classList.add("num"); if (F.max) { ctl.maxLength = F.max; } }
       if (F.list) { ctl.setAttribute("list", "dl_" + F.k); }
     }
@@ -987,6 +986,7 @@
     var me = memberByName(settings.autor);
     if (!TK.ownerTouched) { TK.owner = me ? me.ini : ""; }
     var set = function (id, v) { var c = $(id); if (document.activeElement !== c) { c.value = v; } };
+    if (!$("tkHora").options.length) { fillSelect($("tkHora"), U.halfHourSlots()); }
     set("tkOwner", TK.owner); set("tkFecha", TK.fecha); set("tkHora", TK.hora);
     set("tkIntento", TK.intento); set("tkDocFecha", TK.docFecha); set("tkTaxYear", TK.taxYear);
     $("tkTaxYear").placeholder = String(new Date().getFullYear());
@@ -1032,7 +1032,7 @@
     }
     field("tkOwner", "owner");
     field("tkFecha", "fecha", U.parseDate);
-    field("tkHora", "hora", U.parseTime);
+    $("tkHora").addEventListener("change", function () { TK.hora = this.value; renderTaskList(); });
     field("tkDocFecha", "docFecha", U.parseDate);
     field("tkIntento", "intento");
     field("tkTaxYear", "taxYear");
@@ -1209,7 +1209,6 @@
     else if (F.type === "money") { out = U.parseMoney(raw); bad = !out; }
     else if (F.type === "date") { out = U.parseDate(raw); bad = !out; }
     else if (F.type === "time") { out = U.parseTime(raw); bad = !out; }
-    else if (F.type === "clock") { out = U.to12h(raw); bad = !out; }
     else if (F.type === "int") { out = raw.replace(/[^\d]/g, ""); }
     else if (F.upper && F.type !== "area") { out = U.collapse(raw).toUpperCase(); }
     else if (F.type !== "area") { out = U.collapse(raw); }

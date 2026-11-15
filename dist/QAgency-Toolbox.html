@@ -864,7 +864,7 @@ kbd {
         <div class="card tasks-panel">
           <div class="tasks-pair">
             <label class="mini"><span>Iniciales</span><input type="text" id="tkOwner" class="upper" maxlength="4" list="tkOwnerList" autocomplete="off"></label>
-            <label class="mini"><span>Hora</span><input type="text" id="tkHora" class="num" placeholder="09:00"></label>
+            <label class="mini"><span>Hora de revisión</span><select id="tkHora"></select></label>
           </div>
           <datalist id="tkOwnerList"></datalist>
           <label class="mini"><span>Fecha después de VER NOTA</span><input type="text" id="tkFecha" class="num" placeholder="MM/DD/AAAA"></label>
@@ -1023,7 +1023,7 @@ kbd {
 (function (root) {
   "use strict";
 
-  var VERSION = "1.2.0";
+  var VERSION = "1.2.1";
 
   /* Equipo por defecto. Cada persona puede editarlo en Ajustes; los cambios
      se guardan en su navegador.
@@ -1516,6 +1516,27 @@ kbd {
     return pad2(h === 0 ? 12 : h) + t.slice(2);
   }
 
+  /* "14:30" -> "2:30 PM": para leerla sin dudas (citas, SMS, listas). */
+  function timeLabel(input) {
+    var t = parseTime(input);
+    if (!t) { return ""; }
+    var h = +t.slice(0, 2);
+    return (h % 12 === 0 ? 12 : h % 12) + t.slice(2) + (h < 12 ? " AM" : " PM");
+  }
+
+  /* Horas de revisión del task: solo en punto y y media, de 7:00 AM a 9:30 PM.
+     v se guarda en 24 h (sin ambigüedad); l es lo que se ve en la lista. */
+  function halfHourSlots() {
+    var out = [];
+    for (var h = 7; h <= 21; h++) {
+      [0, 30].forEach(function (m) {
+        var v = pad2(h) + ":" + pad2(m);
+        out.push({ v: v, l: to12h(v) + " · " + timeLabel(v) });
+      });
+    }
+    return out;
+  }
+
   /* "03/15/2026" -> "2026 MAR": año y mes como van en los nombres de archivo. */
   function yearMonth(mdy) {
     var p = parseDate(mdy);
@@ -1604,7 +1625,7 @@ kbd {
   var api = {
     pad2: pad2, fmtDate: fmtDate, today: today, parseDate: parseDate, parseDateWords: parseDateWords,
     findDate: findDate, toDateObj: toDateObj, addDays: addDays, addMonths: addMonths, taskDate: taskDate,
-    parseTime: parseTime, to12h: to12h, yearMonth: yearMonth, defaultPlanYear: defaultPlanYear, moneyNumber: moneyNumber, parseMoney: parseMoney,
+    parseTime: parseTime, to12h: to12h, timeLabel: timeLabel, halfHourSlots: halfHourSlots, yearMonth: yearMonth, defaultPlanYear: defaultPlanYear, moneyNumber: moneyNumber, parseMoney: parseMoney,
     stripAccents: stripAccents, collapse: collapse, titleCase: titleCase, initials: initials,
     splitName: splitName, parseList: parseList, escapeHtml: escapeHtml, MONTHS: MONTHS
   };
@@ -1729,7 +1750,7 @@ kbd {
     if (T.plain) { return (T.noOwner ? "" : owner + ": ") + text; }
 
     var out = owner + ": " + text + " - VER NOTA " + (U.parseDate(o.fecha) || "MM/DD/YYYY") +
-              " (" + (U.parseTime(o.hora) || "09:00") + ")";
+              " (" + (U.to12h(o.hora) || "09:00") + ")";
     (o.tags || []).forEach(function (t) { if (val(t)) { out += " " + upper(t); } });
     return out;
   }
@@ -1794,9 +1815,11 @@ kbd {
 
   var MODO_CITA = { "presencial": "en cita presencial", "telefónica": "en cita telefónica", "Zoom": "en cita por Zoom", "en casa": "en cita en su casa" };
 
-  /* Cómo empieza una nota de conversación: "Se conversa con la cliente (02:44)" */
+  /* Cómo empieza una nota de conversación: "Se conversa con la cliente (02:30)".
+     Entre paréntesis va la hora en que se debe revisar el task, la misma que
+     lleva el task después de VER NOTA. */
   function talk(d) {
-    var t = U.parseTime(d.horaLlamada) ? " (" + U.to12h(d.horaLlamada) + ")" : "";
+    var t = U.parseTime(d.hora) ? " (" + U.to12h(d.hora) + ")" : "";
     if (d.canal === "Appointment") { return "Se atiende a " + cliente(d) + " " + (MODO_CITA[d.modalidad] || "en cita") + t; }
     if (d.canal === "Walk In") { return "Se atiende a " + cliente(d) + " en la oficina" + t; }
     return "Se conversa con " + cliente(d) + t;
@@ -1811,7 +1834,7 @@ kbd {
   function year(d) { return val(d.anio) ? " " + val(d.anio) : ""; }
 
   function citaWhen(d) {
-    var f = U.parseDate(d.fechaSeg), h = U.parseTime(d.hora);
+    var f = U.parseDate(d.fechaSeg), h = U.timeLabel(d.hora);
     return f ? " para el " + f + (h ? " a las " + h : "") : "";
   }
 
@@ -2119,7 +2142,7 @@ kbd {
         parts.push("Le enviamos el formulario de alcance de la cita (SOA) de Medicare. Por favor fírmelo antes de nuestra conversación para poder revisar los planes con usted.");
         break;
       case "cita":
-        var f = U.parseDate(d.fechaSeg), h = U.parseTime(d.hora);
+        var f = U.parseDate(d.fechaSeg), h = U.timeLabel(d.hora);
         parts.push("Le confirmamos su cita" + (f ? " para el " + f + (h ? " a las " + h : "") : "") + " para revisar " + what + ". Si necesita cambiarla, avísenos.");
         break;
       case "sincambio":
@@ -2920,7 +2943,7 @@ kbd {
   function freshFields() {
     var season = seasonDefaults();
     return {
-      fecha: U.today(), horaLlamada: U.to12h(new Date()), genero: "o",
+      fecha: U.today(), genero: "o",
       canal: "Call", modalidad: "presencial", anio: U.defaultPlanYear(),
       codigoTipo: "Q", gestion: "", periodo: season.periodo, plataforma: "HealthCare.gov",
       periodoMC: season.periodoMC, soaEstado: "firmado", producto: "Dental",
@@ -2982,7 +3005,8 @@ kbd {
     { k: "fecha", g: "contacto", type: "date", label: "Fecha de la nota" },
     { k: "anio", g: "contacto", type: "int", label: "Año del plan", max: 4 },
     { k: "canal", g: "contacto", type: "seg", label: "Canal", w: "w2", options: C.CHANNELS },
-    { k: "horaLlamada", g: "contacto", type: "clock", label: "Hora de la llamada", hint: "En formato de 12 horas, como en las notas" },
+    { k: "hora", g: "contacto", type: "select", label: "Hora de revisión del task", w: "w2", options: U.halfHourSlots(),
+      hint: "Sale entre paréntesis en la nota y en el task. Solo en punto o y media." },
     { k: "modalidad", g: "contacto", type: "select", label: "Modalidad de la cita", options: C.MODALIDADES,
       when: function (f) { return f.canal === "Appointment"; } },
 
@@ -3088,9 +3112,8 @@ kbd {
       ph: function () { return O().pendiente || "Ninguno"; } },
     { k: "proximo", g: "seguimiento", type: "text", label: "Próximo paso", w: "full",
       ph: function () { return O().proximo.replace("{plataforma}", S.f.plataforma || "el Mercado"); } },
-    { k: "fechaSeg", g: "seguimiento", type: "date", w: "w3", quick: quickDates(),
+    { k: "fechaSeg", g: "seguimiento", type: "date", w: "full", quick: quickDates(),
       label: function () { return O().id === "cita" ? "Fecha de la cita" : "Fecha de seguimiento"; } },
-    { k: "hora", g: "seguimiento", type: "time", label: "Hora de referencia" },
     { k: "notas", g: "seguimiento", type: "area", label: "Observaciones", w: "full", rows: 2,
       ph: "Detalles del caso que no caben en los campos" },
 
@@ -3163,7 +3186,6 @@ kbd {
       if (F.type === "money") { ctl.inputMode = "decimal"; ctl.placeholder = "$0.00"; ctl.classList.add("num"); }
       if (F.type === "date") { ctl.placeholder = "MM/DD/AAAA"; ctl.classList.add("num"); }
       if (F.type === "time") { ctl.placeholder = "09:00"; ctl.classList.add("num"); }
-      if (F.type === "clock") { ctl.placeholder = "02:44"; ctl.classList.add("num"); }
       if (F.type === "int") { ctl.inputMode = "numeric"; ctl.classList.add("num"); if (F.max) { ctl.maxLength = F.max; } }
       if (F.list) { ctl.setAttribute("list", "dl_" + F.k); }
     }
@@ -3826,6 +3848,7 @@ kbd {
     var me = memberByName(settings.autor);
     if (!TK.ownerTouched) { TK.owner = me ? me.ini : ""; }
     var set = function (id, v) { var c = $(id); if (document.activeElement !== c) { c.value = v; } };
+    if (!$("tkHora").options.length) { fillSelect($("tkHora"), U.halfHourSlots()); }
     set("tkOwner", TK.owner); set("tkFecha", TK.fecha); set("tkHora", TK.hora);
     set("tkIntento", TK.intento); set("tkDocFecha", TK.docFecha); set("tkTaxYear", TK.taxYear);
     $("tkTaxYear").placeholder = String(new Date().getFullYear());
@@ -3871,7 +3894,7 @@ kbd {
     }
     field("tkOwner", "owner");
     field("tkFecha", "fecha", U.parseDate);
-    field("tkHora", "hora", U.parseTime);
+    $("tkHora").addEventListener("change", function () { TK.hora = this.value; renderTaskList(); });
     field("tkDocFecha", "docFecha", U.parseDate);
     field("tkIntento", "intento");
     field("tkTaxYear", "taxYear");
@@ -4048,7 +4071,6 @@ kbd {
     else if (F.type === "money") { out = U.parseMoney(raw); bad = !out; }
     else if (F.type === "date") { out = U.parseDate(raw); bad = !out; }
     else if (F.type === "time") { out = U.parseTime(raw); bad = !out; }
-    else if (F.type === "clock") { out = U.to12h(raw); bad = !out; }
     else if (F.type === "int") { out = raw.replace(/[^\d]/g, ""); }
     else if (F.upper && F.type !== "area") { out = U.collapse(raw).toUpperCase(); }
     else if (F.type !== "area") { out = U.collapse(raw); }
