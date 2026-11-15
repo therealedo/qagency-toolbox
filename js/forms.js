@@ -1,0 +1,301 @@
+/* Q Agency Toolbox — formularios para firmar.
+   El Consent de Obamacare y el SOA de Medicare se llenan con los datos de la
+   nota: se elige la plantilla (oficina e idioma), se arma el valor de cada
+   campo del PDF, el texto para pedirlo en Cliq y el enlace de firma de
+   SignWell con su SMS y su email. Todo esto son funciones puras, que se
+   prueban solas; el PDF se llena con el PDF.js de la herramienta (fillPdf),
+   sin conexiones. Las plantillas viajan dentro de la herramienta, en
+   vendor/forms/ (tools/vendor-forms.js). */
+(function (root) {
+  "use strict";
+
+  var C = (root.QA && root.QA.config) || require("./config.js");
+  var U = (root.QA && root.QA.util) || require("./util.js");
+  var N = (root.QA && root.QA.notes) || require("./notes.js");
+
+  function val(v) { return U.collapse(v); }
+
+  /* --------------------------------------------------------- plantillas --
+     fields: dato → nombres de los campos del PDF que lo llevan (un mismo dato
+     puede ir en varios: la fecha arriba y en la página 2). split: el teléfono
+     que va repartido en casillas (área, prefijo y línea). Las firmas no se
+     nombran: quedan vacías. Los nombres son los del PDF, tal cual (algunos
+     perdieron la ligadura «ti»: «connuación», «Endades», «Candad»). */
+  var CONSENT_EN = {
+    date: ["Todays Date", "agentsEnes on the date of", "Fecha"], clientName: ["Ms", "Full Name"],
+    agentName: ["Agents andor Enes"], npn: ["NPN_2"], marital: ["Marital status"],
+    income: ["Projected Annual Family Income"], taxPeople: ["Number of people on your 2023 tax return"],
+    coveredPeople: ["People with medical coverage"], plan: ["Health Plan"]
+  };
+  var CONSENT_ES = {
+    date: ["Fecha", "mencionados a connuación en la fecha de"], clientName: ["Yo SrSra", "Nombre y Apellido"],
+    agentName: ["Agentes yo Endades"], npn: ["NPN"], marital: ["Estatus marital"],
+    income: ["Ingreso proyectado anual familiar"], taxPeople: ["Candad de personas en su declaración de impuestos 2023"],
+    coveredPeople: ["Personas con cobertura médica"], plan: ["Plan"]
+  };
+  /* la prima se llama distinto en cada Consent */
+  function withPremium(fields, name) { var f = Object.assign({}, fields); f.premium = [name]; return f; }
+
+  /* El SOA en inglés no traía campos: tools/make-fillable-soa.js se los
+     agrega con estos nombres, en los mismos lugares que el de español. */
+  var SOA_EN_FIELDS = {
+    beneficiaryName: "Beneficiary Name",
+    beneficiaryPhone: ["Beneficiary Phone Area", "Beneficiary Phone Prefix", "Beneficiary Phone Line"],
+    agentName: "Licensed Sales Representative Name",
+    npn: "Licensed Sales Representative ID",
+    contactMethod: "Initial Method of Contact",
+    plans: "Plans the Licensed Sales Representative Will Represent",
+    /* solo si firma un representante autorizado: quedan vacíos */
+    repName: "Authorized Representative Name",
+    repRelation: "Relationship to Beneficiary"
+  };
+
+  var TEMPLATES = {
+    "consent-qa-es": { kind: "consent", office: "QAgency", lang: "es", label: "Consent QAgency Español",
+      file: "Consentimiento_2027_QA_Spa.pdf", fields: withPremium(CONSENT_ES, "Premium") },
+    "consent-qa-en": { kind: "consent", office: "QAgency", lang: "en", label: "Consent QAgency English",
+      file: "Consent_2027_QA_Eng.pdf", fields: withPremium(CONSENT_EN, "PREMIUM") },
+    "consent-ath-es": { kind: "consent", office: "ATH Insurance", lang: "es", label: "Consent ATH Español",
+      file: "Consentimiento_2027_ATH_Spa.pdf", fields: withPremium(CONSENT_ES, "Pago") },
+    "consent-ath-en": { kind: "consent", office: "ATH Insurance", lang: "en", label: "Consent ATH English",
+      file: "Consent_2027_ATH_Eng.pdf", fields: withPremium(CONSENT_EN, "Premium") },
+    "soa-es": { kind: "soa", lang: "es", label: "SOA Español", file: "SOA_Spanish_Agency.pdf", fields: {
+      beneficiaryName: ["Nombre del beneficiario nombre y apellidos"], beneficiaryPhone: ["Teléfono del beneficiario"],
+      agentName: ["Nombre del Representante de Ventas con Licencia nombre y apellidos"],
+      npn: ["ID del Representante de Ventas con Licencia"], contactMethod: ["Método de contacto inicial"],
+      plans: ["Planes que el Representante de Ventas con Licencia explicará durante la reunión"] } },
+    "soa-en": { kind: "soa", lang: "en", label: "SOA English", file: "SOA_English_Agency_Fillable.pdf", fields: {
+      beneficiaryName: [SOA_EN_FIELDS.beneficiaryName], agentName: [SOA_EN_FIELDS.agentName], npn: [SOA_EN_FIELDS.npn],
+      contactMethod: [SOA_EN_FIELDS.contactMethod], plans: [SOA_EN_FIELDS.plans] },
+      split: { beneficiaryPhone: SOA_EN_FIELDS.beneficiaryPhone } }
+  };
+
+  /* Datos que se muestran en la pantalla, en orden, con su etiqueta. */
+  var FIELDS = {
+    consent: [
+      { k: "clientName", l: "Nombre del cliente", w: "w2" }, { k: "date", l: "Fecha del consent" },
+      { k: "agentName", l: "Agente" }, { k: "npn", l: "NPN" }, { k: "marital", l: "Estado civil" },
+      { k: "income", l: "Ingreso anual" }, { k: "taxPeople", l: "En los taxes" },
+      { k: "coveredPeople", l: "Con cobertura" }, { k: "plan", l: "Plan", w: "w2" }, { k: "premium", l: "Prima mensual" }
+    ],
+    soa: [
+      { k: "beneficiaryName", l: "Nombre del beneficiario", w: "w2" }, { k: "beneficiaryPhone", l: "Teléfono del beneficiario", w: "w2" },
+      { k: "agentName", l: "Agente", w: "w2" }, { k: "npn", l: "ID del agente (NPN)", w: "w2" },
+      { k: "contactMethod", l: "Método de contacto inicial", w: "w2" }, { k: "plans", l: "Planes que se explicarán", w: "w2" }
+    ]
+  };
+
+  /* IDs de los campos en las plantillas de SignWell (los escribió el usuario
+     en SignWell): el enlace los llena con los mismos datos. */
+  var SIGN_IDS = {
+    consent: [["client_name", "clientName"], ["client_name_sign", "clientName"], ["consent_date", "date"], ["agent_name", "agentName"],
+      ["agent_npn", "npn"], ["plan", "plan"], ["premium", "premium"], ["marital_status", "marital"], ["income", "income"],
+      ["tax_people", "taxPeople"], ["covered_people", "coveredPeople"]],
+    soa: [["beneficiary_name", "beneficiaryName"], ["beneficiary_phone", "beneficiaryPhone"], ["agent_name", "agentName"],
+      ["agent_npn", "npn"], ["contact_method", "contactMethod"], ["plans", "plans"]]
+  };
+
+  /* Consent en Obamacare Pendiente (cotización); SOA en las situaciones de
+     Medicare que guardan un SOA en el Network. */
+  function formKind(d) {
+    if (d.line === "oc") { return N.outcomeOf(d).id === "pendiente" ? "consent" : ""; }
+    if (d.line === "mc") { return N.networkOf(d).some(function (n) { return n.k === "soa"; }) ? "soa" : ""; }
+    return "";
+  }
+
+  function templateKey(kind, oficina, idioma) {
+    var lang = idioma === "en" ? "en" : "es";
+    if (kind === "soa") { return "soa-" + lang; }
+    return "consent-" + (oficina === "ATH Insurance" ? "ath" : "qa") + "-" + lang;
+  }
+
+  /* ------------------------------------------------------------ valores -- */
+
+  function fullName(d) { return U.titleCase(val(d.nombres) + " " + val(d.apellidos)); }
+  function count(n) { return n ? String(n) : ""; }
+
+  /* El plan que se va a aplicar: el seleccionado o, si solo se cotizó uno, ese. */
+  function quotedPlan(d) {
+    var list = N.planesOf(d), sel = list.filter(function (p) { return p.sel; })[0];
+    return sel || (list.length === 1 ? list[0] : null);
+  }
+
+  /* Casado o casada si en el hogar hay un cónyuge; si no, se deja para escribirlo. */
+  function maritalOf(d) {
+    var married = N.personas(d).some(function (p) { return !p.titular && p.parentesco === "Cónyuge"; });
+    if (!married) { return ""; }
+    return d.idioma === "en" ? "Married" : (d.genero === "a" ? "Casada" : "Casado");
+  }
+
+  function consentValues(d) {
+    var plan = quotedPlan(d), inc = N.ingresoHogar(d);
+    return {
+      clientName: fullName(d),
+      date: U.parseDate(d.fecha) || "",
+      agentName: U.titleCase(d.agente),
+      npn: val(d.npn),
+      marital: maritalOf(d),
+      income: inc !== null ? N.moneyShort(inc) : "",
+      taxPeople: count(N.enTaxes(d).length),
+      coveredPeople: count(N.conCobertura(d).length),
+      plan: plan ? [N.carrierName("oc", plan.compania), val(plan.plan)].filter(Boolean).join(" ") : "",
+      premium: plan ? U.parseMoney(plan.prima) : ""
+    };
+  }
+
+  /* Método de contacto inicial: sale del canal de la nota. */
+  var CONTACT = {
+    es: { "Call": "Llamada telefónica", "Walk In": "En la oficina", "presencial": "Cita en la oficina", "telefónica": "Cita telefónica",
+      "Zoom": "Cita por Zoom", "en casa": "Visita a domicilio" },
+    en: { "Call": "Phone call", "Walk In": "Walk-in", "presencial": "Office appointment", "telefónica": "Phone appointment",
+      "Zoom": "Zoom appointment", "en casa": "Home visit" }
+  };
+
+  function contactOf(d) {
+    var t = CONTACT[d.idioma === "en" ? "en" : "es"];
+    return (d.canal === "Appointment" ? t[d.modalidad] || t.presencial : t[d.canal]) || "";
+  }
+
+  /* Planes que se explicarán: el plan de la nota (con la compañía delante si
+     el nombre no la trae) o, sin plan, Medicare Advantage. */
+  function plansOf(d) {
+    var carrier = N.carrierName("mc", d.compania), plan = val(d.plan);
+    if (plan && carrier && U.stripAccents(plan).toLowerCase().indexOf(U.stripAccents(carrier).toLowerCase()) >= 0) { return plan; }
+    if (plan || carrier) { return [carrier, plan].filter(Boolean).join(" "); }
+    return d.idioma === "en" ? "Medicare Advantage (Part C)" : "Medicare Advantage (Parte C)";
+  }
+
+  function soaValues(d) {
+    return {
+      beneficiaryName: fullName(d),
+      beneficiaryPhone: val(d.clienteTel),
+      agentName: U.titleCase(d.agente),
+      npn: val(d.npn),
+      contactMethod: contactOf(d),
+      plans: plansOf(d)
+    };
+  }
+
+  function values(kind, d) { return kind === "soa" ? soaValues(d) : consentValues(d); }
+
+  /* Teléfono en sus casillas: 305 / 555 / 0100 (sin el 1 de delante). */
+  function phoneParts(phone) {
+    var digits = String(phone || "").replace(/\D/g, "");
+    if (digits.length === 11 && digits.charAt(0) === "1") { digits = digits.slice(1); }
+    return [digits.slice(0, 3), digits.slice(3, 6), digits.slice(6, 10)];
+  }
+
+  /* { nombre del campo del PDF: valor }. Lo vacío no se escribe. */
+  function fieldMap(key, v) {
+    var T = TEMPLATES[key], out = {};
+    if (!T) { return out; }
+    Object.keys(T.fields).forEach(function (k) {
+      var value = val(v[k]);
+      if (value) { T.fields[k].forEach(function (name) { out[name] = value; }); }
+    });
+    Object.keys(T.split || {}).forEach(function (k) {
+      var parts = phoneParts(v[k]);
+      T.split[k].forEach(function (name, i) { if (parts[i]) { out[name] = parts[i]; } });
+    });
+    return out;
+  }
+
+  /* ---------------------------------------------------------------- Cliq -- */
+
+  function cliqText(kind, name, email, phone) {
+    var to = [val(email), val(phone)].filter(Boolean).map(function (x) { return "al " + x; });
+    return "Enviar " + (kind === "soa" ? "SOA" : "CONSENT") + " a " + (val(name) || "Nombre Apellido") +
+           (to.length ? " " + to.join(" y ") : "") + " pls @Support QAgency";
+  }
+
+  /* ----------------------------------------------------- enlace de firma --
+     El enlace de la plantilla (Template Link) de SignWell más los datos como
+     parámetros, con el ID de cada campo. Sin un enlace http(s) no hay enlace. */
+  function signingUrl(base, kind, v) {
+    var b = val(base);
+    if (!/^https?:\/\/\S+$/i.test(b)) { return ""; }
+    var hash = "", h = b.indexOf("#");
+    if (h >= 0) { hash = b.slice(h); b = b.slice(0, h); }
+    var q = (SIGN_IDS[kind] || []).filter(function (x) { return val(v[x[1]]); }).map(function (x) {
+      return encodeURIComponent(x[0]) + "=" + encodeURIComponent(val(v[x[1]]));
+    });
+    if (!q.length) { return b + hash; }
+    var sep = b.indexOf("?") < 0 ? "?" : (/[?&]$/.test(b) ? "" : "&");
+    return b + sep + q.join("&") + hash;
+  }
+
+  /* SMS y email con el enlace, en el idioma del cliente (de usted), firmados
+     con el nombre de la oficina. */
+  var SIGN_TEXT = {
+    consent: {
+      es: { sms: "Para continuar con su seguro de salud, firme la carta de consentimiento en este enlace:",
+            email: "Para continuar con su seguro de salud, necesitamos que firme la carta de consentimiento. Puede revisarla y firmarla en este enlace:" },
+      en: { sms: "To continue with your health insurance, please sign the consent form at this link:",
+            email: "To continue with your health insurance, we need you to sign the consent form. You can review and sign it at this link:" }
+    },
+    soa: {
+      es: { sms: "Antes de su cita de Medicare, firme el formulario de Alcance de la Cita (SOA) en este enlace:",
+            email: "Antes de su cita de Medicare, necesitamos que firme el formulario de Alcance de la Cita (SOA). Puede revisarlo y firmarlo en este enlace:" },
+      en: { sms: "Before your Medicare appointment, please sign the Scope of Appointment (SOA) form at this link:",
+            email: "Before your Medicare appointment, we need you to sign the Scope of Appointment (SOA) form. You can review and sign it at this link:" }
+    }
+  };
+
+  function signTexts(kind, d, url) {
+    var en = d.idioma === "en", t = SIGN_TEXT[kind === "soa" ? "soa" : "consent"][en ? "en" : "es"];
+    var oficina = val(d.oficina) || C.OFFICES[0], office = C.OFFICE_NAMES[oficina] || oficina;
+    var name = U.titleCase(val(d.nombres).split(" ")[0] || "");
+    var hello = en ? "Dear " + (name || "client") + ":" : (d.genero === "a" ? "Estimada " : "Estimado ") + (name || "cliente") + ":";
+    return {
+      sms: [hello, t.sms, url, en ? "If you have any questions, contact us." : "Si tiene dudas, comuníquese con nosotros.", office].join("\n"),
+      email: [hello, "", t.email, url, "", en ? "If you have any questions, please contact us." : "Si tiene alguna duda, comuníquese con nosotros.",
+        "", en ? "Best regards," : "Saludos,", office].join("\n")
+    };
+  }
+
+  /* El PDF lleno se descarga con el nombre del Consent o del SOA del Network. */
+  function downloadName(d, kind) {
+    var k = kind === "soa" ? "soa" : "consent";
+    var f = N.buildFileNames(d).filter(function (x) { return x.k === k; })[0];
+    return (f ? f.name : k.toUpperCase()) + ".pdf";
+  }
+
+  /* --------------------------------------------- solo en el navegador --
+     templateBytes: los bytes de una plantilla (vendor/forms/*.js las deja en
+     window.QA_FORMS, en base64). fillPdf: llena los campos con el PDF.js de
+     la herramienta y devuelve el PDF nuevo; un campo con varios lugares
+     (Fecha) se llena en todos. Los demás campos quedan como estaban. */
+  function templateBytes(key) {
+    var b64 = root.QA_FORMS && root.QA_FORMS[key];
+    if (!b64) { return null; }
+    var bin = atob(b64), out = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) { out[i] = bin.charCodeAt(i); }
+    return out;
+  }
+
+  function fillPdf(pdfjsLib, bytes, map) {
+    return pdfjsLib.getDocument({ data: bytes, isEvalSupported: false }).promise.then(function (pdf) {
+      return pdf.getFieldObjects().then(function (objs) {
+        Object.keys(map).forEach(function (name) {
+          ((objs && objs[name]) || []).forEach(function (o) {
+            if (o.id && o.type) { pdf.annotationStorage.setValue(o.id, { value: map[name] }); }
+          });
+        });
+        return pdf.saveDocument();
+      }).then(function (out) {
+        pdf.destroy();
+        return out;
+      });
+    });
+  }
+
+  var api = {
+    TEMPLATES: TEMPLATES, FIELDS: FIELDS, SIGN_IDS: SIGN_IDS, SOA_EN_FIELDS: SOA_EN_FIELDS,
+    formKind: formKind, templateKey: templateKey, consentValues: consentValues, soaValues: soaValues, values: values,
+    fieldMap: fieldMap, cliqText: cliqText, signingUrl: signingUrl, signTexts: signTexts, downloadName: downloadName,
+    templateBytes: templateBytes, fillPdf: fillPdf
+  };
+  root.QA = root.QA || {};
+  root.QA.forms = api;
+  if (typeof module !== "undefined" && module.exports) { module.exports = api; }
+})(typeof window !== "undefined" ? window : globalThis);

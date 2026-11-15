@@ -6,6 +6,8 @@
   "use strict";
 
   var C = window.QA.config, U = window.QA.util, N = window.QA.notes, X = window.QA.extract;
+  /* Consent y SOA para firmar (F ya nombra a los campos del formulario) */
+  var FM = window.QA.forms;
   /* OCR sin internet para escaneos y capturas; null si no se cargó */
   var OCR = window.QA.ocr || null;
   function $(id) { return document.getElementById(id); }
@@ -26,7 +28,9 @@
   function loadSettings() {
     var def = {
       v: SETTINGS_VERSION, autor: "", team: clone(C.TEAM), oficina: C.OFFICES[0], telefonos: {},
-      botonRojo: true, sinAcentos: false, theme: "", line: "oc"
+      botonRojo: true, sinAcentos: false, theme: "", line: "oc",
+      /* enlace de la plantilla de SignWell de cada formulario (FM.TEMPLATES) */
+      signLinks: {}
     };
     try {
       var saved = JSON.parse(localStorage.getItem(STORE) || "null");
@@ -39,6 +43,7 @@
     if (!C.LINES[def.line]) { def.line = "oc"; }
     if (C.OFFICES.indexOf(def.oficina) < 0) { def.oficina = C.OFFICES[0]; }
     if (!def.telefonos || typeof def.telefonos !== "object") { def.telefonos = {}; }
+    if (!def.signLinks || typeof def.signLinks !== "object") { def.signLinks = {}; }
     return def;
   }
 
@@ -110,6 +115,8 @@
     base: {},      /* valor que trajo un documento, para saber qué cambió */
     files: [],
     edited: freshEdited(),
+    /* valores del Consent o del SOA que se cambiaron a mano, por formulario */
+    signEdits: {},
     dirty: false
   };
 
@@ -204,9 +211,12 @@
       label: "Es cliente (si no, el task es FOLLOW UP LEAD_INACTIVE CLIENT MC)", when: mcSin },
     { k: "direccion", g: "cliente", sec: "cliente", type: "text", label: "Dirección", w: "full", lines: ["oc", "supp"],
       ph: "Calle, ciudad, estado y código postal", when: function () { return !isOC("cancelada"); } },
-    { k: "clienteTel", g: "cliente", sec: "cliente", type: "text", label: "Teléfono del titular", w: "w2", lines: ["oc", "supp"], mode: "tel",
-      ph: "(305) 555-0100", when: function () { return !isOC("cancelada"); } },
-    { k: "clienteEmail", g: "cliente", sec: "cliente", type: "text", label: "Email del titular", w: "w2", lines: ["oc", "supp"], mode: "email",
+    /* en Medicare van al SOA y al texto para pedirlo en Cliq */
+    { k: "clienteTel", g: "cliente", sec: "cliente", type: "text", w: "w2", mode: "tel", ph: "(305) 555-0100",
+      label: function () { return S.line === "mc" ? "Teléfono del cliente" : "Teléfono del titular"; },
+      when: function () { return !isOC("cancelada"); } },
+    { k: "clienteEmail", g: "cliente", sec: "cliente", type: "text", w: "w2", mode: "email",
+      label: function () { return S.line === "mc" ? "Email del cliente" : "Email del titular"; },
       when: function () { return !isOC("cancelada"); } },
     { k: "personas", g: "cliente", sec: "cliente", type: "personas", w: "full", lines: ["oc", "supp"] },
     { k: "adicionales", g: "cliente", sec: "cliente", type: "text", label: "Miembros ±", lines: ["supp"],
@@ -1363,7 +1373,8 @@
        de una app de Obamacare o de Suplementario: en español o en inglés */
     var smsLang = O().id === "enviada", email = isOC("enviada") || isSupp("enviada");
     each(document.querySelectorAll("[data-lang-seg]"), function (seg) {
-      seg.hidden = !(seg.closest("#emailCard") ? email : smsLang);
+      /* el Consent y el SOA siempre: su plantilla sale del idioma */
+      seg.hidden = !(seg.closest("#sec-firma") || (seg.closest("#emailCard") ? email : smsLang));
       syncSeg(seg, S.f.idioma || "es");
     });
     $("emailCard").hidden = !email;
@@ -1390,7 +1401,99 @@
     renderTaskOptions(d);
     updatePeopleSummary();
     $("outcomeDesc").textContent = O().desc + ".";
+    renderSign(d);
     renderRail();
+  }
+
+  /* --------------------------------------------- Consent y SOA para firmar --
+     En Obamacare Pendiente, el Consent; en Medicare, el SOA. La plantilla
+     sale de la oficina de Ajustes y del idioma del cliente. Los valores se
+     llenan con la nota y se pueden cambiar; lo cambiado a mano se queda hasta
+     «Volver a los datos de la nota». El PDF se llena aquí mismo con PDF.js y
+     se descarga; el enlace de firma solo se arma, no se envía nada. */
+  var signKind = "";
+
+  function signValues(d, kind) { return Object.assign(FM.values(kind, d), S.signEdits[kind] || {}); }
+
+  function buildSignGrid(kind) {
+    var grid = $("signGrid");
+    grid.textContent = "";
+    FM.FIELDS[kind].forEach(function (x) {
+      var wrap = el("div", "fld" + (x.w ? " " + x.w : ""));
+      var lab = el("label", "field-label", x.l); lab.htmlFor = "sg_" + x.k;
+      var inp = el("input"); inp.type = "text"; inp.id = "sg_" + x.k; inp.dataset.signK = x.k; inp.spellcheck = false;
+      wrap.appendChild(lab); wrap.appendChild(inp);
+      grid.appendChild(wrap);
+    });
+  }
+
+  function renderSign(d) {
+    var sec = $("sec-firma"), kind = FM.formKind(d);
+    sec.hidden = !kind;
+    if (!kind) { return; }
+    var key = FM.templateKey(kind, settings.oficina, S.f.idioma), T = FM.TEMPLATES[key];
+    var title = kind === "soa" ? "SOA" : "Consent";
+    sec.dataset.rail = title;
+    $("signTitle").textContent = title + " para firmar";
+    $("signTemplate").textContent = "Plantilla: " + T.label + (kind === "consent" ? ". La oficina se elige en Ajustes." : ".");
+    if (signKind !== kind) { buildSignGrid(kind); signKind = kind; }
+    var v = signValues(d, kind), edits = S.signEdits[kind] || {};
+    FM.FIELDS[kind].forEach(function (x) {
+      var inp = $("sg_" + x.k);
+      if (document.activeElement !== inp) { inp.value = v[x.k] || ""; }
+      inp.closest(".fld").classList.toggle("is-edited", x.k in edits);
+    });
+    $("signReset").hidden = !Object.keys(edits).length;
+
+    var phone = kind === "soa" ? v.beneficiaryPhone : S.f.clienteTel, email = S.f.clienteEmail;
+    $("signCliq").value = FM.cliqText(kind, kind === "soa" ? v.beneficiaryName : v.clientName, email, phone);
+    fitHeight($("signCliq"));
+    var link = U.collapse(settings.signLinks[key]), url = FM.signingUrl(link, kind, v);
+    $("signLinkBox").hidden = !url;
+    $("signLinkHint").hidden = !!url;
+    if (!url) {
+      $("signLinkHint").textContent = link ? "El enlace de SignWell de «" + T.label + "» en Ajustes no es válido: debe empezar con https://."
+        : "Para enviar un enlace de firma, agrega en Ajustes el enlace de SignWell de «" + T.label + "».";
+      return;
+    }
+    var t = FM.signTexts(kind, d, url);
+    $("signUrl").value = url;
+    $("signSms").value = t.sms;
+    $("signEmail").value = t.email;
+    $("signSmsOpen").hidden = !N.smsLink(phone, "x");
+    $("signEmailOpen").hidden = !N.mailtoLink(email, "x");
+    fitHeight($("signSms")); fitHeight($("signEmail"));
+  }
+
+  function downloadSign(btn) {
+    var d = data(), kind = FM.formKind(d);
+    if (!kind) { return; }
+    var key = FM.templateKey(kind, settings.oficina, S.f.idioma), bytes = FM.templateBytes(key);
+    if (!bytes || !window.pdfjsLib) { toast("Esta copia de la herramienta no trae la plantilla de " + FM.TEMPLATES[key].label + "."); return; }
+    var name = FM.downloadName(d, kind);
+    btn.disabled = true;
+    FM.fillPdf(window.pdfjsLib, bytes, FM.fieldMap(key, signValues(d, kind))).then(function (out) {
+      var a = el("a");
+      a.href = URL.createObjectURL(new Blob([out], { type: "application/pdf" }));
+      a.download = name;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(function () { URL.revokeObjectURL(a.href); }, 60000);
+      toast("PDF listo: " + name);
+    }, function () { toast("No se pudo llenar el PDF."); }).then(function () { btn.disabled = false; });
+  }
+
+  /* Ajustes: un enlace de plantilla de SignWell por formulario */
+  function renderSignLinks() {
+    var box = $("signLinkRows");
+    box.textContent = "";
+    Object.keys(FM.TEMPLATES).forEach(function (k) {
+      var lab = el("label", "mini");
+      lab.appendChild(el("span", null, FM.TEMPLATES[k].label));
+      var inp = el("input"); inp.type = "text"; inp.inputMode = "url"; inp.spellcheck = false;
+      inp.placeholder = "https://www.signwell.com/…"; inp.value = settings.signLinks[k] || ""; inp.dataset.signLink = k;
+      lab.appendChild(inp);
+      box.appendChild(lab);
+    });
   }
 
   function renderTaskOptions(d) {
@@ -2044,6 +2147,7 @@
     $("officeTel").value = settings.telefonos[settings.oficina] || "";
     $("optRojo").checked = settings.botonRojo;
     $("optAcentos").checked = settings.sinAcentos;
+    renderSignLinks();
     $("installHelp").textContent = installHelp();
     $("versionTag").textContent = "Versión " + C.VERSION;
     $("dlgSettings").showModal();
@@ -2245,6 +2349,27 @@
       var b = e.target.closest("[data-copy]");
       if (b) { copyOut(b.dataset.copy, b); }
     });
+
+    /* Consent y SOA para firmar */
+    $("signGrid").addEventListener("input", function (e) {
+      var k = e.target.dataset.signK;
+      if (!k || !signKind) { return; }
+      (S.signEdits[signKind] = S.signEdits[signKind] || {})[k] = e.target.value;
+      S.dirty = true;
+      renderSign(data());
+    });
+    $("signReset").addEventListener("click", function () { delete S.signEdits[signKind]; renderSign(data()); });
+    $("signDownload").addEventListener("click", function () { downloadSign(this); });
+    [["copySignCliq", "signCliq"], ["copySignUrl", "signUrl"], ["copySignSms", "signSms"], ["copySignEmail", "signEmail"]].forEach(function (p) {
+      $(p[0]).addEventListener("click", function () {
+        var btn = this, text = $(p[1]).value;
+        if (text.trim()) { copyText(text, function () { flashButton(btn); }); }
+      });
+    });
+    $("signSmsOpen").addEventListener("click", function () {
+      this.href = N.smsLink(signKind === "soa" ? $("sg_beneficiaryPhone").value : S.f.clienteTel, $("signSms").value);
+    });
+    $("signEmailOpen").addEventListener("click", function () { this.href = N.mailtoLink(S.f.clienteEmail, $("signEmail").value); });
     document.addEventListener("keydown", function (e) {
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === "Enter" && currentView === "nota") { e.preventDefault(); copyNext($("copyNext")); return; }
       if ((e.ctrlKey || e.metaKey) && e.key === "Enter" && currentView === "nota") { e.preventDefault(); copyOut("note", $("copyNote")); }
@@ -2281,7 +2406,7 @@
     /* nueva nota */
     $("btnNew").addEventListener("click", function () {
       if (hasClientData() && S.dirty && !window.confirm("La nota actual no se ha copiado. ¿Empezar una nueva?")) { return; }
-      S.f = freshFields(); S.auto = {}; S.rank = {}; S.base = {}; S.files = [];
+      S.f = freshFields(); S.auto = {}; S.rank = {}; S.base = {}; S.files = []; S.signEdits = {};
       $("taskId").dataset.line = "";
       S.edited = freshEdited(); S.dirty = false;
       S.outcome = L().outcomes[0].id;
@@ -2365,6 +2490,12 @@
     });
     $("officeTel").addEventListener("input", function () {
       settings.telefonos[settings.oficina] = U.collapse(this.value);
+      saveSettings();
+    });
+    $("signLinkRows").addEventListener("input", function (e) {
+      var k = e.target.dataset.signLink;
+      if (!k) { return; }
+      settings.signLinks[k] = U.collapse(e.target.value);
       saveSettings();
     });
     $("teamRows").addEventListener("input", function (e) {

@@ -592,6 +592,18 @@ kbd {
 .email-box:focus { background: var(--field); }
 .people-hint { margin: 6px 0 0; }
 
+/* Consent y SOA para firmar: valores, descarga, texto de Cliq y enlace de firma */
+.sign .group-head .seg-mini { margin-left: auto; }
+.sign-template { margin: -6px 0 12px; }
+.sign-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 14px; }
+.sign-block { display: flex; flex-direction: column; gap: 6px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+.sign-block textarea + .out-sub, .sign-block input + .out-sub { margin-top: 6px; }
+.sign-block input[readonly] { background: var(--inset); border-color: var(--line); }
+.sign-hint { margin-top: 12px; }
+.fld.is-edited input[type="text"] { border-color: var(--brand); }
+.signlinks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; }
+@media (max-width: 560px) { .signlinks { grid-template-columns: minmax(0, 1fr); } }
+
 .privacy { font-size: 12.5px; color: var(--ink-3); padding: 2px 4px 0; }
 
 /* ------------------------------------------------------------------ salidas */

@@ -2,7 +2,8 @@
 /* Empaqueta la herramienta para repartirla. Genera en dist/:
 
      QAgency-Toolbox.html          un solo archivo con todo adentro (estilos,
-                                   código, lector de PDF, fuentes y logo);
+                                   código, lector de PDF, OCR, plantillas
+                                   del Consent y del SOA, fuentes y logo);
                                    se abre con doble clic, sin internet
      QAgency-Toolbox-Windows.zip   ese archivo más un instalador que crea el
                                    acceso directo con ícono en Windows

@@ -106,6 +106,47 @@
 
         <form id="form" autocomplete="off" novalidate></form>
 
+        <!-- Consent (Obamacare Pendiente) o SOA (Medicare) lleno con los datos de la nota -->
+        <section class="card sign" id="sec-firma" data-rail="Consent" hidden>
+          <div class="group-head">
+            <h3 id="signTitle">Consent para firmar</h3>
+            <div class="seg seg-mini" data-lang-seg role="radiogroup" aria-label="Idioma del formulario"></div>
+          </div>
+          <p class="muted sign-template" id="signTemplate"></p>
+          <div class="grid" id="signGrid"></div>
+          <div class="sign-actions">
+            <button type="button" class="btn primary" id="signDownload">Descargar PDF lleno</button>
+            <button type="button" class="link-btn" id="signReset" hidden>Volver a los datos de la nota</button>
+          </div>
+          <div class="sign-block">
+            <div class="out-sub">
+              <h3>Para pedirlo en Cliq</h3>
+              <button type="button" class="btn small" id="copySignCliq" data-label="Copiar">Copiar</button>
+            </div>
+            <textarea class="mono one-line" id="signCliq" rows="2" readonly spellcheck="false" aria-label="Texto para Zoho Cliq"></textarea>
+          </div>
+          <div class="sign-block" id="signLinkBox" hidden>
+            <div class="out-sub">
+              <h3>Enviar enlace de firma</h3>
+              <button type="button" class="btn small" id="copySignUrl" data-label="Copiar enlace">Copiar enlace</button>
+            </div>
+            <input type="text" class="mono" id="signUrl" readonly spellcheck="false" aria-label="Enlace de firma">
+            <div class="out-sub">
+              <h3>SMS</h3>
+              <a class="link-btn" id="signSmsOpen" href="#" hidden>Abrir en el teléfono</a>
+              <button type="button" class="btn small" id="copySignSms" data-label="Copiar">Copiar</button>
+            </div>
+            <textarea class="email-box" id="signSms" rows="4" readonly aria-label="SMS con el enlace de firma"></textarea>
+            <div class="out-sub">
+              <h3>Email</h3>
+              <a class="link-btn" id="signEmailOpen" href="#" hidden>Abrir en el correo</a>
+              <button type="button" class="btn small" id="copySignEmail" data-label="Copiar">Copiar</button>
+            </div>
+            <textarea class="email-box" id="signEmail" rows="6" readonly aria-label="Email con el enlace de firma"></textarea>
+          </div>
+          <p class="muted sign-hint" id="signLinkHint" hidden></p>
+        </section>
+
         <p class="privacy">
           Los documentos se leen dentro de este navegador. Nada se envía a internet y los datos del cliente no se guardan al cerrar.
         </p>
@@ -291,6 +332,10 @@
     <p class="muted" id="netDirHelp">Elige tu folder del NETW en General. Si una línea guarda sus documentos en otra carpeta (por ejemplo una para OC y otra para MA), elígela en su fila; las líneas sin carpeta propia usan la general. Los PDF que sueltes se guardan con su nombre de archivo desde la sección Network, en la carpeta de la línea en que estás. Si ya existe un archivo con ese nombre, se pregunta antes de reemplazarlo.</p>
     <p class="muted" id="netDirNA" hidden>Este navegador no permite guardar en carpetas. Usa Chrome o Edge.</p>
 
+    <h3>Enlaces de firma (SignWell)</h3>
+    <p class="muted">Opcional. Pega el enlace de la plantilla (Template Link) de SignWell de cada formulario. Con el enlace, la sección del Consent o del SOA arma el enlace de firma con los datos del cliente y el SMS y el email para enviarlo. La herramienta no se conecta a SignWell.</p>
+    <div class="signlinks" id="signLinkRows"></div>
+
     <h3>Formato de la nota</h3>
     <label class="check"><input type="checkbox" id="optRojo"><span>Agregar «Se reporta en el botón rojo» cuando es una aplicación enviada</span></label>
     <label class="check"><input type="checkbox" id="optAcentos"><span>Escribir la nota sin acentos ni ñ</span></label>
@@ -328,12 +373,19 @@
 <script src="js/config.js"></script>
 <script src="js/util.js"></script>
 <script src="js/notes.js"></script>
+<script src="js/forms.js"></script>
 <script src="js/extract.js"></script>
 <script src="vendor/tesseract/ocr-loader.js"></script>
 <script src="vendor/tesseract/ocr-wasm.js"></script>
 <script src="vendor/tesseract/ocr-lang-spa.js"></script>
 <script src="vendor/tesseract/ocr-lang-eng.js"></script>
 <script src="js/ocr.js"></script>
+<script src="vendor/forms/consent-qa-es.js"></script>
+<script src="vendor/forms/consent-qa-en.js"></script>
+<script src="vendor/forms/consent-ath-es.js"></script>
+<script src="vendor/forms/consent-ath-en.js"></script>
+<script src="vendor/forms/soa-es.js"></script>
+<script src="vendor/forms/soa-en.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

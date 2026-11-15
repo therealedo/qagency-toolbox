@@ -993,6 +993,7 @@
     productOf: productOf, carrierShort: carrierShort, carrierName: carrierName, carrierOptions: carrierOptions,
     carrierChoice: carrierChoice, carrierFromChoice: carrierFromChoice, CARRIER_OTHER: CARRIER_OTHER, memberDelta: memberDelta, zohoName: zohoName, clientInitials: clientInitials,
     personas: personas, docsOf: docsOf, pendingDocs: pendingDocs, planesOf: planesOf, networkOf: networkOf,
+    enTaxes: enTaxes, conCobertura: conCobertura, ingresoHogar: ingresoHogar, moneyShort: moneyShort,
     NET_DIRS: NET_DIRS, netDirFor: netDirFor
   };
   root.QA = root.QA || {};
