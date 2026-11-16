@@ -1119,6 +1119,8 @@
   var QUOTE_METAL_ROW = /\b(BRONZE|SILVER|GOLD|PLATINUM|CATASTROPHIC|EXPANDED|BRONCE|PLATA|ORO|PLATINO|CATASTR[OÓ]FICO|AMPLIADO)\b|^\W{0,2}(HMO|PPO|EPO|POS)\b/;
   /* botones y títulos de la página: nunca son el nombre de un plan */
   var QUOTE_UI = /^\W*(compare|comparar|details|detalles|enroll|inscr[ií]b|most affordable|lowest premium|all plans|m[aá]s accesible|prima m[aá]s baja|todos los planes|show all plans|mostrar todos|go back|volver|overview|costos del plan|showing coverage|mostrar la cobertura|plan year|a[nñ]o del plan|\d+\s+plan|remove|eliminar|cancel|share|compartir|print|imprimir)/i;
+  /* palabras de los logos ("Florida Blue", "United Healthcare") */
+  var QUOTE_BRAND = /^\W*(florida|blue|oscar|ambetter|wellpoint|avmed|united|healthcare|amerihealth|caritas|next)\b/i;
   /* el nombre legal de la compañía, debajo de cada plan en la comparación */
   var QUOTE_ISSUER = /\b(inc\.?|llc|company|compa[nñ][ií]\w*|corp\w*|insurance)\b|(\.\.\.|…)$/i;
   var QUOTE_FAMILIES = [
@@ -1210,12 +1212,16 @@
       var stack = stackAbove(x0, y, maxDist);
       var metal = stack.filter(function (p) { return QUOTE_METAL_ROW.test(p.text) && p.text.length < 50; })[0];
       var from = metal ? stack.filter(function (p) { return p.y1 <= metal.y0 + 0.3 * H; }) : stack;
+      /* fila del nivel mal leída ("WMO e a"): va en letra más chica, justo
+         debajo del nombre */
+      if (!metal && from.length > 1 && from[0].h < 0.8 * from[1].h && from[1].y0 - from[0].y1 > -0.5 * H) { from = from.slice(1); }
       var lines = [];
       for (var i = 0; i < from.length && lines.length < 3; i++) {
         var p = from[i], prev = lines[0];
-        if (prev && prev.y0 - p.y1 > 0.9 * Math.max(prev.h, p.h)) { break; }
-        /* letra de otro tamaño: el logo encima del título */
+        if (prev && prev.y0 - p.y1 > 1.3 * Math.max(prev.h, p.h)) { break; }
+        /* el logo encima del título: letra de otro tamaño, o solo la marca */
         if (prev && Math.min(prev.h, p.h) < 0.75 * Math.max(prev.h, p.h)) { break; }
+        if (prev && p.ws.length <= 3 && (carrierIn("oc", p.text) || QUOTE_BRAND.test(p.text))) { break; }
         if (!quoteText(p)) { if (lines.length) { break; } continue; }
         lines.unshift(p);
       }
@@ -1385,8 +1391,11 @@
       [/household (income|information|members)|ingresos del hogar/i, 1]],
     /* búsqueda, vista de un plan o comparación de planes de HealthSherpa */
     oc_quote: [[/\bmonth\w*\s+prem\w*|\bprima\s+mensual\b/i, 2],
-      [/\b(HMO|PPO|EPO|POS)\b[\s\S]{0,14}?\b(BRONZE|SILVER|GOLD|PLATINUM|CATASTROPHIC|EXPANDED|BRONCE|PLATA|ORO|PLATINO)\b/, 2],
+      [/\b(H?MO|PPO|EPO|POS)\b[\s\S]{0,14}?\b(BRONZE|SILVER|GOLD|PLATINUM|CATASTROPHIC|EXPANDED|BRONCE|PLATA|ORO|PLATINO)\b/, 2],
       [/\$\d[\d,]*\.\d{2}\s?\/\s?mo\b/, 2],
+      /* la tarjeta: "Monthly premium   Deductible" en la misma línea */
+      [/\bmonth\w*\s+prem\w*[ \t]+deductible\b|\bprima\s+mensual[ \t]+deducible\b/i, 2],
+      [/\bdrug deductible\b|\bgeneric drugs\b|deducible de medicamentos|medicamentos gen[eé]ricos/i, 1],
       [/show all plans|mostrar todos los planes|compare plans|comparar planes|enroll now|inscribirse ahora|metal tier|nivel de metal|estimated all-in|c[aá]lculo total|most affordable|m[aá]s accesible|healthsherpa/i, 1]],
     /* la página "Upload documents" del Mercado con el documento subido */
     oc_docs: [[/select file to upload/i, 3], [/document name\s+document type/i, 3], [/you can upload more than one document/i, 2],

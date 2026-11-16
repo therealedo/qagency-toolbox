@@ -140,3 +140,10 @@ test("OCR: comparación de HealthSherpa: cada columna con su nombre (de una a tr
   assert.deepEqual(es.map((p) => p.slice(0, 2)), expected.map((p) => p.slice(0, 2)));
   assert.match(es[1][2], /^Respiración fácil de bronce con beneficios mejorados/);
 });
+
+test("OCR: búsqueda de HealthSherpa: un nombre en dos líneas va completo, con la compañía que nombra", async () => {
+  assert.deepEqual(plansOf(await quote("healthsherpa-list-two-lines.jpg")), [
+    ["AMERIHEALTH CARITAS", "$96.30", "AmeriHealth Caritas Next Bronze Essential + Three Free PCP Visits + Free 24/7 Preferred Provider PCP/Urgent Virtual Care + No Referrals"],
+    ["OSCAR", "$99.08", "Bronze Simple Diabetes with Adult Dental & Vision"]
+  ]);
+});
