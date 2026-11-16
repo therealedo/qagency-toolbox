@@ -4,7 +4,7 @@
 (function (root) {
   "use strict";
 
-  var VERSION = "1.8.0";
+  var VERSION = "1.9.0";
 
   /* Equipo por defecto. Cada persona puede editarlo en Ajustes; los cambios
      se guardan en su navegador.
