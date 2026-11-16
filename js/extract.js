@@ -17,6 +17,7 @@
     oc_elig: { label: "Eligibility Letter", line: "oc", net: "eligibility" },
     oc_plans: { label: "My Plans & Programs", line: "oc", net: "plans" },
     oc_app: { label: "App Summary", line: "oc", net: "appsummary" },
+    oc_docs: { label: "Docs Submitted", line: "oc", net: "docsub" },
     pay: { label: "Comprobante de pago", line: "", net: "payment" },
     supp_app: { label: "Aplicación suplementaria", line: "supp", net: "appsummary" },
     supp_card: { label: "ID card", line: "supp", net: "card" },
@@ -98,6 +99,13 @@
   /* ---------------------------------------------------------- validadores */
 
   function vDate(t) { return U.findDate(firstCell(t)) || U.findDate(String(t).slice(0, 40)); }
+
+  /* Fecha de nacimiento: con el año en dos cifras ("2/17/41") no puede
+     quedar en el futuro */
+  function vBirth(t) {
+    var v = vDate(t), y = v ? +v.slice(-4) : 0;
+    return y > new Date().getFullYear() ? v.slice(0, 6) + (y - 100) : v;
+  }
 
   /* el "$" tiene que estar al principio (40 caracteres); el número se lee
      entero aunque pase de ahí */
@@ -433,16 +441,35 @@
     [/peace corps/i, "peace"]
   ];
 
+  /* La carta trae detrás la guía (MARKETPLACE ELIGIBILITY GUIDE): sus
+     ejemplos hablan de ingresos y de documentos que nadie pidió. Los datos
+     se buscan antes de la guía. */
+  function noticePart(doc) {
+    for (var i = 0; i < doc.lines.length; i++) {
+      if (/^\s*MARKETPLACE ELIGIBILITY GUIDE\s*$/.test(doc.lines[i])) { return makeDoc(doc.lines.slice(0, i).join("\n")); }
+    }
+    return doc;
+  }
+
   function extractElig(doc) {
     var f = {};
     f.appId = appId(doc);
-    f.anio = planYear(doc);
+    doc = noticePart(doc);
+    /* "Estimated 2027 income used to determine eligibility" */
+    f.anio = planYear(doc) || find(doc, /\bEstimated[ \t]+(20[2-4]\d)[ \t]+income\b/i);
 
     var dear = find(doc, /(?:^|\n)\s*(?:Dear|Estimad[oa](?:\(a\))?)\s+([^\n:,]{3,60})[:,]/i);
     if (dear && vFullName(dear)) { setName(f, dear); }
+    else {
+      /* "Primary contact" con el nombre en la línea de abajo */
+      var pc = after(doc, [/^\s*(Primary contact|Contacto principal)\b/i], vPerson, 1);
+      if (pc) { setName(f, pc); }
+    }
 
     var inc = doc.flat.match(/(?:yearly|annual)\s*(?:household\s*)?income\s*(?:of|is|:)?\s*\$\s?([\d,]+(?:\.\d{2})?)/i) ||
-              doc.flat.match(/ingresos?\s*anual(?:es)?(?:\s*del\s*hogar)?\s*(?:de|es|:)?\s*\$\s?([\d,]+(?:\.\d{2})?)/i);
+              doc.flat.match(/ingresos?\s*anual(?:es)?(?:\s*del\s*hogar)?\s*(?:de|es|:)?\s*\$\s?([\d,]+(?:\.\d{2})?)/i) ||
+              /* el ingreso estimado va unas líneas abajo, como "$31,200/year" */
+              doc.flat.match(/\bEstimated[^\n]{0,12}income used to determine[^\n]*(?:\n[^\n]*){0,3}?\n\$\s?([\d,]+(?:\.\d{2})?)\s*\/\s*year\b/i);
     if (inc) { f.ingreso = U.parseMoney(inc[1]); }
     var size = find(doc, /household size (?:of|is|:)?\s*(\d{1,2})\b/i) || find(doc, /tama[nñ]o del hogar (?:de|es|:)?\s*(\d{1,2})\b/i);
     if (size) { f.hogar = size; }
@@ -472,6 +499,11 @@
 
   var PLAN_STOP = /^(status|estado|active|activo|pending|pendiente|terminated|cancell?ed|health|salud|dental|marketplace|mercado|plans?|planes|my plans|mis planes|members?|miembros?|coverage|cobertura|view|ver|change|cambiar|go to|ir a|premium|prima|you pay|usted paga|plan id|id del plan)\b/i;
 
+  /* Enlaces y menú de la cuenta del Mercado que quedan entre el nombre del
+     plan y su ID ("Go to my plan benefits", "Communication preferences" a la
+     izquierda): se saltan, no son el plan. */
+  var PLAN_SKIP = /^(go to my plan benefits|communication|preferences|communication preferences|exemptions|mailing address|tax forms|report a life change|eligibility & appeals|applications? details|my plan profile|marketplace plans)$/i;
+
   /* El nombre del plan está justo encima de su ID; puede ocupar dos líneas
      cuando trae la descripción de beneficios entre paréntesis. */
   function planAboveId(doc) {
@@ -480,10 +512,10 @@
       if (!m) { continue; }
       var before = doc.lines[i].slice(0, m.index).replace(/(plan\s*id|id del plan)\s*[:#]?\s*$/i, "").trim();
       var parts = [];
-      if (before.length > 4 && !PLAN_STOP.test(before)) { parts.push(before); }
+      if (before.length > 4 && !PLAN_STOP.test(before) && !PLAN_SKIP.test(before)) { parts.push(before); }
       for (var j = i - 1; !parts.length && j >= 0 && j >= i - 4; j--) {
         var c = firstCell(doc.lines[j]);
-        if (!c) { continue; }
+        if (!c || PLAN_SKIP.test(c)) { continue; }
         if (PLAN_STOP.test(c) || datesIn(c).length || c.length > 110 || !/[A-Za-z]/.test(c)) { break; }
         var chunk = [c];
         /* continuación de un paréntesis abierto más arriba */
@@ -551,15 +583,23 @@
   function extractOcApp(doc) {
     var f = {};
     f.appId = appId(doc);
-    f.anio = planYear(doc);
+    /* el resumen impreso de HealthCare.gov dice el año en el ingreso o en
+       los taxes: "Estimated income next year (2027)", "Filing a 2027 tax return" */
+    f.anio = planYear(doc) || find(doc, /\bincome next year \((20[2-4]\d)\)/i) || find(doc, /\bFiling a (20[2-4]\d) tax return\b/i);
     personName(doc, f);
-    f.ingreso = after(doc, [/\b(Expected\s*)?(yearly|annual|total)\s*(household\s*)?income\b/i, /\bHousehold\s*income\b/i,
+    if (!f.nombres) {
+      var full = after(doc, [/^\s*Full\s*name\s*$/i], vPerson, 1);
+      if (full) { setName(f, full); }
+    }
+    /* el ingreso anual estimado manda sobre el del mes ("This month's total income") */
+    f.ingreso = afterFirst(doc, [/\bEstimated\s*income\s*next\s*year\b/i,
+      /\b(Expected\s*)?(yearly|annual|total)\s*(household\s*)?income\b/i, /\bHousehold\s*income\b/i,
       /Ingresos?\s*(anual(es)?|total(es)?|del hogar)/i], vMoney, 1);
     f.hogar = after(doc, [/\bHousehold\s*size\b/i, /\bTax\s*household\s*size\b/i, /Tama[nñ]o del hogar/i,
       /Personas en (el|su) hogar/i], vDigits(1, 2), 1);
     /* fecha de nacimiento y dirección del contacto del hogar (el titular):
        sirven de base para saber qué cambió */
-    f.dob = after(doc, [/\bDate\s*of\s*birth\b/i, /Fecha\s*de\s*nacimiento/i], vDate, 1);
+    f.dob = after(doc, [/\bDate\s*of\s*birth\b/i, /Fecha\s*de\s*nacimiento/i], vBirth, 1);
     f.direccion = after(doc, [/\bHome\s*address\b/i, /Direcci[oó]n\s*(de\s*(la\s*)?casa|del\s*hogar|residencial)/i], vAddress, 1);
     if (/healthsherpa/i.test(doc.flat)) { f.plataforma = "HealthSherpa"; }
     else if (/healthcare\.gov|cuidadodesalud\.gov/i.test(doc.flat)) { f.plataforma = "MKPL"; }
@@ -570,6 +610,93 @@
   function vAddress(t) {
     var c = firstCell(t);
     return c.length >= 6 && c.length <= 120 && /\d/.test(c) && /[A-Za-z]{2}/.test(c) && !LABELISH.test(c) ? c : "";
+  }
+
+  /* ------------------------------------------------------- Docs Submitted */
+
+  function sameFirst(a, b) {
+    var w = function (s) { return U.stripAccents(String(s || "")).trim().split(/\s+/)[0].toUpperCase(); };
+    return !!w(a) && w(a) === w(b);
+  }
+
+  /* La página dibuja íconos con letras de uso privado (U+E000–U+F8FF)
+     pegadas al texto: "Rosa  " seguido del ícono del menú. */
+  function noIcons(s) {
+    return String(s || "").split("").filter(function (c) { var k = c.charCodeAt(0); return k < 0xE000 || k > 0xF8FF; }).join("");
+  }
+
+  /* El nombre de pila de quien abrió la cuenta (el titular): debajo de
+     "Logout" o delante de "Menu", arriba de la página. */
+  function accountName(doc) {
+    for (var i = 0; i < doc.lines.length && i < 8; i++) {
+      var line = noIcons(doc.lines[i]), m = line.match(/^\s*(\S+)\s{2,}Menu\s*$/i);
+      if (m) { return vName(m[1]); }
+      if (/^\s*Log\s?out\b/i.test(line)) {
+        var n = firstCell(noIcons(doc.lines[i + 1]));
+        return n.indexOf(" ") < 0 ? vName(n) : "";
+      }
+    }
+    return "";
+  }
+
+  /* El punto abierto de la lista: "Yanet - You need to send proof of your
+     immigration status" o "Confirm Yanet's immigration status   Collapse -".
+     Da el nombre de pila y el tipo de documento (como en config.MKPL_DOCS). */
+  function openItem(doc) {
+    var name = "([A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑáéíóúñü'’\\-]*)";
+    var m = doc.flat.match(new RegExp("(?:^|\\n)" + name + " - You need to send proof of (?:your )?([^.\\n]+)")) ||
+            doc.flat.match(new RegExp("(?:^|\\n)Confirm " + name + "['’]s ([^\\n]+?) Collapse\\b"));
+    var kind = m ? DOC_KINDS.filter(function (k) { return k[0].test(m[2]); })[0] : null;
+    return kind ? { first: m[1], cat: kind[1] } : null;
+  }
+
+  /* El archivo subido, en la tabla "Document Name  Document Type": la agencia
+     lo nombra "Apellidos, Nombre - …" y puede quedar partido en dos líneas. */
+  function uploadedName(doc, first) {
+    for (var i = doc.lines.length - 1; i >= 0; i--) {
+      if (!/^\s*Document Name\s{2,}Document Type\b/i.test(doc.lines[i])) { continue; }
+      var cells = [];
+      for (var j = i + 1; j < doc.lines.length && cells.length < 3; j++) {
+        var c = firstCell(noIcons(doc.lines[j]));
+        if (c) { cells.push(c); }
+      }
+      var m = cells.join(" ").match(/^([^,\d]{2,40}),\s*([^,\d\-]{2,40}?)\s+-(?:\s|$)/);
+      return m && vLastFirst(m[1] + ", " + m[2]) && sameFirst(m[2], first) ? { last: m[1].trim(), first: m[2].trim() } : null;
+    }
+    return null;
+  }
+
+  /* "Permanent Resident/Green Card" es "Permanent Resident Card, Green Card
+     (I-551)" en config.MKPL_DOCS: el que tiene todas sus palabras y menos de más. */
+  function docName(cat, text) {
+    var words = function (s) { return String(s).toLowerCase().replace(/\([^)]*\)/g, " ").match(/[a-z0-9]+/g) || []; };
+    var want = words(text), entry = C.MKPL_DOCS.filter(function (c) { return c.v === cat; })[0], best = "", extra = Infinity;
+    (want.length && entry ? entry.docs : []).forEach(function (d) {
+      var have = words(d);
+      if (want.every(function (w) { return have.indexOf(w) >= 0; }) && have.length - want.length < extra) { best = d; extra = have.length - want.length; }
+    });
+    return best;
+  }
+
+  /* Docs Submitted: la página "Upload documents" del Mercado con el documento
+     ya subido. Es del titular si el punto abierto es de quien abrió la cuenta;
+     si no, de otra persona del hogar (cónyuge o dependiente). */
+  function extractDocsSub(doc) {
+    var f = {};
+    f.appId = appId(doc) || find(doc, /\bapplication\b[^\n]{0,60}\(ID#:?\s*(\d{8,12})\)/i);
+    f.anio = planYear(doc);
+    var item = openItem(doc);
+    if (!item) { return f; }
+    var owner = accountName(doc), up = uploadedName(doc, item.first);
+    var x = { cat: item.cat, persona: (up ? up.first + " " + up.last : item.first).toUpperCase() };
+    if (owner) { x.titular = sameFirst(owner, item.first); }
+    x.enviado = true;
+    var sent = docName(item.cat, after(doc, [/^\s*Document type\s*:/i], vText(80), 0));
+    if (sent) { x.doc = sent; }
+    /* el nombre completo del titular solo aparece cuando el documento es suyo */
+    if (x.titular && up) { f.nombres = up.first.toUpperCase(); f.apellidos = up.last.toUpperCase(); }
+    f.docs = [x];
+    return f;
   }
 
   /* ----------------------------------------------------------------- pago */
@@ -871,8 +998,9 @@
       [/medicare advantage|\b(MAPD|D-SNP|C-SNP|PDP)\b/i, 1],
       [/enrollment (application|request|form|confirmation)|solicitud de inscripci[oó]n/i, 1]],
     oc_elig: [[/eligibility (notice|results|determination)/i, 4], [/aviso de elegibilidad|resultados de (su )?elegibilidad/i, 4],
-      [/eligible (to purchase|for advance|for cost|for a tax)/i, 2], [/elegible para (comprar|pagos|un cr[eé]dito|cr[eé]ditos|reducciones)/i, 2],
-      [/cost-sharing reductions|reducciones de costos compartidos/i, 1]],
+      [/eligible (to purchase|for advance|for cost|for a tax|to enroll in a marketplace plan|to use the premium tax credit)/i, 2],
+      [/elegible para (comprar|pagos|un cr[eé]dito|cr[eé]ditos|reducciones)/i, 2],
+      [/cost-sharing reductions|reducciones de costos compartidos/i, 1], [/eligibility guide|gu[ií]a de elegibilidad/i, 2]],
     oc_plans: [[/my plans (&|and) programs/i, 4], [/mis planes y programas/i, 4], [/\byou pay\b|usted paga/i, 2],
       [HIOS_RE, 2], [/plan id|id del plan/i, 1], [/status:\s*active|estado:\s*activo/i, 1],
       [/start date[\s\S]{0,40}end date|fecha de inicio[\s\S]{0,40}fecha de finalizaci/i, 1]],
@@ -880,6 +1008,10 @@
       [/sign (and|&) submit|firm(e|ar) y env[ií](e|ar)/i, 2], [/tax (filer|household|return)|declaraci[oó]n de impuestos/i, 1],
       [/healthcare\.gov|cuidadodesalud\.gov|health insurance marketplace|mercado de seguros/i, 1],
       [/household (income|information|members)|ingresos del hogar/i, 1]],
+    /* la página "Upload documents" del Mercado con el documento subido */
+    oc_docs: [[/select file to upload/i, 3], [/document name\s+document type/i, 3], [/you can upload more than one document/i, 2],
+      [/\bconfirm\s+\S+['’]s\s+(immigration|income|citizenship|social security|american indian|job[\s-]based|medicaid|medicare|tricare|veterans|peace corps)/i, 2],
+      [/you need to send proof of/i, 2], [/\bupload documents\b/i, 1]],
     pay: [[/payment (confirmation|receipt|successful|received|complete)|confirmaci[oó]n de(l)? pago|recibo de pago|pago (recibido|exitoso|realizado)/i, 4],
       [/thank you for your payment|gracias por su pago/i, 4], [/amount paid|monto pagado|payment amount/i, 1],
       [/payment (submitted|is confirmed)|submitted for processing|amount charged/i, 4], [/\bpayment\s*(date|method|details)\b/i, 1]],
@@ -892,11 +1024,15 @@
     supp_card: [[/\b(this|the)\s+card\s+(is|does)\s+not\s+(a\s+)?(guarantee|proof|verification)/i, 4],
       [/\b[1Il]D\s*card\b|\bmember\s*(ID\s*)?card\b|tarjeta de (identificaci[oó]n|miembro)/i, 2],
       [/claims\s*(correspondence|address)|send claims|electronic claims|payer\s*ID/i, 2]],
-    consent: [[/consent (form|to act|for)|consentimiento/i, 3], [/authorize|autorizo|autorizaci[oó]n/i, 1],
-      [/agent of record|agente de registro/i, 1]]
+    /* el PDF del Consent de la agencia pierde la ligadura "ti" (queda un carácter que no es letra) */
+    consent: [[/consent (form|to act|for)|consen(?:ti|\W)miento/i, 3], [/authorize|autorizo|autorizaci[oó]n/i, 1],
+      [/agent of record|agente de registro/i, 1],
+      [/to\s+act\s+as\s+(a\s+)?(health\s+insurance\s+)?agent\s+or\s+broker|para\s+actuar\s+como\s+agente\s+o\s+corredor/i, 3],
+      [/have\s+given\s+consent\b|he\s+dado\s+mi\s+consen(?:ti|\W)miento/i, 2]]
   };
 
   var FILE_HINTS = [
+    [/docs?[\s_\-]*submitted/i, "oc_docs"],
     [/\bSOA\b|scope/i, "mc_soa"],
     [/elig/i, "oc_elig"],
     [/my[\s_\-]*plans?|plans?[\s_\-]*(and|&|y|n)?[\s_\-]*programs?/i, "oc_plans"],
@@ -916,7 +1052,7 @@
     Object.keys(SIGNALS).forEach(function (t) {
       scores[t] = SIGNALS[t].reduce(function (s, sig) { return s + (sig[0].test(flat) ? sig[1] : 0); }, 0);
     });
-    var medicare = scores.mc_app + scores.mc_soa, market = scores.oc_elig + scores.oc_plans + scores.oc_app;
+    var medicare = scores.mc_app + scores.mc_soa, market = scores.oc_elig + scores.oc_plans + scores.oc_app + scores.oc_docs;
     /* "dental" aparece en casi todo: solo cuenta si no es Medicare ni Mercado,
        salvo que el título diga que es una aplicación suplementaria */
     if ((medicare >= 3 || market >= 3) && !SUPP_TITLE.test(flat)) { scores.supp_app = 0; }
@@ -945,7 +1081,7 @@
 
   var EXTRACTORS = {
     mc_soa: extractSoa, mc_app: extractMcApp, oc_elig: extractElig, oc_plans: extractPlans,
-    oc_app: extractOcApp, pay: extractPay, supp_app: extractSupp, supp_card: extractSupp
+    oc_app: extractOcApp, oc_docs: extractDocsSub, pay: extractPay, supp_app: extractSupp, supp_card: extractSupp
   };
   var FALLBACK = { mc: "mc_app", oc: "oc_plans", supp: "supp_app" };
 
