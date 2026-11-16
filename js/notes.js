@@ -819,13 +819,14 @@
 
     if (d.line === "oc" && O.id === "pendiente") {
       /* la cotización o el consentimiento cierran la nota: si revisará los
-         planes, todavía no hay plan elegido y el consent no se envía */
+         planes, todavía no hay plan elegido y el consent no se envía; con el
+         consent firmado queda la app pendiente */
       if (d.revisaPlanes) {
         var entrega = (d.canal === "Walk In" || (d.canal === "Appointment" && (d.modalidad === "presencial" || d.modalidad === "en casa"))) ? "entrega" : "envía";
         out.push("Se le " + entrega + " la cotización para que revise los planes.");
       } else {
         out.push(d.net && d.net.consent
-          ? "Se firmó la carta de consentimiento" + (d.canal === "Appointment" ? (CONSENT_CITA[d.modalidad] || "") : (CONSENT_DONDE[d.canal] || "")) + "."
+          ? "Se firmó la carta de consentimiento" + (d.canal === "Appointment" ? (CONSENT_CITA[d.modalidad] || "") : (CONSENT_DONDE[d.canal] || "")) + ", app pendiente."
           : "Carta de consentimiento enviada.");
       }
     } else {

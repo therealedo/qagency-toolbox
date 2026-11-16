@@ -256,7 +256,8 @@ test("nota: pendiente como el template de cotización, con varios planes", () =>
   const note = N.buildNote(sel);
   assert.match(note, /desea aplicar con los siguientes datos:/);
   assert.match(note, /Compañía_Plan: Ambetter_Everyday Bronze - \$0 \(SELECCIONADO\)/);
-  assert.match(note, /\nSe firmó la carta de consentimiento en línea\.$/);
+  assert.match(note, /\nSe firmó la carta de consentimiento en línea, app pendiente\.$/);
+  assert.match(N.buildNote(Object.assign({}, sel, { canal: "Walk In" })), /\nSe firmó la carta de consentimiento en la oficina, app pendiente\.$/);
   /* revisará los planes: la cotización cierra la nota; el consent todavía no se envía ni se firma */
   const ofi = N.buildNote(Object.assign({}, sel, { canal: "Walk In", revisaPlanes: true }));
   assert.match(ofi, /desea cotizar/);
