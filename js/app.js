@@ -107,6 +107,8 @@
     edited: freshEdited(),
     /* valores del Consent o del SOA que se cambiaron a mano, por formulario */
     signEdits: {},
+    /* la hora ya se puso: "doc" con el primer documento, "user" a mano */
+    horaFrom: "",
     dirty: false
   };
 
@@ -186,7 +188,7 @@
     { k: "anio", g: "contacto", type: "int", label: "Año del plan", max: 4 },
     { k: "canal", g: "contacto", type: "seg", label: "Canal", w: "w2", options: C.CHANNELS },
     { k: "hora", g: "contacto", type: "slot", label: "Hora de revisión del task", w: "w2",
-      hint: "Escríbela (2, 230, 2:30pm) o elígela. Va en la nota y en el task." },
+      hint: "Se pone sola al cargar el primer documento. La nota lleva la hora exacta; el task, la hora en punto o y media de antes (9:13 → 9:00, 9:34 → 9:30)." },
     { k: "modalidad", g: "contacto", type: "select", label: "Modalidad de la cita", options: C.MODALIDADES,
       when: function (f) { return f.canal === "Appointment"; } },
 
@@ -409,7 +411,7 @@
 
     if (F.type === "slot") {
       wrap.appendChild(slotPicker(ctl, function () { return S.f.hora; }, function (v) {
-        S.f.hora = v; touched("hora"); refresh();
+        S.f.hora = v; S.horaFrom = "user"; touched("hora"); refresh();
       }));
     } else if (F.prefix) {
       var box = el("div", "with-prefix");
@@ -464,7 +466,7 @@
     wrap.appendChild(pop);
 
     function show() {
-      each(pop.querySelectorAll("[data-slot]"), function (b) { b.classList.toggle("on", b.dataset.slot === get()); });
+      each(pop.querySelectorAll("[data-slot]"), function (b) { b.classList.toggle("on", b.dataset.slot === U.floorSlot(get())); });
       pop.hidden = false;
       input.setAttribute("aria-expanded", "true");
     }
@@ -472,11 +474,11 @@
     function commit(v) { if (v) { set(v); } input.value = U.timeLabel(get()); input.closest(".fld, .mini").classList.remove("bad"); }
     function typed() {
       if (!U.collapse(input.value)) { input.value = U.timeLabel(get()); return; }
-      var v = U.parseSlot(input.value);
+      var v = U.parseClock(input.value);
       if (v) { commit(v); } else { input.closest(".fld, .mini").classList.add("bad"); }
     }
     function step(n) {
-      var t = U.parseSlot(get()) || "09:00", mins = +t.slice(0, 2) * 60 + +t.slice(3) + n;
+      var t = U.floorSlot(get()) || "09:00", mins = +t.slice(0, 2) * 60 + +t.slice(3) + n;
       mins = Math.max(0, Math.min(1410, mins));
       commit(U.pad2(Math.floor(mins / 60)) + ":" + U.pad2(mins % 60));
       show();
@@ -2151,8 +2153,18 @@
     return String(text || "").replace(/\s/g, "").length < 200 && X.extract(text, "document.pdf", S.line).type === "unknown";
   }
 
+  /* La hora de la nota es la exacta en que se carga el primer documento,
+     salvo que el agente ya la haya puesto a mano. */
+  function stampHora() {
+    if (S.horaFrom) { return; }
+    var now = new Date();
+    S.f.hora = U.pad2(now.getHours()) + ":" + U.pad2(now.getMinutes());
+    S.horaFrom = "doc";
+  }
+
   function readFile(file) {
     var entry = { name: file.name, status: "reading", applied: 0, file: file };
+    stampHora();
     S.files.push(entry);
     renderFiles();
     var isPdf = /pdf/i.test(file.type) || /\.pdf$/i.test(file.name);
@@ -2785,7 +2797,7 @@
     /* nueva nota */
     $("btnNew").addEventListener("click", function () {
       if (hasClientData() && S.dirty && !window.confirm("La nota actual no se ha copiado. ¿Empezar una nueva?")) { return; }
-      S.f = freshFields(); S.auto = {}; S.rank = {}; S.base = {}; S.files = []; S.signEdits = {};
+      S.f = freshFields(); S.auto = {}; S.rank = {}; S.base = {}; S.files = []; S.signEdits = {}; S.horaFrom = "";
       $("taskId").dataset.line = "";
       S.edited = freshEdited(); S.dirty = false;
       S.outcome = L().outcomes[0].id;
@@ -2857,6 +2869,7 @@
       var entry = { name: pasteSource ? pasteSource.name : "Texto pegado", status: "reading", applied: 0 };
       /* el texto pegado reemplaza al archivo: primero se deshace lo que llenó */
       if (pasteSource) { removeFile(pasteSource); }
+      stampHora();
       S.files.push(entry);
       finishFile(entry, text);
       $("dlgPaste").close();

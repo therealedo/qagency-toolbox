@@ -411,6 +411,15 @@ test("nota: al cliente / del cliente según el género", () => {
   assert.match(cancel("a"), /a solicitud de la cliente\.$/);
 });
 
+test("hora exacta en la nota y en punto o y media de antes en el task", () => {
+  const d = make({ line: "oc", outcome: "pendiente", hora: "09:34" });
+  assert.match(N.buildNote(d), /\(09:34\)/);
+  assert.match(N.buildTask(d), /VER NOTA 02\/01\/2026 \(09:30\)$/);
+  const d2 = make({ line: "oc", outcome: "pendiente", hora: "14:13" });
+  assert.match(N.buildNote(d2), /\(02:13\)/);
+  assert.match(N.buildTask(d2), /VER NOTA 02\/01\/2026 \(02:00\)$/);
+});
+
 test("nota: hora de revisión en 12 horas; Suplementario ya no lleva seguimiento", () => {
   const tarde = N.buildNote(make({ line: "supp", outcome: "cotizacion", producto: "Dental", hora: "15:00" }));
   assert.match(tarde, /^LI_02\/01\/2026: Se conversa con el cliente \(03:00\), desea cotizar /);

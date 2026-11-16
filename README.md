@@ -49,7 +49,7 @@ If you host it, keep the host private or clear the roster first: `js/config.js` 
 
 The note, task and report can be edited by hand before copying. If you edit the note and then change a field, the note is left alone until you press **Regenerar**.
 
-**Hora de revisión del task** is the time the task should be looked at again. Type it (`2`, `230`, `2:30pm`, `14:30`; from 1 to 6 without AM/PM means the afternoon) or pick it from the grid; it always lands on :00 or :30, and the arrow keys move it half an hour. It goes in parentheses in the note (`Se conversa con la cliente (02:30)`) and in the task after VER NOTA.
+**Hora de revisión del task** fills itself with the exact time the first document is loaded (unless you already set it). Type it (`2`, `234`, `2:34pm`, `14:34`; from 1 to 6 without AM/PM means the afternoon) or pick it from the grid; the arrow keys move it half an hour. The note keeps the exact time (`Se conversa con la cliente (02:34)`); the task after VER NOTA takes the :00 or :30 it falls in (09:13 → 09:00, 09:34 → 09:30).
 
 The task dropdown only lists the tasks of the line you are in (Marketplace for Obamacare, Medicare for Medicare, Supp for Suplementario); every other task is in the **Tasks** tab. **Etiquetas al final** has *CRONIC* and *URGENT*: tick one or both and they go at the end of the task in that order (`… VER NOTA 11/15/2026 (09:00) CRONIC URGENT`).
 

@@ -152,10 +152,10 @@
     return pad2(h === 0 ? 12 : h) + t.slice(2);
   }
 
-  /* Hora de revisión escrita como sea (9, 930, 2:30, 2pm, 14:30) -> la media
-     hora más cercana en 24 h. Sin AM/PM, de 1 a 6 se entiende de la tarde,
-     que es lo que cae en horario de oficina. */
-  function parseSlot(input) {
+  /* Hora escrita como sea (9, 934, 2:30, 2pm, 14:30) -> HH:MM exacta en 24 h.
+     Sin AM/PM, de 1 a 6 se entiende de la tarde, que es lo que cae en
+     horario de oficina. */
+  function parseClock(input) {
     var t = String(input == null ? "" : input).trim().toLowerCase().replace(/\s+/g, "").replace(/\./g, "");
     if (!t) { return ""; }
     var m = t.match(/^(\d{1,2})(?::?(\d{2}))?(am|pm|a|p)?$/);
@@ -165,8 +165,23 @@
     if (ap === "p" && h < 12) { h += 12; }
     if (ap === "a" && h === 12) { h = 0; }
     if (!ap && h >= 1 && h <= 6) { h += 12; }
-    var total = Math.min(1410, Math.round((h * 60 + mi) / 30) * 30);
+    return pad2(h) + ":" + pad2(mi);
+  }
+
+  /* La misma hora, redondeada a la media hora más cercana. */
+  function parseSlot(input) {
+    var t = parseClock(input);
+    if (!t) { return ""; }
+    var total = Math.min(1410, Math.round((+t.slice(0, 2) * 60 + +t.slice(3)) / 30) * 30);
     return pad2(Math.floor(total / 60)) + ":" + pad2(total % 60);
+  }
+
+  /* La media hora en que cae una hora (la de antes): 09:34 -> 09:30. Es la
+     hora que lleva el task; la nota lleva la exacta. */
+  function floorSlot(input) {
+    var t = parseTime(input);
+    if (!t) { return ""; }
+    return t.slice(0, 3) + (+t.slice(3) < 30 ? "00" : "30");
   }
 
   /* "14:30" -> "2:30 PM": para leerla sin dudas (citas, SMS, listas). */
@@ -341,7 +356,7 @@
   var api = {
     pad2: pad2, fmtDate: fmtDate, today: today, parseDate: parseDate, parseBirth: parseBirth, parseDateWords: parseDateWords,
     findDate: findDate, toDateObj: toDateObj, addDays: addDays, addMonths: addMonths, taskDate: taskDate,
-    parseTime: parseTime, parseSlot: parseSlot, to12h: to12h, timeLabel: timeLabel, halfHourSlots: halfHourSlots, yearMonth: yearMonth, defaultPlanYear: defaultPlanYear, moneyNumber: moneyNumber, parseMoney: parseMoney,
+    parseTime: parseTime, parseSlot: parseSlot, parseClock: parseClock, floorSlot: floorSlot, to12h: to12h, timeLabel: timeLabel, halfHourSlots: halfHourSlots, yearMonth: yearMonth, defaultPlanYear: defaultPlanYear, moneyNumber: moneyNumber, parseMoney: parseMoney,
     stripAccents: stripAccents, collapse: collapse, titleCase: titleCase, initials: initials,
     splitName: splitName, parseList: parseList, escapeHtml: escapeHtml, MONTHS: MONTHS,
     parseTeam: parseTeam, teamFile: teamFile, newerVersion: newerVersion

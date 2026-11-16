@@ -225,7 +225,7 @@
     if (T.plain) { return (T.noOwner ? "" : owner + ": ") + text; }
 
     var out = owner + ": " + text + " - VER NOTA " + (U.parseDate(o.fecha) || "MM/DD/YYYY") +
-              " (" + (U.to12h(o.hora) || "09:00") + ")";
+              " (" + (U.to12h(U.floorSlot(o.hora)) || "09:00") + ")";
     (o.tags || []).forEach(function (t) { if (val(t)) { out += " " + upper(t); } });
     return out;
   }
@@ -299,9 +299,9 @@
 
   var MODO_CITA = { "presencial": "en cita presencial", "telefónica": "en cita telefónica", "Zoom": "en cita por Zoom", "en casa": "en cita en su casa" };
 
-  /* Cómo empieza una nota de conversación: "Se conversa con la cliente (02:30)".
-     Entre paréntesis va la hora en que se debe revisar el task, la misma que
-     lleva el task después de VER NOTA. */
+  /* Cómo empieza una nota de conversación: "Se conversa con la cliente (02:34)".
+     Entre paréntesis va la hora exacta (la del primer documento); el task
+     lleva la media hora en que cae (02:30). */
   function talk(d) {
     var t = U.parseTime(d.hora) ? " (" + U.to12h(d.hora) + ")" : "";
     if (d.canal === "Appointment") { return "Se atiende " + alCliente(d) + " " + (MODO_CITA[d.modalidad] || "en cita") + t; }
