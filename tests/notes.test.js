@@ -1031,3 +1031,11 @@ test("documento que no coincide con el caso: otro cliente, otra compañía u otr
   /* un comprobante de pago no tiene línea: se compara con la compañía del caso */
   assert.deepEqual(N.docConflicts(oc, "oc", { line: "", type: "pay", fields: { compania: "Oscar" } }), ["otra compañía (Oscar, el caso es de Ambetter)"]);
 });
+
+test("Cambios: el teléfono y el email que trajo el App Summary no son un cambio; uno distinto sí", () => {
+  const base = { clienteTel: "(305) 555-0147", clienteEmail: "beatriz.diaz@example.com" };
+  const same = N.cambios({ line: "oc", base, clienteTel: "305-555-0147", clienteEmail: "Beatriz.Diaz@example.com", personas: [] });
+  assert.ok(!same.some((x) => /Teléfono|Email/.test(x)), same.join(" / "));
+  const changed = N.cambios({ line: "oc", base, clienteTel: "(786) 555-0199", clienteEmail: "beatriz.diaz@example.com", personas: [] });
+  assert.ok(changed.some((x) => /^- Teléfono: \(786\) 555-0199/.test(x)), changed.join(" / "));
+});

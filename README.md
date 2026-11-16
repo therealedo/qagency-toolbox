@@ -229,7 +229,7 @@ A document only fills what is empty or what a weaker document filled; what you t
 | --- | --- |
 | My Plans & Programs (HealthCare.gov) | plan, monthly premium, status, people covered, coverage start |
 | Eligibility Letter | application ID, plan year, primary contact, income, household size, and the documents Marketplace asks for: each ACTION row ("By February 20, 2027, submit documents to confirm citizenship") becomes a requested document in the docs list, for each person with a dot under their name, with its due date (not from the Eligibility Guide that follows the notice). Pasted text loses the columns, so a row that is not for everyone comes in without a person |
-| App Summary (HealthCare.gov, also the printed copy, scanned) | application ID, plan year, applicant, DOB, home address, yearly income, household size |
+| App Summary (HealthCare.gov, also the printed copy, scanned) | application ID, plan year, applicant, DOB, home address, phone and email (into *Teléfono* and *Email del titular*, so they only show under Cambios if they are changed; toll-free numbers and unreadable OCR values are skipped), yearly income, household size |
 | Docs submitted (HealthCare.gov *Upload documents*, with the open item) | application ID, plan year, the document sent and for whom: it marks the requested document as **Enviado**, or adds it. The account holder's own document also fills the titular's full name from the uploaded file (`Diaz, Beatriz - …`) |
 | Consent (the agency's QAgency and ATH forms, Spanish or English) | ticks the Consent for the note |
 | Medicare application summary (carrier portal, Spanish or English) | MBI, Part A/B, plan (with its contract), election period, PCP, App ID, agent |
