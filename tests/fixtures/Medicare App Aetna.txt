@@ -1,0 +1,118 @@
+Enrollment
+ConfirmationNumber :  T9876543210987A
+Aetna Medicare Select (HMO) H1609-027
+Premium: $0.00
+AEP
+Requested Effective Date : 01/01/2027
+Annual Enrollment Period / Typically, you may enroll in a Medicare Advantage Plan
+during the Annual Enrollment Period (AEP) from October 15 through December 7 of
+each year. There are exceptions that may allow you to enroll in a Medicare
+Advantage plan outside of this period. (Yes)
+you are eligible to enroll. We are open 8 AM - 8 PM, local time, 7 days a week.
+Personal Information
+First Name * : Gloria
+Middle Initials :
+Last Name * : Paredes
+Date of Birth * : 02/20/1952
+Sex : F
+Primary Phone Number : 5550104477
+Is Mobile Number : Yes
+Yes
+Email Address : client@example.com
+Phone Number : 5550104477
+
+Policy.
+Permanent Residence
+experiencing homelessness.
+Are you currently experiencing homelessness : (NO)
+Address (Line 1) * : 99 SE 1st PL
+Address (Line 2) :
+City * : Cape Coral
+State * : FL
+ZIP Code * : 33900
+County * : Lee
+Mailing Address (Optional)
+Physician Selection
+Instructions
+To select a Provider ID # and Primary Care ID, click on “Provider Lookup”
+below and follow the prompts to find a provider.
+Locate the Provider ID # and the Primary Care ID and place it in the corresponding fields below.
+If you are unable to find the Provider ID # and the Primary Care ID that you are searching for,
+please provide the Provider’s first and last name in the fields below.
+If you do not complete the Provider ID # AND Primary Care ID, a Primary Care provider will be
+selected for you by the Plan.
+If you/your prospect is already seeing the provider being listed, please be sure to complete the
+field below with a Yes. Otherwise, answer No.
+
+NOTE 2: Accuracy in these provider fields is vitally important to ensure the Primary Care provider
+selected reflects you/your prospectschoice and not one assigned by the Plan.
+Provider Lookup
+Primary Care Physician : Benitez, Ramon, MD
+Provider ID : 0001234567
+Primary Care ID : 506070
+Are <you/they> a current patient? NA
+we’ll assign you to a different in-network doctor.
+Medicare Number : 6GH7JK8MN90
+Hospital (Part A) Effective Date : 08/01/2016
+Medical (Part B) Effective Date : 08/01/2016
+Prescription Drug Coverage
+programs.
+Will you have other prescription drug coverage in addition to this plan?*(NO)
+Medicaid Enrollment
+Are you enrolled in your state Medicaid program?* (NO)
+Aetna Medicare Member
+Are you a current or past Aetna Medicare member? (NO)
+Other Language or Format
+Preferred Spoken language : Spanish
+
+Preferred Written language : Spanish
+Selected Media Type : Large Print
+to 8 PM from 4/1-9/30.TTY users should call 711.
+Payment
+If you owe a late enrollment penalty, you can pay the penalty by EFT, mail or have it taken out of your
+Social Security or Railroad Retirement Board (RRB) benefit check.
+prescription drug premiums, annual deductibles, and co-insurance. Also, you won’t be subject to the
+coverage gap or a late enrollment penalty. Medicare could pay all or part of your plan premium.
+If Medicare only pays part of the premium for your prescription drug plan, we will bill you for the
+prescriptionhelp.
+Let us know how you want to pay your plan premium (and any late enrollment penalty) each month.
+Please select an option even if your plan has a $0 premium. If you don’t select a payment option,
+SSA/RRB will tell us when your premium deduction will start coming out of your SSA/RRB check
+invoice to pay your premium.
+This happens, we’ll send you an invoice to pay your monthly premium.
+I get monthly benefits from
+Social Security : (Yes)
+RRB : (NO)
+
+all premiums due from your enrollment effective date up to the point withholding begins. If Social
+bill for your monthly premiums.
+Release of information
+By joining this Medicare health plan, I acknowledge that the Aetna Medicare Advantage plan will
+health care operations. I also acknowledge that the Aetna Medicare Advantage plan will release my
+information on this enrollment form is correct to the best of my knowledge. I understand that if I
+intentionally provide false information on this form, I will be disenrolled from the plan.
+the laws of the state where I live) on this application means that I have read and understand the
+contents of this application. If signed by an authorized individual (as described above), this
+signature certifies that 1) this person is authorized under State law to complete this enrollment and
+Aetna Medicare is a PDP, HMO, PPO plan with a Medicare contract. Our SNPs also have contracts
+with state Medicaid programs. Enrollment in our plans depends on contract renewal. See evidence
+of coverage for a complete description of plan benefits, exclusions, limitations and conditions of
+coverage. Plan features and availability may vary by service area. This information is not a complete
+description of benefits. Contact the plan for more information. Limitations, copayments and
+restrictions may apply. Benefits, formulary, pharmacy network, provider network, premium and/or
+copayments/coinsurance may change on January 1 of each year.
+Medicare listed on this enrollment form
+I am the person listed on this enrollment form. (Yes)
+Enrollee Name :Gloria Paredes
+I am the person authorized to act on behalf of the individual listed on this enrollment form under the
+laws of the state where the individual resides. (NO)
+
+I am an individual helping an enrollee with completing this form. (NO)
+You will be able to review the application before submission on the next page.
+Allow Email Contact (Yes)
+client@example.com
+Allow Phone Contact (Yes)
+5550104477
+Beneficiary Signature : Gloria Paredes
+Beneficiary Signature Date : 11/10/2026
+Agent Signature : Marta Quintero

@@ -7,6 +7,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const X = require("../js/extract.js");
+const C = require("../js/config.js");
 
 const read = (name) => X.extract(fs.readFileSync(path.join(__dirname, "fixtures", name + ".txt"), "utf8"), name + ".pdf", "oc");
 
@@ -32,6 +33,80 @@ test("Eligibility Letter: ingreso, hogar y documentos pedidos con persona y fech
   assert.equal(r.fields.hogar, "4");
   assert.deepEqual(r.fields.docs, [{ cat: "income", persona: "BEATRIZ DIAZ", fecha: "02/12/2027" }]);
   assert.equal(r.fields.nombres + " " + r.fields.apellidos, "BEATRIZ DIAZ");
+});
+
+/* Aviso de muestra de CMS (nombres e IDs ficticios): cada fila de ACTION
+   pide un documento, con un punto debajo de cada persona que debe enviarlo. */
+test("Eligibility Notice: los documentos que pide el Mercado, con persona y fecha tope", () => {
+  const r = read("OC Eligibility Notice Docs");
+  assert.equal(r.type, "oc_elig");
+  assert.equal(r.net, "eligibility");
+  assert.deepEqual(r.fields.docs, [
+    { cat: "citizenship", persona: "LAURA RAMOS", fecha: "02/20/2023" },
+    { cat: "citizenship", persona: "DIEGO RAMOS", fecha: "02/20/2023" },
+    { cat: "income", persona: "LAURA RAMOS", fecha: "02/15/2023" }
+  ]);
+});
+
+/* El aviso de la agencia pone los nombres en dos filas: nombres y apellidos. */
+const eligPage = (rows) => X.itemsToText([
+  textItem("Primary contact", 39, 700), textItem("Marketplace Eligibility Notice", 300, 700),
+  textItem("Laura Ramos", 39, 688),
+  textItem("$31,200/year", 40, 600),
+  textItem("Laura", 440, 580), textItem("Diego", 490, 580), textItem("Sofia", 540, 580),
+  textItem("Ramos", 440, 568), textItem("Ramos", 490, 568), textItem("Ramos", 540, 568),
+  textItem("Applied for coverage.", 40, 550), textItem("•", 505, 550), textItem("•", 555, 550),
+  textItem("ACTION: Next steps", 40, 500)
+].concat(rows));
+
+test("Eligibility Notice: con nombres y apellidos en dos filas, el documento es de quien tiene el punto", () => {
+  const text = eligPage([
+    textItem("By January 31, 2027, submit documents to confirm immigration status. See Submitting", 40, 480),
+    textItem("Documents, attached.", 40, 468), textItem("•", 555, 468),
+    textItem("By January 15, 2027, submit documents to confirm Social Security number. See", 40, 450),
+    textItem("Submitting Documents, attached.", 40, 438), textItem("•", 505, 438), textItem("•", 555, 438)
+  ]);
+  const r = X.extract(text, "document.pdf", "oc");
+  assert.equal(r.type, "oc_elig");
+  assert.deepEqual(r.fields.docs, [
+    { cat: "immigration", persona: "SOFIA RAMOS", fecha: "01/31/2027" },
+    { cat: "ssn", persona: "DIEGO RAMOS", fecha: "01/15/2027" },
+    { cat: "ssn", persona: "SOFIA RAMOS", fecha: "01/15/2027" }
+  ]);
+});
+
+test("Eligibility Notice en español: «Antes del … envíe documentos para confirmar …»", () => {
+  const text = eligPage([
+    textItem("Antes del 31 de enero de 2027, envíe documentos para confirmar su ciudadanía.", 40, 480),
+    textItem("•", 505, 480)
+  ]);
+  assert.deepEqual(X.extract(text, "document.pdf", "oc").fields.docs, [{ cat: "citizenship", persona: "DIEGO RAMOS", fecha: "01/31/2027" }]);
+});
+
+test("Eligibility Notice pegado sin columnas: sin saber de quién es, la persona queda vacía", () => {
+  const text = [
+    "Marketplace Eligibility Notice", "Application ID # 4412345678",
+    "Laura        Diego", "Ramos        Ramos",
+    "Applied for coverage.                              •      •",
+    "ACTION: Next steps",
+    "By February 15, 2027, submit documents to confirm household income. See",
+    "Submitting Documents, attached.                              •",
+    "By February 20, 2027, submit documents to confirm citizenship. See Submitting",
+    "Documents, attached.                              •      •"
+  ].join("\n");
+  assert.deepEqual(X.extract(text, "document.pdf", "oc").fields.docs, [
+    { cat: "income", persona: "", fecha: "02/15/2027" },
+    { cat: "citizenship", persona: "LAURA RAMOS", fecha: "02/20/2027" },
+    { cat: "citizenship", persona: "DIEGO RAMOS", fecha: "02/20/2027" }
+  ]);
+});
+
+test("Eligibility Letter: el rótulo de una fila nunca se toma como persona", () => {
+  const text = fs.readFileSync(path.join(__dirname, "fixtures", "Eligibility Letter.txt"), "utf8").replace(
+    "Beatriz Diaz                         Proof of yearly income",
+    "Proof of yearly income               Proof of yearly income");
+  const docs = X.extract(text, "document.pdf", "oc").fields.docs;
+  assert.deepEqual(docs, [{ cat: "income", persona: "", fecha: "02/12/2027" }]);
 });
 
 test("App Summary: nunca se toma el Seguro Social", () => {
@@ -63,7 +138,9 @@ test("Aplicación de Medicare en español", () => {
   assert.equal(f.pcp, "Dr. Carlos Rivera");
   assert.equal(f.pcpId, "000123456");
   assert.equal(f.confirmacion, "A1B2C3D4E5");
-  assert.equal(f.escritura, "1234567");
+  /* el Writing ID ya no se lee: basta con el NPN */
+  assert.equal(f.escritura, undefined);
+  assert.doesNotMatch(JSON.stringify(f), /1234567"/);
   assert.equal(f.npn, "12345678");
   assert.equal(f.compania, "UNITED HEALTHCARE");
 });
@@ -83,6 +160,73 @@ test("Aplicación de Medicare en inglés, en tabla", () => {
   assert.equal(f.medicaid, undefined, "un Medicaid vacío no debe tomar el dato de otra celda");
 });
 
+/* Aplicaciones reales de Medicare (texto sacado del PDF por pdfToText, con
+   nombres e IDs ficticios). Cada una se reconoce sin ayuda del nombre del
+   archivo y da sus datos; un campo que el documento no trae queda vacío. */
+const mcCarrier = (word) => C.CARRIERS.mc.find((c) => c.re.test(word)).name;
+const MC_APPS = {
+  Humana: {
+    nombres: "ANDRES FELIPE", apellidos: "MORALES", mbi: "4CD5EF6GH78", parteA: "09/01/2010", parteB: "10/01/2010",
+    efectiva: "01/01/2027", plan: "Humana Gold Plus - Diabetes and Heart (HMO C-SNP) H1036-311-000", periodoMC: "AEP",
+    pcp: "RIVAS TOMAS J MD", pcpId: "731902", confirmacion: "H4QW27XTRA", prima: "$0.00", agente: "MARTA QUINTERO",
+    compania: mcCarrier("Humana"), cmd: true
+  },
+  UHC: {
+    nombres: "ELENA", apellidos: "NAVARRO", mbi: "5EF6GH7JK89", parteA: "11/01/2003", parteB: "11/01/2003",
+    efectiva: "01/01/2027", plan: "IND - UHC Dual Complete FL-Y5 (HMO-POS D-SNP) (MAPD) H1045-073-000",
+    medicaid: "1234509876", periodoMC: "AEP", pcp: "Hector Villalba", pcpId: "001234567890", prima: "$0.00",
+    agente: "MARTA QUINTERO LUGO", npn: "19876543", compania: mcCarrier("UnitedHealthcare")
+  },
+  Aetna: {
+    nombres: "GLORIA", apellidos: "PAREDES", mbi: "6GH7JK8MN90", parteA: "08/01/2016", parteB: "08/01/2016",
+    efectiva: "01/01/2027", plan: "Aetna Medicare Select (HMO) H1609-027", periodoMC: "AEP",
+    pcp: "Benitez, Ramon, MD", pcpId: "506070", confirmacion: "T9876543210987A", prima: "$0.00",
+    agente: "MARTA QUINTERO", compania: mcCarrier("Aetna")
+  },
+  /* Freedom solo muestra "PQ22" como MBI, no trae fechas de Parte A/B y
+     marca el período con casillas dibujadas: esos campos quedan vacíos */
+  Freedom: {
+    nombres: "NORA", apellidos: "BELTRAN", efectiva: "01/01/2027", plan: "Freedom Medi-Medi Partial (HMO D-SNP)",
+    medicaid: "2345678901", confirmacion: "N10102026123456789", prima: "$0.00", agente: "LUCIA FERRER CAMPOS",
+    compania: mcCarrier("Freedom Health")
+  },
+  /* Devoted deja la Parte A/B, el PCP y la prima en "-" */
+  Devoted: {
+    nombres: "PABLO", apellidos: "ANDRES RUIZ", mbi: "7JK8MN9PQ01", efectiva: "01/01/2027",
+    plan: "DEVOTED CHOICE GIVEBACK 016 FL (PPO) (H9884-016)", periodoMC: "AEP", confirmacion: "KZPTRWM5N2Q",
+    agente: "LUCIA FERRER CAMPOS", npn: "18765432", compania: mcCarrier("Devoted Health")
+  }
+};
+
+for (const [carrier, expected] of Object.entries(MC_APPS)) {
+  test("Aplicación de Medicare " + carrier + ": tipo y datos", () => {
+    const text = fs.readFileSync(path.join(__dirname, "fixtures", "Medicare App " + carrier + ".txt"), "utf8");
+    const r = X.extract(text, "Medicare App " + carrier + ".pdf", "mc");
+    assert.equal(r.type, "mc_app");
+    assert.equal(r.line, "mc");
+    assert.deepEqual(r.fields, expected);
+  });
+
+  test("Aplicación de Medicare " + carrier + ": se reconoce sin el nombre del archivo", () => {
+    const text = fs.readFileSync(path.join(__dirname, "fixtures", "Medicare App " + carrier + ".txt"), "utf8");
+    assert.equal(X.extract(text, "document.pdf", "oc").type, "mc_app");
+    assert.equal(X.extract(text, "scan0001.pdf", "supp").type, "mc_app");
+  });
+}
+
+test("Aplicación de Medicare: un rótulo nunca se toma como valor", () => {
+  const text = "Medicare Number: 1EG4TE5MK73\nPart A effective date\n01/01/2020\nProposed effective date\n01/01/2027\n" +
+    "Primary Care Physician (PCP)\nPCP ID:\nPCP Name:\nCurrent Patient of PCP?\n" +
+    "If you do not complete the Provider ID, a Primary Care provider will be\nselected for you by the Plan.\n" +
+    "Election Type:     ICEP/IEP   AEP   MA OEP    SEP (type)\nWriting ID: 7654321";
+  const f = X.extract(text, "document.pdf", "mc").fields;
+  assert.equal(f.efectiva, "01/01/2027", "la fecha de la Parte A no es la fecha efectiva");
+  assert.equal(f.pcp, undefined);
+  assert.equal(f.pcpId, undefined);
+  assert.equal(f.periodoMC, undefined, "una lista de opciones sin marcar no es el período");
+  assert.equal(f.escritura, undefined);
+});
+
 test("SOA", () => {
   const r = read("SOA Diaz Beatriz");
   assert.equal(r.type, "mc_soa");
@@ -97,7 +241,7 @@ test("Comprobante de pago: método y autopay", () => {
   assert.equal(r.type, "pay");
   assert.deepEqual(r.fields, {
     pagoEstado: "PAYMENT", pagoMonto: "$25.40", pagoConf: "PAY123456789", pagoFecha: "11/14/2026",
-    pagoMetodo: "Tarjeta CC", autopay: "On"
+    pagoMetodo: "Tarjeta CC", autopay: "On", compania: "AMBETTER"
   });
 });
 
@@ -140,4 +284,241 @@ test("un documento desconocido no inventa datos", () => {
   const r = X.extract("Lista de compras\nLeche 2\nPan 1\nHuevos 12\nGracias por su visita, vuelva pronto.", "nota.txt", "oc");
   assert.equal(r.type, "unknown");
   assert.deepEqual(r.fields, {});
+});
+
+/* ------------------------------------------------ Suplementario y pagos */
+
+/* Un PDF con formulario (AcroForm) guarda lo que se escribió en sus campos,
+   no en el texto de la página: pdfToText los agrega al final, uno por línea. */
+const fakePdf = (pages) => ({
+  getDocument: () => ({
+    promise: Promise.resolve({
+      numPages: pages.length,
+      getPage: (i) => Promise.resolve({
+        getTextContent: () => Promise.resolve({ items: pages[i - 1].items }),
+        getAnnotations: () => Promise.resolve(pages[i - 1].annots || [])
+      })
+    })
+  })
+});
+const textItem = (str, x, y) => ({ str, transform: [10, 0, 0, 10, x, y], width: str.length * 5, height: 10 });
+
+test("pdfToText: los valores de un formulario PDF van al final del texto", async () => {
+  const lib = fakePdf([
+    { items: [textItem("Name (Last, First)", 10, 700)], annots: [
+      { subtype: "Widget", fieldName: "Last1", fieldValue: "Doe" },
+      { subtype: "Widget", fieldName: "First1", fieldValue: "  Jane  " },
+      { subtype: "Widget", fieldName: "Empty", fieldValue: "" },
+      { subtype: "Widget", fieldName: "Agree", fieldValue: "Off", checkBox: true },
+      { subtype: "Widget", fieldName: "Plan", fieldValue: "Plan100Max", radioButton: true },
+      { subtype: "Widget", fieldName: "Plan", fieldValue: "Plan100Max", radioButton: true },
+      { subtype: "Widget", fieldName: "Sign", fieldValue: { sig: true } },
+      { subtype: "Link", url: "https://example.com" }
+    ] },
+    { items: [textItem("Page two", 10, 700)], annots: [{ subtype: "Widget", fieldName: "Last1", fieldValue: "Doe" }] }
+  ]);
+  const text = await X.pdfToText(lib, new Uint8Array());
+  assert.equal(text, "Name (Last, First)\n\nPage two\n\nCampos del formulario:\nLast1: Doe\nFirst1: Jane\nPlan: Plan100Max");
+});
+
+/* El aviso de elegibilidad pone un punto debajo de cada persona: el texto
+   conserva esas columnas (x / 4) para saber de quién es cada fila. */
+test("itemsToText: los puntos de una tabla y los nombres de arriba quedan en su columna", () => {
+  const text = X.itemsToText([
+    textItem("Primary contact", 39, 650), textItem("Marketplace Eligibility Notice", 300, 650),
+    textItem("help: $31,200/year", 40, 590),
+    textItem("Laura Ramos", 455, 565), textItem("Diego Ramos", 526, 565),
+    textItem("Applied for coverage.", 40, 542), textItem("•", 470, 540), textItem("•", 538, 540),
+    textItem("submit documents to confirm household income.", 40, 260), textItem("•", 470, 260),
+    textItem("•", 40, 200), textItem("Bring your ID", 50, 200)
+  ]);
+  const lines = text.split("\n");
+  /* sin puntos, la separación de siempre (como mucho 30 espacios) */
+  assert.equal(lines[0], "Primary contact" + " ".repeat(30) + "Marketplace Eligibility Notice");
+  assert.equal(lines[1], "help: $31,200/year");
+  assert.equal(lines[2].indexOf("Laura Ramos"), 114);
+  assert.equal(lines[2].indexOf("Diego Ramos"), 132);
+  assert.equal(lines[3].indexOf("•"), 118);
+  assert.equal(lines[3].lastIndexOf("•"), 135);
+  assert.equal(lines[4].indexOf("•"), 118);
+  /* un punto al empezar la línea es una viñeta, no una columna */
+  assert.equal(lines[5], "• Bring your ID");
+});
+
+test("itemsToText: la primera fila con puntos en la segunda línea de la página no rompe la lectura", () => {
+  /* la fila de arriba (nombres al principio de una página) es la única que hay encima */
+  const text = X.itemsToText([
+    textItem("Laura Ramos", 455, 700),
+    textItem("Applied for coverage.", 40, 680), textItem("•", 470, 680)
+  ]);
+  const lines = text.split("\n");
+  assert.equal(lines[0].indexOf("Laura Ramos"), 114);
+  assert.equal(lines[1].indexOf("•"), 118);
+});
+
+test("pdfToText: un PDF sin formulario da solo el texto de sus páginas", async () => {
+  const lib = fakePdf([{ items: [textItem("Payment receipt", 10, 700)] }, { items: [textItem("Total: $27.65", 10, 700)] }]);
+  assert.equal(await X.pdfToText(lib, new Uint8Array()), "Payment receipt\n\nTotal: $27.65");
+});
+
+/* Documentos reales de Suplementario y comprobantes de pago (texto sacado
+   del PDF por pdfToText; nombres, IDs, teléfonos y direcciones ficticios).
+   Cada uno se reconoce sin ayuda del nombre del archivo y da sus datos; un
+   campo que el documento no muestra queda vacío. `read` es la pestaña
+   abierta al soltar el documento. */
+const carrierOf = (line, word) => (C.CARRIERS[line].find((c) => c.re.test(word)) || { name: "(sin compañía para " + word + ")" }).name;
+const fixture = (name) => fs.readFileSync(path.join(__dirname, "fixtures", name + ".txt"), "utf8");
+const GR = carrierOf("supp", "Golden Rule");
+const ALLSTATE = carrierOf("supp", "Integon Indemnity Corporation");
+const AGENT_GR = { agente: "MARTA R QUINTERO", npn: "19876543" };
+const SUPP_APP = { type: "supp_app", line: "supp", net: "appsummary", read: "supp" };
+const PAY = { type: "pay", line: "", net: "payment" };
+const SUPP_DOCS = {
+  "Supp App Golden Rule Hospital AdvantageGuard": Object.assign({}, SUPP_APP, { fields: Object.assign({
+    nombres: "ROSA", apellidos: "MEDINA", compania: GR, producto: "Hospital", plan: "AdvantageGuard Hospital", prima: "$78.03",
+    efectiva: "01/01/2027", poliza: "900123456", beneficiario: "Hector Medina (Spouse)" }, AGENT_GR) }),
+  "Supp App Golden Rule Short Term": Object.assign({}, SUPP_APP, { fields: Object.assign({
+    nombres: "DANIEL E", apellidos: "VEGA CASTILLO", compania: GR, producto: "Short Term", plan: "Plan 100 Max", prima: "$367.00",
+    efectiva: "01/01/2027", poliza: "900234567" }, AGENT_GR) }),
+  "Supp App Golden Rule ProtectorGuard": Object.assign({}, SUPP_APP, { fields: Object.assign({
+    nombres: "NICOLAS", apellidos: "SALINAS MORA", compania: GR, producto: "Hospital", plan: "Health ProtectorGuard Select 2000",
+    prima: "$59.66", efectiva: "01/01/2027", poliza: "900345678", beneficiario: "Paula Rios (Significant other)" }, AGENT_GR) }),
+  "Supp App Golden Rule Hospital Indemnity": Object.assign({}, SUPP_APP, { fields: Object.assign({
+    nombres: "SILVIA", apellidos: "LUNA PRIETO", compania: GR, producto: "Hospital", plan: "Hospital Indemnity", prima: "$38.38",
+    efectiva: "01/01/2027", poliza: "900456789" }, AGENT_GR) }),
+  /* la prima es el total mensual de la tabla, no un rider ni "Premium Amount Sent" */
+  "Supp App Allstate Accident": Object.assign({}, SUPP_APP, { fields: {
+    nombres: "JULIO", apellidos: "MENA DUARTE", compania: ALLSTATE, producto: "Accident", plan: "Accident Medical Expense Plan",
+    prima: "$12.89", efectiva: "01/01/2027", beneficiario: "Mena Ochoa, Alba", agente: "LUCIA FERRER CAMPOS" } }),
+  "Supp App Allstate Accident Spouse": Object.assign({}, SUPP_APP, { fields: {
+    nombres: "SILVIA", apellidos: "LUNA PRIETO", compania: ALLSTATE, producto: "Accident", plan: "Accident Medical Expense Plan",
+    prima: "$26.61", efectiva: "01/01/2027", beneficiario: "Luna Prieto, Ramon", agente: "LUCIA FERRER CAMPOS" } }),
+  /* Florida Blue no muestra la prima en la aplicación */
+  "Supp App Dental Florida Blue": Object.assign({}, SUPP_APP, { fields: {
+    nombres: "MARIO", apellidos: "BENITEZ", compania: carrierOf("supp", "Florida Combined Life"), producto: "Dental",
+    plan: "BlueDental Copayment QF", efectiva: "10/01/2026", agente: "LUCIA FERRER CAMPOS" } }),
+  "Supp App Dental Cigna": Object.assign({}, SUPP_APP, { fields: {
+    nombres: "LAURA", apellidos: "PINEDA", compania: carrierOf("supp", "Cigna"), producto: "Dental", plan: "Cigna Dental Vision Hearing 3500",
+    prima: "$62.66", efectiva: "09/01/2026", agente: "MARTA QUINTERO" } }),
+  /* "No Dependents added" no es un beneficiario; el NPN viene en el enlace */
+  "Supp App Dental Humana": Object.assign({}, SUPP_APP, { fields: {
+    nombres: "TOMAS", apellidos: "IBARRA", compania: carrierOf("supp", "Humana"), producto: "Dental", plan: "Dental Value HI215",
+    prima: "$11.99", efectiva: "08/01/2026", agente: "MARTA QUINTERO", npn: "19876543" } }),
+  "Supp App Dental Allstate": Object.assign({}, SUPP_APP, { fields: {
+    nombres: "ANDRES", apellidos: "FERRO LIMA", compania: carrierOf("supp", "National Health Insurance Company"), producto: "Dental",
+    plan: "Copay Plan 2", efectiva: "07/03/2026", agente: "LUCIA FERRER CAMPOS" } }),
+  /* la tarjeta es un escaneo: este es el texto que da el OCR */
+  "Supp ID Card Allstate Dental OCR": { type: "supp_card", line: "supp", net: "card", read: "supp", fields: {
+    nombres: "ANDRES", apellidos: "FERRO LIMA", compania: carrierOf("supp", "Allstate"), producto: "Dental", plan: "Select Dental PPO Plan",
+    poliza: "2011223344", efectiva: "07/03/2026" } },
+  "Payment Oscar": Object.assign({}, PAY, { read: "oc", fields: {
+    pagoEstado: "PAYMENT", pagoMonto: "$530.95", pagoFecha: "10/19/2026", pagoConf: "0Qk3TzWbN7pLs2HdVx9RfM4cYa6EuJ1oGi8BnK5wPq3Z",
+    compania: carrierOf("oc", "Oscar"), nombres: "VICTOR", apellidos: "PAZ" } }),
+  "Payment UHC": Object.assign({}, PAY, { read: "oc", fields: {
+    pagoEstado: "PAYMENT", pagoMonto: "$27.65", pagoFecha: "10/19/2026", pagoConf: "301928374655", autopay: "On",
+    compania: carrierOf("oc", "UHC"), nombres: "ANA DEL CARMEN", apellidos: "RIOS SOTO" } }),
+  /* Wellpoint no muestra ni el monto ni la fecha */
+  "Payment Wellpoint": Object.assign({}, PAY, { read: "oc", fields: {
+    pagoEstado: "PAYMENT", pagoConf: "PSTG261001QWERTY7Z", compania: carrierOf("oc", "Wellpoint") } }),
+  /* la fecha es la del encabezado que pone el navegador al imprimir */
+  "Payment Ambetter": Object.assign({}, PAY, { read: "oc", fields: {
+    pagoEstado: "PAYMENT", pagoMonto: "$79.15", pagoFecha: "09/28/2026", pagoConf: "817263540", pagoMetodo: "Tarjeta CC",
+    compania: carrierOf("oc", "Ambetter") } }),
+  /* en Suplementario el comprobante trae también producto, plan y póliza */
+  "Payment GeoBlue International": Object.assign({}, PAY, { read: "supp", fields: {
+    pagoEstado: "PAYMENT", pagoMonto: "$149.94", compania: carrierOf("supp", "Blue Cross Blue Shield Global Solutions"),
+    producto: "International", plan: "Medical Coverage for Travel - Single Trip Platinum", poliza: "905512348", efectiva: "09/10/2026",
+    nombres: "RAUL", apellidos: "PONCE MEDINA" } }),
+  "Payment Florida Blue Dental": Object.assign({}, PAY, { read: "supp", fields: {
+    pagoEstado: "PAYMENT", pagoMonto: "$69.46", pagoFecha: "08/14/2026", pagoConf: "150099887", pagoMetodo: "Tarjeta CC",
+    compania: carrierOf("supp", "Florida Combined Life"), producto: "Dental", plan: "BlueDental Copayment QF", efectiva: "09/01/2026" } })
+};
+
+for (const [name, exp] of Object.entries(SUPP_DOCS)) {
+  test(name + ": tipo y datos", () => {
+    const r = X.extract(fixture(name), name + ".pdf", exp.read);
+    assert.equal(r.type, exp.type);
+    assert.equal(r.line, exp.line);
+    assert.equal(r.net, exp.net);
+    assert.deepEqual(r.fields, exp.fields);
+  });
+
+  test(name + ": se reconoce sin el nombre del archivo", () => {
+    assert.equal(X.extract(fixture(name), "document.pdf", "oc").type, exp.type);
+    assert.equal(X.extract(fixture(name), "scan0001.pdf", "mc").type, exp.type);
+  });
+}
+
+/* -------------------------------------------- documentos de Obamacare */
+
+/* Documentos reales de Obamacare (texto de pdfToText o del OCR; nombres, IDs,
+   direcciones y montos ficticios). Se leen sin el nombre del archivo. */
+const OC_DOCS = {
+  /* el plan es "Clarity Silver", no "Communication" (el menú de la izquierda) */
+  "OC My Plans & Programs Ambetter": { type: "oc_plans", net: "plans", fields: {
+    plan: "Clarity Silver", prima: "$1.40", appId: "4412345678", miembros: "LAURA RAMOS\nDIEGO RAMOS",
+    nombres: "LAURA", apellidos: "RAMOS", efectiva: "01/01/2027", estado: "Active", compania: "AMBETTER", anio: "2027" } },
+  /* la guía que viene detrás de la carta habla de documentos: nadie los pidió */
+  "OC Eligibility Notice": { type: "oc_elig", net: "eligibility", fields: {
+    appId: "4412345678", anio: "2027", nombres: "LAURA", apellidos: "RAMOS", ingreso: "$31,200.00" } },
+  /* escaneo: texto del OCR. El ingreso es el anual, no el del mes; "2/17/41"
+     es una fecha de nacimiento, no puede ser de 2041 */
+  "OC App Summary OCR": { type: "oc_app", net: "appsummary", fields: {
+    nombres: "LAURA", apellidos: "RAMOS", anio: "2027", ingreso: "$31,200.00", dob: "02/17/1941",
+    direccion: "Fort Myers, FL 33901-", plataforma: "MKPL" } },
+  /* Docs Submitted: el punto abierto es de quien abrió la cuenta (el titular) */
+  "OC Docs Submitted Principal": { type: "oc_docs", net: "docsub", fields: {
+    appId: "4498765432", anio: "2027", nombres: "ROSA", apellidos: "PEREZ LIMA",
+    docs: [{ cat: "immigration", persona: "ROSA PEREZ LIMA", titular: true, enviado: true, doc: "Permanent Resident Card, Green Card (I-551)" }] } },
+  /* …o de otra persona del hogar: el nombre completo del titular no aparece */
+  "OC Docs Submitted Dependent": { type: "oc_docs", net: "docsub", fields: {
+    appId: "4498765432", anio: "2027",
+    docs: [{ cat: "immigration", persona: "YANET SOTO MESA", titular: false, enviado: true, doc: "Employment Authorization Card (I-766)" }] } }
+};
+
+for (const [name, exp] of Object.entries(OC_DOCS)) {
+  test(name + ": tipo y datos sin el nombre del archivo", () => {
+    const r = X.extract(fixture(name), "document.pdf", "oc");
+    assert.equal(r.type, exp.type);
+    assert.equal(r.line, "oc");
+    assert.equal(r.net, exp.net);
+    assert.deepEqual(r.fields, exp.fields);
+    assert.equal(X.extract(fixture(name), "scan0001.pdf", "mc").type, exp.type);
+  });
+}
+
+test("Docs Submitted: la etiqueta del tipo y el nombre del archivo como pista", () => {
+  assert.equal(X.TYPES.oc_docs.label, "Docs Submitted");
+  assert.equal(X.extract("", "Perez Lima, Rosa - OC_Docs Submitted_Immigration status 2026 NOV.png", "oc").type, "oc_docs");
+});
+
+test("Docs Submitted: sin un punto abierto no hay documento enviado", () => {
+  const text = fixture("OC Docs Submitted Principal").replace("Collapse -", "Expand +").replace(/^Rosa - You need.*$/m, "");
+  const r = X.extract(text, "document.pdf", "oc");
+  assert.equal(r.type, "oc_docs");
+  assert.equal(r.fields.docs, undefined);
+});
+
+test("los documentos de Obamacare de antes se siguen reconociendo sin el nombre del archivo", () => {
+  assert.equal(X.extract(fixture("My Plans and Programs"), "document.pdf", "oc").type, "oc_plans");
+  assert.equal(X.extract(fixture("Eligibility Letter"), "document.pdf", "oc").type, "oc_elig");
+  assert.equal(X.extract(fixture("App Summary"), "document.pdf", "oc").type, "oc_app");
+});
+
+/* Los Consent de la agencia (QAgency y ATH, inglés y español). El PDF pierde
+   la ligadura "ti": queda un carácter que no es letra ("consen?miento"). */
+for (const name of ["Consent QA English", "Consent ATH English", "Consent QA Spanish", "Consent ATH Spanish"]) {
+  test(name + ": es un Consent sin el nombre del archivo", () => {
+    const r = X.extract(fixture(name), "document.pdf", "oc");
+    assert.equal(r.type, "consent");
+    assert.equal(r.net, "consent");
+    assert.deepEqual(r.fields, {});
+    assert.equal(X.extract(fixture(name), "scan0001.pdf", "mc").type, "consent");
+  });
+}
+
+test("una firma de tutor (Parent/Legal Guardian) no es la compañía Guardian", () => {
+  const text = "Application for Dental Insurance\nSignature of Parent/Legal Guardian\nGuardian’s Signature\n" +
+    "Underwritten by Ameritas Life Insurance Corp.\nFirst Name: Rosa\nLast Name: Medina\nMonthly Premium: $30.10";
+  assert.equal(X.extract(text, "document.pdf", "supp").fields.compania, carrierOf("supp", "Ameritas"));
 });

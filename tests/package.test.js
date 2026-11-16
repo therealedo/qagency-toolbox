@@ -26,6 +26,21 @@ test("la copia local (sw.js) lleva la misma versión y archivos que existen", ()
     .forEach((f) => assert.ok(shell.includes(f), f + " no está en SHELL"));
 });
 
+test("las plantillas del Consent y del SOA van dentro de la herramienta, como scripts", () => {
+  const F = require("../js/forms.js");
+  const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
+  /* forms.js necesita notes.js y lo usa app.js */
+  assert.ok(html.indexOf('<script src="js/notes.js">') < html.indexOf('<script src="js/forms.js">'));
+  assert.ok(html.indexOf('<script src="js/forms.js">') < html.indexOf('<script src="js/app.js">'));
+  Object.keys(F.TEMPLATES).forEach((k) => {
+    const f = "vendor/forms/" + k + ".js";
+    assert.ok(html.includes('<script src="' + f + '"></script>'), f);
+    const m = fs.readFileSync(path.join(root, f), "utf8").match(/window\.QA_FORMS\["([^"]+)"\] = "([A-Za-z0-9+/=]+)";/);
+    assert.equal(m[1], k);
+    assert.equal(Buffer.from(m[2].slice(0, 8), "base64").toString("latin1").slice(0, 5), "%PDF-", f + " lleva un PDF");
+  });
+});
+
 test("el manifiesto apunta a íconos que existen", () => {
   const m = JSON.parse(fs.readFileSync(path.join(root, "manifest.webmanifest"), "utf8"));
   assert.equal(m.display, "standalone");

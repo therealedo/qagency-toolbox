@@ -6,6 +6,8 @@
   "use strict";
 
   var C = window.QA.config, U = window.QA.util, N = window.QA.notes, X = window.QA.extract;
+  /* Consent y SOA para firmar (F ya nombra a los campos del formulario) */
+  var FM = window.QA.forms;
   /* OCR sin internet para escaneos y capturas; null si no se cargó */
   var OCR = window.QA.ocr || null;
   function $(id) { return document.getElementById(id); }
@@ -26,7 +28,9 @@
   function loadSettings() {
     var def = {
       v: SETTINGS_VERSION, autor: "", team: clone(C.TEAM), oficina: C.OFFICES[0], telefonos: {},
-      botonRojo: true, sinAcentos: false, theme: "", line: "oc"
+      botonRojo: true, sinAcentos: false, theme: "", line: "oc",
+      /* enlace de la plantilla de SignWell de cada formulario (FM.TEMPLATES) */
+      signLinks: {}
     };
     try {
       var saved = JSON.parse(localStorage.getItem(STORE) || "null");
@@ -39,6 +43,7 @@
     if (!C.LINES[def.line]) { def.line = "oc"; }
     if (C.OFFICES.indexOf(def.oficina) < 0) { def.oficina = C.OFFICES[0]; }
     if (!def.telefonos || typeof def.telefonos !== "object") { def.telefonos = {}; }
+    if (!def.signLinks || typeof def.signLinks !== "object") { def.signLinks = {}; }
     return def;
   }
 
@@ -93,6 +98,8 @@
       talker: "", npnAgente: "", colaborador: "", prefijo: "",
       personas: [{ titular: true, parentesco: "Titular", taxes: true, cobertura: true, ingreso: "", estatus: "", dob: "" }],
       docs: [], planes: [], revisaPlanes: false, motivoCancel: "", motivoOtro: "", hogarDoc: "",
+      /* compañía elegida en el selector (Obamacare y Medicare) y estado de BCBS of */
+      companiaSel: "", bcbsEstado: "", tipoCancel: "cancelled", fechaTermino: "",
       direccion: "", clienteTel: "", clienteEmail: "", idioma: "es",
       /* Cambios: personas de un documento que se quitaron y si el hogar vino de un documento */
       quitados: [], hogarPdf: false
@@ -108,6 +115,8 @@
     base: {},      /* valor que trajo un documento, para saber qué cambió */
     files: [],
     edited: freshEdited(),
+    /* valores del Consent o del SOA que se cambiaron a mano, por formulario */
+    signEdits: {},
     dirty: false
   };
 
@@ -162,6 +171,16 @@
     return out;
   }
 
+  /* Compañía en Obamacare y Medicare: la lista oficial de la agencia y «Otra»,
+     que pide escribir el nombre. BCBS of pide además el estado. */
+  function carrierSelectOptions() {
+    return [{ v: "", l: "Elige la compañía" }]
+      .concat(N.carrierOptions(S.line).map(function (o) { return { v: o.v, l: o.l }; }))
+      .concat([{ v: N.CARRIER_OTHER, l: "Otra" }]);
+  }
+  function needsState(sel) { return N.carrierOptions(S.line).some(function (o) { return o.state && o.v === sel; }); }
+  function otherCarrier(f) { return f.companiaSel === N.CARRIER_OTHER; }
+
   /* k        clave del control (única)
      store    clave en S.f si no es k (dos controles para el mismo dato)
      sec      sección (o lista de secciones) que debe estar activa
@@ -192,9 +211,12 @@
       label: "Es cliente (si no, el task es FOLLOW UP LEAD_INACTIVE CLIENT MC)", when: mcSin },
     { k: "direccion", g: "cliente", sec: "cliente", type: "text", label: "Dirección", w: "full", lines: ["oc", "supp"],
       ph: "Calle, ciudad, estado y código postal", when: function () { return !isOC("cancelada"); } },
-    { k: "clienteTel", g: "cliente", sec: "cliente", type: "text", label: "Teléfono del titular", w: "w2", lines: ["oc", "supp"], mode: "tel",
-      ph: "(305) 555-0100", when: function () { return !isOC("cancelada"); } },
-    { k: "clienteEmail", g: "cliente", sec: "cliente", type: "text", label: "Email del titular", w: "w2", lines: ["oc", "supp"], mode: "email",
+    /* en Medicare van al SOA y al texto para pedirlo en Cliq */
+    { k: "clienteTel", g: "cliente", sec: "cliente", type: "text", w: "w2", mode: "tel", ph: "(305) 555-0100",
+      label: function () { return S.line === "mc" ? "Teléfono del cliente" : "Teléfono del titular"; },
+      when: function () { return !isOC("cancelada"); } },
+    { k: "clienteEmail", g: "cliente", sec: "cliente", type: "text", w: "w2", mode: "email",
+      label: function () { return S.line === "mc" ? "Email del cliente" : "Email del titular"; },
       when: function () { return !isOC("cancelada"); } },
     { k: "personas", g: "cliente", sec: "cliente", type: "personas", w: "full", lines: ["oc", "supp"] },
     { k: "adicionales", g: "cliente", sec: "cliente", type: "text", label: "Miembros ±", lines: ["supp"],
@@ -210,8 +232,15 @@
       when: function (f) { return f.motivoCancel === "Otro"; } },
     { k: "gestionC", store: "gestion", g: "cancelacion", sec: "cancelacion", type: "seg", label: "Proceso que se cancela", w: "full",
       options: [{ v: "nueva", l: "App nueva" }, { v: "renovacion", l: "Renovación" }, { v: "cambio", l: "Póliza activa (Life Change)" }] },
-    { k: "companiaC", store: "compania", g: "cancelacion", sec: "cancelacion", type: "text", label: "Compañía", w: "w2",
-      list: function () { return C.CARRIERS.oc.map(function (c) { return c.name; }); } },
+    { k: "tipoCancel", g: "cancelacion", sec: "cancelacion", type: "seg", label: "Tipo de cancelación", w: "w2", options: C.CANCEL_TYPES },
+    { k: "efectivaC", store: "efectiva", g: "cancelacion", sec: "cancelacion", type: "date", label: "Cobertura desde",
+      hint: "El archivo CANCELLED lleva este mes", when: function (f) { return f.tipoCancel !== "terminated"; } },
+    { k: "fechaTermino", g: "cancelacion", sec: "cancelacion", type: "date", label: "Fecha de terminación",
+      hint: "El archivo TERMINATED lleva este mes", when: function (f) { return f.tipoCancel === "terminated"; } },
+    { k: "companiaSelC", store: "companiaSel", g: "cancelacion", sec: "cancelacion", type: "select", label: "Compañía", w: "w2",
+      options: carrierSelectOptions },
+    { k: "companiaC", store: "compania", g: "cancelacion", sec: "cancelacion", type: "text", label: "Nombre de la compañía", w: "w2",
+      when: otherCarrier },
     { k: "npnAgenteC", store: "npnAgente", g: "cancelacion", sec: "cancelacion", type: "select", label: "Agente (NPN)", w: "w2",
       options: npnOptions, hint: "Va entre paréntesis en el reporte" },
 
@@ -242,8 +271,15 @@
     { k: "intento", g: "gestion", sec: "contacto", type: "int", label: "Intento #", max: 2 },
 
     { k: "planes", g: "plan", sec: "planes", type: "planeslist", w: "full", lines: ["oc"] },
-    { k: "compania", g: "plan", sec: "plan", type: "text", label: "Compañía", w: "w2",
-      list: function () { return C.CARRIERS[S.line].map(function (c) { return c.name; }); }, when: function () { return !mcSin(); } },
+    { k: "companiaSel", g: "plan", sec: "plan", type: "select", label: "Compañía", w: "w2", lines: ["oc", "mc"],
+      options: carrierSelectOptions, when: function () { return !mcSin(); } },
+    { k: "bcbsEstado", g: "plan", sec: "plan", type: "text", label: "Estado de BCBS", ph: "GA", max: 2, upper: true, lines: ["mc"],
+      hint: "Dos letras", when: function (f) { return !mcSin() && needsState(f.companiaSel); } },
+    /* Suplementario escribe la compañía; Obamacare y Medicare, solo con «Otra» */
+    { k: "compania", g: "plan", sec: "plan", type: "text", w: "w2",
+      label: function () { return S.line === "supp" ? "Compañía" : "Nombre de la compañía"; },
+      list: function () { return S.line === "supp" ? C.CARRIERS.supp.map(function (c) { return c.name; }) : []; },
+      when: function (f) { return !mcSin() && (S.line === "supp" || otherCarrier(f)); } },
     { k: "plan", g: "plan", sec: "plan", type: "text", label: "Nombre del plan", w: "w2",
       hint: function () { return S.line === "mc" ? "Con el contrato (H-PBP): Humana Gold Plus H1036-077 (HMO)" : ""; } },
     { k: "estado", g: "plan", sec: "plan", type: "text", label: "Status", lines: ["oc"], list: ["Active", "Pending", "Unpaid binder", "Terminated"] },
@@ -305,8 +341,7 @@
     { k: "npnAgente", g: "agente", sec: "agente", type: "select", label: "Agente (NPN)", w: "w2",
       options: npnOptions, hint: "El NPN con el que se hace la app" },
     { k: "colaborador", g: "agente", sec: "agente", type: "select", label: "Colaborador", w: "w2", lines: ["oc"],
-      hint: "Quién procesó la aplicación", options: function () { return teamOptions("—"); } },
-    { k: "escritura", g: "agente", sec: "agente", type: "text", label: "Writing ID", w: "w2", lines: ["mc"] }
+      hint: "Quién procesó la aplicación", options: function () { return teamOptions("—"); } }
   ];
 
   var FIELD = {};
@@ -371,7 +406,8 @@
       ctl = el("input"); ctl.type = "text";
       if (F.type === "money") { ctl.inputMode = "decimal"; ctl.placeholder = "$0.00"; ctl.classList.add("num"); }
       if (F.type === "date") { ctl.placeholder = "MM/DD/AAAA"; ctl.classList.add("num"); }
-      if (F.type === "int") { ctl.inputMode = "numeric"; ctl.classList.add("num"); if (F.max) { ctl.maxLength = F.max; } }
+      if (F.type === "int") { ctl.inputMode = "numeric"; ctl.classList.add("num"); }
+      if (F.max) { ctl.maxLength = F.max; }
       if (F.mode) { ctl.inputMode = F.mode; }
       if (F.list) { ctl.setAttribute("list", "dl_" + F.k); }
     }
@@ -645,7 +681,10 @@
       var item = listItem("doc-item" + (x.enviado ? " sent" : "") + (x.auto ? " is-auto" : ""), i);
       var row = el("div", "doc-row");
       row.appendChild(labeled("Qué pide", itemSelect("docs", i, "cat", x.cat, catOptions()), "grow"));
-      row.appendChild(labeled("Persona", itemSelect("docs", i, "persona", x.persona, personOptions())));
+      /* la persona que trajo un documento (Docs Submitted) aunque no esté en el hogar */
+      var people = personOptions();
+      if (U.collapse(x.persona) && !people.some(function (o) { return o.v === x.persona; })) { people.push({ v: x.persona, l: U.titleCase(x.persona) }); }
+      row.appendChild(labeled("Persona", itemSelect("docs", i, "persona", x.persona, people)));
       row.appendChild(labeled("Fecha tope", itemInput("docs", i, "fecha", x.fecha, { cls: "num", ph: "MM/DD/AAAA" }), "w-date"));
       row.appendChild(actBtn("remove-doc", i, "✕", "icon-btn tiny", "Quitar este documento"));
       item.appendChild(row);
@@ -675,7 +714,8 @@
     box.textContent = "";
     var dlId = "dl_planCarriers";
     var dl = el("datalist"); dl.id = dlId;
-    C.CARRIERS.oc.forEach(function (c) { var o = el("option"); o.value = c.name; dl.appendChild(o); });
+    /* se sugieren las compañías oficiales; otra se puede escribir */
+    N.carrierOptions("oc").forEach(function (c) { var o = el("option"); o.value = c.v; dl.appendChild(o); });
     box.appendChild(dl);
     S.f.planes.forEach(function (p, i) {
       var item = listItem("plan-item" + (p.sel ? " sel" : ""), i);
@@ -708,8 +748,13 @@
       if (dd || !U.collapse(v)) { v = dd; t.value = dd; }
     }
     if (committed && (prop === "nombre" || prop === "compania")) { v = U.collapse(v).toUpperCase(); t.value = v; }
+    /* la fila de Docs Submitted sigue al documento aunque cambien su persona o su tipo */
+    var keyBefore = t.dataset.list === "docs" ? N.docKey(item) : "";
     item[prop] = v;
     delete item.auto;
+    /* elegir a una persona en un documento dice si es del titular */
+    if (t.dataset.list === "docs" && prop === "persona") { item.titular = v === personLabel(S.f.personas[0]); }
+    if (keyBefore) { N.moveDocKey(S.f, S.files, keyBefore, N.docKey(item)); }
     S.dirty = true;
     if (t.dataset.list === "personas") {
       if (prop === "taxes" || prop === "cobertura" || prop === "estatus") { renderPersonas(); }
@@ -726,6 +771,31 @@
     var p = S.f.planes.filter(function (x) { return x.sel; })[0];
     if (!p) { return; }
     S.f.compania = p.compania; S.f.plan = p.plan; S.f.prima = p.prima;
+    syncCarrierChoice();
+  }
+
+  /* La opción del selector de compañía sale del nombre cuando este no lo
+     escribió el agente: al leer un documento, al elegir un plan cotizado o
+     al cambiar de línea. Lo leído queda en dorado en el selector o, con
+     «Otra», en el campo del nombre. */
+  function syncCarrierChoice() {
+    var c = N.carrierChoice(S.line, S.f.compania);
+    S.f.companiaSel = c.sel; S.f.bcbsEstado = c.state;
+    if (S.auto.compania === true && c.sel && c.sel !== N.CARRIER_OTHER) { S.auto.companiaSel = true; }
+    else { delete S.auto.companiaSel; }
+  }
+
+  /* El agente elige una compañía o escribe el estado de BCBS of. «Otra»
+     empieza vacía, salvo que el nombre ya fuera de una compañía fuera de la lista. */
+  function chooseCarrier() {
+    var sel = S.f.companiaSel;
+    if (sel === N.CARRIER_OTHER) {
+      if (N.carrierChoice(S.line, S.f.compania).sel !== N.CARRIER_OTHER) { S.f.compania = ""; }
+    } else {
+      S.f.compania = N.carrierFromChoice(S.line, sel, S.f.bcbsEstado);
+    }
+    touched("compania");
+    syncInputsLight();
   }
 
   function listAction(b) {
@@ -971,7 +1041,13 @@
   }
 
   function updateFileNames() {
-    N.buildFileNames(data()).forEach(function (f) {
+    var list = N.buildFileNames(data());
+    /* las filas de Docs Submitted cambian con los documentos enviados */
+    var rows = Array.prototype.map.call($("netGrid").querySelectorAll(".net-row"), function (r) {
+      return r.querySelector("[data-file-for]").dataset.fileFor + "|" + r.querySelector(".check span").textContent;
+    }).join("\n");
+    if (rows !== list.map(function (f) { return f.k + "|" + f.label; }).join("\n")) { renderNetwork(); return; }
+    list.forEach(function (f) {
       var code = $("netGrid").querySelector('[data-file-for="' + f.k + '"]');
       if (code) { code.textContent = f.name; code.title = f.name; }
     });
@@ -1032,10 +1108,12 @@
   }
 
   /* Controles que comparten un dato con otro (Compañía en Plan y en
-     Cancelación) y nombres de personas, sin volver a dibujar las listas. */
+     Cancelación, con su selector y el estado de BCBS) y nombres de personas,
+     sin volver a dibujar las listas. */
+  var CARRIER_KEYS = ["compania", "companiaSel", "bcbsEstado"];
   function syncInputsLight() {
     FIELDS.forEach(function (F) {
-      if (!F.store && F.k !== "compania") { return; }
+      if (!F.store && CARRIER_KEYS.indexOf(F.k) < 0) { return; }
       var ctl = $("f_" + F.k);
       if (ctl && document.activeElement !== ctl && F.type !== "seg") { ctl.value = S.f[key(F)] == null ? "" : S.f[key(F)]; }
     });
@@ -1110,6 +1188,8 @@
     S.outcome = same ? same.id : L().outcomes[0].id;
     S.f.gestion = "";
     S.f.taskId = "";
+    /* cada línea tiene su lista oficial de compañías */
+    syncCarrierChoice();
     afterOutcomeChange();
     renderPicker(); syncInputs(); refresh();
   }
@@ -1303,11 +1383,12 @@
     $("smsCount").textContent = info.length + " caracteres · " + info.parts + (info.parts === 1 ? " mensaje" : " mensajes");
     $("smsCount").title = info.unicode ? "Con acentos o emojis cada mensaje admite 70 caracteres; si no, 160." : "";
 
-    /* SMS de una app de Obamacare y email de una app de Obamacare o de
-       Suplementario: en español o en inglés */
-    var smsLang = isOC("enviada"), email = isOC("enviada") || isSupp("enviada");
+    /* SMS de una app enviada (Obamacare, Medicare o Suplementario) y email
+       de una app de Obamacare o de Suplementario: en español o en inglés */
+    var smsLang = O().id === "enviada", email = isOC("enviada") || isSupp("enviada");
     each(document.querySelectorAll("[data-lang-seg]"), function (seg) {
-      seg.hidden = !(seg.closest("#emailCard") ? email : smsLang);
+      /* el Consent y el SOA siempre: su plantilla sale del idioma */
+      seg.hidden = !(seg.closest("#sec-firma") || (seg.closest("#emailCard") ? email : smsLang));
       syncSeg(seg, S.f.idioma || "es");
     });
     $("emailCard").hidden = !email;
@@ -1334,7 +1415,104 @@
     renderTaskOptions(d);
     updatePeopleSummary();
     $("outcomeDesc").textContent = O().desc + ".";
+    renderSign(d);
     renderRail();
+  }
+
+  /* --------------------------------------------- Consent y SOA para firmar --
+     En Obamacare Pendiente, el Consent; en Medicare, el SOA. La plantilla
+     sale de la oficina de Ajustes y del idioma del cliente. Los valores se
+     llenan con la nota y se pueden cambiar; lo cambiado a mano se queda hasta
+     «Volver a los datos de la nota». El PDF se llena aquí mismo con PDF.js y
+     se descarga (el SOA, sin llenar: solo el nombre y el teléfono del
+     beneficiario, para Cliq y el SMS); el enlace de firma solo se arma, no
+     se envía nada. */
+  var signKind = "";
+
+  function signValues(d, kind) { return Object.assign(FM.values(kind, d), S.signEdits[kind] || {}); }
+
+  function buildSignGrid(kind) {
+    var grid = $("signGrid");
+    grid.textContent = "";
+    FM.FIELDS[kind].forEach(function (x) {
+      var wrap = el("div", "fld" + (x.w ? " " + x.w : ""));
+      var lab = el("label", "field-label", x.l); lab.htmlFor = "sg_" + x.k;
+      var inp = el("input"); inp.type = "text"; inp.id = "sg_" + x.k; inp.dataset.signK = x.k; inp.spellcheck = false;
+      wrap.appendChild(lab); wrap.appendChild(inp);
+      grid.appendChild(wrap);
+    });
+  }
+
+  function renderSign(d) {
+    var sec = $("sec-firma"), kind = FM.formKind(d);
+    sec.hidden = !kind;
+    if (!kind) { return; }
+    var key = FM.templateKey(kind, settings.oficina, S.f.idioma), T = FM.TEMPLATES[key];
+    var title = kind === "soa" ? "SOA" : "Consent";
+    sec.dataset.rail = title;
+    $("signTitle").textContent = title + " para firmar";
+    $("signTemplate").textContent = "Plantilla: " + T.label + (kind === "consent" ? ". La oficina se elige en Ajustes."
+      : ". Se descarga sin llenar: la sección del agente se completa y se firma después de que firme el cliente.");
+    /* el SOA no lleva datos: se descarga la plantilla tal cual */
+    $("signDownload").textContent = kind === "soa" ? "Descargar PDF" : "Descargar PDF lleno";
+    if (signKind !== kind) { buildSignGrid(kind); signKind = kind; }
+    var v = signValues(d, kind), edits = S.signEdits[kind] || {};
+    FM.FIELDS[kind].forEach(function (x) {
+      var inp = $("sg_" + x.k);
+      if (document.activeElement !== inp) { inp.value = v[x.k] || ""; }
+      inp.closest(".fld").classList.toggle("is-edited", x.k in edits);
+    });
+    $("signReset").hidden = !Object.keys(edits).length;
+
+    var phone = kind === "soa" ? v.beneficiaryPhone : S.f.clienteTel, email = S.f.clienteEmail;
+    $("signCliq").value = FM.cliqText(kind, kind === "soa" ? v.beneficiaryName : v.clientName, email, phone);
+    fitHeight($("signCliq"));
+    var link = U.collapse(settings.signLinks[key]), url = FM.signingUrl(link, kind, v);
+    $("signLinkBox").hidden = !url;
+    $("signLinkHint").hidden = !!url;
+    if (!url) {
+      $("signLinkHint").textContent = link ? "El enlace de SignWell de «" + T.label + "» en Ajustes no es válido: debe empezar con https://."
+        : "Para enviar un enlace de firma, agrega en Ajustes el enlace de SignWell de «" + T.label + "».";
+      return;
+    }
+    var t = FM.signTexts(kind, d, url);
+    $("signUrl").value = url;
+    $("signSms").value = t.sms;
+    $("signEmail").value = t.email;
+    $("signSmsOpen").hidden = !N.smsLink(phone, "x");
+    $("signEmailOpen").hidden = !N.mailtoLink(email, "x");
+    fitHeight($("signSms")); fitHeight($("signEmail"));
+  }
+
+  function downloadSign(btn) {
+    var d = data(), kind = FM.formKind(d);
+    if (!kind) { return; }
+    var key = FM.templateKey(kind, settings.oficina, S.f.idioma), bytes = FM.templateBytes(key);
+    if (!bytes || !window.pdfjsLib) { toast("Esta copia de la herramienta no trae la plantilla de " + FM.TEMPLATES[key].label + "."); return; }
+    var name = FM.downloadName(d, kind);
+    btn.disabled = true;
+    FM.fillPdf(window.pdfjsLib, bytes, FM.fieldMap(key, signValues(d, kind))).then(function (out) {
+      var a = el("a");
+      a.href = URL.createObjectURL(new Blob([out], { type: "application/pdf" }));
+      a.download = name;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(function () { URL.revokeObjectURL(a.href); }, 60000);
+      toast("PDF listo: " + name);
+    }, function () { toast("No se pudo llenar el PDF."); }).then(function () { btn.disabled = false; });
+  }
+
+  /* Ajustes: un enlace de plantilla de SignWell por formulario */
+  function renderSignLinks() {
+    var box = $("signLinkRows");
+    box.textContent = "";
+    Object.keys(FM.TEMPLATES).forEach(function (k) {
+      var lab = el("label", "mini");
+      lab.appendChild(el("span", null, FM.TEMPLATES[k].label));
+      var inp = el("input"); inp.type = "text"; inp.inputMode = "url"; inp.spellcheck = false;
+      inp.placeholder = "https://www.signwell.com/…"; inp.value = settings.signLinks[k] || ""; inp.dataset.signLink = k;
+      lab.appendChild(inp);
+      box.appendChild(lab);
+    });
   }
 
   function renderTaskOptions(d) {
@@ -1512,9 +1690,10 @@
 
   /* ---------------------------------------------------------- documentos */
 
-  var RANK = { oc_plans: 3, mc_app: 3, supp_app: 3, oc_elig: 2, pay: 2, oc_app: 1, mc_soa: 1 };
+  var RANK = { oc_plans: 3, mc_app: 3, supp_app: 3, oc_elig: 2, pay: 2, oc_app: 1, oc_docs: 1, mc_soa: 1, supp_card: 1 };
 
   function applyExtraction(res) {
+    var lineBefore = S.line, carrierBefore = S.f.compania;
     /* solo se cambia de línea si el documento realmente aportó datos */
     if (res.line && res.line !== S.line && res.count > 0) {
       S.line = res.line; settings.line = res.line; saveSettings();
@@ -1525,6 +1704,8 @@
     }
     var rank = RANK[res.type] || 0, applied = 0;
     var fields = Object.assign({}, res.fields);
+    /* el Writing ID ya no se usa (basta el NPN): si un documento lo trae, se ignora */
+    delete fields.escritura;
     /* lo que va a las listas o a los selectores se aparta del resto */
     var special = {};
     ["miembros", "ingreso", "hogar", "docs", "agente", "npn", "dob"].forEach(function (k) {
@@ -1541,6 +1722,7 @@
       S.f[k] = v; S.auto[k] = true; S.rank[k] = rank; S.base[k] = v; applied++;
     });
     if (special.miembros && S.line !== "mc") { applied += mergePersonas(U.parseList(special.miembros)); }
+    var sent = [];
     if (S.line === "oc") {
       var tit = S.f.personas[0];
       /* el ingreso y la fecha de nacimiento del documento son del titular */
@@ -1551,12 +1733,16 @@
         if (!U.collapse(tit[x[0]])) { tit[x[0]] = x[1]; tit.orig[x[0]] = x[1]; tit.auto = true; applied++; }
       });
       if (special.hogar) { S.f.hogarDoc = special.hogar; }
-      if (special.docs) { applied += mergeDocs(special.docs); }
+      if (special.docs) { applied += N.mergeDocs(S.f, special.docs, sent); }
     }
     /* Medicare: un documento con prima prende el interruptor de la prima */
     if (S.line === "mc" && fields.prima && U.moneyNumber(fields.prima) > 0) { S.f.tienePrima = true; }
     if (special.agente || special.npn) { applied += mapAgent(special.agente, special.npn); }
+    /* Docs Submitted: el archivo va a la fila del documento que se envió; una
+       página sin documento abierto no tiene fila ni casilla */
+    if (res.net === "docsub") { res.net = sent.length ? N.docKey(sent[0]) : ""; }
     if (res.net) { S.f.net[res.net] = true; }
+    if (S.line !== lineBefore || S.f.compania !== carrierBefore) { syncCarrierChoice(); }
     return applied;
   }
 
@@ -1581,22 +1767,6 @@
       var nombre = U.collapse(n).toUpperCase();
       S.f.personas.push({ nombre: nombre, parentesco: "", taxes: true, cobertura: true, ingreso: "", estatus: "", dob: "", auto: true,
                           orig: { nombre: nombre, taxes: true, cobertura: true } });
-      added++;
-    });
-    return added;
-  }
-
-  function mergeDocs(list) {
-    var added = 0;
-    list.forEach(function (x) {
-      var persona = "";
-      if (x.persona) {
-        var match = S.f.personas.filter(function (p) { return sameName(personLabel(p), x.persona); })[0];
-        persona = match ? personLabel(match) : U.collapse(x.persona).toUpperCase();
-      }
-      var dup = S.f.docs.some(function (y) { return y.cat === x.cat && sameName(y.persona, persona); });
-      if (dup) { return; }
-      S.f.docs.push({ cat: x.cat, persona: persona || personLabel(S.f.personas[0]), fecha: x.fecha || "", enviado: false, doc: "", auto: true });
       added++;
     });
     return added;
@@ -1666,6 +1836,14 @@
   /* lo leído con OCR cuenta aunque sea poco (una captura de una sola línea) */
   function ocrStatus(text, empty) { return String(text || "").replace(/\s/g, "").length < 4 ? empty : "ok"; }
 
+  /* OCR para un escaneo sin texto, y también cuando el texto es tan poco que
+     no se reconoce el documento (una tarjeta escaneada trae unas pocas
+     palabras sueltas encima de la imagen). */
+  function wantsOcr(text) {
+    if (OCR.needsOcr(text)) { return true; }
+    return String(text || "").replace(/\s/g, "").length < 200 && X.extract(text, "document.pdf", S.line).type === "unknown";
+  }
+
   function readFile(file) {
     var entry = { name: file.name, status: "reading", applied: 0, file: file };
     S.files.push(entry);
@@ -1679,7 +1857,7 @@
       return file.arrayBuffer().then(function (buf) {
         /* PDF.js puede quedarse con los bytes: se le pasa una copia */
         return X.pdfToText(window.pdfjsLib, new Uint8Array(buf.slice(0))).then(function (text) {
-          if (!OCR || !OCR.needsOcr(text) || !ocrReady()) { finishFile(entry, text); return; }
+          if (!OCR || !wantsOcr(text) || !ocrReady()) { finishFile(entry, text); return; }
           entry.ocr = true;
           ocrStep(entry, "Leyendo con OCR…");
           return OCR.readPdf(window.pdfjsLib, new Uint8Array(buf), function (i, n) {
@@ -1984,6 +2162,7 @@
     $("officeTel").value = settings.telefonos[settings.oficina] || "";
     $("optRojo").checked = settings.botonRojo;
     $("optAcentos").checked = settings.sinAcentos;
+    renderSignLinks();
     $("installHelp").textContent = installHelp();
     $("versionTag").textContent = "Versión " + C.VERSION;
     $("dlgSettings").showModal();
@@ -2069,6 +2248,7 @@
       S.f[key(F)] = F.type === "check" ? t.checked : t.value;
       touched(key(F));
       if (k === "talker" || k === "colaborador") { S.f.prefijo = ""; }
+      if (key(F) === "companiaSel" || k === "bcbsEstado") { chooseCarrier(); }
       if (k === "nombres" || k === "apellidos") { updatePeopleSummary(); }
       if (k === "nombres" || k === "apellidos" || k === "companiaC" || k === "compania") { syncInputsLight(); }
       refresh();
@@ -2096,6 +2276,8 @@
         syncSeg(seg, S.f[k]);
         /* el mismo dato puede tener dos controles (p. ej. en Cancelación) */
         each($("form").querySelectorAll("[data-seg]"), function (o) { var G = FIELD[o.dataset.seg]; if (o !== seg && key(G) === k) { syncSeg(o, S.f[k]); } });
+        /* CANCELLED o TERMINATED cambia el documento del Network */
+        if (k === "tipoCancel") { renderNetwork(); }
         refresh();
         return;
       }
@@ -2182,6 +2364,27 @@
       var b = e.target.closest("[data-copy]");
       if (b) { copyOut(b.dataset.copy, b); }
     });
+
+    /* Consent y SOA para firmar */
+    $("signGrid").addEventListener("input", function (e) {
+      var k = e.target.dataset.signK;
+      if (!k || !signKind) { return; }
+      (S.signEdits[signKind] = S.signEdits[signKind] || {})[k] = e.target.value;
+      S.dirty = true;
+      renderSign(data());
+    });
+    $("signReset").addEventListener("click", function () { delete S.signEdits[signKind]; renderSign(data()); });
+    $("signDownload").addEventListener("click", function () { downloadSign(this); });
+    [["copySignCliq", "signCliq"], ["copySignUrl", "signUrl"], ["copySignSms", "signSms"], ["copySignEmail", "signEmail"]].forEach(function (p) {
+      $(p[0]).addEventListener("click", function () {
+        var btn = this, text = $(p[1]).value;
+        if (text.trim()) { copyText(text, function () { flashButton(btn); }); }
+      });
+    });
+    $("signSmsOpen").addEventListener("click", function () {
+      this.href = N.smsLink(signKind === "soa" ? $("sg_beneficiaryPhone").value : S.f.clienteTel, $("signSms").value);
+    });
+    $("signEmailOpen").addEventListener("click", function () { this.href = N.mailtoLink(S.f.clienteEmail, $("signEmail").value); });
     document.addEventListener("keydown", function (e) {
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === "Enter" && currentView === "nota") { e.preventDefault(); copyNext($("copyNext")); return; }
       if ((e.ctrlKey || e.metaKey) && e.key === "Enter" && currentView === "nota") { e.preventDefault(); copyOut("note", $("copyNote")); }
@@ -2218,7 +2421,7 @@
     /* nueva nota */
     $("btnNew").addEventListener("click", function () {
       if (hasClientData() && S.dirty && !window.confirm("La nota actual no se ha copiado. ¿Empezar una nueva?")) { return; }
-      S.f = freshFields(); S.auto = {}; S.rank = {}; S.base = {}; S.files = [];
+      S.f = freshFields(); S.auto = {}; S.rank = {}; S.base = {}; S.files = []; S.signEdits = {};
       $("taskId").dataset.line = "";
       S.edited = freshEdited(); S.dirty = false;
       S.outcome = L().outcomes[0].id;
@@ -2302,6 +2505,12 @@
     });
     $("officeTel").addEventListener("input", function () {
       settings.telefonos[settings.oficina] = U.collapse(this.value);
+      saveSettings();
+    });
+    $("signLinkRows").addEventListener("input", function (e) {
+      var k = e.target.dataset.signLink;
+      if (!k) { return; }
+      settings.signLinks[k] = U.collapse(e.target.value);
       saveSettings();
     });
     $("teamRows").addEventListener("input", function (e) {
