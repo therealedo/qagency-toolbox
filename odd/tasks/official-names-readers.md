@@ -126,6 +126,15 @@ Assumptions:
 - A18. The Supp product phrase uses the existing sms label ("seguro de hospital"); English labels are added to the Supp products.
 - Correction (L11): the Supp Spanish text uses "usted" throughout, so its closing line is "Detalles en su email. Si tiene dudas, llámeme de inmediato. Saludos".
 
+S10. Terminated wording (L22): "They should say _Terminated". A TERMINATED Obamacare cancellation ends its report process with `_Terminated`, not `_Cancelled`. A CANCELLED one keeps `_Cancelled`.
+
+S11. Eligibility letter (L22): "The Eligibility letter should be used to automatically see which documents are being asked by mkpl to submit". Each document the notice asks for becomes a requested document (type, person, due date) in the docs list. The Marketplace format, from a CMS sample notice: "By February 20, 2023, submit documents to confirm citizenship." in the ACTION rows, with a bullet under each person who must send it. A row label is never read as a person (A2, "Proof").
+
+S12. Gaps (L22, "Fix them"):
+- Changing a Docs Submitted document's Persona (or type) by hand keeps its Network tick and its dropped file ("Guardar").
+- A Docs Submitted page with no open item sets no Docs Submitted flag.
+- The docs merge has tests.
+
 ## Tasks
 
 | ID | Specs | Route | Status | Commit |
@@ -137,6 +146,10 @@ Assumptions:
 | T6 | S6, S7, S8 | delegated (context backstop), relaunched after T7, parallel with T4; correction inline | verifier: S6 FAIL (B1 blank Fecha in Chrome), S7 and S8 PASS. Correction 31d2c3d: forms 23/23, full suite 154/154; B1 recheck PASS (Chrome shows the date on both pages). Native review consent granted, then unavailable: lens_context_budget_exceeded (the 7.2 MB bundled templates). 31d2c3d alone: medium, under_budget | f4675e6, 31d2c3d |
 | T7 | S9 | inline, before T6 (same files: js/notes.js, js/app.js, js/config.js, tests/notes.test.js) | done: notes 54/54, full suite 92/92; browser check of the switch deferred to T5; assess slice medium, under_budget | c1fe803 |
 | T5 | Version 1.9.0, dist, README check, full suite, browser check | inline | done: version 1.9.0, dist 17,802,491 bytes and the Windows zip 12,076,778; full suite 171/171; browser check of dist PASS (see L21) | 8db4325, 97961ae |
+| T8 | S10 | inline | done: RED 1 → GREEN notes 61/61, full suite 172/172 | ae090d9 |
+| T9 | S11 | inline | done: RED 5 → GREEN extract 77/77, full suite 178/178; pdfToText keeps the columns of a bullet table (Risk item 3: every reader uses it); differential on the 12 PDFs on disk: 10 identical, 1 whitespace only, the CMS notice gains its requested documents | 064f653 |
+| T10 | S12 | inline | done: mergeDocs moved to notes.js with 7 tests (RED 7 → GREEN notes 68/68), full suite 185/185 | adcc887 |
+| T11 | Rebuild dist, update the PR | inline | done: independent verifier S10, S11, S12 PASS; native review correction 496bf93 (186/186); dist rebuilt; PR updated | 5e05fc9, 496bf93, bc50d95 |
 
 ## Log
 
@@ -317,3 +330,25 @@ L21 (2026-11-15) Review outcome and T5.
 - Assess of dae41ab to the release and this doc (6 paths, 2,109 lines, mostly the rebuilt dist): medium, under_budget; no review due.
 - Scratch with real data removed after the browser check: the scratchpad samples, samples-dental, samples-dental2, samples-pay, samples-supp, w4, harness and b1.
 - Next: push and PR are the user's decision.
+
+L22 (2026-11-15, user, verbatim): "Push and open a PR
+Assumptions:
+1.Yes
+2.They should say _Terminated
+3.Yes
+4.Fix them. The Eligibility letter should be used to automatically see which documents are being asked by mkpl to submit"
+- These answer: (1) A1–A18 are confirmed; (2) TERMINATED says `_Terminated`; (3) the T4 choices are confirmed; (4) fix the open gaps (Persona change, Eligibility "Proof", empty Docs Submitted page, docs merge tests) and read the requested documents from the Eligibility letter.
+- PR shape: one PR with a size exception (the user's choice). Pushed and opened: https://github.com/therealedo/qagency-toolbox/pull/1.
+- Correction to the question asked: the note never said `_Cancelled`; only the report did. The note's first line reads "Se cancela la póliza OC …" for both types.
+- Evidence for S11: the user's Eligibility sample asks for no documents. A public CMS sample notice asks for two: citizenship for both people and household income for the first. Its bullets sit at fixed x positions under each name (names at x 455 and 526, bullets at 470 and 538), but pdfToText caps every gap at 30 spaces, so the text loses which person a bullet belongs to.
+
+L23 (2026-11-15) Verification and review of T8–T10.
+- Independent verifier (candidate adcc887, baseline 111772d): S10, S11, S12 PASS, no blockers.
+  - Real PDFs on disk: 10 identical, the rest whitespace only; all 40 fixtures read the same except the new Eligibility docs.
+  - Notes differential, 306 forms: only `_Cancelled` → `_Terminated` on TERMINATED reports.
+  - mergeDocs, 20,000 fuzzed inputs: identical for every reader input (it differs only for the UI placeholder labels, which no reader returns).
+  - Real app in headless Chrome: Eligibility docs and note lines; Persona and type changes keep the tick and Guardar; an empty Docs Submitted page sets no flag; `_Terminated` in the report.
+  - Advisories: bullet columns also widen two-column lists and radio marks (whitespace only); lowercase names in the old fallback are no longer read; an ACTION row with no bullet gives no doc.
+- Native review of 111772d..5e05fc9 (lenses risk and reliability; consent granted by the user): one CRITICAL finding, R3-grid-negative-row: gridColumns read rows[-1] when the first bullet row was the second line of a page. Correction 496bf93 restores the `h >= 0` bound, with a RED test (TypeError) → GREEN 186/186. Targeted validation approved; acknowledged, authority burned (lineage review-c8127f49afd2cefe). Advisories: R3-early-return, R3-grid-coverage, R3-placed-row-dropped.
+- dist rebuilt with the fix (bc50d95): QAgency-Toolbox.html 17,810,870 bytes, zip 12,079,505.
+- Still open for the user: the real MC, Supp and Obamacare sample PDFs were deleted, so the new bullet columns were not compared on them; the Spanish ACTION wording is unverified against a real letter.
