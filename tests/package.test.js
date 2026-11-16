@@ -105,3 +105,32 @@ test("el enlace de firma avisa que es solo para datos de prueba hasta el BAA", (
   assert.match(box, /Solo con datos de prueba/);
   assert.match(box, /BAA/);
 });
+
+test("el paquete de Windows va firmado con la llave que el actualizador acepta", () => {
+  const S = require("../tools/sign.js");
+  const ps = fs.readFileSync(path.join(root, "tools", "windows", "actualizar.ps1"), "utf8");
+  const parts = S.updaterKey(ps);
+  assert.ok(parts, "el actualizador trae la llave pública");
+  assert.equal(Buffer.from(parts.modulus, "base64").length, 384, "RSA de 3072 bits");
+  const zip = fs.readFileSync(path.join(root, "dist", "QAgency-Toolbox-Windows.zip"));
+  const sig = fs.readFileSync(path.join(root, "dist", "QAgency-Toolbox-Windows.zip.sig"), "utf8");
+  assert.ok(S.verify(zip, sig, S.keyFromParts(parts)), "la firma de dist corresponde al paquete y a la llave del actualizador");
+  /* un byte cambiado ya no pasa */
+  const bad = Buffer.from(zip); bad[bad.length - 100] ^= 1;
+  assert.equal(S.verify(bad, sig, S.keyFromParts(parts)), false);
+  /* la firma se revisa antes de abrir el paquete, y sin firma no se instala */
+  assert.ok(ps.indexOf("Firma-Valida $zip $firma") > 0 && ps.indexOf("Firma-Valida $zip $firma") < ps.indexOf("Expand-Archive"));
+  assert.match(ps, /\.zip\.sig/);
+});
+
+test("firma: lo firmado con una llave solo lo acepta esa llave", () => {
+  const S = require("../tools/sign.js");
+  const crypto = require("node:crypto");
+  const a = crypto.generateKeyPairSync("rsa", { modulusLength: 2048 }), b = crypto.generateKeyPairSync("rsa", { modulusLength: 2048 });
+  const data = Buffer.from("paquete");
+  const sig = S.sign(data, a.privateKey.export({ type: "pkcs8", format: "pem" }));
+  assert.equal(S.verify(data, sig, S.keyFromParts(S.publicParts(a.publicKey))), true);
+  assert.equal(S.verify(data, sig, b.publicKey), false);
+  assert.equal(S.verify(Buffer.from("otro"), sig, a.publicKey), false);
+  assert.equal(S.verify(data, "no es base64 válido!!", a.publicKey), false);
+});

@@ -22,6 +22,8 @@ Que hace el instalador
 Actualizar: cuando la herramienta avisa que hay una version nueva, cierrala
 y abre "Actualizar Q Agency Toolbox". Revisa GitHub y solo descarga e
 instala algo si hay una version mas nueva; si no, dice que ya esta al dia.
+Solo instala un paquete firmado por Q Agency: si dice que la firma no es
+valida, no instalo nada; avisa a quien publica la herramienta.
 (Tambien sirve Actualizar.bat de este paquete, o extraer el paquete nuevo y
 ejecutar Instalar.bat otra vez.)
 

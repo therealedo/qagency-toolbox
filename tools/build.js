@@ -156,4 +156,13 @@ const pack = zip([
 fs.writeFileSync(path.join(dist, "QAgency-Toolbox-Windows.zip"), pack);
 console.log("dist/QAgency-Toolbox-Windows.zip   " + kb(pack.length));
 
+/* El actualizador solo instala un paquete firmado (tools/sign.js). Sin la
+   llave privada el paquete queda sin firma y el actualizador lo rechaza. */
+const signed = require("./sign.js").signFile(path.join(dist, "QAgency-Toolbox-Windows.zip"));
+if (signed.signed) {
+  console.log("dist/QAgency-Toolbox-Windows.zip.sig  firmado");
+} else {
+  console.warn("AVISO: el paquete quedó SIN FIRMA: " + signed.reason + ". El actualizador no lo instalará.");
+}
+
 function kb(n) { return (n / 1024).toFixed(0) + " KB"; }
