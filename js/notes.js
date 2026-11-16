@@ -574,7 +574,7 @@
       docsOf(d).filter(function (x) { return x.enviado; }).forEach(function (x) {
         var c = docCat(x.cat), who = docTitular(d, x) ? "" : first(x.persona);
         out.push({ k: docKey(x), label: n.label + ": " + c.label + (who ? " (" + who + ")" : ""), date: n.date,
-                   file: n.file.replace("{doc}", (who ? who.toUpperCase() + "_" : "") + (c.file || c.label)) });
+                   file: n.file.replace("{doc}", (who ? who + "_" : "") + (c.file || c.label)) });
       });
     });
     return out;

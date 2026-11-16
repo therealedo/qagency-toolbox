@@ -187,7 +187,7 @@ The Network section lists the documents for the line of business, each with its 
 | Cancelled (OC) | `Diaz, Beatriz - OC_My Plans & Programs Ambetter 2027 JAN CANCELLED` | coverage start |
 | Terminated (OC) | `Diaz, Beatriz - OC_My Plans & Programs Ambetter 2027 JAN TERMINATED` | termination date |
 | Docs submitted (OC) | `Diaz, Beatriz - OC_Docs Submitted_Immigration status 2026 NOV` | note |
-| Docs submitted (OC, dependent or spouse) | `Diaz, Beatriz - OC_Docs Submitted_JUAN_Immigration status 2026 NOV` | note |
+| Docs submitted (OC, dependent or spouse) | `Diaz, Beatriz - OC_Docs Submitted_Juan_Immigration status 2026 NOV` | note |
 | App (MC) | `Diaz, Beatriz - Medicare_Humana_App 2027 JAN` | coverage start |
 | SOA (MC, app or change) | `Diaz, Beatriz - Medicare_Humana_SOA 2026 NOV` | SOA signature |
 | SOA (MC, no change) | `Diaz, Beatriz - Medicare_SOA 2026 NOV` | SOA signature |
