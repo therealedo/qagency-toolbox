@@ -2680,6 +2680,49 @@ kbd {
     return added;
   }
 
+  /* Personas del hogar de un App Summary: el titular y quien ya está en la
+     lista reciben lo que el documento dice de ellos (parentesco, estatus,
+     ingreso anual, DOB) donde el campo está vacío; quien falta se agrega,
+     salvo que el agente lo haya quitado. Lo del documento queda en `orig`,
+     así lo que difiera sale en Cambios; `filled` dice qué campos llenó, para
+     vaciarlos si se quita el documento. */
+  var HOGAR_KEYS = ["parentesco", "estatus", "ingreso", "dob"];
+  function householdMatch(f, x) {
+    if (x.titular) { return (f.personas || []).filter(function (p) { return p.titular; })[0] || null; }
+    var exact = findPersona(f, x.nombre);
+    if (exact && !exact.titular) { return exact; }
+    var firstOf = function (s) { return val(s).split(" ")[0]; };
+    var ps = (f.personas || []).filter(function (p) { return !p.titular && sameName(firstOf(p.nombre), firstOf(x.nombre)); });
+    return ps.length === 1 ? ps[0] : null;
+  }
+  function mergeHousehold(f, list) {
+    var n = 0;
+    f.personas = f.personas || [];
+    (list || []).forEach(function (x) {
+      var keys = HOGAR_KEYS.filter(function (k) { return val(x[k]) && !(k === "parentesco" && x.titular); });
+      var p = householdMatch(f, x);
+      if (!p) {
+        if (x.titular || !val(x.nombre) || (f.quitados || []).some(function (q) { return sameName(q, x.nombre); })) { return; }
+        var nombre = upper(x.nombre), orig = { nombre: nombre, taxes: true, cobertura: true };
+        p = { nombre: nombre, parentesco: "", taxes: true, cobertura: true, ingreso: "", estatus: "", dob: "", auto: true, orig: orig };
+        keys.forEach(function (k) { p[k] = x[k]; orig[k] = x[k]; });
+        f.personas.push(p);
+        f.hogarPdf = true;
+        n++;
+        return;
+      }
+      p.orig = p.orig || {};
+      keys.forEach(function (k) {
+        if (!(k in p.orig)) { p.orig[k] = x[k]; }
+        if (val(p[k])) { return; }
+        p[k] = x[k]; p.orig[k] = x[k];
+        p.filled = p.filled || {}; p.filled[k] = true;
+        n++;
+      });
+    });
+    return n;
+  }
+
   /* La fila de Docs Submitted de un documento cambia de clave al cambiar su
      persona o su tipo: su casilla y el archivo soltado pasan a la clave nueva. */
   function moveDocKey(f, files, from, to) {
@@ -3156,7 +3199,7 @@ kbd {
     productOf: productOf, carrierShort: carrierShort, carrierName: carrierName, carrierOptions: carrierOptions,
     carrierChoice: carrierChoice, carrierFromChoice: carrierFromChoice, CARRIER_OTHER: CARRIER_OTHER, memberDelta: memberDelta, zohoName: zohoName, clientInitials: clientInitials,
     personas: personas, docsOf: docsOf, pendingDocs: pendingDocs, planesOf: planesOf, networkOf: networkOf, docKey: docKey,
-    mergeDocs: mergeDocs, moveDocKey: moveDocKey,
+    mergeDocs: mergeDocs, mergeHousehold: mergeHousehold, moveDocKey: moveDocKey,
     enTaxes: enTaxes, conCobertura: conCobertura, ingresoHogar: ingresoHogar, moneyShort: moneyShort,
     NET_DIRS: NET_DIRS, netDirFor: netDirFor
   };
@@ -3789,7 +3832,7 @@ kbd {
     var a = after(doc, [/Nombre del agente/i, /\b(Writing\s*)?Agent('s)?\s*name\b/i, /\bBroker('s)?\s*name\b/i,
       /\bAgent of record\b/i, /Agente (de registro|escritor)/i], vFullName, 1);
     if (a) { f.agente = a.toUpperCase(); }
-    var npn = find(doc, /\bNPN\b\s*[:#]?\s*(\d{5,12})\b/i) ||
+    var npn = find(doc, /\bNPN\b(?:\s*(?:#|number|no\.?|n[uú]mero))?\s*[:#]?\s*(\d{5,12})\b/i) ||
               after(doc, [/\bNPN\b/i, /National Producer Number/i], vDigits(5, 12), 1);
     if (npn) { f.npn = npn; }
   }
@@ -4235,10 +4278,7 @@ kbd {
       var full = after(doc, [/^\s*Full\s*name\s*$/i], vPerson, 1);
       if (full) { setName(f, full); }
     }
-    /* el ingreso anual estimado manda sobre el del mes ("This month's total income") */
-    f.ingreso = afterFirst(doc, [/\bEstimated\s*income\s*next\s*year\b/i,
-      /\b(Expected\s*)?(yearly|annual|total)\s*(household\s*)?income\b/i, /\bHousehold\s*income\b/i,
-      /Ingresos?\s*(anual(es)?|total(es)?|del hogar)/i], vMoney, 1);
+    f.ingreso = annualIncome(doc);
     f.hogar = after(doc, [/\bHousehold\s*size\b/i, /\bTax\s*household\s*size\b/i, /Tama[nñ]o del hogar/i,
       /Personas en (el|su) hogar/i], vDigits(1, 2), 1);
     /* fecha de nacimiento y dirección del contacto del hogar (el titular):
@@ -4251,7 +4291,111 @@ kbd {
     f.clienteTel = after(doc, [/\bPhone\s*numbers?(\s*\(s\))?/i, /\bPhone\b/i, /Tel[eé]fonos?(\s*\(s\))?/i], vPhone, 1);
     if (/healthsherpa/i.test(doc.flat)) { f.plataforma = "HealthSherpa"; }
     else if (/healthcare\.gov|cuidadodesalud\.gov/i.test(doc.flat)) { f.plataforma = "MKPL"; }
+    /* el agente o broker que envió la aplicación, con su NPN */
+    agentInfo(doc, f);
+    if (f.npn && !f.agente) {
+      var ag = nameBeforeNpn(doc);
+      if (ag) { f.agente = ag.toUpperCase(); }
+    }
+    var ps = householdPeople(doc, f);
+    if (ps.length) {
+      f.personas = ps;
+      /* el ingreso del titular es el de su sección */
+      if (ps[0].titular && ps[0].ingreso) { f.ingreso = ps[0].ingreso; }
+    }
     return f;
+  }
+
+  /* El ingreso anual: el estimado para el año que viene manda; nunca el del
+     mes ("This month's total income (November 2026)  $2,600.00"). */
+  var MONTHLY = /\bmonth|\bmes\b|\bmensual/i;
+  function annualIncome(doc) {
+    var v = afterFirst(doc, [/\bEstimated\s*income\s*next\s*year\b/i, /\bIngresos?\s*estimados?\s*(para\s*)?el\s*pr[oó]ximo\s*a[nñ]o\b/i], vMoney, 1);
+    if (v) { return v; }
+    var yearly = { lines: doc.lines.map(function (l) { return MONTHLY.test(l) ? "" : l; }) };
+    /* "Annual income" es el título: el monto viene debajo de su rótulo */
+    return afterFirst(yearly, [/^\s*(Annual|Yearly)\s*income\s*$/i, /^\s*Ingresos?\s*anual(es)?\s*$/i], vMoney, 2) ||
+      afterFirst(yearly, [/\b(Expected\s*)?(yearly|annual|total)\s*(household\s*)?income\b/i, /\bHousehold\s*income\b/i,
+        /Ingresos?\s*(anual(es)?|total(es)?|del hogar)/i], vMoney, 1);
+  }
+
+  /* El nombre del agente justo encima de su NPN ("Full name  Laura Gomez") */
+  function nameBeforeNpn(doc) {
+    for (var i = 0; i < doc.lines.length; i++) {
+      if (!/\bNPN\b|National Producer Number/i.test(doc.lines[i])) { continue; }
+      for (var j = i - 1; j >= 0 && j >= i - 3; j--) {
+        var n = vPerson(cleanLead(doc.lines[j].replace(/^\s*(Full\s*)?name\b|^\s*Nombre(\s*completo)?\b/i, "")));
+        if (n) { return n; }
+      }
+    }
+    return "";
+  }
+
+  /* Parentesco: "Luis's spouse" dice qué es esa persona de Luis. */
+  var KIN = [[/^(spouse|husband|wife|domestic partner)$/, "Cónyuge"], [/^(child|son|daughter|stepchild|stepson|stepdaughter)$/, "Hijo/a"],
+    [/^(parent|mother|father|stepparent|stepmother|stepfather)$/, "Padre/Madre"], [/^(sibling|brother|sister|stepbrother|stepsister)$/, "Hermano/a"]];
+  /* y al revés: si el titular es "Sofia's parent", Sofia es su hija */
+  var KIN_BACK = { "Cónyuge": "Cónyuge", "Hijo/a": "Padre/Madre", "Padre/Madre": "Hijo/a", "Hermano/a": "Hermano/a" };
+  function kinOf(word) {
+    var w = String(word || "").toLowerCase();
+    for (var i = 0; i < KIN.length; i++) { if (KIN[i][0].test(w)) { return KIN[i][1]; } }
+    return w ? "Otro" : "";
+  }
+  function relations(lines) {
+    var out = [];
+    lines.forEach(function (l) {
+      var m = l.trim().match(/^([A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑáéíóúñü\-]+)['’]s\s+([a-z]+(?:\s+partner)?)\b/);
+      if (m && !/^(tax|ZUZ)$/i.test(m[2])) { out.push({ of: m[1], kin: kinOf(m[2]) }); }
+    });
+    return out;
+  }
+
+  /* Estatus en EE. UU.: ciudadano, o el documento migratorio */
+  function usStatus(sec) {
+    var c = after(sec, [/\bU\.?\s?S\.?\s*citizen\s*or\s*U\.?\s?S\.?\s*national\b/i, /ciudadano\s*(estadounidense|de\s*(los\s*)?(EE\.?\s?UU|Estados\s*Unidos))/i],
+      function (t) { var m = firstCell(t).match(/^(yes|no|s[ií])$/i); return m ? m[1].toLowerCase() : ""; }, 1);
+    if (c === "yes" || c === "sí" || c === "si") { return "ciudadano"; }
+    if (/I-?551\b|Permanent\s*Resident|Green\s*Card|Residente\s*permanente|Tarjeta\s*verde/i.test(sec.flat)) { return "residente"; }
+    if (/I-?766\b|Employment\s*Authori[sz]ation|Autorizaci[oó]n\s*de\s*empleo|Permiso\s*de\s*trabajo/i.test(sec.flat)) { return "permiso"; }
+    return "";
+  }
+
+  /* Las personas del hogar del resumen de HealthCare.gov: cada una tiene su
+     sección, que empieza con su nombre y el rótulo "Name". La primera que
+     coincide con el contacto del hogar es el titular. */
+  function householdPeople(doc, f) {
+    var starts = [];
+    doc.lines.forEach(function (l, i) { if (/^\s*(Name|Nombre)\s*$/i.test(l)) { starts.push(i); } });
+    var titFirst = U.stripAccents(f.nombres || "").split(" ")[0];
+    var people = starts.map(function (s, k) {
+      var end = k + 1 < starts.length ? starts[k + 1] - 1 : doc.lines.length;
+      var lines = doc.lines.slice(s, end);
+      var sec = makeDoc(lines.join("\n"));
+      var name = vName(cleanLead(lines[1] || "")) || "";
+      var dob = after(sec, [/\bDate\s*of\s*birth\b/i, /Fecha\s*de\s*nacimiento/i], vBirth, 1);
+      return { name: name, first: U.stripAccents(name.split(" ")[0]), rel: relations(lines), estatus: usStatus(sec), ingreso: annualIncome(sec), dob: dob };
+    });
+    var t = 0;
+    for (var i = 0; i < people.length; i++) { if (titFirst && people[i].first.toUpperCase() === titFirst.toUpperCase()) { t = i; break; } }
+    var tit = people[t];
+    return people.map(function (p, i) {
+      var o = {};
+      if (i === t) {
+        o.nombre = U.collapse((f.nombres || "") + " " + (f.apellidos || "")) || p.name.toUpperCase();
+        o.titular = true;
+      } else {
+        if (!p.name) { return null; }
+        o.nombre = p.name.toUpperCase();
+        var mine = tit && p.rel.filter(function (r) { return r.of.toUpperCase() === tit.first.toUpperCase(); })[0];
+        var theirs = tit && tit.rel.filter(function (r) { return r.of.toUpperCase() === p.first.toUpperCase(); })[0];
+        var kin = mine ? mine.kin : theirs ? (KIN_BACK[theirs.kin] || "Otro") : "";
+        if (kin) { o.parentesco = kin; }
+      }
+      if (p.dob) { o.dob = p.dob; }
+      if (p.estatus) { o.estatus = p.estatus; }
+      if (p.ingreso) { o.ingreso = p.ingreso; }
+      return o;
+    }).filter(Boolean);
   }
 
   /* "beatriz.diaz@example.com"; uno mal leído por el OCR no pasa */
@@ -7248,7 +7392,9 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
     S.f.personas = S.f.personas.filter(function (p) { return p.titular || !p.auto; });
     S.f.personas.forEach(function (p) {
       if (p.titular && p.auto) { p.ingreso = ""; p.dob = ""; delete p.auto; }
-      delete p.orig;
+      /* lo que llenó el App Summary se vacía, salvo que el agente lo haya cambiado */
+      Object.keys(p.filled || {}).forEach(function (k) { if (!p.orig || p[k] === p.orig[k]) { p[k] = ""; } });
+      delete p.filled; delete p.orig;
     });
     S.f.docs = S.f.docs.filter(function (x) { return !x.auto; });
     S.f.planes = S.f.planes.filter(function (x) { return !x.auto; });
@@ -7287,7 +7433,7 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
     delete fields.escritura;
     /* lo que va a las listas o a los selectores se aparta del resto */
     var special = {};
-    ["miembros", "ingreso", "hogar", "docs", "agente", "npn", "dob", "planes"].forEach(function (k) {
+    ["miembros", "ingreso", "hogar", "docs", "agente", "npn", "dob", "planes", "personas"].forEach(function (k) {
       if (k in fields) { special[k] = fields[k]; delete fields[k]; }
     });
     /* Cotización de HealthSherpa: los planes van a Planes cotizados y la nota
@@ -7323,6 +7469,8 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
         if (!(x[0] in tit.orig)) { tit.orig[x[0]] = x[1]; }
         if (!U.collapse(tit[x[0]])) { tit[x[0]] = x[1]; tit.orig[x[0]] = x[1]; tit.auto = true; applied++; }
       });
+      /* las personas del App Summary: parentesco, estatus, ingreso anual y DOB */
+      if (special.personas) { applied += N.mergeHousehold(S.f, special.personas); }
       if (special.hogar) { S.f.hogarDoc = special.hogar; }
       if (special.docs) { applied += N.mergeDocs(S.f, special.docs, sent); }
     }
