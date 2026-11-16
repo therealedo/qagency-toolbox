@@ -940,3 +940,68 @@ test("Medicare: el teléfono y el email del cliente (para el SOA) no cambian la 
     assert.deepEqual(N.warnings(con, ""), N.warnings(d, ""));
   });
 });
+
+/* Documentos leídos de una carta o de Docs Submitted que entran a la lista
+   de documentos (antes en app.js, sin pruebas). */
+const hogar = (extra) => Object.assign({
+  nombres: "ROSA", apellidos: "PEREZ LIMA", docs: [],
+  personas: [{ titular: true, taxes: true, cobertura: true }, { nombre: "YANET SOTO MESA", taxes: true, cobertura: true }]
+}, extra);
+
+test("mergeDocs: el documento del titular lleva su nombre y queda marcado como suyo", () => {
+  const f = hogar(), sent = [];
+  assert.equal(N.mergeDocs(f, [{ cat: "immigration", persona: "ROSA PEREZ LIMA", titular: true, enviado: true, doc: "Permanent Resident Card, Green Card (I-551)" }], sent), 1);
+  assert.deepEqual(f.docs, [{ cat: "immigration", persona: "ROSA PEREZ LIMA", fecha: "", enviado: true, doc: "Permanent Resident Card, Green Card (I-551)", auto: true, titular: true }]);
+  assert.deepEqual(sent, f.docs);
+});
+
+test("mergeDocs: sin el nombre del titular la persona queda vacía, no «Sin nombre»", () => {
+  const f = hogar({ nombres: "", apellidos: "" }), sent = [];
+  N.mergeDocs(f, [{ cat: "income", persona: "", fecha: "02/15/2027" }], sent);
+  assert.deepEqual(f.docs, [{ cat: "income", persona: "", fecha: "02/15/2027", enviado: false, doc: "", auto: true, titular: true }]);
+  assert.deepEqual(sent, []);
+});
+
+test("mergeDocs: un nombre de pila es de la persona del hogar que empieza así", () => {
+  const f = hogar(), sent = [];
+  N.mergeDocs(f, [{ cat: "immigration", persona: "YANET", fecha: "01/31/2027" }], sent);
+  assert.equal(f.docs[0].persona, "YANET SOTO MESA");
+  assert.equal(f.docs[0].titular, false);
+});
+
+test("mergeDocs: alguien fuera del hogar entra con su nombre, sin ser el titular", () => {
+  const f = hogar(), sent = [];
+  N.mergeDocs(f, [{ cat: "ssn", persona: "Diego Ramos" }], sent);
+  assert.equal(f.docs[0].persona, "DIEGO RAMOS");
+  assert.equal(f.docs[0].titular, false);
+});
+
+test("mergeDocs: el documento enviado marca como enviado al que ya estaba pedido, sin repetirlo", () => {
+  const f = hogar(), sent = [];
+  N.mergeDocs(f, [{ cat: "immigration", persona: "YANET SOTO MESA", fecha: "01/31/2027" }], sent);
+  assert.equal(N.mergeDocs(f, [{ cat: "immigration", persona: "YANET SOTO MESA", enviado: true, doc: "Employment Authorization Card (I-766)" }], sent), 1);
+  assert.equal(f.docs.length, 1);
+  assert.deepEqual(f.docs[0], { cat: "immigration", persona: "YANET SOTO MESA", fecha: "01/31/2027", enviado: true, doc: "Employment Authorization Card (I-766)", auto: true, titular: false });
+  assert.deepEqual(sent, [f.docs[0]]);
+  /* la misma carta otra vez no agrega nada */
+  assert.equal(N.mergeDocs(f, [{ cat: "immigration", persona: "YANET SOTO MESA", enviado: true }], []), 0);
+  assert.equal(f.docs.length, 1);
+});
+
+test("mergeDocs: los acentos no cuentan al buscar a la persona", () => {
+  const f = hogar({ nombres: "JOSÉ", apellidos: "NÚÑEZ", personas: [{ titular: true }] }), sent = [];
+  N.mergeDocs(f, [{ cat: "income", persona: "JOSE NUNEZ" }], sent);
+  assert.equal(f.docs[0].persona, "JOSÉ NÚÑEZ");
+  assert.equal(f.docs[0].titular, true);
+});
+
+test("moveDocKey: cambiar la persona de un documento enviado conserva su casilla y su archivo", () => {
+  const f = hogar({ net: { "docsub:immigration:YANET": true, plans: true } });
+  const files = [{ res: { net: "docsub:immigration:YANET" } }, { res: { net: "plans" } }, { res: null }];
+  N.moveDocKey(f, files, "docsub:immigration:YANET", "docsub:immigration:YANET-SOTO-MESA");
+  assert.deepEqual(f.net, { plans: true, "docsub:immigration:YANET-SOTO-MESA": true });
+  assert.deepEqual(files.map((x) => x.res && x.res.net), ["docsub:immigration:YANET-SOTO-MESA", "plans", null]);
+  /* la misma clave no cambia nada */
+  N.moveDocKey(f, files, "plans", "plans");
+  assert.equal(f.net.plans, true);
+});
