@@ -748,10 +748,13 @@
       if (dd || !U.collapse(v)) { v = dd; t.value = dd; }
     }
     if (committed && (prop === "nombre" || prop === "compania")) { v = U.collapse(v).toUpperCase(); t.value = v; }
+    /* la fila de Docs Submitted sigue al documento aunque cambien su persona o su tipo */
+    var keyBefore = t.dataset.list === "docs" ? N.docKey(item) : "";
     item[prop] = v;
     delete item.auto;
     /* elegir a una persona en un documento dice si es del titular */
     if (t.dataset.list === "docs" && prop === "persona") { item.titular = v === personLabel(S.f.personas[0]); }
+    if (keyBefore) { N.moveDocKey(S.f, S.files, keyBefore, N.docKey(item)); }
     S.dirty = true;
     if (t.dataset.list === "personas") {
       if (prop === "taxes" || prop === "cobertura" || prop === "estatus") { renderPersonas(); }
@@ -1730,13 +1733,14 @@
         if (!U.collapse(tit[x[0]])) { tit[x[0]] = x[1]; tit.orig[x[0]] = x[1]; tit.auto = true; applied++; }
       });
       if (special.hogar) { S.f.hogarDoc = special.hogar; }
-      if (special.docs) { applied += mergeDocs(special.docs, sent); }
+      if (special.docs) { applied += N.mergeDocs(S.f, special.docs, sent); }
     }
     /* Medicare: un documento con prima prende el interruptor de la prima */
     if (S.line === "mc" && fields.prima && U.moneyNumber(fields.prima) > 0) { S.f.tienePrima = true; }
     if (special.agente || special.npn) { applied += mapAgent(special.agente, special.npn); }
-    /* Docs Submitted: el archivo va a la fila del documento que se envió */
-    if (res.net === "docsub" && sent.length) { res.net = N.docKey(sent[0]); }
+    /* Docs Submitted: el archivo va a la fila del documento que se envió; una
+       página sin documento abierto no tiene fila ni casilla */
+    if (res.net === "docsub") { res.net = sent.length ? N.docKey(sent[0]) : ""; }
     if (res.net) { S.f.net[res.net] = true; }
     if (S.line !== lineBefore || S.f.compania !== carrierBefore) { syncCarrierChoice(); }
     return applied;
@@ -1763,47 +1767,6 @@
       var nombre = U.collapse(n).toUpperCase();
       S.f.personas.push({ nombre: nombre, parentesco: "", taxes: true, cobertura: true, ingreso: "", estatus: "", dob: "", auto: true,
                           orig: { nombre: nombre, taxes: true, cobertura: true } });
-      added++;
-    });
-    return added;
-  }
-
-  /* La persona del hogar con ese nombre; con solo el nombre de pila
-     ("YANET"), la única cuyo nombre empieza así. */
-  function findPersona(name) {
-    var ps = S.f.personas.filter(function (p) { return sameName(personLabel(p), name); });
-    if (!ps.length && U.collapse(name).indexOf(" ") < 0) {
-      ps = S.f.personas.filter(function (p) { return sameName(personLabel(p).split(" ")[0], name); });
-    }
-    return ps.length === 1 ? ps[0] : null;
-  }
-
-  /* Documentos pedidos o enviados (Docs Submitted). Uno enviado marca como
-     enviado al que ya estaba pedido; `sent` recibe los que se enviaron. */
-  function mergeDocs(list, sent) {
-    /* sin el nombre del titular la persona queda vacía (es del titular), no
-       "Sin nombre: escríbelo arriba" */
-    var added = 0, tit = S.f.personas[0], titName = U.collapse((S.f.nombres || "") + (S.f.apellidos || "")) ? personLabel(tit) : "";
-    list.forEach(function (x) {
-      var persona = "", isTit = !!x.titular || !x.persona;
-      if (x.titular) { persona = titName; }
-      else if (x.persona) {
-        var match = findPersona(x.persona);
-        persona = match ? personLabel(match) : U.collapse(x.persona).toUpperCase();
-        isTit = match === tit;
-      }
-      persona = persona || titName;
-      var dup = S.f.docs.filter(function (y) { return y.cat === x.cat && sameName(y.persona, persona); })[0];
-      if (dup) {
-        if (x.enviado && !dup.enviado) { dup.enviado = true; dup.doc = dup.doc || x.doc || ""; added++; }
-        if (isTit) { dup.titular = true; }
-        if (x.enviado) { sent.push(dup); }
-        return;
-      }
-      /* titular: el documento es del titular aunque luego se corrija su nombre */
-      var item = { cat: x.cat, persona: persona, fecha: x.fecha || "", enviado: !!x.enviado, doc: x.doc || "", auto: true, titular: isTit };
-      S.f.docs.push(item);
-      if (x.enviado) { sent.push(item); }
       added++;
     });
     return added;

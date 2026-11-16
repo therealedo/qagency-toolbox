@@ -596,6 +596,65 @@
     return !p || p === plain(val(d.nombres) + " " + val(d.apellidos)) || (p.indexOf(" ") < 0 && p === no.split(" ")[0]);
   }
 
+  /* --------------------------------------------- documentos leídos (app) */
+
+  function sameName(a, b) { return U.stripAccents(val(a)).toUpperCase() === U.stripAccents(val(b)).toUpperCase(); }
+  /* El nombre de una persona del hogar como lo muestra la lista; el titular
+     sin nombre queda vacío. */
+  function personaLabel(f, p) { return p.titular ? upper(val(f.nombres) + " " + val(f.apellidos)) : upper(p.nombre); }
+
+  /* La persona del hogar con ese nombre; con solo el nombre de pila
+     ("YANET"), la única cuyo nombre empieza así. */
+  function findPersona(f, name) {
+    var list = f.personas || [];
+    var ps = list.filter(function (p) { return sameName(personaLabel(f, p), name); });
+    if (!ps.length && val(name).indexOf(" ") < 0) {
+      ps = list.filter(function (p) { return sameName(personaLabel(f, p).split(" ")[0], name); });
+    }
+    return ps.length === 1 ? ps[0] : null;
+  }
+
+  /* Documentos pedidos o enviados (carta de elegibilidad, Docs Submitted)
+     que entran a la lista f.docs. Uno enviado marca como enviado al que ya
+     estaba pedido; `sent` recibe los que se enviaron. Devuelve cuántos datos
+     nuevos hubo. Sin el nombre del titular su documento queda sin persona
+     (es del titular), no "Sin nombre: escríbelo arriba". */
+  function mergeDocs(f, list, sent) {
+    var added = 0, tit = (f.personas || [])[0], titName = tit && val(val(f.nombres) + val(f.apellidos)) ? personaLabel(f, tit) : "";
+    list.forEach(function (x) {
+      var persona = "", isTit = !!x.titular || !x.persona;
+      if (x.titular) { persona = titName; }
+      else if (x.persona) {
+        var match = findPersona(f, x.persona);
+        persona = match ? personaLabel(f, match) : upper(x.persona);
+        isTit = match === tit;
+      }
+      persona = persona || titName;
+      var dup = f.docs.filter(function (y) { return y.cat === x.cat && sameName(y.persona, persona); })[0];
+      if (dup) {
+        if (x.enviado && !dup.enviado) { dup.enviado = true; dup.doc = dup.doc || x.doc || ""; added++; }
+        if (isTit) { dup.titular = true; }
+        if (x.enviado) { sent.push(dup); }
+        return;
+      }
+      /* titular: el documento es del titular aunque luego se corrija su nombre */
+      var item = { cat: x.cat, persona: persona, fecha: x.fecha || "", enviado: !!x.enviado, doc: x.doc || "", auto: true, titular: isTit };
+      f.docs.push(item);
+      if (x.enviado) { sent.push(item); }
+      added++;
+    });
+    return added;
+  }
+
+  /* La fila de Docs Submitted de un documento cambia de clave al cambiar su
+     persona o su tipo: su casilla y el archivo soltado pasan a la clave nueva. */
+  function moveDocKey(f, files, from, to) {
+    if (from === to) { return; }
+    f.net = f.net || {};
+    if (from in f.net) { if (f.net[from]) { f.net[to] = true; } delete f.net[from]; }
+    (files || []).forEach(function (x) { if (x.res && x.res.net === from) { x.res.net = to; } });
+  }
+
   function networkDocs(d) {
     var O = outcomeOf(d);
     if (!has(O, "network") || !d.net) { return []; }
@@ -1018,6 +1077,7 @@
     productOf: productOf, carrierShort: carrierShort, carrierName: carrierName, carrierOptions: carrierOptions,
     carrierChoice: carrierChoice, carrierFromChoice: carrierFromChoice, CARRIER_OTHER: CARRIER_OTHER, memberDelta: memberDelta, zohoName: zohoName, clientInitials: clientInitials,
     personas: personas, docsOf: docsOf, pendingDocs: pendingDocs, planesOf: planesOf, networkOf: networkOf, docKey: docKey,
+    mergeDocs: mergeDocs, moveDocKey: moveDocKey,
     enTaxes: enTaxes, conCobertura: conCobertura, ingresoHogar: ingresoHogar, moneyShort: moneyShort,
     NET_DIRS: NET_DIRS, netDirFor: netDirFor
   };
