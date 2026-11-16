@@ -1469,7 +1469,8 @@
     $("signReset").hidden = !Object.keys(edits).length;
 
     var phone = kind === "soa" ? v.beneficiaryPhone : S.f.clienteTel, email = S.f.clienteEmail;
-    $("signCliq").value = FM.cliqText(kind, kind === "soa" ? v.beneficiaryName : v.clientName, email, phone);
+    /* los mensajes internos (Cliq) nombran al cliente como en Zoho: "Apellido, Nombre" */
+    $("signCliq").value = FM.cliqText(kind, N.zohoName(S.f) || (kind === "soa" ? v.beneficiaryName : v.clientName), email, phone);
     fitHeight($("signCliq"));
     var link = U.collapse(settings.signLinks[key]), url = FM.signingUrl(link, kind, v);
     $("signLinkBox").hidden = !url;
@@ -1694,7 +1695,7 @@
 
   /* ---------------------------------------------------------- documentos */
 
-  var DEFAULTABLE = ["anio", "producto", "plataforma", "periodo", "periodoMC", "genero"];
+  var DEFAULTABLE = ["anio", "producto", "plataforma", "periodo", "periodoMC", "genero", "idioma"];
   var RANK = { oc_plans: 3, mc_app: 3, supp_app: 3, oc_elig: 2, pay: 2, oc_app: 1, oc_docs: 1, oc_quote: 1, mc_soa: 1, supp_card: 1 };
 
   /* Campos del producto: la compañía, el plan y el pago son de una línea.

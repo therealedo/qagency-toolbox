@@ -1,0 +1,57 @@
+AGENT                      LICENSE #    PHONE           EMAIL
+Laura Gomez-Vidal    12345678     (305) 555-0100     laura.gomez@example.com
+Carlos Mendez Ruiz
+2026 Health insurance application
+Primary contact
+Full name: Carlos Mendez Ruiz
+Phone number: 3055550147
+Email: carlos.mendez@example.com
+Coverage county: SARASOTA, FL
+Home address: 45 Palm Ave, North Port, FL 34286-1234
+Mailing address: Same as home address
+Get updates by email: No
+Preferred written language: Spanish
+Preferred spoken language: Spanish
+Household members
+Name            DOB       SSN           Relationship   Sex    Tobacco?
+Applying
+Carlos Mendez Ruiz    1989-09-01    ***_**-1111    Self           Male   No         Yes
+Elena Mendez    1991-03-15    ***_**-2222    Spouse           Female   No         Yes
+Mateo Mendez    2015-06-20                   Child           Male   No         Yes
+Household income
+Name                              Type          Amount
+Job             $30,000.00
+Carlos Mendez Ruiz
+Job             $18,000.00
+Elena Mendez
+Household deductions
+No deductions.
+
+Income summary
+Name                             This month's income           Expected income in 2026
+Carlos Mendez Ruiz          $2500                        $30,000.00
+Elena Mendez          $1500                        $18,000.00
+Mateo Mendez          $0                        $0.00
+Basic household questions
+Carlos Mendez ruiz is not currently enrolled in Medicare PartA or C, and not expected to enroll in the
+next 3 months.
+Carlos Mendez ruiz is filing a federal income tax return for 2026 and is claiming dependents
+am not eligible for health coverage from a job (including COBRA) or someone else's job.
+Iam not an American Indian or Alaska Native.
+Additional questions
+No one applying for coverage has a physical disability or mental health condition that limits their ability to
+work, attend school, or take care oftheir daily needs.
+No
+one applying for coverage needs help with daily activities (like dressing or using the bathroom) or lives
+in a medical facility or nursing home.
+Carlos Mendez Ruiz did not lose coverage on or after 7/25/2026
+Carlos Mendez Ruiz did not get married on or after 7/25/2026.
+Carlos Mendez Ruiz was not released from incarceration on or after 7/25/2026.
+Carlos Mendez Ruiz did not gain eligible immigration status on or after 7/25/2026.
+Carlos Mendez Ruiz was not adopted or placed for foster care on or after 7/25/2026.
+Carlos Mendez Ruiz moved on or after 7/25/2026.
+No one applying for coverage was offered an individual coverage HRA (ICHRA) with a start date between
+7/25/2026 and 11/22/2026.
+No
+one applying for coverage was offered a qualified smallemployer HRA (QSEHRA) with a start date
+between 7/25/2026 and 11/22/2026.

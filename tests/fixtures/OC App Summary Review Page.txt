@@ -1,0 +1,270 @@
+An official website of the United States government
+Here's how you know
+Carmen     Menu
+Back | 1 – 2 – 3 – 4 Review & submit
+Review your application
+Review your savings setup
+Savings setup                              Edit
+Check for savings options
+Review your contact information
+Full name                              Edit
+Carmen Rivas Soto
+Mailing address                              Edit
+55 Coral Way Apt 2
+Cape Coral, FL 33990-1111
+Email address                              Edit
+carmen.rivas@example.com
+Phone number(s)                              Edit
+Mobile: 2395550147
+Preferred written language                              Edit
+Spanish
+
+Preferred spoken language                              Edit
+Spanish
+Preferred method of receiving notices                              Edit
+55 Coral Way Apt 2
+Cape Coral, FL 33990-1111
+Review your household
+Applying for health coverage                              Edit
+Carmen Rivas Soto
+Lucia Navarro
+Paula Navarro
+Jorge Navarro Soto
+Home address                              Edit
+55 Coral Way Apt 2
+Cape Coral, FL 33990-1111
+Carmen Rivas Soto
+Name                              Edit
+Carmen Rivas Soto
+Date of birth                              Edit
+6/27/1985
+Has a Medicare start date                              Edit
+No
+Sex                              Edit
+
+Female
+Relationships                              Edit
+Lucia’s parent (including adoptive parent)
+Paula’s parent (including adoptive parent)
+Jorge’s spouse
+Marital status                              Edit
+Married to Jorge Navarro Soto
+Tax filing status                              Edit
+Filing a joint 2026 tax return with Jorge
+Tax dependents                              Edit
+Lucia Navarro
+Paula Navarro
+Social Security Number (SSN)                              Edit
+*********
+Children under age 19 for whom Carmen is the primary caretaker                Edit
+Lucia Navarro
+Paula Navarro
+U.S. citizen or U.S. national                              Edit
+No
+Has eligible immigration status                              Edit
+Yes
+Immigration document type
+I-551 (Permanent Resident Card, “Green Card”)
+Alien number
+*****0000
+Card number
+MSC0000000000
+
+Document expiration date
+4/10/2029
+Other immigration document type or status                              Edit
+Cuban/Haitian entrant
+Has lived in the U.S. since 1996                              Edit
+No
+Found ineligible for Medicaid/CHIP based on eligible immigration status         Edit
+No
+Pregnancy status                              Edit
+Not pregnant
+American Indian or Alaska Native                              Edit
+No
+Incarcerated                              Edit
+No
+Income                              Edit
+This month’s income
+Job: JOB
+$36,384.00 every year
+This month’s total income (November 2025)
+$3,032.00
+Annual income
+Estimated income next year (2026)
+$36,384.00
+
+Lucia Navarro
+Name                              Edit
+Lucia Navarro
+Date of birth                              Edit
+9/25/2009
+Has a Medicare start date                              Edit
+No
+Sex                              Edit
+Female
+Relationships                              Edit
+Carmen’s child
+Paula’s sibling (including half & stepsibling)
+Jorge’s child
+Marital status                              Edit
+Single
+Tax filing status                              Edit
+Will be claimed as a tax dependent on Carmen and Jorge’s 2026 tax return
+Social Security Number (SSN)                              Edit
+*********
+U.S. citizen or U.S. national                              Edit
+No
+
+Has eligible immigration status                              Edit
+Yes
+Immigration document type
+I-551 (Permanent Resident Card, “Green Card”)
+Other immigration document type or status                              Edit
+Cuban/Haitian entrant
+Found ineligible for Medicaid/CHIP based on eligible immigration status         Edit
+No
+Pregnancy status                              Edit
+Not pregnant
+American Indian or Alaska Native                              Edit
+No
+Incarcerated                              Edit
+No
+Medicaid/CHIP denial date                              Edit
+9/30/2025
+Income                              Edit
+This month’s total income (November 2025)
+$0.00
+Annual income
+Estimated income next year (2026)
+$0.00
+
+Paula Navarro
+Name                              Edit
+Paula Navarro
+Date of birth                              Edit
+10/1/2014
+Has a Medicare start date                              Edit
+No
+Sex                              Edit
+Female
+Relationships                              Edit
+Carmen’s child
+Lucia’s sibling (including half & stepsibling)
+Jorge’s child
+Tax filing status                              Edit
+Will be claimed as a tax dependent on Carmen and Jorge’s 2026 tax return
+Social Security Number (SSN)                              Edit
+*********
+U.S. citizen or U.S. national                              Edit
+No
+Has eligible immigration status                              Edit
+Yes
+Immigration document type
+I-551 (Permanent Resident Card, “Green Card”)
+
+Other immigration document type or status                              Edit
+Cuban/Haitian entrant
+Found ineligible for Medicaid/CHIP based on eligible immigration status         Edit
+No
+Pregnancy status                              Edit
+Not pregnant
+American Indian or Alaska Native                              Edit
+No
+Incarcerated                              Edit
+No
+Medicaid/CHIP denial date                              Edit
+9/30/2025
+Income                              Edit
+This month’s total income (November 2025)
+$0.00
+Annual income
+Estimated income next year (2026)
+$0.00
+Jorge Navarro Soto
+
+Name                              Edit
+Jorge Navarro Soto
+Date of birth                              Edit
+1/6/1983
+Has a Medicare start date                              Edit
+No
+Sex                              Edit
+Male
+Relationships                              Edit
+Carmen’s spouse
+Lucia’s parent (including adoptive parent)
+Paula’s parent (including adoptive parent)
+Tax filing status                              Edit
+Filing a joint 2026 tax return with Carmen
+Tax dependents                              Edit
+Lucia Navarro
+Paula Navarro
+Social Security Number (SSN)                              Edit
+*********
+Children under age 19 for whom Jorge is the primary caretaker                  Edit
+Paula Navarro
+Lucia Navarro
+U.S. citizen or U.S. national                              Edit
+No
+
+Has eligible immigration status                              Edit
+Yes
+Immigration document type
+I-551 (Permanent Resident Card, “Green Card”)
+Alien number
+*****0000
+Card number
+MSC0000000000
+Document expiration date
+4/10/2029
+Other immigration document type or status                              Edit
+Cuban/Haitian entrant
+Found ineligible for Medicaid/CHIP based on eligible immigration status         Edit
+No
+American Indian or Alaska Native                              Edit
+No
+Incarcerated                              Edit
+No
+Income                              Edit
+This month’s income
+Job: JOB
+$33,600.00 every year
+This month’s total income (November 2025)
+$2,800.00
+Annual income
+Estimated income next year (2026)
+
+$33,600.00
+Review additional information
+Honorably discharged veterans or active-duty military members                 Edit
+None
+Agent or Broker                              Edit
+LAURA GOMEZ
+12345678
+Current health coverage for Carmen                              Edit
+Marketplace Coverage
+Current health coverage for Jorge                              Edit
+Marketplace Coverage
+Offered coverage through their own job                              Edit
+None
+Currently enrolled in an individual coverage HRA that will be available on       Edit
+1/27/2026
+None
+Offered an individual coverage HRA they haven’t accepted yet, that will be
+available on 1/27/2026
+None
+Newly available Health Reimbursement Arrangements (HRAs)
+Offered or provided an HRA                              Edit
+None
+
+Save & continue
+Application ID: 4400000001
+Contact us     Archive     Accessibility     Privacy settings     Privacy policy
+Using this site
+中文  Kreyòl  Français  Deutsch   ગુજરાતી    िहंदी   Italiano ⽇本語 한국어   Polski
+Português  Русский  Español  Tagalog   Tiếng Việt
+®
+Health Insurance Marketplace  is a registered trademark of the Department of Health & Human
+Services.
+An official website of the U.S. Centers for Medicare & Medicaid Services.

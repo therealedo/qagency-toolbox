@@ -467,9 +467,31 @@ const OC_DOCS = {
      es una fecha de nacimiento, no puede ser de 2041 */
   "OC App Summary OCR": { type: "oc_app", net: "appsummary", fields: {
     nombres: "LAURA", apellidos: "RAMOS", anio: "2027", ingreso: "$31,200.00", dob: "02/17/1941",
-    direccion: "Fort Myers, FL 33901-", plataforma: "MKPL", genero: "a",
+    direccion: "Fort Myers, FL 33901-", plataforma: "MKPL", genero: "a", idioma: "en",
     personas: [{ nombre: "LAURA RAMOS", titular: true, dob: "02/17/1941", estatus: "ciudadano", ingreso: "$31,200.00" },
       { nombre: "DIEGO", parentesco: "Hijo/a", ingreso: "$0.00" }] } },
+  /* el resumen impreso de HealthSherpa: el agente arriba en una tabla (su
+     email no es el del cliente), el hogar y el ingreso anual en tablas, y el
+     SEP por el evento que sí pasó ("moved on or after") */
+  "OC App Summary HealthSherpa": { type: "oc_app", net: "appsummary", fields: {
+    anio: "2026", nombres: "CARLOS", apellidos: "MENDEZ RUIZ", ingreso: "$30,000.00", hogar: "3", dob: "09/01/1989",
+    direccion: "45 Palm Ave, North Port, FL 34286-1234", clienteEmail: "carlos.mendez@example.com", clienteTel: "(305) 555-0147",
+    idioma: "es", periodo: "SEP", motivoSep: "Mudanza", agente: "LAURA GOMEZ-VIDAL", npn: "12345678",
+    plataforma: "HealthSherpa", genero: "o",
+    personas: [{ nombre: "CARLOS MENDEZ RUIZ", titular: true, dob: "09/01/1989", ingreso: "$30,000.00" },
+      { nombre: "ELENA MENDEZ", parentesco: "Cónyuge", dob: "03/15/1991", ingreso: "$18,000.00" },
+      { nombre: "MATEO MENDEZ", parentesco: "Hijo/a", dob: "06/20/2015", ingreso: "$0.00" }] } },
+  /* la página "Review your application" de HealthCare.gov impresa desde el
+     navegador: cada rótulo termina en "Edit", la dirección va en dos líneas
+     y el agente está en "Agent or Broker" (nombre y NPN debajo) */
+  "OC App Summary Review Page": { type: "oc_app", net: "appsummary", fields: {
+    appId: "4400000001", anio: "2026", nombres: "CARMEN", apellidos: "RIVAS SOTO", ingreso: "$36,384.00", dob: "06/27/1985",
+    direccion: "55 Coral Way Apt 2, Cape Coral, FL 33990-1111", clienteEmail: "carmen.rivas@example.com", clienteTel: "(239) 555-0147",
+    agente: "LAURA GOMEZ", npn: "12345678", idioma: "es", genero: "a",
+    personas: [{ nombre: "CARMEN RIVAS SOTO", titular: true, dob: "06/27/1985", estatus: "residente", ingreso: "$36,384.00" },
+      { nombre: "LUCIA NAVARRO", parentesco: "Hijo/a", dob: "09/25/2009", estatus: "residente", ingreso: "$0.00" },
+      { nombre: "PAULA NAVARRO", parentesco: "Hijo/a", dob: "10/01/2014", estatus: "residente", ingreso: "$0.00" },
+      { nombre: "JORGE NAVARRO SOTO", parentesco: "Cónyuge", dob: "01/06/1983", estatus: "residente", ingreso: "$33,600.00" }] } },
   /* Docs Submitted: el punto abierto es de quien abrió la cuenta (el titular) */
   "OC Docs Submitted Principal": { type: "oc_docs", net: "docsub", fields: {
     appId: "4498765432", anio: "2027", nombres: "ROSA", apellidos: "PEREZ LIMA",
@@ -490,6 +512,18 @@ for (const [name, exp] of Object.entries(OC_DOCS)) {
     assert.equal(X.extract(fixture(name), "scan0001.pdf", "mc").type, exp.type);
   });
 }
+
+test("HealthSherpa: una titular es «la cliente»", () => {
+  const text = fixture("OC App Summary HealthSherpa").replace(/Self( +)Male/, "Self$1Female");
+  assert.equal(X.extract(text, "document.pdf", "oc").fields.genero, "a");
+});
+
+test("HealthSherpa: sin un evento que pasó no hay SEP", () => {
+  const text = fixture("OC App Summary HealthSherpa").replace("Carlos Mendez Ruiz moved on or after", "Carlos Mendez Ruiz did not move on or after");
+  const f = X.extract(text, "document.pdf", "oc").fields;
+  assert.equal(f.periodo, undefined);
+  assert.equal(f.motivoSep, undefined);
+});
 
 test("Docs Submitted: la etiqueta del tipo y el nombre del archivo como pista", () => {
   assert.equal(X.TYPES.oc_docs.label, "Docs Submitted");
