@@ -371,11 +371,14 @@
     }
   }
 
+  /* el NPN se anota con las iniciales del agente, como en los templates; un
+     agente del documento que solo trae el número se anota con el número */
+  function npnText(d) { return upper(d.agenteIni) || U.initials(d.agente) || val(d.npn); }
+
   function agentRows(d, add) {
     var O = outcomeOf(d);
     if (!has(O, "agente")) { return; }
-    /* el NPN se anota con las iniciales del agente, como en los templates */
-    if (val(d.agente) || val(d.agenteIni)) { add("NPN", upper(d.agenteIni) || U.initials(d.agente)); }
+    if (npnText(d)) { add("NPN", npnText(d)); }
     /* solo cuando no fue quien escribe la nota */
     add("Habló con el cliente", upper(d.talkerNombre));
     /* en Medicare y Suplementario la app la hace quien escribe la nota: no hay colaborador */
@@ -454,7 +457,7 @@
     if (O.id === "cancelada") {
       add("Motivo", d.motivoCancel === "Otro" ? val(d.motivoOtro) || "Otro" : d.motivoCancel);
       if (cov.length > 1) { raw("Miembros en la cancelación: " + cov.length + names(cov) + "."); }
-      if (val(d.agente) || val(d.agenteIni)) { add("NPN", upper(d.agenteIni) || U.initials(d.agente)); }
+      if (npnText(d)) { add("NPN", npnText(d)); }
       return;
     }
 
@@ -621,6 +624,17 @@
      estaba pedido; `sent` recibe los que se enviaron. Devuelve cuántos datos
      nuevos hubo. Sin el nombre del titular su documento queda sin persona
      (es del titular), no "Sin nombre: escríbelo arriba". */
+  /* De qué documento salió una fila (un documento pedido, un plan cotizado):
+     si el agente la borra, queda en `descartados` y ningún documento la
+     vuelve a agregar. */
+  function rowSource(kind, key) { return kind + ":" + U.stripAccents(val(key)).toUpperCase().replace(/[^A-Z0-9$|]+/g, ""); }
+  function discarded(f, src) { return (f.descartados || []).indexOf(src) >= 0; }
+  function discardRow(f, row) {
+    if (!row || !row.src) { return; }
+    f.descartados = f.descartados || [];
+    if (f.descartados.indexOf(row.src) < 0) { f.descartados.push(row.src); }
+  }
+
   function mergeDocs(f, list, sent) {
     var added = 0, tit = (f.personas || [])[0], titName = tit && val(val(f.nombres) + val(f.apellidos)) ? personaLabel(f, tit) : "";
     list.forEach(function (x) {
@@ -639,8 +653,12 @@
         if (x.enviado) { sent.push(dup); }
         return;
       }
+      /* la fila que el agente borró o cambió (otro tipo, otra persona) no
+         vuelve cuando los documentos se usan de nuevo */
+      var src = rowSource("doc", x.cat + "|" + persona);
+      if (discarded(f, src) || f.docs.some(function (y) { return y.src === src; })) { return; }
       /* titular: el documento es del titular aunque luego se corrija su nombre */
-      var item = { cat: x.cat, persona: persona, fecha: x.fecha || "", enviado: !!x.enviado, doc: x.doc || "", auto: true, titular: isTit };
+      var item = { cat: x.cat, persona: persona, fecha: x.fecha || "", enviado: !!x.enviado, doc: x.doc || "", auto: true, titular: isTit, src: src };
       f.docs.push(item);
       if (x.enviado) { sent.push(item); }
       added++;
@@ -1231,7 +1249,7 @@
     productOf: productOf, carrierShort: carrierShort, carrierName: carrierName, carrierOptions: carrierOptions,
     carrierChoice: carrierChoice, carrierFromChoice: carrierFromChoice, CARRIER_OTHER: CARRIER_OTHER, memberDelta: memberDelta, zohoName: zohoName, clientInitials: clientInitials,
     personas: personas, docsOf: docsOf, pendingDocs: pendingDocs, planesOf: planesOf, networkOf: networkOf, docKey: docKey,
-    mergeDocs: mergeDocs, mergeMembers: mergeMembers, mergeHousehold: mergeHousehold, samePerson: samePerson, moveDocKey: moveDocKey,
+    mergeDocs: mergeDocs, rowSource: rowSource, discarded: discarded, discardRow: discardRow, mergeMembers: mergeMembers, mergeHousehold: mergeHousehold, samePerson: samePerson, moveDocKey: moveDocKey,
     enTaxes: enTaxes, conCobertura: conCobertura, ingresoHogar: ingresoHogar, moneyShort: moneyShort,
     NET_DIRS: NET_DIRS, netDirFor: netDirFor
   };

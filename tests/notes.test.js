@@ -955,14 +955,14 @@ const hogar = (extra) => Object.assign({
 test("mergeDocs: el documento del titular lleva su nombre y queda marcado como suyo", () => {
   const f = hogar(), sent = [];
   assert.equal(N.mergeDocs(f, [{ cat: "immigration", persona: "ROSA PEREZ LIMA", titular: true, enviado: true, doc: "Permanent Resident Card, Green Card (I-551)" }], sent), 1);
-  assert.deepEqual(f.docs, [{ cat: "immigration", persona: "ROSA PEREZ LIMA", fecha: "", enviado: true, doc: "Permanent Resident Card, Green Card (I-551)", auto: true, titular: true }]);
+  assert.deepEqual(f.docs, [{ cat: "immigration", persona: "ROSA PEREZ LIMA", fecha: "", enviado: true, doc: "Permanent Resident Card, Green Card (I-551)", auto: true, titular: true, src: "doc:IMMIGRATION|ROSAPEREZLIMA" }]);
   assert.deepEqual(sent, f.docs);
 });
 
 test("mergeDocs: sin el nombre del titular la persona queda vacía, no «Sin nombre»", () => {
   const f = hogar({ nombres: "", apellidos: "" }), sent = [];
   N.mergeDocs(f, [{ cat: "income", persona: "", fecha: "02/15/2027" }], sent);
-  assert.deepEqual(f.docs, [{ cat: "income", persona: "", fecha: "02/15/2027", enviado: false, doc: "", auto: true, titular: true }]);
+  assert.deepEqual(f.docs, [{ cat: "income", persona: "", fecha: "02/15/2027", enviado: false, doc: "", auto: true, titular: true, src: "doc:INCOME|" }]);
   assert.deepEqual(sent, []);
 });
 
@@ -985,7 +985,7 @@ test("mergeDocs: el documento enviado marca como enviado al que ya estaba pedido
   N.mergeDocs(f, [{ cat: "immigration", persona: "YANET SOTO MESA", fecha: "01/31/2027" }], sent);
   assert.equal(N.mergeDocs(f, [{ cat: "immigration", persona: "YANET SOTO MESA", enviado: true, doc: "Employment Authorization Card (I-766)" }], sent), 1);
   assert.equal(f.docs.length, 1);
-  assert.deepEqual(f.docs[0], { cat: "immigration", persona: "YANET SOTO MESA", fecha: "01/31/2027", enviado: true, doc: "Employment Authorization Card (I-766)", auto: true, titular: false });
+  assert.deepEqual(f.docs[0], { cat: "immigration", persona: "YANET SOTO MESA", fecha: "01/31/2027", enviado: true, doc: "Employment Authorization Card (I-766)", auto: true, titular: false, src: "doc:IMMIGRATION|YANETSOTOMESA" });
   assert.deepEqual(sent, [f.docs[0]]);
   /* la misma carta otra vez no agrega nada */
   assert.equal(N.mergeDocs(f, [{ cat: "immigration", persona: "YANET SOTO MESA", enviado: true }], []), 0);
@@ -1145,4 +1145,21 @@ test("cambios: el teléfono con o sin el +1 del país es el mismo", () => {
   assert.deepEqual(N.cambios(Object.assign({ clienteTel: "+1 305 555 0123" }, d)), []);
   assert.deepEqual(N.cambios(Object.assign({ clienteTel: "1-305-555-0123" }, d)), []);
   assert.deepEqual(N.cambios(Object.assign({ clienteTel: "(786) 555-0123" }, d)), ["- Teléfono: (786) 555-0123 (antes (305) 555-0123)"]);
+});
+
+test("mergeDocs: un documento que el agente borró o cambió de tipo no vuelve al usar los documentos de nuevo", () => {
+  const f = hogar(), pedidos = [{ cat: "income", titular: true, fecha: "02/15/2027" }, { cat: "ssn", titular: true, fecha: "02/15/2027" }];
+  N.mergeDocs(f, pedidos, []);
+  N.discardRow(f, f.docs[1]); f.docs.splice(1, 1);
+  f.docs[0].cat = "citizenship"; delete f.docs[0].auto;
+  /* lo que hace removeFile: quedan las filas que el agente tocó */
+  f.docs = f.docs.filter((x) => !x.auto);
+  assert.equal(N.mergeDocs(f, pedidos, []), 0);
+  assert.deepEqual(f.docs.map((x) => x.cat), ["citizenship"]);
+});
+
+test("NPN: un agente del documento que solo trae el número se anota con el número", () => {
+  const d = { line: "mc", outcome: "enviada", agente: "", agenteIni: "", npn: "18765432" };
+  assert.match(N.buildNote(d), /^NPN: 18765432$/m);
+  assert.match(N.buildNote(Object.assign({}, d, { agente: "LUCIA FERRER CAMPOS" })), /^NPN: LF$/m);
 });
