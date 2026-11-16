@@ -399,10 +399,12 @@
   function same(a, b) { return U.stripAccents(val(a)).toUpperCase() === U.stripAccents(val(b)).toUpperCase(); }
   function dateOrText(v) { return U.parseDate(v) || val(v); }
 
-  /* el teléfono se compara por sus dígitos: (305) 555-0199 es 305-555-0199 */
+  /* el teléfono se compara por sus dígitos, sin el 1 del país:
+     (305) 555-0199 es 305-555-0199 y +1 305 555 0199 */
+  function phoneDigits(v) { return String(v || "").replace(/\D/g, "").replace(/^1(?=\d{10}$)/, ""); }
   var CONTACTO = [
     { k: "direccion", label: "Dirección", eq: same },
-    { k: "clienteTel", label: "Teléfono", eq: function (a, b) { return String(a || "").replace(/\D/g, "") === String(b || "").replace(/\D/g, ""); } },
+    { k: "clienteTel", label: "Teléfono", eq: function (a, b) { return phoneDigits(a) === phoneDigits(b); } },
     { k: "clienteEmail", label: "Email", eq: same }
   ];
 
@@ -644,6 +646,113 @@
       added++;
     });
     return added;
+  }
+
+  /* La misma persona escrita de dos maneras: "BEATRIZ MARIA DIAZ" en Zoho y
+     "BEATRIZ DIAZ" en el documento (mismo primer nombre y mismo último
+     apellido), o solo el nombre de pila ("DIEGO"). */
+  function words(s) { return U.stripAccents(val(s)).toUpperCase().split(/\s+/).filter(Boolean); }
+  function samePerson(a, b) {
+    var x = words(a), y = words(b);
+    if (!x.length || !y.length || x[0] !== y[0]) { return false; }
+    return x.length === 1 || y.length === 1 || x[x.length - 1] === y[y.length - 1];
+  }
+  /* La persona del hogar que es la del documento: el titular si el nombre
+     es el suyo; si no, quien tiene ese nombre, o el único con ese primer
+     nombre (el agente pudo corregir el apellido). */
+  function findMember(f, name, titular) {
+    var list = f.personas || [], tit = list.filter(function (p) { return p.titular; })[0];
+    if (titular) { return tit || null; }
+    var titName = tit ? personaLabel(f, tit) : "";
+    if (titName && samePerson(titName, name)) { return tit; }
+    var others = list.filter(function (p) { return !p.titular; });
+    var ps = others.filter(function (p) { return sameName(p.nombre, name); });
+    if (!ps.length) { ps = others.filter(function (p) { return samePerson(p.nombre, name); }); }
+    if (!ps.length) { ps = others.filter(function (p) { return words(p.nombre)[0] === words(name)[0]; }); }
+    return ps.length === 1 ? ps[0] : null;
+  }
+  function removedByAgent(f, name) { return (f.quitados || []).some(function (q) { return sameName(q, name) || samePerson(q, name); }); }
+
+  /* Lo que el documento dice de quien ya está en la lista: su nombre (si
+     trae nombre y apellido) y que está en los taxes y pide cobertura. */
+  function confirmMember(p, name) {
+    p.orig = p.orig || {};
+    if (!p.titular && !("nombre" in p.orig) && words(name).length > 1 && words(p.nombre).length > 1) { p.orig.nombre = upper(name); }
+    if (!("taxes" in p.orig)) { p.orig.taxes = true; p.orig.cobertura = true; }
+  }
+
+  /* Nombres de los miembros de un documento (My Plans & Programs, una
+     aplicación): quien ya está se confirma; quien falta se agrega con taxes
+     y cobertura, salvo que el agente lo haya quitado. El primero es el
+     titular cuando todavía no hay nombre en Zoho. */
+  function mergeMembers(f, names) {
+    var added = 0;
+    f.personas = f.personas || [];
+    if (names.length) { f.hogarPdf = true; }
+    names.forEach(function (n, idx) {
+      var found = findMember(f, n);
+      if (found) { confirmMember(found, n); return; }
+      if (idx === 0 && !val(f.nombres)) { return; }
+      if (removedByAgent(f, n)) { return; }
+      var nombre = upper(n);
+      f.personas.push({ nombre: nombre, parentesco: "", taxes: true, cobertura: true, ingreso: "", estatus: "", dob: "", auto: true,
+                        orig: { nombre: nombre, taxes: true, cobertura: true } });
+      added++;
+    });
+    return added;
+  }
+
+  /* Personas del hogar de un documento (App Summary, el ingreso y DOB del
+     titular de otros): cada una recibe lo que el documento dice de ella
+     (parentesco, estatus, ingreso anual, DOB); quien falta se agrega, salvo
+     que el agente lo haya quitado.
+     - Un campo vacío se llena. Uno que llenó un documento y nadie tocó se
+       reemplaza si este documento manda igual o más (`rank`): el último
+       soltado gana. Lo escrito a mano no se toca.
+     - Lo que dice el documento queda en `orig`, así lo que difiera sale en
+       Cambios; `filled` guarda qué campos llenó y con qué rango, para
+       vaciarlos si se quita el documento.
+     - `weak`: un dato que no es de la persona sino del hogar (el ingreso del
+       hogar de la carta de elegibilidad, puesto en el titular): solo llena
+       un campo vacío y cede ante cualquier dato de la persona. */
+  var HOGAR_KEYS = ["parentesco", "estatus", "ingreso", "dob"];
+  function sameValue(k, a, b) {
+    if (k === "ingreso") { return U.moneyNumber(a) === U.moneyNumber(b); }
+    if (k === "dob") { return same(dateOrText(a), dateOrText(b)); }
+    return same(a, b);
+  }
+  function mergeHousehold(f, list, rank, weak) {
+    var n = 0, r = weak ? 0 : (rank == null ? 1 : rank);
+    f.personas = f.personas || [];
+    /* una lista de personas con nombre es el hogar del documento */
+    if (!weak && (list || []).some(function (x) { return val(x.nombre); })) { f.hogarPdf = true; }
+    (list || []).forEach(function (x) {
+      var keys = HOGAR_KEYS.filter(function (k) { return val(x[k]) && !(k === "parentesco" && x.titular); });
+      var p = findMember(f, x.nombre, x.titular);
+      if (!p) {
+        if (x.titular || !val(x.nombre) || removedByAgent(f, x.nombre)) { return; }
+        var nombre = upper(x.nombre), orig = { nombre: nombre, taxes: true, cobertura: true };
+        p = { nombre: nombre, parentesco: "", taxes: true, cobertura: true, ingreso: "", estatus: "", dob: "", auto: true, orig: orig };
+        keys.forEach(function (k) { p[k] = x[k]; orig[k] = x[k]; });
+        f.personas.push(p);
+        n++;
+        return;
+      }
+      if (!weak) { confirmMember(p, x.nombre); }
+      p.orig = p.orig || {};
+      p.filled = p.filled || {};
+      keys.forEach(function (k) {
+        var had = p.filled[k], untouched = had != null && p.orig && sameValue(k, p[k], p.orig[k]);
+        if (!val(p[k]) || (untouched && r >= had && (!weak || had === 0))) {
+          if (!sameValue(k, p[k], x[k])) { n++; }
+          p[k] = x[k]; p.orig[k] = x[k]; p.filled[k] = r;
+          return;
+        }
+        /* lo escrito a mano se queda; lo que dice el documento es la base */
+        if (had == null && !weak) { p.orig[k] = x[k]; }
+      });
+    });
+    return n;
   }
 
   /* La fila de Docs Submitted de un documento cambia de clave al cambiar su
@@ -1122,7 +1231,7 @@
     productOf: productOf, carrierShort: carrierShort, carrierName: carrierName, carrierOptions: carrierOptions,
     carrierChoice: carrierChoice, carrierFromChoice: carrierFromChoice, CARRIER_OTHER: CARRIER_OTHER, memberDelta: memberDelta, zohoName: zohoName, clientInitials: clientInitials,
     personas: personas, docsOf: docsOf, pendingDocs: pendingDocs, planesOf: planesOf, networkOf: networkOf, docKey: docKey,
-    mergeDocs: mergeDocs, moveDocKey: moveDocKey,
+    mergeDocs: mergeDocs, mergeMembers: mergeMembers, mergeHousehold: mergeHousehold, samePerson: samePerson, moveDocKey: moveDocKey,
     enTaxes: enTaxes, conCobertura: conCobertura, ingresoHogar: ingresoHogar, moneyShort: moneyShort,
     NET_DIRS: NET_DIRS, netDirFor: netDirFor
   };

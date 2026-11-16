@@ -111,3 +111,10 @@ test("versiones: solo una más nueva cuenta como actualización", () => {
   assert.equal(U.newerVersion("1.8.9", "1.9.0"), false);
   ["", null, "v1.10", "1.10.0-beta", "abc", "1..2"].forEach((v) => assert.equal(U.newerVersion(v, "1.9.0"), false, String(v)));
 });
+
+test("parseBirth: una fecha de nacimiento con el año en dos cifras no queda en el futuro", () => {
+  assert.equal(U.parseBirth("5/2/80"), "05/02/1980");
+  assert.equal(U.parseBirth("5/2/12"), "05/02/2012");
+  assert.equal(U.parseBirth("05/02/1980"), "05/02/1980");
+  assert.equal(U.parseBirth("hola"), "");
+});

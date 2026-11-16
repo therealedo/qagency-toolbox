@@ -1,0 +1,90 @@
+HealthCare.gov
+This document is a copy of the answers you entered in your application as of Monday, November
+16th 2026 at 10:05 AM. Keep it for your records.
+Review your application
+Review your contact information
+Full name
+Ana Torres
+Home address
+123 Main St, Miami, FL 33101
+Email address
+ana.torres@example.com
+Phone number(s)
+Mobile: (305) 555-0123
+Review your household
+Applying for health coverage
+Ana Torres
+Luis Torres
+Sofia Torres
+Ana Torres
+Name
+Ana Torres
+Date of birth
+05/02/1980
+Sex
+Female
+Relationships
+Luis's spouse
+Sofia's parent (including adoptive parent)
+Marital status
+Married
+Tax filing status
+Filing a 2027 tax return jointly with Luis
+U.S. citizen or U.S. national
+Yes
+Income
+This month's income
+Job: Acme Cleaning LLC
+$3,500.00 every month
+This month's total income (November 2026)
+$3,500.00
+Annual income
+Estimated income next year (2027)
+$42,000.00
+Luis Torres
+Name
+Luis Torres
+Date of birth
+08/21/1978
+Sex
+Male
+Relationships
+Ana's spouse
+Sofia's parent (including adoptive parent)
+Marital status
+Married
+U.S. citizen or U.S. national
+No
+Eligible immigration status
+Yes
+Immigration document type
+Permanent Resident Card ("Green Card", I-551)
+Income
+This month's total income (November 2026)
+$1,875.00
+Annual income
+Estimated income next year (2027)
+$22,500.00
+Sofia Torres
+Name
+Sofia Torres
+Date of birth
+03/09/2012
+Relationships
+Ana's child
+Luis's child
+Tax filing status
+Will be claimed as a tax dependent on Ana's 2027 tax return
+U.S. citizen or U.S. national
+Yes
+Income
+This month's total income (November 2026)
+$0.00
+Annual income
+Estimated income next year (2027)
+$0.00
+Review your agent or broker information
+Full name
+Laura Gomez
+National Producer Number (NPN)
+12345678

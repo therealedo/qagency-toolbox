@@ -1039,3 +1039,110 @@ test("Cambios: el teléfono y el email que trajo el App Summary no son un cambio
   const changed = N.cambios({ line: "oc", base, clienteTel: "(786) 555-0199", clienteEmail: "beatriz.diaz@example.com", personas: [] });
   assert.ok(changed.some((x) => /^- Teléfono: \(786\) 555-0199/.test(x)), changed.join(" / "));
 });
+
+/* Las personas que trae un App Summary llenan su parentesco, estatus,
+   ingreso anual y DOB; lo que el documento dice queda como base, así que lo
+   que el agente cambie después sale en Cambios. */
+const DOC_HOGAR = [
+  { nombre: "ANA TORRES", titular: true, dob: "05/02/1980", estatus: "ciudadano", ingreso: "$42,000.00" },
+  { nombre: "LUIS TORRES", dob: "08/21/1978", parentesco: "Cónyuge", estatus: "residente", ingreso: "$22,500.00" },
+  { nombre: "SOFIA TORRES", dob: "03/09/2012", parentesco: "Hijo/a", estatus: "ciudadano", ingreso: "$0.00" }
+];
+const casa = (personas) => ({ nombres: "ANA", apellidos: "TORRES", quitados: [], personas });
+
+test("mergeHousehold: llena los datos de quien ya está y agrega a quien falta", () => {
+  const f = casa([{ titular: true, taxes: true, cobertura: true, ingreso: "", estatus: "", dob: "" },
+    { nombre: "LUIS", parentesco: "", taxes: true, cobertura: true, ingreso: "", estatus: "", dob: "" }]);
+  assert.equal(N.mergeHousehold(f, DOC_HOGAR), 3 + 4 + 1);
+  const [tit, luis, sofia] = f.personas;
+  assert.deepEqual([tit.estatus, tit.ingreso, tit.dob], ["ciudadano", "$42,000.00", "05/02/1980"]);
+  assert.deepEqual([luis.nombre, luis.parentesco, luis.estatus, luis.ingreso, luis.dob], ["LUIS", "Cónyuge", "residente", "$22,500.00", "08/21/1978"]);
+  assert.equal(luis.auto, undefined);
+  assert.deepEqual(luis.filled, { parentesco: 1, estatus: 1, ingreso: 1, dob: 1 });
+  assert.deepEqual(sofia, { nombre: "SOFIA TORRES", parentesco: "Hijo/a", taxes: true, cobertura: true, ingreso: "$0.00", estatus: "ciudadano",
+    dob: "03/09/2012", auto: true, orig: { nombre: "SOFIA TORRES", taxes: true, cobertura: true, parentesco: "Hijo/a", estatus: "ciudadano", ingreso: "$0.00", dob: "03/09/2012" } });
+  assert.equal(f.hogarPdf, true);
+  assert.deepEqual(N.cambios(Object.assign(f, { base: {} })), []);
+});
+
+test("mergeHousehold: lo que el agente ya escribió se queda, y la diferencia con el documento es un Cambio", () => {
+  const f = casa([{ titular: true, taxes: true, cobertura: true, ingreso: "$45,000.00", estatus: "", dob: "" },
+    { nombre: "LUIS TORRES", parentesco: "Cónyuge", taxes: true, cobertura: true, ingreso: "", estatus: "ciudadano", dob: "" },
+    { nombre: "SOFIA TORRES", parentesco: "Hijo/a", taxes: true, cobertura: true, ingreso: "", estatus: "", dob: "" }]);
+  N.mergeHousehold(f, DOC_HOGAR);
+  assert.equal(f.personas[0].ingreso, "$45,000.00");
+  assert.equal(f.personas[1].estatus, "ciudadano");
+  assert.deepEqual(N.cambios(Object.assign(f, { base: {} })), [
+    "- Ana: ingreso anual $45,000 (antes $42,000)",
+    "- Luis: estatus Ciudadano (antes Residente)"
+  ]);
+});
+
+test("mergeHousehold: a quien el agente quitó no se le vuelve a agregar", () => {
+  const f = casa([{ titular: true, taxes: true, cobertura: true }]);
+  f.quitados = ["SOFIA TORRES"];
+  N.mergeHousehold(f, DOC_HOGAR);
+  assert.deepEqual(f.personas.map((p) => p.nombre || "TIT"), ["TIT", "LUIS TORRES"]);
+});
+
+const titOnly = () => casa([{ titular: true, taxes: true, cobertura: true, ingreso: "", estatus: "", dob: "" }]);
+const LETTER = [{ titular: true, ingreso: "$64,500.00" }];
+
+test("mergeHousehold: el ingreso del hogar de la carta no se suma al de cada persona del App Summary, en cualquier orden", () => {
+  for (const order of [["letter", "app"], ["app", "letter"]]) {
+    const f = titOnly();
+    order.forEach((d) => d === "letter" ? N.mergeHousehold(f, LETTER, 2, true) : N.mergeHousehold(f, DOC_HOGAR, 1));
+    assert.deepEqual(f.personas.map((p) => p.ingreso), ["$42,000.00", "$22,500.00", "$0.00"], order.join(" → "));
+    assert.deepEqual(N.cambios(Object.assign(f, { base: {} })), [], order.join(" → "));
+  }
+});
+
+test("mergeHousehold: con dos aplicaciones gana la última soltada, y lo escrito a mano se queda", () => {
+  const f = titOnly();
+  N.mergeHousehold(f, [{ titular: true, ingreso: "$30,000.00", dob: "05/02/1980" }], 1);
+  f.personas[0].dob = "05/03/1980";
+  N.mergeHousehold(f, [{ titular: true, ingreso: "$42,000.00", dob: "05/02/1980" }], 1);
+  assert.equal(f.personas[0].ingreso, "$42,000.00");
+  assert.equal(f.personas[0].dob, "05/03/1980");
+  assert.deepEqual(N.cambios(Object.assign(f, { base: {} })), ["- Ana: DOB 05/03/1980 (antes 05/02/1980)"]);
+});
+
+test("mergeHousehold: una aplicación solo del titular deja como cambio a quien se agregue a mano", () => {
+  const f = titOnly();
+  N.mergeHousehold(f, [DOC_HOGAR[0]], 1);
+  f.personas.push({ nombre: "LUIS TORRES", parentesco: "Cónyuge", taxes: true, cobertura: true });
+  assert.deepEqual(N.cambios(Object.assign(f, { base: {} })), ["- Se agrega a LUIS TORRES (Cónyuge)"]);
+});
+
+test("mergeMembers: la misma persona escrita de otra manera no se repite", () => {
+  const f = { nombres: "BEATRIZ MARIA", apellidos: "DIAZ", quitados: [], personas: [{ titular: true, taxes: true, cobertura: true }] };
+  N.mergeMembers(f, ["BEATRIZ DIAZ", "JUAN CARLOS DIAZ", "ANA DIAZ"]);
+  assert.deepEqual(f.personas.map((p) => p.nombre || "TIT"), ["TIT", "JUAN CARLOS DIAZ", "ANA DIAZ"]);
+  const g = { nombres: "LAURA", apellidos: "RAMOS", quitados: [], personas: [{ titular: true, taxes: true, cobertura: true }] };
+  N.mergeHousehold(g, [{ nombre: "LAURA RAMOS", titular: true }, { nombre: "DIEGO", parentesco: "Hijo/a" }], 1);
+  N.mergeMembers(g, ["LAURA RAMOS", "DIEGO RAMOS"]);
+  assert.deepEqual(g.personas.map((p) => p.nombre || "TIT"), ["TIT", "DIEGO"]);
+  g.personas[1].nombre = "DIEGO RAMIREZ";
+  N.mergeMembers(g, ["LAURA RAMOS", "DIEGO RAMOS"]);
+  assert.equal(g.personas.length, 2);
+});
+
+test("mergeHousehold: al volver a usar el documento (después de quitar otro) los Cambios siguen", () => {
+  const f = titOnly();
+  N.mergeHousehold(f, DOC_HOGAR, 1);
+  f.personas[1].cobertura = false; delete f.personas[1].auto;
+  f.personas[2].nombre = "SOFIA TORREZ"; delete f.personas[2].auto;
+  const before = N.cambios(Object.assign(f, { base: {} }));
+  assert.deepEqual(before, ["- Luis: no pide cobertura", "- Sofia: nombre SOFIA TORREZ (antes SOFIA TORRES)"]);
+  /* lo que hace removeFile con quien queda: sin orig ni filled */
+  f.personas.forEach((p) => { delete p.orig; delete p.filled; });
+  N.mergeHousehold(f, DOC_HOGAR, 1);
+  assert.deepEqual(N.cambios(f), before);
+});
+
+test("cambios: el teléfono con o sin el +1 del país es el mismo", () => {
+  const d = { line: "oc", base: { clienteTel: "(305) 555-0123" }, personas: [] };
+  assert.deepEqual(N.cambios(Object.assign({ clienteTel: "+1 305 555 0123" }, d)), []);
+  assert.deepEqual(N.cambios(Object.assign({ clienteTel: "1-305-555-0123" }, d)), []);
+  assert.deepEqual(N.cambios(Object.assign({ clienteTel: "(786) 555-0123" }, d)), ["- Teléfono: (786) 555-0123 (antes (305) 555-0123)"]);
+});

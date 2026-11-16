@@ -165,19 +165,19 @@ test("Aplicación de Medicare en inglés, en tabla", () => {
    archivo y da sus datos; un campo que el documento no trae queda vacío. */
 const mcCarrier = (word) => C.CARRIERS.mc.find((c) => c.re.test(word)).name;
 const MC_APPS = {
-  Humana: {
+  Humana: { clienteTel: "(555) 010-4821", genero: "o",
     nombres: "ANDRES FELIPE", apellidos: "MORALES", mbi: "4CD5EF6GH78", parteA: "09/01/2010", parteB: "10/01/2010",
     efectiva: "01/01/2027", plan: "Humana Gold Plus - Diabetes and Heart (HMO C-SNP) H1036-311-000", periodoMC: "AEP",
     pcp: "RIVAS TOMAS J MD", pcpId: "731902", confirmacion: "H4QW27XTRA", prima: "$0.00", agente: "MARTA QUINTERO",
     compania: mcCarrier("Humana"), cmd: true
   },
-  UHC: {
+  UHC: { genero: "a",
     nombres: "ELENA", apellidos: "NAVARRO", mbi: "5EF6GH7JK89", parteA: "11/01/2003", parteB: "11/01/2003",
     efectiva: "01/01/2027", plan: "IND - UHC Dual Complete FL-Y5 (HMO-POS D-SNP) (MAPD) H1045-073-000",
     medicaid: "1234509876", periodoMC: "AEP", pcp: "Hector Villalba", pcpId: "001234567890", prima: "$0.00",
     agente: "MARTA QUINTERO LUGO", npn: "19876543", compania: mcCarrier("UnitedHealthcare")
   },
-  Aetna: {
+  Aetna: { clienteEmail: "client@example.com", clienteTel: "(555) 010-4477", genero: "a",
     nombres: "GLORIA", apellidos: "PAREDES", mbi: "6GH7JK8MN90", parteA: "08/01/2016", parteB: "08/01/2016",
     efectiva: "01/01/2027", plan: "Aetna Medicare Select (HMO) H1609-027", periodoMC: "AEP",
     pcp: "Benitez, Ramon, MD", pcpId: "506070", confirmacion: "T9876543210987A", prima: "$0.00",
@@ -191,7 +191,7 @@ const MC_APPS = {
     compania: mcCarrier("Freedom Health")
   },
   /* Devoted deja la Parte A/B, el PCP y la prima en "-" */
-  Devoted: {
+  Devoted: { clienteEmail: "client727@example.com", clienteTel: "(555) 010-9684", genero: "o",
     nombres: "PABLO", apellidos: "ANDRES RUIZ", mbi: "7JK8MN9PQ01", efectiva: "01/01/2027",
     plan: "DEVOTED CHOICE GIVEBACK 016 FL (PPO) (H9884-016)", periodoMC: "AEP", confirmacion: "KZPTRWM5N2Q",
     agente: "LUCIA FERRER CAMPOS", npn: "18765432", compania: mcCarrier("Devoted Health")
@@ -387,21 +387,21 @@ const SUPP_DOCS = {
     nombres: "SILVIA", apellidos: "LUNA PRIETO", compania: GR, producto: "Hospital", plan: "Hospital Indemnity", prima: "$38.38",
     efectiva: "01/01/2027", poliza: "900456789" }, AGENT_GR) }),
   /* la prima es el total mensual de la tabla, no un rider ni "Premium Amount Sent" */
-  "Supp App Allstate Accident": Object.assign({}, SUPP_APP, { fields: {
+  "Supp App Allstate Accident": Object.assign({}, SUPP_APP, { fields: { clienteEmail: "julio.mena@example.com", clienteTel: "(555) 010-4455", direccion: "700 Palmetto Rd, Venice, FL 34285",
     nombres: "JULIO", apellidos: "MENA DUARTE", compania: ALLSTATE, producto: "Accident", plan: "Accident Medical Expense Plan",
     prima: "$12.89", efectiva: "01/01/2027", beneficiario: "Mena Ochoa, Alba", agente: "LUCIA FERRER CAMPOS" } }),
-  "Supp App Allstate Accident Spouse": Object.assign({}, SUPP_APP, { fields: {
+  "Supp App Allstate Accident Spouse": Object.assign({}, SUPP_APP, { fields: { clienteEmail: "silvia.luna@example.com", clienteTel: "(555) 010-5501", direccion: "45000 Bay View Way, Fort Myers, FL 33901",
     nombres: "SILVIA", apellidos: "LUNA PRIETO", compania: ALLSTATE, producto: "Accident", plan: "Accident Medical Expense Plan",
     prima: "$26.61", efectiva: "01/01/2027", beneficiario: "Luna Prieto, Ramon", agente: "LUCIA FERRER CAMPOS" } }),
   /* Florida Blue no muestra la prima en la aplicación */
   "Supp App Dental Florida Blue": Object.assign({}, SUPP_APP, { fields: {
     nombres: "MARIO", apellidos: "BENITEZ", compania: carrierOf("supp", "Florida Combined Life"), producto: "Dental",
     plan: "BlueDental Copayment QF", efectiva: "10/01/2026", agente: "LUCIA FERRER CAMPOS" } }),
-  "Supp App Dental Cigna": Object.assign({}, SUPP_APP, { fields: {
+  "Supp App Dental Cigna": Object.assign({}, SUPP_APP, { fields: { clienteEmail: "laura.pineda@example.com",
     nombres: "LAURA", apellidos: "PINEDA", compania: carrierOf("supp", "Cigna"), producto: "Dental", plan: "Cigna Dental Vision Hearing 3500",
     prima: "$62.66", efectiva: "09/01/2026", agente: "MARTA QUINTERO" } }),
   /* "No Dependents added" no es un beneficiario; el NPN viene en el enlace */
-  "Supp App Dental Humana": Object.assign({}, SUPP_APP, { fields: {
+  "Supp App Dental Humana": Object.assign({}, SUPP_APP, { fields: { clienteEmail: "tomas.ibarra@example.com", clienteTel: "(555) 010-2843", direccion: "450 Orchid Ct, Naples, COLLIER, FL 34102",
     nombres: "TOMAS", apellidos: "IBARRA", compania: carrierOf("supp", "Humana"), producto: "Dental", plan: "Dental Value HI215",
     prima: "$11.99", efectiva: "08/01/2026", agente: "MARTA QUINTERO", npn: "19876543" } }),
   "Supp App Dental Allstate": Object.assign({}, SUPP_APP, { fields: {
@@ -465,7 +465,9 @@ const OC_DOCS = {
      es una fecha de nacimiento, no puede ser de 2041 */
   "OC App Summary OCR": { type: "oc_app", net: "appsummary", fields: {
     nombres: "LAURA", apellidos: "RAMOS", anio: "2027", ingreso: "$31,200.00", dob: "02/17/1941",
-    direccion: "Fort Myers, FL 33901-", plataforma: "MKPL" } },
+    direccion: "Fort Myers, FL 33901-", plataforma: "MKPL", genero: "a",
+    personas: [{ nombre: "LAURA RAMOS", titular: true, dob: "02/17/1941", estatus: "ciudadano", ingreso: "$31,200.00" },
+      { nombre: "DIEGO", parentesco: "Hijo/a", ingreso: "$0.00" }] } },
   /* Docs Submitted: el punto abierto es de quien abrió la cuenta (el titular) */
   "OC Docs Submitted Principal": { type: "oc_docs", net: "docsub", fields: {
     appId: "4498765432", anio: "2027", nombres: "ROSA", apellidos: "PEREZ LIMA",
@@ -550,4 +552,131 @@ test("App Summary: el número gratuito del Mercado no es el teléfono del client
   const r = X.extract("HealthCare.gov\nReview your application\nApplication ID: 4412345678\nFull name\nBeatriz Diaz\n" +
     "Phone\n1-800-318-2596\n", "App Summary.pdf", "oc");
   assert.equal(r.fields.clienteTel, undefined);
+});
+
+test("HealthSherpa: el texto copiado de la búsqueda da cada plan con su compañía y prima; los filtros no son planes", () => {
+  const r = read("HealthSherpa Plans Copied");
+  assert.equal(r.type, "oc_quote");
+  assert.equal(r.line, "oc");
+  assert.equal(r.net, "");
+  assert.deepEqual(r.fields, { planes: [
+    { compania: "FLORIDA BLUE", plan: "myBlue Essentials Bronze (HSA) 27M07-30 (Rewards)", prima: "$36.10" },
+    { compania: "OSCAR", plan: "Bronze Simple Breathe Easy with Enhanced COPD Benefits", prima: "$40.94" },
+    { compania: "OSCAR", plan: "Bronze Classic 4700", prima: "$66.86" }
+  ] });
+});
+
+/* palabras como las da el OCR: { x, y, w, h, text, conf } */
+function words(rows) {
+  const out = [];
+  rows.forEach(([x, y, text, h]) => {
+    let at = x;
+    text.split(" ").forEach((t) => { out.push({ x: at, y, w: t.length * 7, h: h || 10, text: t, conf: 95 }); at += t.length * 7 + 5; });
+  });
+  return out;
+}
+
+test("HealthSherpa: la etiqueta del filtro de prima (sin centavos) no es un plan", () => {
+  assert.deepEqual(X.quotePlans(words([
+    [259, 313, "Monthly premium"], [424, 329, "$3477"],
+    [259, 398, "Deductible"], [420, 414, "$12000"],
+    [283, 367, "Ambetter Health"], [283, 397, "AmeriHealth Caritas Next"]
+  ])), []);
+});
+
+test("HealthSherpa: una tarjeta en español, con la etiqueta mal leída, se lee por la fila del nivel", () => {
+  assert.deepEqual(X.quotePlans(words([
+    [562, 250, "Signature Silver + Vision + Adult Dental"],
+    [562, 270, "HMO • PLATA"],
+    [1180, 258, "ambetter"],
+    [562, 350, "$120.55", 16], [740, 350, "$4,000", 16],
+    [562, 372, "Prma rnensual"], [562, 388, "$600"]
+  ])), [{ compania: "AMBETTER", plan: "Signature Silver + Vision + Adult Dental", prima: "$120.55" }]);
+});
+
+test("HealthSherpa: con las palabras del OCR, otros documentos se leen igual que sin ellas", () => {
+  const text = fs.readFileSync(path.join(__dirname, "fixtures", "My Plans and Programs.txt"), "utf8");
+  const plain = X.extract(text, "captura.png", "oc");
+  const withWords = X.extract(text, "captura.png", "oc", { words: words([[100, 100, "Monthly premium"]]) });
+  assert.deepEqual(withWords, plain);
+});
+
+/* App Summary de HealthCare.gov con todo el hogar: cada persona trae su
+   fecha de nacimiento, parentesco, estatus e ingreso anual; el agente va al
+   final con su NPN. */
+test("App Summary: cada persona del hogar con su parentesco, estatus e ingreso anual, y el agente", () => {
+  const r = X.extract(fixture("OC App Summary Household"), "document.pdf", "oc");
+  assert.equal(r.type, "oc_app");
+  assert.equal(r.fields.ingreso, "$42,000.00");
+  assert.deepEqual(r.fields.personas, [
+    { nombre: "ANA TORRES", titular: true, dob: "05/02/1980", estatus: "ciudadano", ingreso: "$42,000.00" },
+    { nombre: "LUIS TORRES", dob: "08/21/1978", parentesco: "Cónyuge", estatus: "residente", ingreso: "$22,500.00" },
+    { nombre: "SOFIA TORRES", dob: "03/09/2012", parentesco: "Hijo/a", estatus: "ciudadano", ingreso: "$0.00" }
+  ]);
+  assert.equal(r.fields.agente, "LAURA GOMEZ");
+  assert.equal(r.fields.npn, "12345678");
+});
+
+test("App Summary: sin «Estimated income next year» legible el ingreso sigue siendo el anual, no el del mes", () => {
+  const text = fixture("OC App Summary Household").replace(/Estimated income next year/g, "Estimated incone next yeer");
+  const r = X.extract(text, "document.pdf", "oc");
+  assert.equal(r.fields.ingreso, "$42,000.00");
+  assert.deepEqual(r.fields.personas.map((p) => p.ingreso), ["$42,000.00", "$22,500.00", "$0.00"]);
+});
+
+test("App Summary: el parentesco sale también de lo que dice el titular de cada uno", () => {
+  const text = fixture("OC App Summary Household").replace("Ana's child\nLuis's child\n", "");
+  const r = X.extract(text, "document.pdf", "oc");
+  assert.equal(r.fields.personas[2].parentesco, "Hijo/a");
+});
+
+test("aplicación de Medicare: el NPN se lee también como «NPN #:» o «Agent NPN»", () => {
+  const base = fixture("Diaz Beatriz - Medicare App Summary ES");
+  for (const line of ["NPN #: 12345678", "Agent NPN 12345678", "NPN Number: 12345678"]) {
+    const r = X.extract(base.replace(/^NPN:.*$/m, line), "document.pdf", "mc");
+    assert.equal(r.fields.npn, "12345678", line);
+  }
+});
+
+test("App Summary: el sexo del titular decide «el cliente» o «la cliente»", () => {
+  const r = X.extract(fixture("OC App Summary Household"), "document.pdf", "oc");
+  assert.equal(r.fields.genero, "a");
+  const luis = fixture("OC App Summary Household").replace("Full name\nAna Torres", "Full name\nLuis Torres");
+  assert.equal(X.extract(luis, "document.pdf", "oc").fields.genero, "o");
+});
+
+test("App Summary: el ingreso y el DOB del titular son los de su sección, aunque otra persona vaya primero", () => {
+  const t = fixture("OC App Summary Household");
+  const luisFirst = X.extract(t.replace("Full name\nAna Torres", "Full name\nLuis Torres"), "document.pdf", "oc").fields;
+  assert.equal(luisFirst.ingreso, "$22,500.00");
+  assert.equal(luisFirst.dob, "08/21/1978");
+  const noIncome = t.replace(/Income\nThis month's income[\s\S]*?\$42,000\.00\n/, "");
+  const r = X.extract(noIncome, "document.pdf", "oc").fields;
+  assert.equal(r.ingreso, undefined);
+  assert.equal(r.personas[0].ingreso, undefined);
+  assert.equal(r.personas[1].ingreso, "$22,500.00");
+});
+
+test("App Summary: el teléfono y el email del agente no pasan por los del cliente", () => {
+  const t = fixture("OC App Summary Household")
+    .replace("ana.torres@example.com\n", "\n").replace("Mobile: (305) 555-0123\n", "\n")
+    .replace("National Producer Number (NPN)", "Email address\nlaura@agency.example.com\nPhone number\n(786) 555-0199\nNational Producer Number (NPN)");
+  const r = X.extract(t, "document.pdf", "oc").fields;
+  assert.equal(r.clienteEmail, undefined);
+  assert.equal(r.clienteTel, undefined);
+});
+
+test("comprobante de pago: lo pagado, no lo que se debe, ni la fecha de nacimiento como fecha del pago", () => {
+  const head = "Payment Receipt\nFlorida Blue\nMember Name: Ana Torres\n";
+  let r = X.extract(head + "Amount due: $120.00\nAmount paid: $60.00\nDate of birth: 05/02/1980\nConfirmation number: 150099887\n", "receipt.pdf", "oc");
+  assert.equal(r.type, "pay");
+  assert.equal(r.fields.pagoMonto, "$60.00");
+  assert.notEqual(r.fields.pagoFecha, "05/02/1980");
+  r = X.extract(head + "Total premium due $240.00\nTotal $80.00\nConfirmation number: 150099887\n", "receipt.pdf", "oc");
+  assert.equal(r.fields.pagoMonto, "$80.00");
+});
+
+test("App Summary: «month» mal leído por el OCR («rnonth») tampoco da el ingreso del mes", () => {
+  const t = fixture("OC App Summary Household").replace(/This month's/g, "This rnonth's").replace(/Estimated income next year/g, "Estimated incone next yeer");
+  assert.equal(X.extract(t, "document.pdf", "oc").fields.ingreso, "$42,000.00");
 });

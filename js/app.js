@@ -552,7 +552,8 @@
     var cancel = isOC("cancelada"), supp = S.line === "supp";
     var listEl = el("div", "people");
     S.f.personas.forEach(function (p, i) {
-      var row = listItem("person" + (p.open ? " open" : "") + (p.auto ? " is-auto" : ""), i);
+      var fromDoc = p.auto || Object.keys(p.filled || {}).length > 0;
+      var row = listItem("person" + (p.open ? " open" : "") + (fromDoc ? " is-auto" : ""), i);
       var head = el("div", "person-head");
       var t = actBtn("toggle", i, "", "person-toggle");
       t.setAttribute("aria-expanded", p.open ? "true" : "false");
@@ -706,7 +707,7 @@
     N.carrierOptions("oc").forEach(function (c) { var o = el("option"); o.value = c.v; dl.appendChild(o); });
     box.appendChild(dl);
     S.f.planes.forEach(function (p, i) {
-      var item = listItem("plan-item" + (p.sel ? " sel" : ""), i);
+      var item = listItem("plan-item" + (p.sel ? " sel" : "") + (p.auto ? " is-auto" : ""), i);
       item.appendChild(labeled("Compañía", itemInput("planes", i, "compania", p.compania, { cls: "upper", listId: dlId })));
       item.appendChild(labeled("Nombre del plan", itemInput("planes", i, "plan", p.plan), "grow"));
       item.appendChild(labeled("Prima mensual", itemInput("planes", i, "prima", p.prima, { cls: "num", ph: "$0.00", mode: "decimal" }), "w-money"));
@@ -731,7 +732,7 @@
     if (committed && prop === "ingreso") { v = U.parseMoney(v) || ""; t.value = v; }
     if (committed && prop === "prima") { v = U.parseMoney(v) || ""; t.value = v; }
     if (committed && (prop === "fecha" || prop === "dob")) {
-      var dd = U.parseDate(v);
+      var dd = prop === "dob" ? U.parseBirth(v) : U.parseDate(v);
       t.closest(".mini").classList.toggle("bad", !!U.collapse(v) && !dd);
       if (dd || !U.collapse(v)) { v = dd; t.value = dd; }
     }
@@ -1687,7 +1688,8 @@
 
   /* ---------------------------------------------------------- documentos */
 
-  var RANK = { oc_plans: 3, mc_app: 3, supp_app: 3, oc_elig: 2, pay: 2, oc_app: 1, oc_docs: 1, mc_soa: 1, supp_card: 1 };
+  var DEFAULTABLE = ["anio", "producto", "plataforma", "periodo", "periodoMC", "genero"];
+  var RANK = { oc_plans: 3, mc_app: 3, supp_app: 3, oc_elig: 2, pay: 2, oc_app: 1, oc_docs: 1, oc_quote: 1, mc_soa: 1, supp_card: 1 };
 
   /* Campos del producto: la compañía, el plan y el pago son de una línea.
      Cuando un documento cambia de línea (un dental después de un Obamacare)
@@ -1701,6 +1703,15 @@
     S.f.gestion = ""; S.f.taskId = "";
     var fresh = freshFields();
     PRODUCT_KEYS.forEach(function (k) { resetField(k, fresh); delete S.base[k]; });
+    /* lo que los documentos marcaron o agregaron era de la otra línea: las
+       casillas del Network y las personas del hogar que trajo un documento */
+    S.f.net = {};
+    S.f.personas = S.f.personas.filter(function (p) { return p.titular || !p.auto; });
+    S.f.personas.forEach(function (p) {
+      Object.keys(p.filled || {}).forEach(function (k) { if (!p.orig || p[k] === p.orig[k]) { p[k] = ""; } });
+      delete p.filled; delete p.orig;
+    });
+    S.f.hogarPdf = false;
     afterOutcomeChange();
   }
 
@@ -1720,14 +1731,32 @@
      compañía u otro número) se aparta con un aviso y no se usa, salvo que el
      agente pida usarlo igual. */
   function useFile(entry) {
-    delete entry.held; delete entry.lineFrom;
+    /* al volver a usarlo (después de quitar otro documento) la línea ya no
+       cambia: se guarda a cuál volver */
+    var hadLine = entry.lineFrom, hadOutcome = entry.outcomeFrom;
+    delete entry.held; delete entry.lineFrom; delete entry.outcomeFrom;
     entry.applied = 0;
     if (!entry.res) { return; }
+    /* un documento sin línea propia (un recibo de pago) se lee para la
+       línea en la que está la nota */
+    if (!entry.res.line && entry.text != null && entry.readFor !== S.line) { readEntry(entry); }
     var why = entry.force ? [] : N.docConflicts(caseIdentity(), S.line, entry.res);
     if (why.length) { entry.held = why; return; }
-    var lineBefore = S.line;
+    var lineBefore = S.line, outcomeBefore = S.outcome;
     entry.applied = applyExtraction(entry.res);
-    if (S.line !== lineBefore) { entry.lineFrom = lineBefore; }
+    if (S.line !== lineBefore) {
+      entry.lineFrom = lineBefore;
+      /* los otros documentos sin línea propia se vuelven a leer y usar para
+         la línea nueva: un recibo soltado antes que su aplicación */
+      S.files.forEach(function (f) { if (f !== entry && f.res && !f.res.line) { useFile(f); } });
+    } else if (S.outcome !== outcomeBefore) { entry.outcomeFrom = outcomeBefore; }
+    else if (hadLine && S.line === entry.res.line) { entry.lineFrom = hadLine; }
+    else if (hadOutcome && S.outcome !== hadOutcome) { entry.outcomeFrom = hadOutcome; }
+  }
+
+  function readEntry(entry) {
+    entry.res = X.extract(entry.text, entry.name, S.line, entry.words ? { words: entry.words } : null);
+    entry.readFor = S.line;
   }
 
   /* Quitar un documento deshace lo que llenó: se vacía lo que vino de
@@ -1746,11 +1775,15 @@
     S.base = {};
     S.f.personas = S.f.personas.filter(function (p) { return p.titular || !p.auto; });
     S.f.personas.forEach(function (p) {
-      if (p.titular && p.auto) { p.ingreso = ""; p.dob = ""; delete p.auto; }
-      delete p.orig;
+      /* lo que llenó un documento se vacía, salvo que el agente lo haya cambiado */
+      Object.keys(p.filled || {}).forEach(function (k) { if (!p.orig || p[k] === p.orig[k]) { p[k] = ""; } });
+      delete p.filled; delete p.orig;
     });
     S.f.docs = S.f.docs.filter(function (x) { return !x.auto; });
+    S.f.planes = S.f.planes.filter(function (x) { return !x.auto; });
     S.f.hogarDoc = ""; S.f.hogarPdf = false;
+    /* sin documentos no queda nadie que se haya quitado de ellos */
+    if (!S.files.length) { S.f.quitados = []; }
     /* las casillas del Network que marcó un documento se vuelven a marcar
        solo si otro documento las marca */
     [entry].concat(S.files).forEach(function (f) { if (f.res && f.res.net) { S.f.net[f.res.net] = false; } });
@@ -1759,7 +1792,14 @@
     if (entry.lineFrom && S.line === entry.res.line && !S.files.some(function (f) { return f.applied && f.res && f.res.line === S.line; })) {
       switchLine(entry.lineFrom);
     }
+    /* lo mismo con una cotización que pasó la nota a Pendiente; si queda
+       otra cotización, ella guarda a qué volver */
+    var quoteLeft = S.files.filter(function (f) { return f.applied && f.res && f.res.type === "oc_quote"; })[0];
+    if (entry.outcomeFrom && S.outcome === "pendiente" && !quoteLeft) {
+      S.outcome = entry.outcomeFrom; S.f.taskId = ""; afterOutcomeChange();
+    }
     S.files.forEach(useFile);
+    if (entry.outcomeFrom && quoteLeft && quoteLeft.applied && !quoteLeft.outcomeFrom) { quoteLeft.outcomeFrom = entry.outcomeFrom; }
     syncCarrierChoice();
   }
 
@@ -1778,30 +1818,45 @@
     delete fields.escritura;
     /* lo que va a las listas o a los selectores se aparta del resto */
     var special = {};
-    ["miembros", "ingreso", "hogar", "docs", "agente", "npn", "dob"].forEach(function (k) {
+    ["miembros", "ingreso", "hogar", "docs", "agente", "npn", "dob", "planes", "personas"].forEach(function (k) {
       if (k in fields) { special[k] = fields[k]; delete fields[k]; }
     });
+    /* Cotización de HealthSherpa: los planes van a Planes cotizados y la nota
+       pasa a Pendiente. Con la app enviada y un solo plan en la pantalla (la
+       vista del plan), ese plan va a la sección Plan. */
+    if (special.planes && lineBefore === "oc" && S.outcome === "enviada" && special.planes.length === 1) {
+      var one = special.planes[0];
+      ["compania", "plan", "prima"].forEach(function (k) { if (one[k]) { fields[k] = one[k]; } });
+      delete special.planes;
+    }
     Object.keys(fields).forEach(function (k) {
       var v = fields[k];
       if (isMoney(k)) { v = U.parseMoney(v); }
       /* lo que trae el documento queda como base para la lista de Cambios */
       if (!(k in S.base)) { S.base[k] = v; }
       var empty = S.f[k] == null || S.f[k] === "" || S.f[k] === false;
-      var replaceable = S.auto[k] && (S.auto[k] === "calc" || rank > (S.rank[k] || 0));
+      /* lo que vino de otro documento se reemplaza si este manda igual o más
+         (el último documento soltado gana); un campo que sigue en su valor de
+         una nota nueva (año, producto, plataforma, periodo, género) también */
+      var replaceable = S.auto[k] ? (S.auto[k] === "calc" || rank >= (S.rank[k] || 0))
+        : DEFAULTABLE.indexOf(k) >= 0 && S.f[k] === freshFields()[k];
       if (!empty && !replaceable) { return; }
       S.f[k] = v; S.auto[k] = true; S.rank[k] = rank; S.base[k] = v; applied++;
     });
-    if (special.miembros && S.line !== "mc") { applied += mergePersonas(U.parseList(special.miembros)); }
+    if (special.miembros && S.line !== "mc") { applied += N.mergeMembers(S.f, U.parseList(special.miembros)); }
+    if (special.planes && special.planes.length && S.line === "oc") {
+      if (S.outcome !== "pendiente") { S.outcome = "pendiente"; S.f.taskId = ""; afterOutcomeChange(); }
+      applied += mergePlanes(special.planes);
+    }
     var sent = [];
     if (S.line === "oc") {
-      var tit = S.f.personas[0];
-      /* el ingreso y la fecha de nacimiento del documento son del titular */
-      [["ingreso", U.parseMoney(special.ingreso)], ["dob", U.parseDate(special.dob)]].forEach(function (x) {
-        if (!tit || !x[1]) { return; }
-        tit.orig = tit.orig || {};
-        if (!(x[0] in tit.orig)) { tit.orig[x[0]] = x[1]; }
-        if (!U.collapse(tit[x[0]])) { tit[x[0]] = x[1]; tit.orig[x[0]] = x[1]; tit.auto = true; applied++; }
-      });
+      /* las personas del App Summary: parentesco, estatus, ingreso anual y DOB */
+      if (special.personas) { applied += N.mergeHousehold(S.f, special.personas, rank); }
+      /* el DOB del documento es del titular; el ingreso, del hogar (la carta
+         de elegibilidad): va al titular solo si nadie dijo el suyo */
+      var dob = U.parseDate(special.dob), ing = U.parseMoney(special.ingreso);
+      if (dob) { applied += N.mergeHousehold(S.f, [{ titular: true, dob: dob }], rank); }
+      if (ing) { applied += N.mergeHousehold(S.f, [{ titular: true, ingreso: ing }], rank, true); }
       if (special.hogar) { S.f.hogarDoc = special.hogar; }
       if (special.docs) { applied += N.mergeDocs(S.f, special.docs, sent); }
     }
@@ -1818,25 +1873,17 @@
 
   function sameName(a, b) { return U.stripAccents(U.collapse(a)).toUpperCase() === U.stripAccents(U.collapse(b)).toUpperCase(); }
 
-  /* Personas leídas de un documento: el titular ya está; las demás se
-     agregan si no están, con taxes y cobertura marcados. */
-  function mergePersonas(names) {
+
+  /* Planes de una cotización: se agregan a Planes cotizados en el orden de
+     la pantalla, marcados como leídos. Un plan que ya está en la lista (el
+     mismo nombre) no se repite, y la fila vacía del principio se reemplaza. */
+  function planKey(s) { return U.stripAccents(U.collapse(s)).toUpperCase().replace(/[^A-Z0-9$]+/g, ""); }
+  function mergePlanes(list) {
     var added = 0;
-    if (names.length) { S.f.hogarPdf = true; }
-    names.forEach(function (n, idx) {
-      var found = S.f.personas.filter(function (p) { return sameName(personLabel(p), n); })[0];
-      /* el documento confirma que esa persona está en el hogar con cobertura */
-      if (found) {
-        found.orig = found.orig || {};
-        if (!("taxes" in found.orig)) { found.orig.taxes = true; found.orig.cobertura = true; }
-        return;
-      }
-      if (idx === 0 && !U.collapse(S.f.nombres)) { return; }
-      /* a quien el agente ya quitó no se le vuelve a agregar */
-      if (S.f.quitados.some(function (q) { return sameName(q, n); })) { return; }
-      var nombre = U.collapse(n).toUpperCase();
-      S.f.personas.push({ nombre: nombre, parentesco: "", taxes: true, cobertura: true, ingreso: "", estatus: "", dob: "", auto: true,
-                          orig: { nombre: nombre, taxes: true, cobertura: true } });
+    S.f.planes = S.f.planes.filter(function (p) { return p.sel || U.collapse(p.compania) || U.collapse(p.plan) || U.collapse(p.prima); });
+    list.forEach(function (q) {
+      if (!U.collapse(q.plan) || S.f.planes.some(function (p) { return planKey(p.plan) === planKey(q.plan); })) { return; }
+      S.f.planes.push({ compania: q.compania || "", plan: U.collapse(q.plan), prima: U.parseMoney(q.prima), sel: false, auto: true });
       added++;
     });
     return added;
@@ -1896,10 +1943,11 @@
     });
   }
 
-  function finishFile(entry, text, status) {
+  function finishFile(entry, text, status, words) {
     entry.text = text || "";
     var readable = entry.text.replace(/\s/g, "").length >= 40;
-    entry.res = X.extract(entry.text, entry.name, S.line);
+    if (words) { entry.words = words; }
+    readEntry(entry);
     entry.status = status || (readable ? "ok" : "scanned");
     useFile(entry);
     renderFiles();
@@ -1953,7 +2001,14 @@
       entry.ocr = true;
       ocrStep(entry, "Leyendo con OCR…");
       return OCR.readImage(file).then(function (text) {
-        finishFile(entry, text, ocrStatus(text, "image"));
+        var status = ocrStatus(text, "image");
+        if (X.detect(text, file.name) !== "oc_quote") { finishFile(entry, text, status); return; }
+        /* una cotización de HealthSherpa se lee otra vez con la posición de
+           cada palabra: así se separan las tarjetas, las columnas y los filtros */
+        ocrStep(entry, "Leyendo los planes…");
+        return OCR.readImage(file, { words: true }).then(function (words) {
+          finishFile(entry, text, status, words);
+        }, function () { finishFile(entry, text, status); });
       }).catch(failed);
     }
     entry.other = !isImage;
