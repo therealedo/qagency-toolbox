@@ -1687,6 +1687,7 @@
 
   /* ---------------------------------------------------------- documentos */
 
+  var DEFAULTABLE = ["anio", "producto", "plataforma", "periodo", "periodoMC", "genero"];
   var RANK = { oc_plans: 3, mc_app: 3, supp_app: 3, oc_elig: 2, pay: 2, oc_app: 1, oc_docs: 1, oc_quote: 1, mc_soa: 1, supp_card: 1 };
 
   /* Campos del producto: la compañía, el plan y el pago son de una línea.
@@ -1806,7 +1807,11 @@
       /* lo que trae el documento queda como base para la lista de Cambios */
       if (!(k in S.base)) { S.base[k] = v; }
       var empty = S.f[k] == null || S.f[k] === "" || S.f[k] === false;
-      var replaceable = S.auto[k] && (S.auto[k] === "calc" || rank > (S.rank[k] || 0));
+      /* lo que vino de otro documento se reemplaza si este manda igual o más
+         (el último documento soltado gana); un campo que sigue en su valor de
+         una nota nueva (año, producto, plataforma, periodo, género) también */
+      var replaceable = S.auto[k] ? (S.auto[k] === "calc" || rank >= (S.rank[k] || 0))
+        : DEFAULTABLE.indexOf(k) >= 0 && S.f[k] === freshFields()[k];
       if (!empty && !replaceable) { return; }
       S.f[k] = v; S.auto[k] = true; S.rank[k] = rank; S.base[k] = v; applied++;
     });

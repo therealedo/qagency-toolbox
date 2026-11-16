@@ -108,6 +108,15 @@
     return y > new Date().getFullYear() ? v.slice(0, 6) + (y - 100) : v;
   }
 
+  /* Sexo del cliente: decide "el cliente" o "la cliente" en la nota */
+  function vSex(t) {
+    var c = firstCell(t).toLowerCase();
+    if (/^(f|female|femenino|mujer)$/.test(c)) { return "a"; }
+    if (/^(m|male|masculino|hombre)$/.test(c)) { return "o"; }
+    return "";
+  }
+  var SEX_LABEL = /^\s*(Sex|Gender|Sexo|G[eé]nero)\b/i;
+
   /* el "$" tiene que estar al principio (40 caracteres); el número se lee
      entero aunque pase de ahí */
   function vMoney(t) {
@@ -387,6 +396,8 @@
       if (pm) { f.prima = U.parseMoney(pm); }
     }
 
+    var sex = after(doc, [SEX_LABEL], vSex, 1);
+    if (sex) { f.genero = sex; }
     agentInfo(doc, f);
     if (!f.agente) {
       var ag = mcAgent(doc);
@@ -780,11 +791,13 @@
       var sec = makeDoc(lines.join("\n"));
       var name = vName(cleanLead(lines[1] || "")) || "";
       var dob = after(sec, [/\bDate\s*of\s*birth\b/i, /Fecha\s*de\s*nacimiento/i], vBirth, 1);
-      return { name: name, first: U.stripAccents(name.split(" ")[0]), rel: relations(lines), estatus: usStatus(sec), ingreso: annualIncome(sec), dob: dob };
+      return { name: name, first: U.stripAccents(name.split(" ")[0]), rel: relations(lines), estatus: usStatus(sec), ingreso: annualIncome(sec), dob: dob,
+               sex: after(sec, [SEX_LABEL], vSex, 1) };
     });
     var t = 0;
     for (var i = 0; i < people.length; i++) { if (titFirst && people[i].first.toUpperCase() === titFirst.toUpperCase()) { t = i; break; } }
     var tit = people[t];
+    if (tit && tit.sex) { f.genero = tit.sex; }
     return people.map(function (p, i) {
       var o = {};
       if (i === t) {

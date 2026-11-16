@@ -165,19 +165,19 @@ test("Aplicación de Medicare en inglés, en tabla", () => {
    archivo y da sus datos; un campo que el documento no trae queda vacío. */
 const mcCarrier = (word) => C.CARRIERS.mc.find((c) => c.re.test(word)).name;
 const MC_APPS = {
-  Humana: {
+  Humana: { genero: "o",
     nombres: "ANDRES FELIPE", apellidos: "MORALES", mbi: "4CD5EF6GH78", parteA: "09/01/2010", parteB: "10/01/2010",
     efectiva: "01/01/2027", plan: "Humana Gold Plus - Diabetes and Heart (HMO C-SNP) H1036-311-000", periodoMC: "AEP",
     pcp: "RIVAS TOMAS J MD", pcpId: "731902", confirmacion: "H4QW27XTRA", prima: "$0.00", agente: "MARTA QUINTERO",
     compania: mcCarrier("Humana"), cmd: true
   },
-  UHC: {
+  UHC: { genero: "a",
     nombres: "ELENA", apellidos: "NAVARRO", mbi: "5EF6GH7JK89", parteA: "11/01/2003", parteB: "11/01/2003",
     efectiva: "01/01/2027", plan: "IND - UHC Dual Complete FL-Y5 (HMO-POS D-SNP) (MAPD) H1045-073-000",
     medicaid: "1234509876", periodoMC: "AEP", pcp: "Hector Villalba", pcpId: "001234567890", prima: "$0.00",
     agente: "MARTA QUINTERO LUGO", npn: "19876543", compania: mcCarrier("UnitedHealthcare")
   },
-  Aetna: {
+  Aetna: { genero: "a",
     nombres: "GLORIA", apellidos: "PAREDES", mbi: "6GH7JK8MN90", parteA: "08/01/2016", parteB: "08/01/2016",
     efectiva: "01/01/2027", plan: "Aetna Medicare Select (HMO) H1609-027", periodoMC: "AEP",
     pcp: "Benitez, Ramon, MD", pcpId: "506070", confirmacion: "T9876543210987A", prima: "$0.00",
@@ -191,7 +191,7 @@ const MC_APPS = {
     compania: mcCarrier("Freedom Health")
   },
   /* Devoted deja la Parte A/B, el PCP y la prima en "-" */
-  Devoted: {
+  Devoted: { genero: "o",
     nombres: "PABLO", apellidos: "ANDRES RUIZ", mbi: "7JK8MN9PQ01", efectiva: "01/01/2027",
     plan: "DEVOTED CHOICE GIVEBACK 016 FL (PPO) (H9884-016)", periodoMC: "AEP", confirmacion: "KZPTRWM5N2Q",
     agente: "LUCIA FERRER CAMPOS", npn: "18765432", compania: mcCarrier("Devoted Health")
@@ -465,7 +465,7 @@ const OC_DOCS = {
      es una fecha de nacimiento, no puede ser de 2041 */
   "OC App Summary OCR": { type: "oc_app", net: "appsummary", fields: {
     nombres: "LAURA", apellidos: "RAMOS", anio: "2027", ingreso: "$31,200.00", dob: "02/17/1941",
-    direccion: "Fort Myers, FL 33901-", plataforma: "MKPL",
+    direccion: "Fort Myers, FL 33901-", plataforma: "MKPL", genero: "a",
     personas: [{ nombre: "LAURA RAMOS", titular: true, dob: "02/17/1941", estatus: "ciudadano", ingreso: "$31,200.00" },
       { nombre: "DIEGO", parentesco: "Hijo/a", ingreso: "$0.00" }] } },
   /* Docs Submitted: el punto abierto es de quien abrió la cuenta (el titular) */
@@ -636,4 +636,11 @@ test("aplicación de Medicare: el NPN se lee también como «NPN #:» o «Agent 
     const r = X.extract(base.replace(/^NPN:.*$/m, line), "document.pdf", "mc");
     assert.equal(r.fields.npn, "12345678", line);
   }
+});
+
+test("App Summary: el sexo del titular decide «el cliente» o «la cliente»", () => {
+  const r = X.extract(fixture("OC App Summary Household"), "document.pdf", "oc");
+  assert.equal(r.fields.genero, "a");
+  const luis = fixture("OC App Summary Household").replace("Full name\nAna Torres", "Full name\nLuis Torres");
+  assert.equal(X.extract(luis, "document.pdf", "oc").fields.genero, "o");
 });
