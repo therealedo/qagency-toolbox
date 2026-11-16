@@ -522,3 +522,32 @@ test("una firma de tutor (Parent/Legal Guardian) no es la compañía Guardian", 
     "Underwritten by Ameritas Life Insurance Corp.\nFirst Name: Rosa\nLast Name: Medina\nMonthly Premium: $30.10";
   assert.equal(X.extract(text, "document.pdf", "supp").fields.compania, carrierOf("supp", "Ameritas"));
 });
+
+test("App Summary: el teléfono y el email del contacto del hogar van a Teléfono y Email del titular", () => {
+  const head = "HealthCare.gov\nReview your application\n2027 application for individual & family coverage\nApplication ID: 4412345678\n" +
+    "Review your contact information\nFull name\nBeatriz Diaz\n";
+  /* el valor en la línea siguiente, como en el resumen impreso */
+  let r = X.extract(head + "Email address\nbeatriz.diaz@example.com\nPhone number(s)\nMobile: (305) 555-0147\nPreferred written language\nSpanish\n", "App Summary.pdf", "oc");
+  assert.equal(r.type, "oc_app");
+  assert.equal(r.fields.clienteEmail, "beatriz.diaz@example.com");
+  assert.equal(r.fields.clienteTel, "(305) 555-0147");
+  /* en la misma línea, con otro formato */
+  r = X.extract(head + "Email   Beatriz.Diaz@Example.com\nPhone   305.555.0147\n", "App Summary.pdf", "oc");
+  assert.equal(r.fields.clienteEmail, "beatriz.diaz@example.com");
+  assert.equal(r.fields.clienteTel, "(305) 555-0147");
+  /* con el 1 delante */
+  r = X.extract(head + "Phone number(s)\nHome: +1 305-555-0147\n", "App Summary.pdf", "oc");
+  assert.equal(r.fields.clienteTel, "(305) 555-0147");
+});
+
+test("App Summary leído con OCR: un teléfono o email mal leído no se llena", () => {
+  const r = read("OC App Summary OCR");
+  assert.equal(r.fields.clienteEmail, undefined);
+  assert.equal(r.fields.clienteTel, undefined);
+});
+
+test("App Summary: el número gratuito del Mercado no es el teléfono del cliente", () => {
+  const r = X.extract("HealthCare.gov\nReview your application\nApplication ID: 4412345678\nFull name\nBeatriz Diaz\n" +
+    "Phone\n1-800-318-2596\n", "App Summary.pdf", "oc");
+  assert.equal(r.fields.clienteTel, undefined);
+});

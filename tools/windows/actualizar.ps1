@@ -4,15 +4,41 @@
 # Los ajustes (tu nombre, el equipo, el tema) viven en el navegador, asi que
 # se conservan. Solo descarga del repositorio de la herramienta.
 # (Los mensajes van sin acentos para que se lean bien en cualquier consola.)
+#
+# Solo instala un paquete firmado: la firma (QAgency-Toolbox-Windows.zip.sig)
+# se verifica con la llave publica de abajo. La llave privada no esta en
+# GitHub, asi que alguien que entre a esa cuenta no puede repartir un paquete
+# propio. Con -SoloRevisar descarga y verifica, pero no instala.
 param(
   [string]$Fuente = "https://raw.githubusercontent.com/therealedo/qagency-toolbox/main",
-  [switch]$SinPausa
+  [switch]$SinPausa,
+  [switch]$SoloRevisar
 )
 
 $ErrorActionPreference = "Stop"
 $nombre  = "Q Agency Toolbox"
 $destino = Join-Path $env:LOCALAPPDATA "QAgencyToolbox"
 $html    = Join-Path $destino "QAgency-Toolbox.html"
+
+# Llave publica de quien publica las versiones (RSA 3072, SHA-256).
+# La escribe "node tools/sign.js --new-key"; no se cambia a mano.
+$llaveModulo    = "ukCtjH0IGz1VOzoGyLEGor9GbHbY0eZqFJgpAuFc+YZPW1lYOzXGwFm85z8BJWfs9jpzP5xkHtDdPLhf1FmeRh7sCWLHPwnmfnh19RfrKMyVO4cdUuG6BbIOlP2EFJYBJqGwqoJKWDFuZm0ujA/XLBe5wZ2oopua4lzHw8ejUG8jSezvlL6eVIleakAcPYEgB4hXGPV2CiCWTn/TWPDtwVr8H5td1cEhzaFrGt9R2Ff59OKWYF5QS8MMuBKgy6MTA5Duhl8dNAB7iWR9iclthJzVuIWq3URrS8o0Cny0IYcviXqsHwSKtUX8S4kkj7vqJcD4f6nWJTpx1dC1WqXywJg1IwfVXV0ur9lPBurNk1fw2pZ9zLcxNwMjleg6zxZ6LS8C7vDTqrJSH9F/lvthib+eHueLiuoUXju7Oh14IOhrerJPD6A6eaZEv2m6OxjQXFWULHqc5ejqFEjUfjSvSDgbNGAGNBLZcOYQB/nryeGxPJHDXxRw0KgY9YhE2tOr"
+$llaveExponente = "AQAB"
+
+function Firma-Valida([string]$archivo, [string]$archivoFirma) {
+  if (-not $llaveModulo -or -not (Test-Path $archivoFirma)) { return $false }
+  try {
+    $parametros = New-Object System.Security.Cryptography.RSAParameters
+    $parametros.Modulus  = [Convert]::FromBase64String($llaveModulo)
+    $parametros.Exponent = [Convert]::FromBase64String($llaveExponente)
+    $rsa = New-Object System.Security.Cryptography.RSACryptoServiceProvider
+    $rsa.ImportParameters($parametros)
+    $firma = [Convert]::FromBase64String(([IO.File]::ReadAllText($archivoFirma)).Trim())
+    return $rsa.VerifyData([IO.File]::ReadAllBytes($archivo), "SHA256", $firma)
+  } catch {
+    return $false
+  }
+}
 
 # "1.10.0" -> [version]; cualquier otra cosa -> $null
 function Como-Version([string]$texto) {
@@ -69,6 +95,13 @@ try {
   New-Item -ItemType Directory -Path $tmp | Out-Null
   $zip = Join-Path $tmp "paquete.zip"
   Invoke-WebRequest -UseBasicParsing -Uri "$Fuente/dist/QAgency-Toolbox-Windows.zip" -OutFile $zip
+  $firma = Join-Path $tmp "paquete.zip.sig"
+  try { Invoke-WebRequest -UseBasicParsing -Uri "$Fuente/dist/QAgency-Toolbox-Windows.zip.sig" -OutFile $firma } catch { }
+  # Antes de abrir el paquete: tiene que estar firmado por quien publica
+  if (-not (Firma-Valida $zip $firma)) {
+    throw "El paquete de GitHub no tiene una firma valida de Q Agency. No se instalo nada. Avisa a quien publica la herramienta."
+  }
+  Write-Host "Firma del paquete verificada."
   Expand-Archive -Path $zip -DestinationPath $tmp -Force
   $carpeta = Join-Path $tmp "QAgency-Toolbox"
   $nuevo = Join-Path $carpeta "QAgency-Toolbox.html"
@@ -77,11 +110,15 @@ try {
   # GitHub todavia no se reconstruyo, no se instala una version vieja.
   $vNuevo = Version-Del-Html $nuevo
   if ($vNuevo -ne $remota) { throw "El paquete de GitHub todavia es la version $vNuevo y no la $remota. No se cambio nada; prueba mas tarde." }
-  & (Join-Path $carpeta "instalar.ps1")
-  if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) { throw "La instalacion no termino. Prueba de nuevo o usa Instalar.bat del paquete." }
-  Write-Host ""
-  Write-Host "Listo: $nombre $remota."
-  Write-Host "Si la herramienta estaba abierta, cierrala y vuelve a abrirla."
+  if ($SoloRevisar) {
+    Write-Host "Paquete $remota verificado. No se instalo (-SoloRevisar)."
+  } else {
+    & (Join-Path $carpeta "instalar.ps1")
+    if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) { throw "La instalacion no termino. Prueba de nuevo o usa Instalar.bat del paquete." }
+    Write-Host ""
+    Write-Host "Listo: $nombre $remota."
+    Write-Host "Si la herramienta estaba abierta, cierrala y vuelve a abrirla."
+  }
 } catch {
   Write-Host $_.Exception.Message
   $codigo = 1

@@ -694,9 +694,28 @@
        sirven de base para saber qué cambió */
     f.dob = after(doc, [/\bDate\s*of\s*birth\b/i, /Fecha\s*de\s*nacimiento/i], vBirth, 1);
     f.direccion = after(doc, [/\bHome\s*address\b/i, /Direcci[oó]n\s*(de\s*(la\s*)?casa|del\s*hogar|residencial)/i], vAddress, 1);
+    /* teléfono y email del contacto del hogar: van a Teléfono y Email del
+       titular, y quedan como base para Cambios */
+    f.clienteEmail = after(doc, [/\bE-?mail(\s*address)?\b/i, /Correo\s*electr[oó]nico/i], vEmail, 1);
+    f.clienteTel = after(doc, [/\bPhone\s*numbers?(\s*\(s\))?/i, /\bPhone\b/i, /Tel[eé]fonos?(\s*\(s\))?/i], vPhone, 1);
     if (/healthsherpa/i.test(doc.flat)) { f.plataforma = "HealthSherpa"; }
     else if (/healthcare\.gov|cuidadodesalud\.gov/i.test(doc.flat)) { f.plataforma = "MKPL"; }
     return f;
+  }
+
+  /* "beatriz.diaz@example.com"; uno mal leído por el OCR no pasa */
+  function vEmail(t) {
+    var m = String(t || "").match(/(^|[\s:<(])([A-Za-z0-9][A-Za-z0-9._%+-]*@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,})(?=$|[\s>),;])/);
+    return m ? m[2].toLowerCase() : "";
+  }
+
+  /* "Mobile: (305) 555-0147", "305.555.0147", "+1 305-555-0147" -> "(305) 555-0147" */
+  function vPhone(t) {
+    var c = String(t || "").replace(/^\s*(mobile|cell|home|work|m[oó]vil|celular|casa|trabajo)\s*:?\s*/i, "");
+    var m = c.match(/^(?:\+?1[\s.-]?)?\(?([2-9]\d{2})\)?[\s.-]?(\d{3})[\s.-]?(\d{4})\b/);
+    /* un 800, 888… es la línea del Mercado o de la compañía, no el cliente */
+    if (!m || /^8(00|33|44|55|66|77|88)$/.test(m[1])) { return ""; }
+    return "(" + m[1] + ") " + m[2] + "-" + m[3];
   }
 
   /* una dirección tiene número y calle: "123 Main St, Miami, FL 33101" */
