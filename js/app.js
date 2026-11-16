@@ -2817,6 +2817,12 @@
       var t = e.target, editable = t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
       if (editable && Array.prototype.indexOf.call(e.clipboardData.types || [], "text/plain") >= 0) { return; }
       var imgs = Array.prototype.filter.call(e.clipboardData.files || [], function (f) { return /^image\//i.test(f.type); });
+      /* algunas herramientas de captura dejan la imagen solo como elemento
+         del portapapeles, sin la lista de archivos */
+      if (!imgs.length) {
+        imgs = Array.prototype.filter.call(e.clipboardData.items || [], function (it) { return it.kind === "file" && /^image\//i.test(it.type); })
+          .map(function (it) { return it.getAsFile(); }).filter(Boolean);
+      }
       if (!imgs.length) { return; }
       e.preventDefault();
       handleFiles(imgs.map(function (f, i) {
