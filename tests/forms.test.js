@@ -24,6 +24,7 @@ const consent = { clientName: "Beatriz Diaz", date: "02/01/2026", agentName: "Li
   income: "$32,000", taxPeople: "3", coveredPeople: "2", plan: "Ambetter Silver Value", premium: "$45.00" };
 const soa = { beneficiaryName: "Beatriz Diaz", beneficiaryPhone: "(305) 555-0100", agentName: "Liseth Iznaga", npn: "20253559",
   contactMethod: "Llamada telefónica", plans: "Humana Gold Plus H1036-311 (HMO)" };
+const soaNote = { beneficiaryName: "Beatriz Diaz", beneficiaryPhone: "(305) 555-0100" };
 const FIRMAS = ["Signature1_es_:signer:signature", "Signature2_es_:signer:signature", "Firma", "Fecha de la Firma",
   "Firma del solicitantemiembrorepresentante autorizado", "Firma del Representante de Ventas con Licencia"];
 
@@ -97,28 +98,9 @@ test("campos: Consent ATH en español (Pago)", () => {
   assert.equal(Object.keys(m).length, 12);
 });
 
-test("campos: SOA en español, sin tocar las 5 casillas ni los datos del representante autorizado", () => {
-  assert.deepEqual(F.fieldMap("soa-es", soa), {
-    "Nombre del beneficiario nombre y apellidos": "Beatriz Diaz",
-    "Teléfono del beneficiario": "(305) 555-0100",
-    "Nombre del Representante de Ventas con Licencia nombre y apellidos": "Liseth Iznaga",
-    "ID del Representante de Ventas con Licencia": "20253559",
-    "Método de contacto inicial": "Llamada telefónica",
-    "Planes que el Representante de Ventas con Licencia explicará durante la reunión": "Humana Gold Plus H1036-311 (HMO)"
-  });
-});
-
-test("campos: SOA en inglés, con el teléfono repartido en sus casillas", () => {
-  assert.deepEqual(F.fieldMap("soa-en", soa), {
-    "Beneficiary Name": "Beatriz Diaz",
-    "Beneficiary Phone Area": "305", "Beneficiary Phone Prefix": "555", "Beneficiary Phone Line": "0100",
-    "Licensed Sales Representative Name": "Liseth Iznaga",
-    "Licensed Sales Representative ID": "20253559",
-    "Initial Method of Contact": "Llamada telefónica",
-    "Plans the Licensed Sales Representative Will Represent": "Humana Gold Plus H1036-311 (HMO)"
-  });
-  const m = F.fieldMap("soa-en", Object.assign({}, soa, { beneficiaryPhone: "+1 305.555.0199" }));
-  assert.deepEqual([m["Beneficiary Phone Area"], m["Beneficiary Phone Prefix"], m["Beneficiary Phone Line"]], ["305", "555", "0199"]);
+test("campos: el SOA no se llena: la sección del agente la completa y la firma el agente después del cliente", () => {
+  assert.deepEqual(F.fieldMap("soa-es", soa), {});
+  assert.deepEqual(F.fieldMap("soa-en", soa), {});
 });
 
 test("campos: las firmas quedan vacías y un valor vacío no se escribe", () => {
@@ -129,7 +111,6 @@ test("campos: las firmas quedan vacías y un valor vacío no se escribe", () => 
   const m = F.fieldMap("consent-qa-es", Object.assign({}, consent, { marital: "", premium: " " }));
   assert.equal("Estatus marital" in m, false);
   assert.equal("Premium" in m, false);
-  assert.equal(F.fieldMap("soa-en", Object.assign({}, soa, { beneficiaryPhone: "" }))["Beneficiary Phone Area"], undefined);
 });
 
 /* ------------------------------------------------- valores de la cotización -- */
@@ -160,18 +141,9 @@ test("valores del Consent: sin plan seleccionado se usa el único cotizado; con 
   assert.equal(solo.agentName, "");
 });
 
-test("valores del SOA: beneficiario, teléfono, agente, método de contacto según el canal y planes", () => {
+test("valores del SOA: solo el beneficiario y su teléfono, para la línea de Cliq y el SMS", () => {
   const d = make({ line: "mc", outcome: "enviada", clienteTel: "(305) 555-0100", compania: "HUMANA", plan: "Humana Gold Plus H1036-311 (HMO)" });
-  assert.deepEqual(F.soaValues(d), soa);
-  assert.equal(F.soaValues(Object.assign({}, d, { idioma: "en" })).contactMethod, "Phone call");
-  assert.equal(F.soaValues(Object.assign({}, d, { canal: "Walk In" })).contactMethod, "En la oficina");
-  assert.equal(F.soaValues(Object.assign({}, d, { canal: "Walk In", idioma: "en" })).contactMethod, "Walk-in");
-  assert.equal(F.soaValues(Object.assign({}, d, { canal: "Appointment", modalidad: "Zoom" })).contactMethod, "Cita por Zoom");
-  assert.equal(F.soaValues(Object.assign({}, d, { canal: "Appointment", modalidad: "en casa", idioma: "en" })).contactMethod, "Home visit");
-  /* la compañía va delante si el nombre del plan no la trae */
-  assert.equal(F.soaValues(Object.assign({}, d, { compania: "AETNA", plan: "Medicare Eagle (PPO)" })).plans, "Aetna Medicare Eagle (PPO)");
-  assert.equal(F.soaValues(Object.assign({}, d, { compania: "", plan: "" })).plans, "Medicare Advantage (Parte C)");
-  assert.equal(F.soaValues(Object.assign({}, d, { compania: "", plan: "", idioma: "en" })).plans, "Medicare Advantage (Part C)");
+  assert.deepEqual(F.soaValues(d), soaNote);
 });
 
 /* ---------------------------------------------------------------- Cliq -- */
@@ -243,7 +215,7 @@ test("archivo: el PDF lleno se llama como el Consent o el SOA del Network", () =
 
 test("campos de la pantalla: cada valor tiene su etiqueta; el Consent, su ID de SignWell", () => {
   assert.deepEqual(F.FIELDS.consent.map((x) => x.k), Object.keys(consent));
-  assert.deepEqual(F.FIELDS.soa.map((x) => x.k), Object.keys(soa));
+  assert.deepEqual(F.FIELDS.soa.map((x) => x.k), Object.keys(soaNote));
   assert.deepEqual(F.SIGN_IDS.consent.map((x) => x[0]), ["client_name", "client_name_sign", "consent_date", "agent_name", "agent_npn",
     "plan", "premium", "marital_status", "income", "tax_people", "covered_people"]);
   assert.deepEqual(F.SIGN_IDS.soa, []);
@@ -299,6 +271,15 @@ test("PDF lleno: la Fecha del Consent (un campo con dos lugares) queda también 
   const objs = await fieldObjects(lib, new Uint8Array(out));
   assert.deepEqual(objs.Fecha.filter((o) => o.type).map((o) => o.value), ["11/15/2026", "11/15/2026"]);
   assert.equal(objs["Yo SrSra"][0].value, "José Pérez Núñez");
+});
+
+test("PDF del SOA: se descarga la plantilla tal cual, con las 5 casillas marcadas y nada más", async () => {
+  const lib = pdfjs();
+  for (const key of ["soa-es", "soa-en"]) {
+    const bytes = template(key);
+    const out = await F.fillPdf(lib, bytes.slice(), F.fieldMap(key, Object.assign({}, soa, soaNote)));
+    assert.deepEqual(Buffer.from(out), Buffer.from(bytes), key);
+  }
 });
 
 test("PDF lleno: sin campos con varios lugares, el PDF sale como lo guarda PDF.js, con los valores", async () => {

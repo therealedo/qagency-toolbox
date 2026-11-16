@@ -1419,7 +1419,9 @@
      sale de la oficina de Ajustes y del idioma del cliente. Los valores se
      llenan con la nota y se pueden cambiar; lo cambiado a mano se queda hasta
      «Volver a los datos de la nota». El PDF se llena aquí mismo con PDF.js y
-     se descarga; el enlace de firma solo se arma, no se envía nada. */
+     se descarga (el SOA, sin llenar: solo el nombre y el teléfono del
+     beneficiario, para Cliq y el SMS); el enlace de firma solo se arma, no
+     se envía nada. */
   var signKind = "";
 
   function signValues(d, kind) { return Object.assign(FM.values(kind, d), S.signEdits[kind] || {}); }
@@ -1444,7 +1446,10 @@
     var title = kind === "soa" ? "SOA" : "Consent";
     sec.dataset.rail = title;
     $("signTitle").textContent = title + " para firmar";
-    $("signTemplate").textContent = "Plantilla: " + T.label + (kind === "consent" ? ". La oficina se elige en Ajustes." : ".");
+    $("signTemplate").textContent = "Plantilla: " + T.label + (kind === "consent" ? ". La oficina se elige en Ajustes."
+      : ". Se descarga sin llenar: la sección del agente se completa y se firma después de que firme el cliente.");
+    /* el SOA no lleva datos: se descarga la plantilla tal cual */
+    $("signDownload").textContent = kind === "soa" ? "Descargar PDF" : "Descargar PDF lleno";
     if (signKind !== kind) { buildSignGrid(kind); signKind = kind; }
     var v = signValues(d, kind), edits = S.signEdits[kind] || {};
     FM.FIELDS[kind].forEach(function (x) {
