@@ -279,6 +279,17 @@ test("nota: cancelación con motivo y My Plans & Programs (CANCELLED)", () => {
   assert.match(N.buildNote(Object.assign({}, d, { motivoCancel: "Demasiado caro" })), /\nMotivo: Demasiado caro\n/);
 });
 
+test("Reporte de una cancelación TERMINATED: _Terminated; la CANCELLED sigue con _Cancelled", () => {
+  const base = { ini: "ER", line: "oc", outcome: "cancelada", gestion: "renovacion", genero: "a", compania: "UHC",
+    personas: familia, motivoCancel: "Otro", motivoOtro: "Se mudó de estado" };
+  const term = make(Object.assign({}, base, { tipoCancel: "terminated", fechaTermino: "03/31/2026" }));
+  assert.equal(N.buildReport(term), "QXXXX - Diaz, Beatriz - Renew OC UHC 2026_Terminated - Call (LI) +1");
+  const canc = make(Object.assign({}, base, { tipoCancel: "cancelled" }));
+  assert.equal(N.buildReport(canc), "QXXXX - Diaz, Beatriz - Renew OC UHC 2026_Cancelled - Call (LI) +1");
+  /* recuperada y terminada: las dos marcas, en el mismo orden de siempre */
+  assert.equal(N.buildReport(Object.assign({}, term, { recuperado: true })), "QXXXX - Diaz, Beatriz - Renew OC UHC 2026_Recovered_Terminated - Call (LI) +1");
+});
+
 test("nota: Medicare enviada como el template MEDICARE", () => {
   const note = N.buildNote(make({
     ini: "ER", line: "mc", outcome: "enviada", gestion: "nueva", nombres: "ANGEL", apellidos: "CASO",
