@@ -441,6 +441,94 @@
     [/peace corps/i, "peace"]
   ];
 
+  function kindOf(text) {
+    var k = DOC_KINDS.filter(function (x) { return x[0].test(text); })[0];
+    return k ? k[1] : "";
+  }
+
+  /* Celdas de una línea (separadas por 2 o más espacios) con su columna. */
+  function cellsAt(line) {
+    var out = [], re = /\S+(?: \S+)*/g, m;
+    while ((m = re.exec(line)) !== null) { out.push({ text: m[0], col: m.index }); }
+    return out;
+  }
+
+  /* Columnas de los puntos (•) que siguen a un texto en la línea. */
+  function bulletCols(line) {
+    var out = [];
+    for (var i = 1; i < line.length; i++) {
+      if (/[•●]/.test(line[i]) && /\s/.test(line[i - 1]) && /\S/.test(line.slice(0, i))) { out.push(i); }
+    }
+    return out;
+  }
+
+  /* Las personas de la tabla de resultados: la fila (o las dos filas, nombres
+     y apellidos) justo encima de la primera línea con puntos. */
+  function noticePeople(doc) {
+    var g = -1;
+    for (var i = 0; i < doc.lines.length; i++) { if (bulletCols(doc.lines[i]).length) { g = i; break; } }
+    var isNames = function (l) {
+      var cs = l != null ? cellsAt(l) : [];
+      return cs.length && cs.every(function (c) { return !/[\d$:\/]/.test(c.text) && vName(c.text); }) ? cs : null;
+    };
+    var last = g > 0 ? isNames(doc.lines[g - 1]) : null;
+    if (!last) { return []; }
+    var firsts = g > 1 ? isNames(doc.lines[g - 2]) : null;
+    if (firsts && firsts.length === last.length) {
+      return firsts.map(function (c, k) { return { name: c.text + " " + last[k].text, col: c.col }; });
+    }
+    return last.map(function (c) { return { name: c.text, col: c.col }; });
+  }
+
+  /* De quién es una fila: con las columnas de pdfToText (los nombres no
+     empiezan al margen), quien está a la izquierda de cada punto; sin ellas
+     (texto pegado), todos si hay un punto por persona, la única persona del
+     hogar, o nadie si no se sabe. */
+  function rowPeople(people, cols) {
+    var placed = people.length && people[0].col >= 20;
+    if (placed) {
+      return cols.map(function (b) {
+        var p = people.filter(function (x) { return x.col <= b + 3; }).pop();
+        return p ? p.name : "";
+      });
+    }
+    if (people.length && cols.length === people.length) { return people.map(function (p) { return p.name; }); }
+    return [people.length === 1 ? people[0].name : ""];
+  }
+
+  /* Filas de ACTION del aviso: "By February 20, 2027, submit documents to
+     confirm citizenship." o "Antes del 20 de febrero de 2027, envíe
+     documentos para confirmar su ciudadanía.", con el punto en la misma
+     línea o en las dos siguientes. */
+  var DMI_ROWS = [
+    /\bBy\s+([A-Za-z]{3,12}\.?\s+\d{1,2},?\s+\d{4}|\d{1,2}\/\d{1,2}\/\d{2,4}),?\s+(?:submit|send|upload)\s+(?:the\s+)?documents?\s+to\s+confirm\s+([^.]+)/i,
+    /\bAntes del?\s+(\d{1,2}\s+de\s+[A-Za-záéíóú]{3,12}\s+de\s+\d{4}|\d{1,2}\/\d{1,2}\/\d{2,4}),?\s+(?:env[ií]e|presente|suba)\s+(?:los\s+)?documentos?\s+para\s+confirmar\s+([^.]+)/i
+  ];
+  function actionDocs(doc) {
+    var people = noticePeople(doc), docs = [];
+    doc.lines.forEach(function (l, i) {
+      var head = l.replace(/\s{2,}[•●][\s•●]*$/, "");
+      var text = head + " " + (doc.lines[i + 1] || "").replace(/\s{2,}[•●][\s•●]*$/, "");
+      var m = null;
+      /* la fila empieza en esta línea; la siguiente solo completa el tipo */
+      DMI_ROWS.some(function (re) { m = text.match(re); if (m && m.index >= head.length) { m = null; } return !!m; });
+      var cat = m ? kindOf(m[2]) : "";
+      if (!cat) { return; }
+      var cols = [];
+      for (var j = i; j <= i + 2 && j < doc.lines.length && !cols.length; j++) {
+        if (j > i && DMI_ROWS.some(function (re) { return re.test(doc.lines[j]); })) { break; }
+        cols = bulletCols(doc.lines[j]);
+      }
+      var fecha = U.parseDate(m[1]) || U.parseDateWords(m[1]);
+      rowPeople(people, cols).forEach(function (name) {
+        var persona = name.toUpperCase();
+        if (docs.some(function (x) { return x.cat === cat && x.persona === persona; })) { return; }
+        docs.push({ cat: cat, persona: persona, fecha: fecha });
+      });
+    });
+    return docs;
+  }
+
   /* La carta trae detrás la guía (MARKETPLACE ELIGIBILITY GUIDE): sus
      ejemplos hablan de ingresos y de documentos que nadie pidió. Los datos
      se buscan antes de la guía. */
@@ -474,8 +562,11 @@
     var size = find(doc, /household size (?:of|is|:)?\s*(\d{1,2})\b/i) || find(doc, /tama[nñ]o del hogar (?:de|es|:)?\s*(\d{1,2})\b/i);
     if (size) { f.hogar = size; }
 
-    /* Documentos que pide el Mercado: por cada fila, la persona, el tipo y
-       la fecha tope. Si la carta no trae tabla, la fecha general. */
+    /* Documentos que pide el Mercado: las filas de ACTION del aviso o, en
+       otras cartas, por cada fila, la persona, el tipo y la fecha tope. Si
+       la carta no trae tabla, la fecha general. */
+    var action = actionDocs(doc);
+    if (action.length) { f.docs = action; return f; }
     var ask = /send (the marketplace )?(us )?(more information|documents|proof)|data matching|we need more information|env[ií]e(nos)? .{0,30}(documentos|informaci[oó]n|prueba)|necesitamos m[aá]s informaci[oó]n/i;
     if (ask.test(doc.flat)) {
       var by = doc.flat.match(/(?:send|submit|upload|provide)[^\n.]{0,80}?\b(?:by|before|no later than)\s+([A-Za-z]{3,12}\.?\s+\d{1,2},?\s+\d{4}|\d{1,2}\/\d{1,2}\/\d{2,4})/i) ||
@@ -486,7 +577,9 @@
         if (!/proof|document|verify|confirm|prueba|verificar|confirmar|deadline|fecha/i.test(l)) { return; }
         DOC_KINDS.forEach(function (k) {
           if (!k[0].test(l)) { return; }
-          var person = vFullName(firstCell(l)) || "";
+          /* el rótulo de la fila ("Proof of yearly income") no es una persona */
+          var person = vPerson(firstCell(l));
+          if (/proof|document|verify|confirm|prueba|verificar|confirmar|deadline|fecha/i.test(person) || kindOf(person)) { person = ""; }
           var ds = datesIn(l);
           if (docs.some(function (x) { return x.cat === k[1] && x.persona === person; })) { return; }
           docs.push({ cat: k[1], persona: person.toUpperCase(), fecha: ds.length ? ds[ds.length - 1].value : general });
@@ -1109,6 +1202,38 @@
 
   /* Reconstruye las líneas por su altura en la página y conserva los huecos
      horizontales como espacios, para que las tablas mantengan sus columnas. */
+  /* Tabla de puntos, como la del aviso de elegibilidad del Mercado: cada fila
+     lleva un punto (•) debajo de cada persona a la que se aplica, y los
+     nombres van en la fila de arriba. Separar con 30 espacios como mucho
+     pierde la columna, así que los puntos que siguen a un texto y los nombres
+     (las una o dos filas justo encima de la primera fila con puntos, si
+     empiezan en la mitad derecha de la tabla y solo traen palabras, sin
+     cifras ni "$ : /") se ponen en su columna, a GRID_PT puntos por
+     carácter. De los nombres solo se mueve el comienzo de cada celda. Una
+     viñeta al empezar la línea no cuenta. */
+  var GRID_PT = 4;
+  var BULLET = /^[•●]$/;
+  function gridColumns(rows) {
+    var marks = {}, maxX = 0, firstRow = -1;
+    rows.forEach(function (r, ri) {
+      r.items.forEach(function (it, ii) {
+        if (ii === 0 || !BULLET.test(it.str.trim())) { return; }
+        marks[ri + ":" + ii] = true;
+        maxX = Math.max(maxX, it.x);
+        if (firstRow < 0) { firstRow = ri; }
+      });
+    });
+    for (var h = firstRow - 1; firstRow > 0 && h >= firstRow - 2; h--) {
+      var its = rows[h].items;
+      if (its[0].x < maxX * 0.5 || its.some(function (it) { return /[\d$:\/]/.test(it.str); })) { break; }
+      its.forEach(function (it, ii) {
+        var prev = its[ii - 1], cw = it.str.length ? Math.max(2.5, it.w / it.str.length) : 5;
+        if (!prev || it.x - (prev.x + prev.w) > cw * 1.8) { marks[h + ":" + ii] = true; }
+      });
+    }
+    return { at: function (ri, ii) { return !!marks[ri + ":" + ii]; } };
+  }
+
   function itemsToText(items) {
     var rows = [];
     items.forEach(function (it) {
@@ -1123,12 +1248,17 @@
       row.items.push({ x: x, w: it.width || 0, str: it.str });
     });
     rows.sort(function (a, b) { return b.y - a.y; });
-    return rows.map(function (r) {
-      r.items.sort(function (a, b) { return a.x - b.x; });
+    rows.forEach(function (r) { r.items.sort(function (a, b) { return a.x - b.x; }); });
+    var grid = gridColumns(rows);
+    return rows.map(function (r, ri) {
       var line = "", end = null;
-      r.items.forEach(function (it) {
+      r.items.forEach(function (it, ii) {
         var cw = it.str.length ? Math.max(2.5, it.w / it.str.length) : 5;
-        if (end !== null) {
+        if (grid.at(ri, ii)) {
+          /* columna de una tabla de puntos: va donde está en la página */
+          var pad = Math.round(it.x / GRID_PT) - line.length;
+          line += new Array(Math.max(line ? 2 : 0, pad) + 1).join(" ");
+        } else if (end !== null) {
           var gap = it.x - end;
           if (gap > cw * 1.8) { line += new Array(Math.min(30, Math.max(2, Math.round(gap / cw))) + 1).join(" "); }
           else if (gap > cw * 0.25 && !/\s$/.test(line) && !/^\s/.test(it.str)) { line += " "; }

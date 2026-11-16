@@ -35,6 +35,80 @@ test("Eligibility Letter: ingreso, hogar y documentos pedidos con persona y fech
   assert.equal(r.fields.nombres + " " + r.fields.apellidos, "BEATRIZ DIAZ");
 });
 
+/* Aviso de muestra de CMS (nombres e IDs ficticios): cada fila de ACTION
+   pide un documento, con un punto debajo de cada persona que debe enviarlo. */
+test("Eligibility Notice: los documentos que pide el Mercado, con persona y fecha tope", () => {
+  const r = read("OC Eligibility Notice Docs");
+  assert.equal(r.type, "oc_elig");
+  assert.equal(r.net, "eligibility");
+  assert.deepEqual(r.fields.docs, [
+    { cat: "citizenship", persona: "LAURA RAMOS", fecha: "02/20/2023" },
+    { cat: "citizenship", persona: "DIEGO RAMOS", fecha: "02/20/2023" },
+    { cat: "income", persona: "LAURA RAMOS", fecha: "02/15/2023" }
+  ]);
+});
+
+/* El aviso de la agencia pone los nombres en dos filas: nombres y apellidos. */
+const eligPage = (rows) => X.itemsToText([
+  textItem("Primary contact", 39, 700), textItem("Marketplace Eligibility Notice", 300, 700),
+  textItem("Laura Ramos", 39, 688),
+  textItem("$31,200/year", 40, 600),
+  textItem("Laura", 440, 580), textItem("Diego", 490, 580), textItem("Sofia", 540, 580),
+  textItem("Ramos", 440, 568), textItem("Ramos", 490, 568), textItem("Ramos", 540, 568),
+  textItem("Applied for coverage.", 40, 550), textItem("•", 505, 550), textItem("•", 555, 550),
+  textItem("ACTION: Next steps", 40, 500)
+].concat(rows));
+
+test("Eligibility Notice: con nombres y apellidos en dos filas, el documento es de quien tiene el punto", () => {
+  const text = eligPage([
+    textItem("By January 31, 2027, submit documents to confirm immigration status. See Submitting", 40, 480),
+    textItem("Documents, attached.", 40, 468), textItem("•", 555, 468),
+    textItem("By January 15, 2027, submit documents to confirm Social Security number. See", 40, 450),
+    textItem("Submitting Documents, attached.", 40, 438), textItem("•", 505, 438), textItem("•", 555, 438)
+  ]);
+  const r = X.extract(text, "document.pdf", "oc");
+  assert.equal(r.type, "oc_elig");
+  assert.deepEqual(r.fields.docs, [
+    { cat: "immigration", persona: "SOFIA RAMOS", fecha: "01/31/2027" },
+    { cat: "ssn", persona: "DIEGO RAMOS", fecha: "01/15/2027" },
+    { cat: "ssn", persona: "SOFIA RAMOS", fecha: "01/15/2027" }
+  ]);
+});
+
+test("Eligibility Notice en español: «Antes del … envíe documentos para confirmar …»", () => {
+  const text = eligPage([
+    textItem("Antes del 31 de enero de 2027, envíe documentos para confirmar su ciudadanía.", 40, 480),
+    textItem("•", 505, 480)
+  ]);
+  assert.deepEqual(X.extract(text, "document.pdf", "oc").fields.docs, [{ cat: "citizenship", persona: "DIEGO RAMOS", fecha: "01/31/2027" }]);
+});
+
+test("Eligibility Notice pegado sin columnas: sin saber de quién es, la persona queda vacía", () => {
+  const text = [
+    "Marketplace Eligibility Notice", "Application ID # 4412345678",
+    "Laura        Diego", "Ramos        Ramos",
+    "Applied for coverage.                              •      •",
+    "ACTION: Next steps",
+    "By February 15, 2027, submit documents to confirm household income. See",
+    "Submitting Documents, attached.                              •",
+    "By February 20, 2027, submit documents to confirm citizenship. See Submitting",
+    "Documents, attached.                              •      •"
+  ].join("\n");
+  assert.deepEqual(X.extract(text, "document.pdf", "oc").fields.docs, [
+    { cat: "income", persona: "", fecha: "02/15/2027" },
+    { cat: "citizenship", persona: "LAURA RAMOS", fecha: "02/20/2027" },
+    { cat: "citizenship", persona: "DIEGO RAMOS", fecha: "02/20/2027" }
+  ]);
+});
+
+test("Eligibility Letter: el rótulo de una fila nunca se toma como persona", () => {
+  const text = fs.readFileSync(path.join(__dirname, "fixtures", "Eligibility Letter.txt"), "utf8").replace(
+    "Beatriz Diaz                         Proof of yearly income",
+    "Proof of yearly income               Proof of yearly income");
+  const docs = X.extract(text, "document.pdf", "oc").fields.docs;
+  assert.deepEqual(docs, [{ cat: "income", persona: "", fecha: "02/12/2027" }]);
+});
+
 test("App Summary: nunca se toma el Seguro Social", () => {
   const r = read("App Summary");
   assert.equal(r.type, "oc_app");
@@ -245,6 +319,30 @@ test("pdfToText: los valores de un formulario PDF van al final del texto", async
   ]);
   const text = await X.pdfToText(lib, new Uint8Array());
   assert.equal(text, "Name (Last, First)\n\nPage two\n\nCampos del formulario:\nLast1: Doe\nFirst1: Jane\nPlan: Plan100Max");
+});
+
+/* El aviso de elegibilidad pone un punto debajo de cada persona: el texto
+   conserva esas columnas (x / 4) para saber de quién es cada fila. */
+test("itemsToText: los puntos de una tabla y los nombres de arriba quedan en su columna", () => {
+  const text = X.itemsToText([
+    textItem("Primary contact", 39, 650), textItem("Marketplace Eligibility Notice", 300, 650),
+    textItem("help: $31,200/year", 40, 590),
+    textItem("Laura Ramos", 455, 565), textItem("Diego Ramos", 526, 565),
+    textItem("Applied for coverage.", 40, 542), textItem("•", 470, 540), textItem("•", 538, 540),
+    textItem("submit documents to confirm household income.", 40, 260), textItem("•", 470, 260),
+    textItem("•", 40, 200), textItem("Bring your ID", 50, 200)
+  ]);
+  const lines = text.split("\n");
+  /* sin puntos, la separación de siempre (como mucho 30 espacios) */
+  assert.equal(lines[0], "Primary contact" + " ".repeat(30) + "Marketplace Eligibility Notice");
+  assert.equal(lines[1], "help: $31,200/year");
+  assert.equal(lines[2].indexOf("Laura Ramos"), 114);
+  assert.equal(lines[2].indexOf("Diego Ramos"), 132);
+  assert.equal(lines[3].indexOf("•"), 118);
+  assert.equal(lines[3].lastIndexOf("•"), 135);
+  assert.equal(lines[4].indexOf("•"), 118);
+  /* un punto al empezar la línea es una viñeta, no una columna */
+  assert.equal(lines[5], "• Bring your ID");
 });
 
 test("pdfToText: un PDF sin formulario da solo el texto de sus páginas", async () => {
