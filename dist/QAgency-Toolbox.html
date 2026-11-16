@@ -32,15 +32,15 @@
 }
 
 :root {
-  --bg: #F4F6FA;
+  --bg: #F5F6F8;
   --surface: #FFFFFF;
-  --inset: #F6F8FB;
+  --inset: #F6F7F9;
   --field: #FFFFFF;
-  --ink: #0F1728;
-  --ink-2: #3D4A61;
-  --ink-3: #66728A;
-  --line: #E2E7F0;
-  --line-strong: #CBD3E1;
+  --ink: #18202E;
+  --ink-2: #434D5F;
+  --ink-3: #626C7E;
+  --line: #E3E6EB;
+  --line-strong: #CDD2DA;
   --brand: #1747B8;
   --brand-soft: #EAF0FD;
   --brand-ink: #123C9F;
@@ -64,55 +64,55 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #0A0F1A;
-    --surface: #121A29;
-    --inset: #0E1522;
-    --field: #0E1522;
-    --ink: #E9EEF8;
-    --ink-2: #B3BED2;
-    --ink-3: #8794AC;
-    --line: #222D42;
-    --line-strong: #34425C;
-    --brand: #6C96FF;
-    --brand-soft: #172850;
-    --brand-ink: #C2D3FF;
-    --btn: #3966D6;
-    --btn-hover: #4673E0;
-    --gold: #DDB551;
-    --gold-ink: #F0D089;
-    --gold-soft: #2A2411;
-    --ok: #5CC892;
-    --ok-soft: #10291D;
-    --warn: #F0C36A;
-    --warn-soft: #2D2410;
-    --danger: #FF8A80;
+    --bg: #16191E;
+    --surface: #1E2228;
+    --inset: #1A1D23;
+    --field: #191C21;
+    --ink: #DCE1E8;
+    --ink-2: #AFB6C1;
+    --ink-3: #8B929E;
+    --line: #2D3239;
+    --line-strong: #3D434C;
+    --brand: #8CB0F5;
+    --brand-soft: #232D40;
+    --brand-ink: #C9D8F9;
+    --btn: #3F67C6;
+    --btn-hover: #4B73D0;
+    --gold: #D8B25C;
+    --gold-ink: #E9CF8E;
+    --gold-soft: #2C2819;
+    --ok: #6FCB98;
+    --ok-soft: #1A2B22;
+    --warn: #E8C173;
+    --warn-soft: #2E2819;
+    --danger: #F38B83;
     --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 8px 22px -14px rgba(0, 0, 0, .7);
     --shadow-pop: 0 24px 64px -24px rgba(0, 0, 0, .8);
   }
 }
 :root[data-theme="dark"] {
-  --bg: #0A0F1A;
-  --surface: #121A29;
-  --inset: #0E1522;
-  --field: #0E1522;
-  --ink: #E9EEF8;
-  --ink-2: #B3BED2;
-  --ink-3: #8794AC;
-  --line: #222D42;
-  --line-strong: #34425C;
-  --brand: #6C96FF;
-  --brand-soft: #172850;
-  --brand-ink: #C2D3FF;
-  --btn: #3966D6;
-  --btn-hover: #4673E0;
-  --gold: #DDB551;
-  --gold-ink: #F0D089;
-  --gold-soft: #2A2411;
-  --ok: #5CC892;
-  --ok-soft: #10291D;
-  --warn: #F0C36A;
-  --warn-soft: #2D2410;
-  --danger: #FF8A80;
+  --bg: #16191E;
+  --surface: #1E2228;
+  --inset: #1A1D23;
+  --field: #191C21;
+  --ink: #DCE1E8;
+  --ink-2: #AFB6C1;
+  --ink-3: #8B929E;
+  --line: #2D3239;
+  --line-strong: #3D434C;
+  --brand: #8CB0F5;
+  --brand-soft: #232D40;
+  --brand-ink: #C9D8F9;
+  --btn: #3F67C6;
+  --btn-hover: #4B73D0;
+  --gold: #D8B25C;
+  --gold-ink: #E9CF8E;
+  --gold-soft: #2C2819;
+  --ok: #6FCB98;
+  --ok-soft: #1A2B22;
+  --warn: #E8C173;
+  --warn-soft: #2E2819;
+  --danger: #F38B83;
   --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 8px 22px -14px rgba(0, 0, 0, .7);
   --shadow-pop: 0 24px 64px -24px rgba(0, 0, 0, .8);
   color-scheme: dark;
@@ -759,7 +759,7 @@ kbd {
   background: var(--surface); color: var(--ink);
   box-shadow: var(--shadow-pop);
 }
-.dlg::backdrop { background: rgba(8, 13, 24, .55); -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px); }
+.dlg::backdrop { background: rgba(12, 14, 18, .55); -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px); }
 .dlg-box { display: flex; flex-direction: column; gap: 10px; padding: 18px 22px 20px; }
 .dlg-head { display: flex; align-items: center; justify-content: space-between; }
 .dlg-head h2 { font-size: 18px; font-weight: 650; letter-spacing: -.01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -867,6 +867,66 @@ kbd {
 
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; scroll-behavior: auto !important; }
+}
+
+/* ------------------------------------------------------ hoja de cambios --
+   Es papel: colores fijos claros también en modo oscuro. En pantalla va en
+   un marco; al imprimir solo sale #printSheet. */
+.sheet-intro { margin: -6px 0 0; }
+.sheet-frame { margin-top: 14px; border: 1px solid var(--line); border-radius: 10px; background: #FFFFFF; overflow: hidden; }
+#sheetPreview { width: 780px; box-sizing: border-box; }
+.sheet {
+  --sh-ink: #13233F; --sh-navy: #0E2F5A; --sh-label: #5B7290; --sh-line: #CBD5E1;
+  --sh-mark: #FDF4C7; --sh-mark-line: #E0B532; --sh-mark-ink: #6B5000; --sh-yes: #1E7A47; --sh-no: #8A94A6;
+  color: var(--sh-ink); background: #FFFFFF; font-family: Arial, Helvetica, sans-serif; font-size: 13px; line-height: 1.35;
+  padding: 28px 30px;
+  -webkit-print-color-adjust: exact; print-color-adjust: exact;
+}
+.sheet .sh-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; padding-bottom: 10px; border-bottom: 1.5px solid var(--sh-navy); }
+.sheet .sh-title { margin: 0; font-size: 24px; font-weight: 800; color: var(--sh-navy); letter-spacing: -.01em; }
+.sheet .sh-sub { color: var(--sh-label); margin-top: 2px; }
+.sheet .sh-date { color: var(--sh-label); white-space: nowrap; margin-top: 6px; }
+.sheet .sh-date strong { color: var(--sh-ink); }
+.sheet .sh-legend { display: flex; align-items: center; gap: 8px; margin: 10px 0; color: var(--sh-ink); }
+.sheet .sh-swatch { width: 18px; height: 11px; border-radius: 3px; background: var(--sh-mark); border: 1px solid var(--sh-mark-line); flex: none; }
+.sheet .sh-banner { padding: 9px 12px; border: 1.5px solid var(--sh-mark-line); border-radius: 6px; background: var(--sh-mark); text-align: center; font-weight: 800; font-size: 15px; letter-spacing: .02em; color: var(--sh-navy); }
+.sheet .sh-grid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px 24px; margin-top: 12px; }
+.sheet .sh-grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 24px; }
+.sheet .sh-item { padding: 5px 8px; margin: 0 -8px 2px; border-radius: 6px; border: 1.5px solid transparent; }
+.sheet .sh-item.sh-mark { background: var(--sh-mark); border-color: var(--sh-mark-line); margin: 2px 0 4px; }
+.sheet .sh-label { font-size: 11px; font-weight: 700; color: var(--sh-label); text-transform: uppercase; letter-spacing: .03em; }
+.sheet .sh-item.sh-mark .sh-label { color: var(--sh-mark-ink); }
+.sheet .sh-value { font-size: 15px; font-weight: 700; margin-top: 1px; overflow-wrap: anywhere; }
+.sheet .sh-grid2 .sh-value { font-weight: 400; }
+.sheet .sh-h2 { margin: 16px 0 8px; padding-bottom: 4px; border-bottom: 1px solid var(--sh-line); font-size: 16px; font-weight: 800; color: var(--sh-navy); }
+.sheet .sh-plan { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; border: 1.5px solid var(--sh-mark-line); border-radius: 6px; background: var(--sh-mark); padding: 12px 14px; }
+.sheet .sh-plan-name { display: flex; align-items: center; gap: 10px; font-size: 18px; font-weight: 800; color: var(--sh-navy); }
+.sheet .sh-chip { font-size: 11px; font-weight: 800; letter-spacing: .05em; color: var(--sh-yes); border: 1.5px solid var(--sh-yes); border-radius: 5px; padding: 2px 7px; background: #FFFFFF; }
+.sheet .sh-plan-cell { text-align: center; padding: 0 18px; border-left: 1.5px solid var(--sh-mark-line); }
+.sheet .sh-plan-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; color: var(--sh-mark-ink); }
+.sheet .sh-plan-big { font-size: 22px; font-weight: 800; color: var(--sh-navy); white-space: nowrap; }
+.sheet .sh-empty { margin: 0; color: var(--sh-label); }
+.sheet .sh-table { width: 100%; border-collapse: collapse; }
+.sheet .sh-table th { text-align: left; vertical-align: bottom; font-size: 12px; font-weight: 800; color: var(--sh-navy); padding: 4px 6px; border-bottom: 1.5px solid var(--sh-navy); }
+.sheet .sh-table td { padding: 6px; border-bottom: 1px solid var(--sh-line); vertical-align: top; }
+.sheet .sh-table .num { text-align: right; }
+.sheet .sh-table .mid { text-align: center; }
+.sheet .sh-table .sh-name { font-weight: 700; }
+.sheet .sh-table .sh-yes { color: var(--sh-yes); font-weight: 700; }
+.sheet .sh-table .sh-no { color: var(--sh-no); font-weight: 700; }
+.sheet .sh-table td.sh-mark { background: var(--sh-mark); font-weight: 700; }
+.sheet .sh-table tr.sh-new td { background: var(--sh-mark); }
+.sheet .sh-tag { display: inline-block; margin-left: 6px; font-size: 10px; font-weight: 800; text-transform: uppercase; color: var(--sh-mark-ink); border: 1px solid var(--sh-mark-line); border-radius: 4px; padding: 0 4px; }
+.sheet .sh-table tr.sh-gone td { color: var(--sh-no); text-decoration: line-through; }
+.sheet .sh-table tfoot td { border-bottom: 0; padding-top: 8px; font-size: 15px; font-weight: 800; }
+.sheet .sh-foot { display: flex; justify-content: space-between; gap: 12px; margin-top: 14px; padding-top: 8px; border-top: 1px solid var(--sh-line); color: var(--sh-label); font-size: 11.5px; }
+
+#printSheet { display: none; }
+@media print {
+  @page { size: letter; margin: 12mm; }
+  body.printing-sheet { background: #FFFFFF !important; }
+  body.printing-sheet > *:not(#printSheet) { display: none !important; }
+  body.printing-sheet #printSheet { display: block; padding: 0; min-width: 0; }
 }
 
 </style>
@@ -1003,6 +1063,19 @@ kbd {
             <textarea class="email-box" id="signEmail" rows="6" readonly aria-label="Email con el enlace de firma"></textarea>
           </div>
           <p class="muted sign-hint" id="signLinkHint" hidden></p>
+        </section>
+
+        <!-- Hoja de cambios (Obamacare Pendiente): resumen para el colaborador que completa la aplicación -->
+        <section class="card" id="sec-hoja" data-rail="Hoja de cambios" hidden>
+          <div class="group-head">
+            <h3>Hoja de cambios</h3>
+          </div>
+          <p class="muted sheet-intro">Para el colaborador que completa la aplicación, impresa o en PDF. Lo resaltado cambió respecto a los documentos del proceso anterior.</p>
+          <div class="sign-actions">
+            <button type="button" class="btn primary" id="sheetPrint">Imprimir o guardar PDF</button>
+            <span class="muted" id="sheetFile"></span>
+          </div>
+          <div class="sheet-frame"><div class="sheet" id="sheetPreview"></div></div>
         </section>
 
         <p class="privacy">
@@ -1232,6 +1305,9 @@ kbd {
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
+<!-- la hoja de cambios que se imprime: lo único visible al imprimir -->
+<div class="sheet" id="printSheet" aria-hidden="true"></div>
+
 <script>
 /**
  * @licstart The following is the entire license notice for the
@@ -1287,7 +1363,7 @@ kbd {
 (function (root) {
   "use strict";
 
-  var VERSION = "1.10.1";
+  var VERSION = "1.11.0";
   /* De aquí la herramienta instalada lee el número de la última versión (y
      nada más). La política de seguridad de index.html solo permite esta
      dirección, y el actualizador de Windows usa el mismo repositorio. */
@@ -2774,7 +2850,8 @@ kbd {
      - `weak`: un dato que no es de la persona sino del hogar (el ingreso del
        hogar de la carta de elegibilidad, puesto en el titular): solo llena
        un campo vacío y cede ante cualquier dato de la persona. */
-  var HOGAR_KEYS = ["parentesco", "estatus", "ingreso", "dob"];
+  /* `sexo` ("a" / "o") no tiene campo en el hogar: sale en la hoja de cambios */
+  var HOGAR_KEYS = ["parentesco", "estatus", "ingreso", "dob", "sexo"];
   function sameValue(k, a, b) {
     if (k === "ingreso") { return U.moneyNumber(a) === U.moneyNumber(b); }
     if (k === "dob") { return same(dateOrText(a), dateOrText(b)); }
@@ -3281,7 +3358,67 @@ kbd {
     return out;
   }
 
+  /* ------------------------------------------------------ hoja de cambios --
+     Resumen de una página (Obamacare Pendiente) para el colaborador que
+     completa la aplicación: se imprime o se guarda en PDF. `cambio` marca lo
+     que quedó distinto de los documentos del proceso anterior, con la misma
+     base que «Cambios» en la nota. */
+  var SEXO = { a: "Femenino", o: "Masculino" };
+  var PORTAL = { "HealthSherpa": "HEALTHSHERPA", "Portal de la compañía": "PORTAL DE LA COMPAÑÍA" };
+
+  function changeSheet(d) {
+    var base = d.base || {}, list = Array.isArray(d.personas) && d.personas.length ? d.personas : [{ titular: true, taxes: true, cobertura: true }];
+    var anio = /^\d{4}$/.test(val(d.anio)) ? val(d.anio) : "";
+    var sel = planesOf(d).filter(function (p) { return p.sel; })[0] || (planesOf(d).length === 1 ? planesOf(d)[0] : null);
+    var consent = d.net && d.net.consent ? "Recibida" : d.revisaPlanes ? "No enviada (revisará los planes)" : "Enviada";
+    var contacto = CONTACTO.map(function (c) {
+      var now = val(d[c.k]), was = val(base[c.k]);
+      return { label: { direccion: "Dirección postal", clienteTel: "Teléfono", clienteEmail: "Email" }[c.k], value: now, cambio: !c.eq(now, was) };
+    });
+    contacto.push({ label: "Idioma", value: d.idioma === "en" ? "English" : "Spanish", cambio: false });
+    var people = list.map(function (p) {
+      var o = p.orig || {}, nuevo = !p.titular && !p.orig && !!d.hogarPdf && !!val(p.nombre);
+      var name = p.titular ? U.titleCase(val(d.nombres) + " " + val(d.apellidos)) : U.titleCase(val(p.nombre));
+      var dob = dateOrText(p.dob), est = estatusLabel(p.estatus, p.estatusOtro);
+      var ing = U.moneyNumber(p.ingreso);
+      var changed = function (k, now, was, eq) { return nuevo || (k in o ? !eq(now, was) : false); };
+      return {
+        nombre: name, titular: !!p.titular, nuevo: nuevo,
+        dob: dob, sexo: SEXO[p.titular ? d.genero : p.sexo] || "",
+        taxes: !!p.taxes, cobertura: !!p.cobertura, estatus: est,
+        ingreso: ing ? U.parseMoney(p.ingreso) : (val(p.ingreso) ? "$0.00" : ""),
+        cambio: {
+          dob: nuevo || !same(dob, "dob" in o ? dateOrText(o.dob) : ""),
+          taxes: changed("taxes", !!p.taxes, !!o.taxes, function (a, b) { return a === b; }),
+          cobertura: changed("cobertura", !!p.cobertura, !!o.cobertura, function (a, b) { return a === b; }),
+          estatus: nuevo || !same(est, "estatus" in o ? estatusLabel(o.estatus, o.estatusOtro) : ""),
+          ingreso: changed("ingreso", ing, U.moneyNumber(o.ingreso), function (a, b) { return a === b; })
+        }
+      };
+    }).filter(function (p) { return p.titular || p.nombre; });
+    var total = ingresoHogar(d);
+    var inicio = U.parseDate(d.efectiva) || (d.periodo === "OEP" && anio ? "01/01/" + anio : "");
+    return {
+      titulo: "Hoja de cambios · Verificación previa",
+      fecha: U.parseDate(d.fecha) || U.today(),
+      anio: anio, anioAnterior: anio ? String(+anio - 1) : "",
+      portal: PORTAL[d.plataforma] || "MARKETPLACE",
+      cliente: zohoName(d), codigo: d.codigoTipo === "Q" && !val(d.codigoQ) ? "" : reportCode(d),
+      agente: U.titleCase(val(d.sheetAgente)), colaborador: U.titleCase(val(d.sheetColaborador)),
+      npnAnterior: val(d.npnAnterior), npnSeleccionado: val(d.npnSeleccionado),
+      consent: consent,
+      plan: sel ? { nombre: [carrierName("oc", sel.compania), val(sel.plan)].filter(Boolean).join(" · "),
+                    prima: U.parseMoney(sel.prima), inicio: inicio } : null,
+      contacto: contacto,
+      personas: people,
+      quitados: (Array.isArray(d.quitados) ? d.quitados : []).filter(val).map(function (n) { return U.titleCase(n); }),
+      total: total !== null ? U.parseMoney(String(total)) : "",
+      archivo: safeFileName(U.stripAccents(zohoName(d) || "Apellido, Nombre") + " - OC_Change Sheet " + (anio || U.today().slice(-4)))
+    };
+  }
+
   var api = {
+    changeSheet: changeSheet,
     docConflicts: docConflicts,
     copyOrder: copyOrder, smsLink: smsLink, mailtoLink: mailtoLink, safeFileName: safeFileName,
     buildNote: buildNote, buildTask: buildTask, formatTask: formatTask, buildReport: buildReport,
@@ -4394,13 +4531,7 @@ kbd {
     /* fecha de nacimiento y dirección del contacto del hogar (el titular):
        sirven de base para saber qué cambió */
     f.dob = after(doc, [/\bDate\s*of\s*birth\b/i, /Fecha\s*de\s*nacimiento/i], vBirth, 1);
-    f.direccion = after(doc, [/\bHome\s*address\b/i, /Direcci[oó]n\s*(de\s*(la\s*)?casa|del\s*hogar|residencial)/i], vAddress, 1);
-    /* la calle en una línea y "Cape Coral, FL 33990-2089" en la siguiente */
-    var at = doc.lines.map(function (l) { return l.trim(); }).indexOf(f.direccion);
-    var city = at >= 0 ? String(doc.lines[at + 1] || "").trim() : "";
-    if (f.direccion && !/\b[A-Z]{2}\s+\d{5}/.test(f.direccion) && /^[A-Za-zÁÉÍÓÚÑáéíóúñ .'-]+,\s*[A-Z]{2}\s+\d{5}(-\d{4})?$/.test(city)) {
-      f.direccion += ", " + city;
-    }
+    f.direccion = withCity(doc, after(doc, [/\bHome\s*address\b/i, /Direcci[oó]n\s*(de\s*(la\s*)?casa|del\s*hogar|residencial)/i], vAddress, 1));
     /* teléfono y email del contacto del hogar: van a Teléfono y Email del
        titular, y quedan como base para Cambios */
     contactInfo(doc, f);
@@ -4453,6 +4584,19 @@ kbd {
     var tel = after(d, [/\bPhone\s*numbers?,?(\s*\(s\))?(\s*including\s*area\s*code)?/i, /\b(Primary\s*)?Phone\b/i, /Tel[eé]fonos?(\s*\(s\))?/i], vPhone, 1);
     if (email) { f.clienteEmail = email; }
     if (tel) { f.clienteTel = tel; }
+  }
+
+  /* La dirección completa: la calle en una línea y "Cape Coral, FL 33990-2089"
+     (o "Cape Coral FL 33990") en la siguiente. */
+  var CITY_LINE = /^([A-Za-zÁÉÍÓÚÑáéíóúñ .'-]+?),?\s+([A-Z]{2}),?\s+(\d{5}(?:-\d{4})?)$/;
+  function withCity(doc, street) {
+    if (!street || /\b[A-Z]{2},?\s+\d{5}/.test(street)) { return street; }
+    for (var i = 0; i + 1 < doc.lines.length; i++) {
+      if (!doc.lines[i].trim().endsWith(street)) { continue; }
+      var m = doc.lines[i + 1].trim().match(CITY_LINE);
+      return m ? street + ", " + m[1] + ", " + m[2] + " " + m[3] : street;
+    }
+    return street;
   }
 
   /* "4. Resident Address: 700 Palmetto Rd     Venice     FL     34285" */
@@ -4551,6 +4695,8 @@ kbd {
       if (p.dob) { o.dob = p.dob; }
       if (p.estatus) { o.estatus = p.estatus; }
       if (p.ingreso) { o.ingreso = p.ingreso; }
+      /* el sexo del titular va en «el cliente / la cliente»; el de los demás, a la hoja de cambios */
+      if (!o.titular && p.sex) { o.sexo = p.sex; }
       return o;
     }).filter(Boolean);
   }
@@ -4628,6 +4774,7 @@ kbd {
       if (r.dob) { o.dob = r.dob; }
       var inc = income[personKey(r.name)];
       if (inc) { o.ingreso = inc; }
+      if (!o.titular && r.sex) { o.sexo = r.sex; }
       return o;
     });
   }
@@ -5045,7 +5192,7 @@ kbd {
     if (ben) { f.beneficiario = ben; }
     contactInfo(doc, f);
     var home = after(doc, [/\bResident(ial)?\s*Address\b/i, /\bHome\s*address\b/i], vAddressRow, 0);
-    if (home) { f.direccion = home; }
+    if (home) { f.direccion = withCity(doc, home); }
     var ag = suppAgent(doc);
     agentInfo(doc, f);
     if (ag) { f.agente = ag.toUpperCase(); }
@@ -7215,7 +7362,28 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
     var signer = p.talker || p.me;
     d.firmaNombre = signer ? signer.name : "";
     d.firmaTel = signer ? (signer.tel || "") : "";
+    /* hoja de cambios: el agente que atiende, el colaborador, y el NPN del
+       proceso anterior (el agente del último documento) junto al elegido */
+    d.sheetAgente = signer ? signer.name : "";
+    d.sheetColaborador = p.collab ? p.collab.name : "";
+    d.npnSeleccionado = p.agent ? npnLabel(p.agent.npn, agentIniOf(p.agent)) : "";
+    var prev = docAgent();
+    if (prev) {
+      var m = settings.team.filter(function (t) { return (prev.npn && t.npn === prev.npn) || (prev.name && sameName(t.name, prev.name)); })[0];
+      d.npnAnterior = npnLabel(prev.npn || (m && m.npn), m ? agentIniOf(m) : U.initials(prev.name));
+    }
     return d;
+  }
+
+  function npnLabel(npn, ini) { return [U.collapse(npn), ini ? "(" + ini + ")" : ""].filter(Boolean).join(" "); }
+
+  /* el agente que trae el último documento leído (el App Summary del proceso anterior) */
+  function docAgent() {
+    for (var i = S.files.length - 1; i >= 0; i--) {
+      var r = S.files[i].res, f = r && r.fields;
+      if (f && (f.npn || f.agente)) { return { name: f.agente || "", npn: f.npn || "" }; }
+    }
+    return null;
   }
 
   /* el cuadro crece con el texto, para leerlo entero sin barra de scroll */
@@ -7321,6 +7489,7 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
     updatePeopleSummary();
     $("outcomeDesc").textContent = O().desc + ".";
     renderSign(d);
+    renderSheet(d);
     renderRail();
   }
 
@@ -7346,6 +7515,150 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
       wrap.appendChild(lab); wrap.appendChild(inp);
       grid.appendChild(wrap);
     });
+  }
+
+  /* ------------------------------------------------------ hoja de cambios --
+     Obamacare Pendiente: la hoja para el colaborador. Se dibuja con los datos
+     de la nota; al imprimir, solo ella sale en el papel o en el PDF. */
+  var sheetName = "";
+  function renderSheet(d) {
+    var on = isOC("pendiente");
+    $("sec-hoja").hidden = !on;
+    if (!on) { return; }
+    var s = N.changeSheet(d);
+    sheetName = s.archivo;
+    $("sheetFile").textContent = s.archivo + ".pdf";
+    drawSheet($("sheetPreview"), s);
+    fitSheet();
+  }
+
+  /* la vista previa es la página entera, achicada al ancho de la tarjeta */
+  var SHEET_WIDTH = 780;
+  function fitSheet() {
+    var frame = $("sheetPreview").parentNode;
+    if (!frame.clientWidth) { return; }
+    $("sheetPreview").style.zoom = String(Math.min(1, (frame.clientWidth - 2) / SHEET_WIDTH));
+  }
+
+  function drawSheet(box, s) {
+    var dash = "—";
+    function txt(tag, cls, t) { return el(tag, cls, U.collapse(t) ? t : dash); }
+    function item(label, value, mark) {
+      var w = el("div", "sh-item" + (mark ? " sh-mark" : ""));
+      w.appendChild(el("div", "sh-label", label));
+      w.appendChild(txt("div", "sh-value", value));
+      return w;
+    }
+    box.textContent = "";
+    var head = el("div", "sh-head");
+    var ht = el("div");
+    ht.appendChild(el("h1", "sh-title", s.titulo));
+    if (s.anio) { ht.appendChild(el("div", "sh-sub", "Datos actualizados para " + s.anio)); }
+    head.appendChild(ht);
+    var date = el("div", "sh-date", "Fecha: ");
+    date.appendChild(el("strong", null, s.fecha));
+    head.appendChild(date);
+    box.appendChild(head);
+
+    var legend = el("p", "sh-legend");
+    legend.appendChild(el("span", "sh-swatch"));
+    legend.appendChild(document.createTextNode("Los datos resaltados indican cambios en relación con el proceso anterior" + (s.anioAnterior ? " (" + s.anioAnterior + ")" : "") + "."));
+    box.appendChild(legend);
+    box.appendChild(el("div", "sh-banner", "PROCESAR POR EL PORTAL: " + s.portal));
+
+    var top = el("div", "sh-grid3");
+    var c1 = el("div"), c2 = el("div"), c3 = el("div");
+    c1.appendChild(item("Cliente", s.cliente));
+    c1.appendChild(item("Colaborador", s.colaborador));
+    c1.appendChild(item("Carta de consentimiento", s.consent));
+    c2.appendChild(item("Código de Zoho", s.codigo));
+    c2.appendChild(item("NPN anterior", s.npnAnterior));
+    c3.appendChild(item("Agente", s.agente));
+    c3.appendChild(item("NPN seleccionado", s.npnSeleccionado, true));
+    [c1, c2, c3].forEach(function (c) { top.appendChild(c); });
+    box.appendChild(top);
+
+    box.appendChild(el("h2", "sh-h2", "Plan elegido"));
+    if (s.plan) {
+      var plan = el("div", "sh-plan");
+      var pn = el("div", "sh-plan-name");
+      pn.appendChild(el("span", "sh-chip", "ELEGIDO"));
+      pn.appendChild(txt("span", null, s.plan.nombre));
+      plan.appendChild(pn);
+      var pr = el("div", "sh-plan-cell");
+      pr.appendChild(el("div", "sh-plan-label", "Prima"));
+      pr.appendChild(el("div", "sh-plan-big", s.plan.prima ? s.plan.prima + "/mo" : dash));
+      plan.appendChild(pr);
+      var st = el("div", "sh-plan-cell");
+      st.appendChild(el("div", "sh-plan-label", "Inicia cobertura"));
+      st.appendChild(el("div", "sh-plan-big", s.plan.inicio || dash));
+      plan.appendChild(st);
+      box.appendChild(plan);
+    } else {
+      box.appendChild(el("p", "sh-empty", "Sin plan elegido: selecciona uno en Planes cotizados."));
+    }
+
+    box.appendChild(el("h2", "sh-h2", "Datos de contacto"));
+    var ct = el("div", "sh-grid2");
+    s.contacto.forEach(function (c) { ct.appendChild(item(c.label, c.value, c.cambio)); });
+    box.appendChild(ct);
+
+    box.appendChild(el("h2", "sh-h2", "Integrantes del hogar"));
+    var table = el("table", "sh-table"), thead = el("thead"), hr = el("tr");
+    ["Nombre", "Nac. (DOB)", "Sexo", "En taxes", "Solicita cobertura", "Estatus migratorio", "Income anual estimado"].forEach(function (h, i) {
+      hr.appendChild(el("th", i === 6 ? "num" : (i === 3 || i === 4 ? "mid" : null), h));
+    });
+    thead.appendChild(hr); table.appendChild(thead);
+    var tb = el("tbody");
+    s.personas.forEach(function (p) {
+      var tr = el("tr", p.nuevo ? "sh-new" : null);
+      var name = txt("td", "sh-name", p.nombre);
+      if (p.nuevo) { name.appendChild(el("span", "sh-tag", "Nuevo")); }
+      tr.appendChild(name);
+      tr.appendChild(txt("td", p.cambio.dob ? "sh-mark" : null, p.dob));
+      tr.appendChild(txt("td", null, p.sexo));
+      tr.appendChild(el("td", "mid " + (p.taxes ? "sh-yes" : "sh-no") + (p.cambio.taxes ? " sh-mark" : ""), p.taxes ? "Sí" : "No"));
+      tr.appendChild(el("td", "mid " + (p.cobertura ? "sh-yes" : "sh-no") + (p.cambio.cobertura ? " sh-mark" : ""), p.cobertura ? "Sí" : "No"));
+      tr.appendChild(txt("td", p.cambio.estatus ? "sh-mark" : null, p.estatus));
+      tr.appendChild(txt("td", "num" + (p.cambio.ingreso ? " sh-mark" : ""), p.ingreso));
+      tb.appendChild(tr);
+    });
+    s.quitados.forEach(function (n) {
+      var tr = el("tr", "sh-gone");
+      tr.appendChild(el("td", "sh-name", n));
+      var td = el("td", null, "Se quita del hogar");
+      td.colSpan = 6;
+      tr.appendChild(td);
+      tb.appendChild(tr);
+    });
+    table.appendChild(tb);
+    var tf = el("tfoot"), fr = el("tr"), fl = el("td", "num", "Income anual estimado del hogar" + (s.anio ? " " + s.anio : ""));
+    fl.colSpan = 6;
+    fr.appendChild(fl);
+    fr.appendChild(txt("td", "num", s.total));
+    tf.appendChild(fr); table.appendChild(tf);
+    box.appendChild(table);
+
+    var foot = el("div", "sh-foot");
+    foot.appendChild(el("span", null, "Uso interno · sin SSN"));
+    foot.appendChild(el("span", null, "Q Agency Toolbox · Verificación previa"));
+    box.appendChild(foot);
+  }
+
+  /* Imprime solo la hoja; el título de la página es el nombre que propone
+     «Guardar como PDF». */
+  function printSheet() {
+    var d = data(), s = N.changeSheet(d), title = document.title;
+    drawSheet($("printSheet"), s);
+    document.title = s.archivo;
+    document.body.classList.add("printing-sheet");
+    var done = function () {
+      document.title = title;
+      document.body.classList.remove("printing-sheet");
+      window.removeEventListener("afterprint", done);
+    };
+    window.addEventListener("afterprint", done);
+    window.print();
   }
 
   function renderSign(d) {
@@ -7758,6 +8071,10 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
       var replaceable = S.auto[k] ? (S.auto[k] === "calc" || rank >= (S.rank[k] || 0))
         : DEFAULTABLE.indexOf(k) >= 0 && S.f[k] === freshFields()[k];
       if (!empty && !replaceable) { return; }
+      /* en Obamacare Pendiente los documentos son del proceso anterior: su año
+         no reemplaza un año del plan más nuevo (la renovación de 2027 con el
+         App Summary de 2026) */
+      if (k === "anio" && S.line === "oc" && S.outcome === "pendiente" && +v < +S.f.anio) { return; }
       S.f[k] = v; S.auto[k] = true; S.rank[k] = rank; S.base[k] = v; applied++;
     });
     if (special.miembros && S.line !== "mc") { applied += N.mergeMembers(S.f, U.parseList(special.miembros)); }
@@ -8477,6 +8794,8 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
     });
     $("signReset").addEventListener("click", function () { delete S.signEdits[signKind]; renderSign(data()); });
     $("signDownload").addEventListener("click", function () { downloadSign(this); });
+    $("sheetPrint").addEventListener("click", printSheet);
+    window.addEventListener("resize", fitSheet);
     [["copySignCliq", "signCliq"], ["copySignUrl", "signUrl"], ["copySignSms", "signSms"], ["copySignEmail", "signEmail"]].forEach(function (p) {
       $(p[0]).addEventListener("click", function () {
         var btn = this, text = $(p[1]).value;
