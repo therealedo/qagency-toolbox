@@ -214,7 +214,7 @@ In **Ajustes → Carpetas del Network**, choose your folder in the NETW once und
 | Document | Fills |
 | --- | --- |
 | My Plans & Programs (HealthCare.gov) | plan, monthly premium, status, people covered, coverage start |
-| Eligibility Letter | application ID, plan year, primary contact, income, household size, documents requested with the person and due date (not from the Eligibility Guide that follows the notice) |
+| Eligibility Letter | application ID, plan year, primary contact, income, household size, and the documents Marketplace asks for: each ACTION row ("By February 20, 2027, submit documents to confirm citizenship") becomes a requested document in the docs list, for each person with a dot under their name, with its due date (not from the Eligibility Guide that follows the notice). Pasted text loses the columns, so a row that is not for everyone comes in without a person |
 | App Summary (HealthCare.gov, also the printed copy, scanned) | application ID, plan year, applicant, DOB, home address, yearly income, household size |
 | Docs submitted (HealthCare.gov *Upload documents*, with the open item) | application ID, plan year, the document sent and for whom: it marks the requested document as **Enviado**, or adds it. The account holder's own document also fills the titular's full name from the uploaded file (`Diaz, Beatriz - …`) |
 | Consent (the agency's QAgency and ATH forms, Spanish or English) | ticks the Consent for the note |
