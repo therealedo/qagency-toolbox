@@ -469,6 +469,9 @@ kbd {
 .fld.is-auto input[type="text"]:focus, .fld.is-auto textarea:focus {
   box-shadow: inset 3px 0 0 var(--gold), 0 0 0 3px var(--brand-soft);
 }
+/* dato que casi nunca viene en un documento: pendiente de elegir */
+.fld.is-choose .seg, .fld.is-choose select { border-color: var(--danger); box-shadow: inset 3px 0 0 var(--danger); }
+.fld.is-choose .field-label::after { content: " · elígelo"; color: var(--danger); font-weight: 600; }
 .fld.bad input, .mini.bad input { border-color: var(--danger); }
 .fld.bad::after { content: "Revisa el formato"; display: block; margin-top: 5px; font-size: 12px; color: var(--danger); }
 
@@ -876,50 +879,76 @@ kbd {
 .sheet-frame { margin-top: 14px; border: 1px solid var(--line); border-radius: 10px; background: #FFFFFF; overflow: hidden; }
 #sheetPreview { width: 780px; box-sizing: border-box; }
 .sheet {
-  --sh-ink: #13233F; --sh-navy: #0E2F5A; --sh-label: #5B7290; --sh-line: #CBD5E1;
-  --sh-mark: #FDF4C7; --sh-mark-line: #E0B532; --sh-mark-ink: #6B5000; --sh-yes: #1E7A47; --sh-no: #8A94A6;
-  color: var(--sh-ink); background: #FFFFFF; font-family: Arial, Helvetica, sans-serif; font-size: 13px; line-height: 1.35;
+  --sh-ink: #111B2E; --sh-navy: #0E2F5A; --sh-label: #51627A; --sh-line: #D5DCE6; --sh-rule: #111B2E;
+  --sh-mark: #FFF3C2; --sh-mark-line: #8A6400; --sh-mark-ink: #5C4300; --sh-yes: #17683C; --sh-no: #566173; --sh-soft: #F4F6F9;
+  color: var(--sh-ink); background: #FFFFFF;
+  font-family: "Inter Variable", "Segoe UI", Arial, Helvetica, sans-serif; font-size: 12.5px; line-height: 1.35;
+  font-variant-numeric: tabular-nums;
   padding: 28px 30px;
   -webkit-print-color-adjust: exact; print-color-adjust: exact;
 }
-.sheet .sh-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; padding-bottom: 10px; border-bottom: 1.5px solid var(--sh-navy); }
-.sheet .sh-title { margin: 0; font-size: 24px; font-weight: 800; color: var(--sh-navy); letter-spacing: -.01em; }
-.sheet .sh-sub { color: var(--sh-label); margin-top: 2px; }
-.sheet .sh-date { color: var(--sh-label); white-space: nowrap; margin-top: 6px; }
-.sheet .sh-date strong { color: var(--sh-ink); }
-.sheet .sh-legend { display: flex; align-items: center; gap: 8px; margin: 10px 0; color: var(--sh-ink); }
-.sheet .sh-swatch { width: 18px; height: 11px; border-radius: 3px; background: var(--sh-mark); border: 1px solid var(--sh-mark-line); flex: none; }
-.sheet .sh-banner { padding: 9px 12px; border: 1.5px solid var(--sh-mark-line); border-radius: 6px; background: var(--sh-mark); text-align: center; font-weight: 800; font-size: 15px; letter-spacing: .02em; color: var(--sh-navy); }
-.sheet .sh-grid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px 24px; margin-top: 12px; }
-.sheet .sh-grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 24px; }
-.sheet .sh-item { padding: 5px 8px; margin: 0 -8px 2px; border-radius: 6px; border: 1.5px solid transparent; }
-.sheet .sh-item.sh-mark { background: var(--sh-mark); border-color: var(--sh-mark-line); margin: 2px 0 4px; }
-.sheet .sh-label { font-size: 11px; font-weight: 700; color: var(--sh-label); text-transform: uppercase; letter-spacing: .03em; }
+/* cabecera */
+.sheet .sh-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; padding-bottom: 9px; border-bottom: 2px solid var(--sh-rule); }
+.sheet .sh-title { margin: 0; font-size: 21px; line-height: 1.15; font-weight: 700; color: var(--sh-ink); letter-spacing: -.015em; }
+.sheet .sh-sub { color: var(--sh-label); margin-top: 3px; }
+.sheet .sh-date { color: var(--sh-label); white-space: nowrap; font-size: 12px; }
+.sheet .sh-date strong { color: var(--sh-ink); font-weight: 650; }
+/* leyenda: lleva la misma marca que los datos cambiados (barra y rombo), así
+   se distinguen también impresos en blanco y negro */
+.sheet .sh-legend { display: flex; align-items: center; gap: 8px; margin: 8px 0 9px; color: var(--sh-label); font-size: 11.5px; }
+.sheet .sh-swatch { position: relative; width: 22px; height: 12px; background: var(--sh-mark); border-left: 3px solid var(--sh-mark-line); flex: none; }
+.sheet .sh-swatch::after,
+.sheet .sh-item.sh-mark .sh-value::before,
+.sheet .sh-table td.sh-mark::before {
+  content: ""; display: inline-block; width: 5px; height: 5px; background: var(--sh-ink); transform: rotate(45deg);
+}
+.sheet .sh-swatch::after { position: absolute; left: 6px; top: 3.5px; }
+.sheet .sh-item.sh-mark .sh-value::before,
+.sheet .sh-table td.sh-mark::before { margin-right: 6px; vertical-align: .22em; }
+/* portal */
+.sheet .sh-banner { padding: 7px 12px; background: var(--sh-mark); border: 1px solid var(--sh-mark-line); border-left-width: 4px; text-align: center; font-weight: 700; font-size: 13.5px; letter-spacing: .06em; color: var(--sh-ink); }
+/* pares rótulo / valor */
+.sheet .sh-grid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 22px; margin-top: 10px; }
+.sheet .sh-grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 22px; }
+.sheet .sh-item { padding: 3px 8px; margin: 0 0 2px; border-left: 3px solid transparent; }
+.sheet .sh-item.sh-mark { background: var(--sh-mark); border-left-color: var(--sh-mark-line); }
+.sheet .sh-label { font-size: 10px; font-weight: 600; color: var(--sh-label); text-transform: uppercase; letter-spacing: .07em; }
 .sheet .sh-item.sh-mark .sh-label { color: var(--sh-mark-ink); }
-.sheet .sh-value { font-size: 15px; font-weight: 700; margin-top: 1px; overflow-wrap: anywhere; }
-.sheet .sh-grid2 .sh-value { font-weight: 400; }
-.sheet .sh-h2 { margin: 16px 0 8px; padding-bottom: 4px; border-bottom: 1px solid var(--sh-line); font-size: 16px; font-weight: 800; color: var(--sh-navy); }
-.sheet .sh-plan { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; border: 1.5px solid var(--sh-mark-line); border-radius: 6px; background: var(--sh-mark); padding: 12px 14px; }
-.sheet .sh-plan-name { display: flex; align-items: center; gap: 10px; font-size: 18px; font-weight: 800; color: var(--sh-navy); }
-.sheet .sh-chip { font-size: 11px; font-weight: 800; letter-spacing: .05em; color: var(--sh-yes); border: 1.5px solid var(--sh-yes); border-radius: 5px; padding: 2px 7px; background: #FFFFFF; }
-.sheet .sh-plan-cell { text-align: center; padding: 0 18px; border-left: 1.5px solid var(--sh-mark-line); }
-.sheet .sh-plan-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; color: var(--sh-mark-ink); }
-.sheet .sh-plan-big { font-size: 22px; font-weight: 800; color: var(--sh-navy); white-space: nowrap; }
+.sheet .sh-value { font-size: 14px; font-weight: 650; margin-top: 1px; overflow-wrap: anywhere; }
+.sheet .sh-grid2 .sh-value { font-size: 13px; font-weight: 450; }
+.sheet .sh-item.sh-mark .sh-value { font-weight: 700; }
+/* secciones */
+.sheet .sh-h2 { display: flex; align-items: center; gap: 10px; margin: 12px 0 6px; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: var(--sh-navy); break-after: avoid; }
+.sheet .sh-h2::after { content: ""; flex: 1; border-top: 1px solid var(--sh-line); }
+/* plan */
+.sheet .sh-plan { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; background: var(--sh-mark); border: 1px solid var(--sh-mark-line); border-left-width: 4px; padding: 9px 0 9px 12px; break-inside: avoid; }
+.sheet .sh-plan-name { display: flex; align-items: center; gap: 10px; font-size: 16px; font-weight: 700; color: var(--sh-ink); letter-spacing: -.01em; }
+.sheet .sh-chip { flex: none; font-size: 9.5px; font-weight: 700; letter-spacing: .08em; color: #FFFFFF; background: var(--sh-yes); border: 1px solid var(--sh-yes); padding: 2px 6px; }
+.sheet .sh-plan-cell { text-align: right; padding: 0 16px; border-left: 1px solid var(--sh-mark-line); }
+.sheet .sh-plan-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .07em; color: var(--sh-mark-ink); }
+.sheet .sh-plan-big { font-size: 18px; font-weight: 700; color: var(--sh-ink); white-space: nowrap; letter-spacing: -.01em; }
 .sheet .sh-empty { margin: 0; color: var(--sh-label); }
+/* tabla del hogar */
 .sheet .sh-table { width: 100%; border-collapse: collapse; }
-.sheet .sh-table th { text-align: left; vertical-align: bottom; font-size: 12px; font-weight: 800; color: var(--sh-navy); padding: 4px 6px; border-bottom: 1.5px solid var(--sh-navy); }
-.sheet .sh-table td { padding: 6px; border-bottom: 1px solid var(--sh-line); vertical-align: top; }
+.sheet .sh-table th { text-align: left; vertical-align: bottom; font-size: 10px; line-height: 1.25; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--sh-label); padding: 3px 7px 5px; border-bottom: 1.5px solid var(--sh-rule); }
+.sheet .sh-table td { padding: 4px 7px; border-bottom: 1px solid var(--sh-line); vertical-align: top; }
+.sheet .sh-table tr { break-inside: avoid; }
 .sheet .sh-table .num { text-align: right; }
+.sheet .sh-table td.num { white-space: nowrap; }
 .sheet .sh-table .mid { text-align: center; }
-.sheet .sh-table .sh-name { font-weight: 700; }
+.sheet .sh-table .sh-name { font-weight: 650; width: 27%; }
+.sheet .sh-table td:nth-child(2), .sheet .sh-table td:nth-child(3) { white-space: nowrap; }
 .sheet .sh-table .sh-yes { color: var(--sh-yes); font-weight: 700; }
-.sheet .sh-table .sh-no { color: var(--sh-no); font-weight: 700; }
-.sheet .sh-table td.sh-mark { background: var(--sh-mark); font-weight: 700; }
+.sheet .sh-table .sh-no { color: var(--sh-no); font-weight: 500; }
+.sheet .sh-table td.sh-mark { background: var(--sh-mark); border-left: 3px solid var(--sh-mark-line); font-weight: 700; }
 .sheet .sh-table tr.sh-new td { background: var(--sh-mark); }
-.sheet .sh-tag { display: inline-block; margin-left: 6px; font-size: 10px; font-weight: 800; text-transform: uppercase; color: var(--sh-mark-ink); border: 1px solid var(--sh-mark-line); border-radius: 4px; padding: 0 4px; }
-.sheet .sh-table tr.sh-gone td { color: var(--sh-no); text-decoration: line-through; }
-.sheet .sh-table tfoot td { border-bottom: 0; padding-top: 8px; font-size: 15px; font-weight: 800; }
-.sheet .sh-foot { display: flex; justify-content: space-between; gap: 12px; margin-top: 14px; padding-top: 8px; border-top: 1px solid var(--sh-line); color: var(--sh-label); font-size: 11.5px; }
+.sheet .sh-table tr.sh-new td:first-child { border-left: 3px solid var(--sh-mark-line); }
+.sheet .sh-tag { display: inline-block; margin-left: 6px; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: #FFFFFF; background: var(--sh-ink); padding: 1px 5px; vertical-align: .1em; }
+.sheet .sh-table tr.sh-gone td { color: var(--sh-no); background: var(--sh-soft); text-decoration: line-through; }
+.sheet .sh-table tfoot td { border-bottom: 0; border-top: 1.5px solid var(--sh-rule); padding-top: 7px; font-size: 13.5px; font-weight: 700; }
+.sheet .sh-table tfoot td:first-child { font-size: 10.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .07em; color: var(--sh-label); vertical-align: middle; }
+/* pie */
+.sheet .sh-foot { display: flex; justify-content: space-between; gap: 12px; margin-top: 12px; padding-top: 7px; border-top: 1px solid var(--sh-line); color: var(--sh-label); font-size: 10.5px; letter-spacing: .02em; }
 
 #printSheet { display: none; }
 @media print {
@@ -928,6 +957,9 @@ kbd {
   body.printing-sheet > *:not(#printSheet) { display: none !important; }
   body.printing-sheet #printSheet { display: block; padding: 0; min-width: 0; }
 }
+
+/* confirmar lo leído de una sección sin cambiarlo */
+.group-head .review-ok { font-size: 12px; font-weight: 600; }
 
 </style>
 </head>
@@ -1363,7 +1395,7 @@ kbd {
 (function (root) {
   "use strict";
 
-  var VERSION = "1.11.0";
+  var VERSION = "1.11.1";
   /* De aquí la herramienta instalada lee el número de la última versión (y
      nada más). La política de seguridad de index.html solo permite esta
      dirección, y el actualizador de Windows usa el mismo repositorio. */
@@ -1914,10 +1946,10 @@ kbd {
     return pad2(h === 0 ? 12 : h) + t.slice(2);
   }
 
-  /* Hora de revisión escrita como sea (9, 930, 2:30, 2pm, 14:30) -> la media
-     hora más cercana en 24 h. Sin AM/PM, de 1 a 6 se entiende de la tarde,
-     que es lo que cae en horario de oficina. */
-  function parseSlot(input) {
+  /* Hora escrita como sea (9, 934, 2:30, 2pm, 14:30) -> HH:MM exacta en 24 h.
+     Sin AM/PM, de 1 a 6 se entiende de la tarde, que es lo que cae en
+     horario de oficina. */
+  function parseClock(input) {
     var t = String(input == null ? "" : input).trim().toLowerCase().replace(/\s+/g, "").replace(/\./g, "");
     if (!t) { return ""; }
     var m = t.match(/^(\d{1,2})(?::?(\d{2}))?(am|pm|a|p)?$/);
@@ -1927,8 +1959,23 @@ kbd {
     if (ap === "p" && h < 12) { h += 12; }
     if (ap === "a" && h === 12) { h = 0; }
     if (!ap && h >= 1 && h <= 6) { h += 12; }
-    var total = Math.min(1410, Math.round((h * 60 + mi) / 30) * 30);
+    return pad2(h) + ":" + pad2(mi);
+  }
+
+  /* La misma hora, redondeada a la media hora más cercana. */
+  function parseSlot(input) {
+    var t = parseClock(input);
+    if (!t) { return ""; }
+    var total = Math.min(1410, Math.round((+t.slice(0, 2) * 60 + +t.slice(3)) / 30) * 30);
     return pad2(Math.floor(total / 60)) + ":" + pad2(total % 60);
+  }
+
+  /* La media hora en que cae una hora (la de antes): 09:34 -> 09:30. Es la
+     hora que lleva el task; la nota lleva la exacta. */
+  function floorSlot(input) {
+    var t = parseTime(input);
+    if (!t) { return ""; }
+    return t.slice(0, 3) + (+t.slice(3) < 30 ? "00" : "30");
   }
 
   /* "14:30" -> "2:30 PM": para leerla sin dudas (citas, SMS, listas). */
@@ -2103,7 +2150,7 @@ kbd {
   var api = {
     pad2: pad2, fmtDate: fmtDate, today: today, parseDate: parseDate, parseBirth: parseBirth, parseDateWords: parseDateWords,
     findDate: findDate, toDateObj: toDateObj, addDays: addDays, addMonths: addMonths, taskDate: taskDate,
-    parseTime: parseTime, parseSlot: parseSlot, to12h: to12h, timeLabel: timeLabel, halfHourSlots: halfHourSlots, yearMonth: yearMonth, defaultPlanYear: defaultPlanYear, moneyNumber: moneyNumber, parseMoney: parseMoney,
+    parseTime: parseTime, parseSlot: parseSlot, parseClock: parseClock, floorSlot: floorSlot, to12h: to12h, timeLabel: timeLabel, halfHourSlots: halfHourSlots, yearMonth: yearMonth, defaultPlanYear: defaultPlanYear, moneyNumber: moneyNumber, parseMoney: parseMoney,
     stripAccents: stripAccents, collapse: collapse, titleCase: titleCase, initials: initials,
     splitName: splitName, parseList: parseList, escapeHtml: escapeHtml, MONTHS: MONTHS,
     parseTeam: parseTeam, teamFile: teamFile, newerVersion: newerVersion
@@ -2342,7 +2389,7 @@ kbd {
     if (T.plain) { return (T.noOwner ? "" : owner + ": ") + text; }
 
     var out = owner + ": " + text + " - VER NOTA " + (U.parseDate(o.fecha) || "MM/DD/YYYY") +
-              " (" + (U.to12h(o.hora) || "09:00") + ")";
+              " (" + (U.to12h(U.floorSlot(o.hora)) || "09:00") + ")";
     (o.tags || []).forEach(function (t) { if (val(t)) { out += " " + upper(t); } });
     return out;
   }
@@ -2416,9 +2463,9 @@ kbd {
 
   var MODO_CITA = { "presencial": "en cita presencial", "telefónica": "en cita telefónica", "Zoom": "en cita por Zoom", "en casa": "en cita en su casa" };
 
-  /* Cómo empieza una nota de conversación: "Se conversa con la cliente (02:30)".
-     Entre paréntesis va la hora en que se debe revisar el task, la misma que
-     lleva el task después de VER NOTA. */
+  /* Cómo empieza una nota de conversación: "Se conversa con la cliente (02:34)".
+     Entre paréntesis va la hora exacta (la del primer documento); el task
+     lleva la media hora en que cae (02:30). */
   function talk(d) {
     var t = U.parseTime(d.hora) ? " (" + U.to12h(d.hora) + ")" : "";
     if (d.canal === "Appointment") { return "Se atiende " + alCliente(d) + " " + (MODO_CITA[d.modalidad] || "en cita") + t; }
@@ -2880,7 +2927,8 @@ kbd {
       keys.forEach(function (k) {
         var had = p.filled[k], untouched = had != null && p.orig && sameValue(k, p[k], p.orig[k]);
         if (!val(p[k]) || (untouched && r >= had && (!weak || had === 0))) {
-          if (!sameValue(k, p[k], x[k])) { n++; }
+          /* un dato nuevo vuelve a pedir revisión */
+          if (!sameValue(k, p[k], x[k])) { n++; delete p.ok; }
           p[k] = x[k]; p.orig[k] = x[k]; p.filled[k] = r;
           return;
         }
@@ -2935,13 +2983,14 @@ kbd {
 
     if (d.line === "oc" && O.id === "pendiente") {
       /* la cotización o el consentimiento cierran la nota: si revisará los
-         planes, todavía no hay plan elegido y el consent no se envía */
+         planes, todavía no hay plan elegido y el consent no se envía; con el
+         consent firmado queda la app pendiente */
       if (d.revisaPlanes) {
         var entrega = (d.canal === "Walk In" || (d.canal === "Appointment" && (d.modalidad === "presencial" || d.modalidad === "en casa"))) ? "entrega" : "envía";
         out.push("Se le " + entrega + " la cotización para que revise los planes.");
       } else {
         out.push(d.net && d.net.consent
-          ? "Se firmó la carta de consentimiento" + (d.canal === "Appointment" ? (CONSENT_CITA[d.modalidad] || "") : (CONSENT_DONDE[d.canal] || "")) + "."
+          ? "Se firmó la carta de consentimiento" + (d.canal === "Appointment" ? (CONSENT_CITA[d.modalidad] || "") : (CONSENT_DONDE[d.canal] || "")) + ", app pendiente."
           : "Carta de consentimiento enviada.");
       }
     } else {
@@ -3247,6 +3296,7 @@ kbd {
     var O = outcomeOf(d), w = [];
     if (!val(d.ini)) { w.push("Elige quién hace la nota (arriba a la derecha)."); }
     if (!val(d.nombres) && !val(d.apellidos)) { w.push("Falta el nombre del cliente."); }
+    if (Array.isArray(d.porElegir) && d.porElegir.length) { w.push("Elige o confirma: " + d.porElegir.join(", ") + "."); }
     var noChange = d.line === "mc" && O.id === "sincambio";
     if (noChange && !val(d.plan)) { w.push("Reporte: falta el nombre del plan."); }
     if (O.report && !noChange) {
@@ -3537,7 +3587,8 @@ kbd {
   /* Consent en Obamacare Pendiente (cotización); SOA en las situaciones de
      Medicare que guardan un SOA en el Network. */
   function formKind(d) {
-    if (d.line === "oc") { return N.outcomeOf(d).id === "pendiente" ? "consent" : ""; }
+    /* con la carta de consentimiento ya recibida no hay nada que firmar */
+    if (d.line === "oc") { return N.outcomeOf(d).id === "pendiente" && !(d.net && d.net.consent) ? "consent" : ""; }
     if (d.line === "mc") { return N.networkOf(d).some(function (n) { return n.k === "soa"; }) ? "soa" : ""; }
     return "";
   }
@@ -3559,11 +3610,18 @@ kbd {
     return sel || (list.length === 1 ? list[0] : null);
   }
 
-  /* Casado o casada si en el hogar hay un cónyuge; si no, se deja para escribirlo. */
+  /* Estado civil: casado o casada si en el hogar hay un cónyuge; si no, el que
+     leyó el App Summary (dicho o interpretado). Sin ninguno, se deja para
+     escribirlo. */
+  var CIVIL = {
+    casado: ["Married", "Casado", "Casada"], soltero: ["Single", "Soltero", "Soltera"], divorciado: ["Divorced", "Divorciado", "Divorciada"],
+    viudo: ["Widowed", "Viudo", "Viuda"], separado: ["Separated", "Separado", "Separada"]
+  };
   function maritalOf(d) {
     var married = N.personas(d).some(function (p) { return !p.titular && p.parentesco === "Cónyuge"; });
-    if (!married) { return ""; }
-    return d.idioma === "en" ? "Married" : (d.genero === "a" ? "Casada" : "Casado");
+    var w = CIVIL[married ? "casado" : val(d.estadoCivil)];
+    if (!w) { return ""; }
+    return d.idioma === "en" ? w[0] : (d.genero === "a" ? w[2] : w[1]);
   }
 
   function consentValues(d) {
@@ -4555,6 +4613,8 @@ kbd {
     /* HealthSherpa: el agente y el hogar vienen en tablas */
     if (sherpaAgent(doc, f)) { f.plataforma = "HealthSherpa"; }
     if (!ps.length) { ps = sherpaPeople(doc, f); }
+    var civil = maritalStatus(doc, f, ps);
+    if (civil) { f.estadoCivil = civil; }
     if (ps.length) {
       f.personas = ps;
       /* con una sección por persona, el ingreso y el DOB del titular son los
@@ -4777,6 +4837,33 @@ kbd {
       if (!o.titular && r.sex) { o.sexo = r.sex; }
       return o;
     });
+  }
+
+  /* Estado civil del titular, para el Consent. HealthCare.gov lo dice en su
+     sección ("Marital status  Married to Denis…", "Single"); si no, se
+     interpreta: con cónyuge en el hogar o taxes en conjunto está casado, y un
+     hogar leído del documento sin ninguno de los dos es soltero. */
+  function vMarital(t) {
+    var c = firstCell(t).toLowerCase();
+    if (/^(married|casad[oa])\b/.test(c)) { return "casado"; }
+    if (/^(single|never\s*married|solter[oa])\b/.test(c)) { return "soltero"; }
+    if (/^(divorced|divorciad[oa])\b/.test(c)) { return "divorciado"; }
+    if (/^(widow(ed|er)?|viud[oa])\b/.test(c)) { return "viudo"; }
+    if (/^(separated|separad[oa])\b/.test(c)) { return "separado"; }
+    return "";
+  }
+  function maritalStatus(doc, f, ps) {
+    var starts = [];
+    doc.lines.forEach(function (l, i) { if (/^\s*(Name|Nombre)\s*$/i.test(l)) { starts.push(i); } });
+    var sections = starts.map(function (s, k) { return doc.lines.slice(s, k + 1 < starts.length ? starts[k + 1] : doc.lines.length); });
+    /* la sección del titular: la que lleva su nombre de pila, o la primera */
+    var first = U.stripAccents(f.nombres || "").split(" ")[0].toUpperCase();
+    var titular = sections.filter(function (sec) { return first && U.stripAccents(sec[1] || "").trim().toUpperCase().indexOf(first) === 0; })[0] || sections[0];
+    var said = titular ? after(makeDoc(titular.join("\n")), [/^\s*Marital\s*status\b/i, /^\s*Estado\s*civil\b/i], vMarital, 1) : "";
+    if (said) { return said; }
+    if (ps.some(function (p) { return p.parentesco === "Cónyuge"; })) { return "casado"; }
+    if (/\b(joint|jointly|en conjunto|conjunta)\b[^\n]{0,40}\btax|\btax return jointly\b|\bfiling jointly\b/i.test(doc.flat)) { return "casado"; }
+    return ps.length ? "soltero" : "";
   }
 
   /* El idioma del cliente: decide la plantilla del Consent y del SOA */
@@ -5230,7 +5317,7 @@ kbd {
   var QUOTE_ISSUER = /\b(inc\.?|llc|company|compa[nñ][ií]\w*|corp\w*|insurance)\b|(\.\.\.|…)$/i;
   var QUOTE_FAMILIES = [
     [/^(bronze|silver|gold|platinum)\s+(simple|classic|elite|basic|core)\b/i, "Oscar"],
-    [/^(fundamental|everyday|signature(\s+expanded)?|thrive|focused|complete|enhanced\s+diabetes\s+care)\s+(bronze|silver|gold|platinum)\b/i, "Ambetter"]
+    [/^(fundamental|everyday|signature(\s+expanded)?|thrive|focused|complete|enhanced\s+diabetes\s+care|clarity|balanced\s+care)\s+(bronze|silver|gold|platinum)\b/i, "Ambetter"]
   ];
 
   function median(a) {
@@ -6164,6 +6251,10 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
     edited: freshEdited(),
     /* valores del Consent o del SOA que se cambiaron a mano, por formulario */
     signEdits: {},
+    /* la hora ya se puso: "doc" con el primer documento, "user" a mano */
+    horaFrom: "",
+    /* campos de MUST_CHOOSE que el agente ya eligió o confirmó */
+    chosen: {},
     dirty: false
   };
 
@@ -6243,7 +6334,7 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
     { k: "anio", g: "contacto", type: "int", label: "Año del plan", max: 4 },
     { k: "canal", g: "contacto", type: "seg", label: "Canal", w: "w2", options: C.CHANNELS },
     { k: "hora", g: "contacto", type: "slot", label: "Hora de revisión del task", w: "w2",
-      hint: "Escríbela (2, 230, 2:30pm) o elígela. Va en la nota y en el task." },
+      hint: "Se pone sola al cargar el primer documento. La nota lleva la hora exacta; el task, la hora en punto o y media de antes (9:13 → 9:00, 9:34 → 9:30)." },
     { k: "modalidad", g: "contacto", type: "select", label: "Modalidad de la cita", options: C.MODALIDADES,
       when: function (f) { return f.canal === "Appointment"; } },
 
@@ -6466,7 +6557,7 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
 
     if (F.type === "slot") {
       wrap.appendChild(slotPicker(ctl, function () { return S.f.hora; }, function (v) {
-        S.f.hora = v; touched("hora"); refresh();
+        S.f.hora = v; S.horaFrom = "user"; touched("hora"); refresh();
       }));
     } else if (F.prefix) {
       var box = el("div", "with-prefix");
@@ -6521,7 +6612,7 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
     wrap.appendChild(pop);
 
     function show() {
-      each(pop.querySelectorAll("[data-slot]"), function (b) { b.classList.toggle("on", b.dataset.slot === get()); });
+      each(pop.querySelectorAll("[data-slot]"), function (b) { b.classList.toggle("on", b.dataset.slot === U.floorSlot(get())); });
       pop.hidden = false;
       input.setAttribute("aria-expanded", "true");
     }
@@ -6529,11 +6620,11 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
     function commit(v) { if (v) { set(v); } input.value = U.timeLabel(get()); input.closest(".fld, .mini").classList.remove("bad"); }
     function typed() {
       if (!U.collapse(input.value)) { input.value = U.timeLabel(get()); return; }
-      var v = U.parseSlot(input.value);
+      var v = U.parseClock(input.value);
       if (v) { commit(v); } else { input.closest(".fld, .mini").classList.add("bad"); }
     }
     function step(n) {
-      var t = U.parseSlot(get()) || "09:00", mins = +t.slice(0, 2) * 60 + +t.slice(3) + n;
+      var t = U.floorSlot(get()) || "09:00", mins = +t.slice(0, 2) * 60 + +t.slice(3) + n;
       mins = Math.max(0, Math.min(1410, mins));
       commit(U.pad2(Math.floor(mins / 60)) + ":" + U.pad2(mins % 60));
       show();
@@ -6613,8 +6704,7 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
     var cancel = isOC("cancelada"), supp = S.line === "supp";
     var listEl = el("div", "people");
     S.f.personas.forEach(function (p, i) {
-      var fromDoc = p.auto || Object.keys(p.filled || {}).length > 0;
-      var row = listItem("person" + (p.open ? " open" : "") + (fromDoc ? " is-auto" : ""), i);
+      var row = listItem("person" + (p.open ? " open" : "") + (toReview(p) ? " is-auto" : ""), i);
       var head = el("div", "person-head");
       var t = actBtn("toggle", i, "", "person-toggle");
       t.setAttribute("aria-expanded", p.open ? "true" : "false");
@@ -6785,6 +6875,36 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
 
   function renderLists() { renderPersonas(); renderDocs(); renderPlanes(); }
 
+  /* Datos que casi nunca vienen en un documento y que importan mucho: van en
+     rojo hasta que el agente elige una opción (aunque sea la que ya estaba)
+     o confirma la sección. */
+  var MUST_CHOOSE = ["canal", "codigoTipo", "periodo", "periodoMC"];
+  function mustChoose(F) {
+    var k = key(F);
+    return MUST_CHOOSE.indexOf(k) >= 0 && !S.chosen[k] && S.auto[k] !== true;
+  }
+
+  /* Una persona del hogar que llenó un documento queda en dorado hasta que se
+     confirma (ok); si otro documento le trae un dato nuevo, vuelve a dorado. */
+  function toReview(x) {
+    return !!x && !x.ok && (!!x.auto || Object.keys(x.filled || {}).length > 0);
+  }
+
+  /* Confirma que lo leído de los documentos está bien, sin cambiarlo: en una
+     sección (group) o en todo el formulario. */
+  function confirmReviewed(group) {
+    FIELDS.forEach(function (F) {
+      if (group && F.g !== group) { return; }
+      if (S.auto[key(F)] === true) { delete S.auto[key(F)]; }
+      if (MUST_CHOOSE.indexOf(key(F)) >= 0 && fieldVisible(F)) { S.chosen[key(F)] = true; }
+      if (Array.isArray(S.f[F.k])) {
+        S.f[F.k].forEach(function (x) { if (x && typeof x === "object") { delete x.auto; if (F.k === "personas") { x.ok = true; } } });
+      }
+    });
+    renderLists();
+    refresh();
+  }
+
   /* Cambio en un campo de una lista. */
   function listInput(t, committed) {
     var list = S.f[t.dataset.list], item = list && list[+t.dataset.i], prop = t.dataset.prop;
@@ -6898,6 +7018,12 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
       head.appendChild(h3);
       var badge = el("span", "review"); badge.hidden = true;
       head.appendChild(badge);
+      /* confirma lo dorado de esta sección aunque no haya que cambiar nada */
+      var ok = el("button", "link-btn review-ok", "Están bien");
+      ok.type = "button"; ok.hidden = true;
+      ok.title = "Quita el dorado de esta sección: los datos leídos están bien";
+      ok.addEventListener("click", function () { confirmReviewed(G.id); });
+      head.appendChild(ok);
       sec.appendChild(head);
       var grid = el("div", "grid");
       FIELDS.filter(function (F) { return F.g === G.id; }).forEach(function (F) { grid.appendChild(buildField(F)); });
@@ -7128,9 +7254,11 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
       /* el dorado es solo para lo leído de un documento, no para lo calculado */
       var fromDoc = S.auto[key(F)] === true;
       wrap.classList.toggle("is-auto", fromDoc);
-      if (fromDoc && visible) { pending[F.g] = (pending[F.g] || 0) + 1; }
+      var choose = mustChoose(F);
+      wrap.classList.toggle("is-choose", choose);
+      if ((fromDoc || choose) && visible) { pending[F.g] = (pending[F.g] || 0) + 1; }
       if (visible && Array.isArray(S.f[F.k])) {
-        var n = S.f[F.k].filter(function (x) { return x && x.auto; }).length;
+        var n = S.f[F.k].filter(function (x) { return F.k === "personas" ? toReview(x) : x && x.auto; }).length;
         if (n) { pending[F.g] = (pending[F.g] || 0) + n; }
       }
     });
@@ -7143,6 +7271,7 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
       var badge = g.querySelector(".review"), n = pending[id] || 0;
       badge.hidden = !n;
       badge.textContent = n + " por revisar";
+      g.querySelector(".review-ok").hidden = !n;
       g.dataset.pending = n;
     });
     var total = Object.keys(pending).reduce(function (s, k) { return s + pending[k]; }, 0);
@@ -7341,6 +7470,8 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
   function data() {
     var d = Object.assign({}, S.f), p = people();
     d.line = S.line; d.outcome = S.outcome;
+    /* lo que el agente todavía no eligió ni confirmó (va en los avisos) */
+    d.porElegir = FIELDS.filter(function (F) { return mustChoose(F) && fieldVisible(F); }).map(function (F) { return resolve(F.label); });
     d.ini = p.me ? p.me.ini : "";
     d.agente = p.agent ? p.agent.name : "";
     d.npn = p.agent ? p.agent.npn : "";
@@ -8208,8 +8339,18 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
     return String(text || "").replace(/\s/g, "").length < 200 && X.extract(text, "document.pdf", S.line).type === "unknown";
   }
 
+  /* La hora de la nota es la exacta en que se carga el primer documento,
+     salvo que el agente ya la haya puesto a mano. */
+  function stampHora() {
+    if (S.horaFrom) { return; }
+    var now = new Date();
+    S.f.hora = U.pad2(now.getHours()) + ":" + U.pad2(now.getMinutes());
+    S.horaFrom = "doc";
+  }
+
   function readFile(file) {
     var entry = { name: file.name, status: "reading", applied: 0, file: file };
+    stampHora();
     S.files.push(entry);
     renderFiles();
     var isPdf = /pdf/i.test(file.type) || /\.pdf$/i.test(file.name);
@@ -8642,6 +8783,7 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
 
   function touched(k) {
     delete S.auto[k]; delete S.rank[k];
+    S.chosen[k] = true;
     S.dirty = true;
   }
 
@@ -8834,15 +8976,13 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
 
     $("btnReviewed").addEventListener("click", function () {
       Object.keys(S.auto).forEach(function (k) { if (S.auto[k] === true) { delete S.auto[k]; } });
-      ["personas", "docs", "planes"].forEach(function (k) { S.f[k].forEach(function (x) { delete x.auto; }); });
-      renderLists();
-      refresh();
+      confirmReviewed("");
     });
 
     /* nueva nota */
     $("btnNew").addEventListener("click", function () {
       if (hasClientData() && S.dirty && !window.confirm("La nota actual no se ha copiado. ¿Empezar una nueva?")) { return; }
-      S.f = freshFields(); S.auto = {}; S.rank = {}; S.base = {}; S.files = []; S.signEdits = {};
+      S.f = freshFields(); S.auto = {}; S.rank = {}; S.base = {}; S.files = []; S.signEdits = {}; S.horaFrom = ""; S.chosen = {};
       $("taskId").dataset.line = "";
       S.edited = freshEdited(); S.dirty = false;
       S.outcome = L().outcomes[0].id;
@@ -8874,6 +9014,12 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
       var t = e.target, editable = t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
       if (editable && Array.prototype.indexOf.call(e.clipboardData.types || [], "text/plain") >= 0) { return; }
       var imgs = Array.prototype.filter.call(e.clipboardData.files || [], function (f) { return /^image\//i.test(f.type); });
+      /* algunas herramientas de captura dejan la imagen solo como elemento
+         del portapapeles, sin la lista de archivos */
+      if (!imgs.length) {
+        imgs = Array.prototype.filter.call(e.clipboardData.items || [], function (it) { return it.kind === "file" && /^image\//i.test(it.type); })
+          .map(function (it) { return it.getAsFile(); }).filter(Boolean);
+      }
       if (!imgs.length) { return; }
       e.preventDefault();
       handleFiles(imgs.map(function (f, i) {
@@ -8908,6 +9054,7 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
       var entry = { name: pasteSource ? pasteSource.name : "Texto pegado", status: "reading", applied: 0 };
       /* el texto pegado reemplaza al archivo: primero se deshace lo que llenó */
       if (pasteSource) { removeFile(pasteSource); }
+      stampHora();
       S.files.push(entry);
       finishFile(entry, text);
       $("dlgPaste").close();
