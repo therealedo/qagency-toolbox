@@ -21,13 +21,15 @@
      nombran: quedan vacías. Los nombres son los del PDF, tal cual (algunos
      perdieron la ligadura «ti»: «connuación», «Endades», «Candad»). */
   var CONSENT_EN = {
-    date: ["Todays Date", "agentsEnes on the date of", "Fecha"], clientName: ["Ms", "Full Name"],
+    /* la fecha de la firma es la del día: va en la casilla de "Date of
+       Signature", que en el PDF se llama "Signature2_es_:signer:signature" */
+    date: ["Todays Date", "agentsEnes on the date of", "Fecha", "Signature2_es_:signer:signature"], clientName: ["Ms", "Full Name"],
     agentName: ["Agents andor Enes"], npn: ["NPN_2"], marital: ["Marital status"],
     income: ["Projected Annual Family Income"], taxPeople: ["Number of people on your 2023 tax return"],
     coveredPeople: ["People with medical coverage"], plan: ["Health Plan"]
   };
   var CONSENT_ES = {
-    date: ["Fecha", "mencionados a connuación en la fecha de"], clientName: ["Yo SrSra", "Nombre y Apellido"],
+    date: ["Fecha", "mencionados a connuación en la fecha de", "Fecha de la Firma"], clientName: ["Yo SrSra", "Nombre y Apellido"],
     agentName: ["Agentes yo Endades"], npn: ["NPN"], marital: ["Estatus marital"],
     income: ["Ingreso proyectado anual familiar"], taxPeople: ["Candad de personas en su declaración de impuestos 2023"],
     coveredPeople: ["Personas con cobertura médica"], plan: ["Plan"]
@@ -161,7 +163,7 @@
 
   function cliqText(kind, name, email, phone) {
     var to = [val(email), val(phone)].filter(Boolean).map(function (x) { return "al " + x; });
-    return "Enviar " + (kind === "soa" ? "SOA" : "CONSENT") + " a " + (val(name) || "Nombre Apellido") +
+    return "Enviar " + (kind === "soa" ? "SOA" : "CONSENT") + " a " + (val(name) || "Apellido, Nombre") +
            (to.length ? " " + to.join(" y ") : "") + " pls @Support QAgency";
   }
 

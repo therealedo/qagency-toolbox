@@ -3324,13 +3324,15 @@ kbd {
      nombran: quedan vacías. Los nombres son los del PDF, tal cual (algunos
      perdieron la ligadura «ti»: «connuación», «Endades», «Candad»). */
   var CONSENT_EN = {
-    date: ["Todays Date", "agentsEnes on the date of", "Fecha"], clientName: ["Ms", "Full Name"],
+    /* la fecha de la firma es la del día: va en la casilla de "Date of
+       Signature", que en el PDF se llama "Signature2_es_:signer:signature" */
+    date: ["Todays Date", "agentsEnes on the date of", "Fecha", "Signature2_es_:signer:signature"], clientName: ["Ms", "Full Name"],
     agentName: ["Agents andor Enes"], npn: ["NPN_2"], marital: ["Marital status"],
     income: ["Projected Annual Family Income"], taxPeople: ["Number of people on your 2023 tax return"],
     coveredPeople: ["People with medical coverage"], plan: ["Health Plan"]
   };
   var CONSENT_ES = {
-    date: ["Fecha", "mencionados a connuación en la fecha de"], clientName: ["Yo SrSra", "Nombre y Apellido"],
+    date: ["Fecha", "mencionados a connuación en la fecha de", "Fecha de la Firma"], clientName: ["Yo SrSra", "Nombre y Apellido"],
     agentName: ["Agentes yo Endades"], npn: ["NPN"], marital: ["Estatus marital"],
     income: ["Ingreso proyectado anual familiar"], taxPeople: ["Candad de personas en su declaración de impuestos 2023"],
     coveredPeople: ["Personas con cobertura médica"], plan: ["Plan"]
@@ -3464,7 +3466,7 @@ kbd {
 
   function cliqText(kind, name, email, phone) {
     var to = [val(email), val(phone)].filter(Boolean).map(function (x) { return "al " + x; });
-    return "Enviar " + (kind === "soa" ? "SOA" : "CONSENT") + " a " + (val(name) || "Nombre Apellido") +
+    return "Enviar " + (kind === "soa" ? "SOA" : "CONSENT") + " a " + (val(name) || "Apellido, Nombre") +
            (to.length ? " " + to.join(" y ") : "") + " pls @Support QAgency";
   }
 
@@ -4117,7 +4119,7 @@ kbd {
   /* Los espacios se buscan dentro de la misma línea: "…, 2026" seguido de
      "Application ID" en la línea de abajo no es un año de plan. */
   function planYear(doc) {
-    return find(doc, /\b(20[2-4]\d)[ \t]+(?:health[ \t]+)?(?:coverage|application|plan year)/i) ||
+    return find(doc, /\b(20[2-4]\d)[ \t]+(?:health[ \t]+)?(?:insurance[ \t]+)?(?:coverage|application|plan year)/i) ||
            find(doc, /(?:coverage|plan) year[ \t]*[:#]?[ \t]*(20[2-4]\d)/i) ||
            find(doc, /(?:cobertura(?:[ \t]+m[eé]dica)?|solicitud|a[nñ]o del plan)[ \t]*:?[ \t]+(?:de[ \t]+|para[ \t]+|del[ \t]+)?(20[2-4]\d)\b/i);
   }
@@ -4372,13 +4374,18 @@ kbd {
 
   function extractOcApp(doc) {
     var f = {};
+    /* la página "Review your application" impresa desde el navegador pone
+       el botón "Edit" al final de cada rótulo: "Name     Edit" */
+    doc = makeDoc(doc.lines.map(function (l) { return l.replace(/\s{2,}(Edit|Editar)$/, ""); }).join("\n"));
     f.appId = appId(doc);
     /* el resumen impreso de HealthCare.gov dice el año en el ingreso o en
        los taxes: "Estimated income next year (2027)", "Filing a 2027 tax return" */
     f.anio = planYear(doc) || find(doc, /\bincome next year \((20[2-4]\d)\)/i) || find(doc, /\bFiling a (20[2-4]\d) tax return\b/i);
     personName(doc, f);
     if (!f.nombres) {
-      var full = after(doc, [/^\s*Full\s*name\s*$/i], vPerson, 1);
+      /* "Full name" con el nombre debajo (HealthCare.gov) o al lado
+         ("Full name: Mauricio Alvarez Lugo", HealthSherpa) */
+      var full = after(doc, [/^\s*Full\s*name\s*:?/i], vPerson, 1);
       if (full) { setName(f, full); }
     }
     f.ingreso = annualIncome(doc);
@@ -4388,6 +4395,12 @@ kbd {
        sirven de base para saber qué cambió */
     f.dob = after(doc, [/\bDate\s*of\s*birth\b/i, /Fecha\s*de\s*nacimiento/i], vBirth, 1);
     f.direccion = after(doc, [/\bHome\s*address\b/i, /Direcci[oó]n\s*(de\s*(la\s*)?casa|del\s*hogar|residencial)/i], vAddress, 1);
+    /* la calle en una línea y "Cape Coral, FL 33990-2089" en la siguiente */
+    var at = doc.lines.map(function (l) { return l.trim(); }).indexOf(f.direccion);
+    var city = at >= 0 ? String(doc.lines[at + 1] || "").trim() : "";
+    if (f.direccion && !/\b[A-Z]{2}\s+\d{5}/.test(f.direccion) && /^[A-Za-zÁÉÍÓÚÑáéíóúñ .'-]+,\s*[A-Z]{2}\s+\d{5}(-\d{4})?$/.test(city)) {
+      f.direccion += ", " + city;
+    }
     /* teléfono y email del contacto del hogar: van a Teléfono y Email del
        titular, y quedan como base para Cambios */
     contactInfo(doc, f);
@@ -4399,7 +4412,18 @@ kbd {
       var ag = nameBeforeNpn(doc);
       if (ag) { f.agente = ag.toUpperCase(); }
     }
+    /* "Agent or Broker" con el nombre y el NPN debajo, sin rótulos */
+    var AOB = [/^\s*Agent\s*or\s*Broker\s*$/i, /^\s*Agente\s*o\s*corredor\s*$/i];
+    if (!f.agente) { var aob = after(doc, AOB, vPerson, 1); if (aob) { f.agente = aob.toUpperCase(); } }
+    if (!f.npn) { var aobNpn = after(doc, AOB, vDigits(5, 12), 2); if (aobNpn) { f.npn = aobNpn; } }
+    var lang = after(doc, [/\bPreferred\s*spoken\s*language\b/i, /\bPreferred\s*(written\s*)?language\b/i, /\bIdioma\s*(preferido|hablado)\b/i], vLang, 1);
+    if (lang) { f.idioma = lang; }
+    var sep = sepReason(doc);
+    if (sep) { f.periodo = "SEP"; f.motivoSep = sep; }
     var ps = householdPeople(doc, f);
+    /* HealthSherpa: el agente y el hogar vienen en tablas */
+    if (sherpaAgent(doc, f)) { f.plataforma = "HealthSherpa"; }
+    if (!ps.length) { ps = sherpaPeople(doc, f); }
     if (ps.length) {
       f.personas = ps;
       /* con una sección por persona, el ingreso y el DOB del titular son los
@@ -4422,7 +4446,9 @@ kbd {
   function contactInfo(doc, f) {
     var stop = -1;
     for (var i = 0; i < doc.lines.length; i++) { if (AGENT_BLOCK.test(doc.lines[i])) { stop = i; break; } }
-    var d = stop > 0 ? makeDoc(doc.lines.slice(0, stop).join("\n")) : doc;
+    /* el agente arriba en una tabla (HealthSherpa): se salta su fila */
+    var d = stop > 0 ? makeDoc(doc.lines.slice(0, stop).join("\n"))
+      : stop === 0 && SHERPA_AGENT.test(doc.lines[0]) ? makeDoc(doc.lines.slice(2).join("\n")) : doc;
     var email = after(d, [/\bE-?mail(\s*address)?\b/i, /Correo\s*electr[oó]nico/i], vEmail, 1);
     var tel = after(d, [/\bPhone\s*numbers?,?(\s*\(s\))?(\s*including\s*area\s*code)?/i, /\b(Primary\s*)?Phone\b/i, /Tel[eé]fonos?(\s*\(s\))?/i], vPhone, 1);
     if (email) { f.clienteEmail = email; }
@@ -4527,6 +4553,107 @@ kbd {
       if (p.ingreso) { o.ingreso = p.ingreso; }
       return o;
     }).filter(Boolean);
+  }
+
+  /* Las líneas entre un título y el siguiente */
+  function linesBetween(doc, from, to) {
+    var s = -1;
+    for (var i = 0; i < doc.lines.length; i++) {
+      if (s < 0) { if (from.test(doc.lines[i])) { s = i + 1; } }
+      else if (to.test(doc.lines[i])) { return doc.lines.slice(s, i); }
+    }
+    return s < 0 ? [] : doc.lines.slice(s);
+  }
+  function cellsOf(l) { return String(l || "").trim().split(/\s{2,}|\t/); }
+  /* HealthSherpa escribe la fecha de nacimiento "1989-09-01" */
+  function isoBirth(c) {
+    var m = String(c || "").trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    return m ? U.parseDate(m[2] + "/" + m[3] + "/" + m[1]) : vBirth(c);
+  }
+  function personKey(name) { return U.collapse(U.stripAccents(name || "")).toUpperCase(); }
+
+  /* HealthSherpa pone el agente arriba, en una tabla:
+     "AGENT  LICENSE #  PHONE  EMAIL" y debajo su fila. */
+  var SHERPA_AGENT = /^\s*AGENT\s{2,}(LICENSE|NPN)\b/i;
+  function sherpaAgent(doc, f) {
+    for (var i = 0; i + 1 < doc.lines.length; i++) {
+      if (!SHERPA_AGENT.test(doc.lines[i])) { continue; }
+      var cells = cellsOf(doc.lines[i + 1]);
+      var name = vPerson(cells[0]), num = String(cells[1] || "").match(/^#?\s*(\d{5,12})$/);
+      if (name) { f.agente = name.toUpperCase(); }
+      if (num) { f.npn = num[1]; }
+      return true;
+    }
+    return false;
+  }
+
+  /* El hogar de HealthSherpa: una fila por persona en "Household members"
+     ("Mauricio Alvarez Lugo  1989-09-01  ***-**-3069  Self  Male  No  Yes";
+     el parentesco es con el titular, "Self"), y su ingreso en "Income
+     summary" (el último monto, "Expected income in 2026"; el otro es del mes). */
+  function sherpaPeople(doc, f) {
+    var rows = [];
+    linesBetween(doc, /^\s*Household\s*members\s*$/i, /^\s*Household\s*(income|deductions)\b|^\s*Income\s*summary\b/i).forEach(function (l) {
+      var cells = cellsOf(l), d = -1;
+      for (var i = 1; i < cells.length; i++) { if (isoBirth(cells[i])) { d = i; break; } }
+      var name = d > 0 ? vPerson(cells.slice(0, d).join(" ")) : "";
+      if (!name) { return; }
+      var sex = "", rel = "";
+      cells.slice(d + 1).forEach(function (c) {
+        if (!sex && vSex(c)) { sex = vSex(c); return; }
+        if (!rel && /^[A-Za-z][A-Za-z ]*$/.test(c) && !/^(yes|no)$/i.test(c)) { rel = c.toLowerCase(); }
+      });
+      rows.push({ name: name, dob: isoBirth(cells[d]), sex: sex, rel: rel });
+    });
+    if (!rows.length) { return []; }
+    var income = {};
+    linesBetween(doc, /^\s*Income\s*summary\s*$/i, /^\s*Basic\s*household\b|^\s*Additional\s*questions\b/i).forEach(function (l) {
+      var cells = cellsOf(l), money = cells.map(vMoney).filter(Boolean);
+      var name = money.length >= 2 ? vPerson(cells[0]) : "";
+      if (name) { income[personKey(name)] = money[money.length - 1]; }
+    });
+    if (!f.hogar) { f.hogar = String(rows.length); }
+    var t = 0;
+    for (var i = 0; i < rows.length; i++) { if (rows[i].rel === "self") { t = i; break; } }
+    if (rows[t].sex) { f.genero = rows[t].sex; }
+    return rows.map(function (r, i) {
+      var o = {};
+      if (i === t) {
+        o.nombre = U.collapse((f.nombres || "") + " " + (f.apellidos || "")) || r.name.toUpperCase();
+        o.titular = true;
+      } else {
+        o.nombre = r.name.toUpperCase();
+        if (r.rel) { o.parentesco = kinOf(r.rel); }
+      }
+      if (r.dob) { o.dob = r.dob; }
+      var inc = income[personKey(r.name)];
+      if (inc) { o.ingreso = inc; }
+      return o;
+    });
+  }
+
+  /* El idioma del cliente: decide la plantilla del Consent y del SOA */
+  function vLang(t) {
+    var c = firstCell(t).toLowerCase();
+    if (/^(spanish|espa[nñ]ol)$/.test(c)) { return "es"; }
+    if (/^(english|ingl[eé]s)$/.test(c)) { return "en"; }
+    return "";
+  }
+
+  /* El motivo del SEP: el evento que pasó "on or after" la fecha; los que no
+     pasaron dicen "did not", "was not". */
+  var SEP_EVENTS = [[/\blos[te]\b.*\bcoverage\b/i, "Pérdida de cobertura"], [/\bmarried\b/i, "Matrimonio"],
+    [/\bimmigration\s*status\b/i, "Nuevo estatus migratorio o ciudadanía"], [/\badopted\b|\bfoster\b|\bbirth\b|\bbaby\b/i, "Nacimiento o adopción"],
+    [/\bmoved\b/i, "Mudanza"], [/\breleased\s*from\s*incarceration\b/i, "Salida de prisión"]];
+  function sepReason(doc) {
+    var out = [];
+    doc.lines.forEach(function (l) {
+      if (!/\bon\s*or\s*after\b/i.test(l) || /\b(did|was|were|has|have|is)\s*not\b|^\s*No\s*one\b/i.test(l)) { return; }
+      for (var i = 0; i < SEP_EVENTS.length; i++) {
+        if (SEP_EVENTS[i][0].test(l)) { if (out.indexOf(SEP_EVENTS[i][1]) < 0) { out.push(SEP_EVENTS[i][1]); } return; }
+      }
+    });
+    return out.join(", ");
   }
 
   /* "beatriz.diaz@example.com"; uno mal leído por el OCR no pasa */
@@ -5219,7 +5346,9 @@ kbd {
     oc_app: [[/review (and|&) (sign|confirm|submit)|review your application|application summary|revise su solicitud|resumen de (la|su) solicitud/i, 4],
       [/sign (and|&) submit|firm(e|ar) y env[ií](e|ar)/i, 2], [/tax (filer|household|return)|declaraci[oó]n de impuestos/i, 1],
       [/healthcare\.gov|cuidadodesalud\.gov|health insurance marketplace|mercado de seguros/i, 1],
-      [/household (income|information|members)|ingresos del hogar/i, 1]],
+      [/household (income|information|members)|ingresos del hogar/i, 1],
+      /* el resumen impreso de HealthSherpa: "2026 Health insurance application" */
+      [/\b20[2-4]\d\s+health\s+insurance\s+application\b/i, 4], [/\bbasic household questions\b|\bincome summary\b/i, 2]],
     /* búsqueda, vista de un plan o comparación de planes de HealthSherpa */
     oc_quote: [[/\bmonth\w*\s+prem\w*|\bprima\s+mensual\b/i, 2],
       [/\b(H?MO|PPO|EPO|POS)\b[\s\S]{0,14}?\b(BRONZE|SILVER|GOLD|PLATINUM|CATASTROPHIC|EXPANDED|BRONCE|PLATA|ORO|PLATINO)\b/, 2],
@@ -7250,7 +7379,8 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
     $("signReset").hidden = !Object.keys(edits).length;
 
     var phone = kind === "soa" ? v.beneficiaryPhone : S.f.clienteTel, email = S.f.clienteEmail;
-    $("signCliq").value = FM.cliqText(kind, kind === "soa" ? v.beneficiaryName : v.clientName, email, phone);
+    /* los mensajes internos (Cliq) nombran al cliente como en Zoho: "Apellido, Nombre" */
+    $("signCliq").value = FM.cliqText(kind, N.zohoName(S.f) || (kind === "soa" ? v.beneficiaryName : v.clientName), email, phone);
     fitHeight($("signCliq"));
     var link = U.collapse(settings.signLinks[key]), url = FM.signingUrl(link, kind, v);
     $("signLinkBox").hidden = !url;
@@ -7475,7 +7605,7 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
 
   /* ---------------------------------------------------------- documentos */
 
-  var DEFAULTABLE = ["anio", "producto", "plataforma", "periodo", "periodoMC", "genero"];
+  var DEFAULTABLE = ["anio", "producto", "plataforma", "periodo", "periodoMC", "genero", "idioma"];
   var RANK = { oc_plans: 3, mc_app: 3, supp_app: 3, oc_elig: 2, pay: 2, oc_app: 1, oc_docs: 1, oc_quote: 1, mc_soa: 1, supp_card: 1 };
 
   /* Campos del producto: la compañía, el plan y el pago son de una línea.

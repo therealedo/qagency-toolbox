@@ -25,7 +25,7 @@ const consent = { clientName: "Beatriz Diaz", date: "02/01/2026", agentName: "An
 const soa = { beneficiaryName: "Beatriz Diaz", beneficiaryPhone: "(305) 555-0100", agentName: "Ana Torres", npn: "10000001",
   contactMethod: "Llamada telefónica", plans: "Humana Gold Plus H1036-311 (HMO)" };
 const soaNote = { beneficiaryName: "Beatriz Diaz", beneficiaryPhone: "(305) 555-0100" };
-const FIRMAS = ["Signature1_es_:signer:signature", "Signature2_es_:signer:signature", "Firma", "Fecha de la Firma",
+const FIRMAS = ["Signature1_es_:signer:signature", "Firma",
   "Firma del solicitantemiembrorepresentante autorizado", "Firma del Representante de Ventas con Licencia"];
 
 /* ------------------------------------------------------------ plantilla -- */
@@ -67,6 +67,7 @@ test("plantilla: Consent en Obamacare Pendiente y SOA en las situaciones de Medi
 test("campos: Consent QAgency en inglés (PREMIUM en mayúsculas, la fecha de la página 2 también)", () => {
   assert.deepEqual(F.fieldMap("consent-qa-en", consent), {
     "Todays Date": "02/01/2026", "agentsEnes on the date of": "02/01/2026", "Fecha": "02/01/2026",
+    "Signature2_es_:signer:signature": "02/01/2026",
     "Ms": "Beatriz Diaz", "Full Name": "Beatriz Diaz", "Agents andor Enes": "Ana Torres", "NPN_2": "10000001",
     "Marital status": "Casada", "Projected Annual Family Income": "$32,000", "Number of people on your 2023 tax return": "3",
     "People with medical coverage": "2", "Health Plan": "Ambetter Silver Value", "PREMIUM": "$45.00"
@@ -78,12 +79,12 @@ test("campos: Consent ATH en inglés (Premium)", () => {
   assert.equal(m.Premium, "$45.00");
   assert.equal(m.PREMIUM, undefined);
   assert.equal(m["Health Plan"], "Ambetter Silver Value");
-  assert.equal(Object.keys(m).length, 13);
+  assert.equal(Object.keys(m).length, 14);
 });
 
 test("campos: Consent QAgency en español (Premium; Fecha es la de arriba y la de la página 2)", () => {
   assert.deepEqual(F.fieldMap("consent-qa-es", consent), {
-    "Fecha": "02/01/2026", "mencionados a connuación en la fecha de": "02/01/2026",
+    "Fecha": "02/01/2026", "mencionados a connuación en la fecha de": "02/01/2026", "Fecha de la Firma": "02/01/2026",
     "Yo SrSra": "Beatriz Diaz", "Nombre y Apellido": "Beatriz Diaz", "Agentes yo Endades": "Ana Torres", "NPN": "10000001",
     "Estatus marital": "Casada", "Ingreso proyectado anual familiar": "$32,000",
     "Candad de personas en su declaración de impuestos 2023": "3", "Personas con cobertura médica": "2",
@@ -95,7 +96,7 @@ test("campos: Consent ATH en español (Pago)", () => {
   const m = F.fieldMap("consent-ath-es", consent);
   assert.equal(m.Pago, "$45.00");
   assert.equal(m.Premium, undefined);
-  assert.equal(Object.keys(m).length, 12);
+  assert.equal(Object.keys(m).length, 13);
 });
 
 test("campos: el SOA no se llena: la sección del agente la completa y la firma el agente después del cliente", () => {
@@ -103,7 +104,7 @@ test("campos: el SOA no se llena: la sección del agente la completa y la firma 
   assert.deepEqual(F.fieldMap("soa-en", soa), {});
 });
 
-test("campos: las firmas quedan vacías y un valor vacío no se escribe", () => {
+test("campos: las firmas quedan vacías (su fecha es la del día) y un valor vacío no se escribe", () => {
   Object.keys(F.TEMPLATES).forEach((key) => {
     const m = F.fieldMap(key, Object.assign({}, consent, soa));
     FIRMAS.forEach((n) => assert.equal(m[n], undefined, key + ": " + n));
@@ -149,15 +150,15 @@ test("valores del SOA: solo el beneficiario y su teléfono, para la línea de Cl
 /* ---------------------------------------------------------------- Cliq -- */
 
 test("Cliq: Enviar CONSENT / SOA, sin el email o el teléfono que falte", () => {
-  assert.equal(F.cliqText("consent", "Beatriz Diaz", "bea@example.com", "(305) 555-0100"),
-    "Enviar CONSENT a Beatriz Diaz al bea@example.com y al (305) 555-0100 pls @Support QAgency");
-  assert.equal(F.cliqText("consent", "Beatriz Diaz", "bea@example.com", ""),
-    "Enviar CONSENT a Beatriz Diaz al bea@example.com pls @Support QAgency");
-  assert.equal(F.cliqText("consent", "Beatriz Diaz", " ", "(305) 555-0100"),
-    "Enviar CONSENT a Beatriz Diaz al (305) 555-0100 pls @Support QAgency");
-  assert.equal(F.cliqText("soa", "Beatriz Diaz", "", ""), "Enviar SOA a Beatriz Diaz pls @Support QAgency");
+  assert.equal(F.cliqText("consent", "Diaz, Beatriz", "bea@example.com", "(305) 555-0100"),
+    "Enviar CONSENT a Diaz, Beatriz al bea@example.com y al (305) 555-0100 pls @Support QAgency");
+  assert.equal(F.cliqText("consent", "Diaz, Beatriz", "bea@example.com", ""),
+    "Enviar CONSENT a Diaz, Beatriz al bea@example.com pls @Support QAgency");
+  assert.equal(F.cliqText("consent", "Diaz, Beatriz", " ", "(305) 555-0100"),
+    "Enviar CONSENT a Diaz, Beatriz al (305) 555-0100 pls @Support QAgency");
+  assert.equal(F.cliqText("soa", "Diaz, Beatriz", "", ""), "Enviar SOA a Diaz, Beatriz pls @Support QAgency");
   assert.equal(F.cliqText("soa", "", "bea@example.com", "(305) 555-0100"),
-    "Enviar SOA a Nombre Apellido al bea@example.com y al (305) 555-0100 pls @Support QAgency");
+    "Enviar SOA a Apellido, Nombre al bea@example.com y al (305) 555-0100 pls @Support QAgency");
 });
 
 /* ------------------------------------------------------- enlace de firma -- */
