@@ -20,7 +20,7 @@ Branch: `feat/updater-team-file` from `feat/office-on-top` (72f420f). Delivery: 
 |----|-------|-------|--------|--------|
 | T1 | S1, S2, S3 | inline | done: 189/189; import, bad file, export checked in Chrome; team file in private/ (ignored) | 35ffc6c |
 | T2 | S4, S5 | inline | done: 190/190; updater run on a fake install (up to date, stale package refused, bad version, not installed); notice shown by a 1.8.0 copy opened from disk (headless Edge); install step itself not run | 2fd51c2, 2d33f51 |
-| T3 | S6 | inline | rehearsed in a scratch clone: 0 matches and 0 zips in rewritten history, tip differs only by the zip; waiting for the go-ahead | |
+| T3 | S6 | inline | done: main rewritten (58 commits, 0 roster matches, only the clean zip), force-pushed over ca90ba6; merged remote branches deleted; local branches deleted; backup bundle in private/ | cfd7363 |
 
 ## Log
 
@@ -28,3 +28,4 @@ Branch: `feat/updater-team-file` from `feat/office-on-top` (72f420f). Delivery: 
 - L2 Large because T3 waits on the user's confirmation and rewrites every branch. Inline: units share app.js, index.html, README and the version, so no parallel writers. Risk: item 2 (CSP opens one GitHub URL), item 5 (installer, update delivery), item 1 (history rewrite).
 - L3 T1 and T2 done (see Tasks). The browser pane was hidden, so the dialog close event did not fire there; the same flow in real Chrome updated the Soy and agent lists.
 - L4 T3 rehearsal: filter-branch tree-filter drops dist/QAgency-Toolbox-Windows.zip from every commit and swaps names and NPNs for made-up ones in text files; one commit message fixed. GitHub keeps refs/pull/1 and refs/pull/2 on the old commits; only GitHub Support (or recreating the repo) removes them. Plan: merge to main first so its tip has the empty roster, rewrite, add a commit that restores the clean zip, force-push main, delete merged remote branches.
+- L5 (2026-11-15) User: "Yes, go ahead". Merged into main (fast-forward), rewrote main in a clean copy, restored the clean 1.10.0 zip, force-pushed with lease, deleted feat/official-names-readers and fix/consent-after-quote on GitHub. GitHub serves package.json 1.10.0 and a matching package. Open: refs/pull/1 and refs/pull/2 still reach old commits until GitHub Support removes them.
