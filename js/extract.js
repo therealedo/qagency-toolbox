@@ -708,13 +708,7 @@
     /* fecha de nacimiento y dirección del contacto del hogar (el titular):
        sirven de base para saber qué cambió */
     f.dob = after(doc, [/\bDate\s*of\s*birth\b/i, /Fecha\s*de\s*nacimiento/i], vBirth, 1);
-    f.direccion = after(doc, [/\bHome\s*address\b/i, /Direcci[oó]n\s*(de\s*(la\s*)?casa|del\s*hogar|residencial)/i], vAddress, 1);
-    /* la calle en una línea y "Cape Coral, FL 33990-2089" en la siguiente */
-    var at = doc.lines.map(function (l) { return l.trim(); }).indexOf(f.direccion);
-    var city = at >= 0 ? String(doc.lines[at + 1] || "").trim() : "";
-    if (f.direccion && !/\b[A-Z]{2}\s+\d{5}/.test(f.direccion) && /^[A-Za-zÁÉÍÓÚÑáéíóúñ .'-]+,\s*[A-Z]{2}\s+\d{5}(-\d{4})?$/.test(city)) {
-      f.direccion += ", " + city;
-    }
+    f.direccion = withCity(doc, after(doc, [/\bHome\s*address\b/i, /Direcci[oó]n\s*(de\s*(la\s*)?casa|del\s*hogar|residencial)/i], vAddress, 1));
     /* teléfono y email del contacto del hogar: van a Teléfono y Email del
        titular, y quedan como base para Cambios */
     contactInfo(doc, f);
@@ -767,6 +761,19 @@
     var tel = after(d, [/\bPhone\s*numbers?,?(\s*\(s\))?(\s*including\s*area\s*code)?/i, /\b(Primary\s*)?Phone\b/i, /Tel[eé]fonos?(\s*\(s\))?/i], vPhone, 1);
     if (email) { f.clienteEmail = email; }
     if (tel) { f.clienteTel = tel; }
+  }
+
+  /* La dirección completa: la calle en una línea y "Cape Coral, FL 33990-2089"
+     (o "Cape Coral FL 33990") en la siguiente. */
+  var CITY_LINE = /^([A-Za-zÁÉÍÓÚÑáéíóúñ .'-]+?),?\s+([A-Z]{2}),?\s+(\d{5}(?:-\d{4})?)$/;
+  function withCity(doc, street) {
+    if (!street || /\b[A-Z]{2},?\s+\d{5}/.test(street)) { return street; }
+    for (var i = 0; i + 1 < doc.lines.length; i++) {
+      if (!doc.lines[i].trim().endsWith(street)) { continue; }
+      var m = doc.lines[i + 1].trim().match(CITY_LINE);
+      return m ? street + ", " + m[1] + ", " + m[2] + " " + m[3] : street;
+    }
+    return street;
   }
 
   /* "4. Resident Address: 700 Palmetto Rd     Venice     FL     34285" */
@@ -865,6 +872,8 @@
       if (p.dob) { o.dob = p.dob; }
       if (p.estatus) { o.estatus = p.estatus; }
       if (p.ingreso) { o.ingreso = p.ingreso; }
+      /* el sexo del titular va en «el cliente / la cliente»; el de los demás, a la hoja de cambios */
+      if (!o.titular && p.sex) { o.sexo = p.sex; }
       return o;
     }).filter(Boolean);
   }
@@ -942,6 +951,7 @@
       if (r.dob) { o.dob = r.dob; }
       var inc = income[personKey(r.name)];
       if (inc) { o.ingreso = inc; }
+      if (!o.titular && r.sex) { o.sexo = r.sex; }
       return o;
     });
   }
@@ -1359,7 +1369,7 @@
     if (ben) { f.beneficiario = ben; }
     contactInfo(doc, f);
     var home = after(doc, [/\bResident(ial)?\s*Address\b/i, /\bHome\s*address\b/i], vAddressRow, 0);
-    if (home) { f.direccion = home; }
+    if (home) { f.direccion = withCity(doc, home); }
     var ag = suppAgent(doc);
     agentInfo(doc, f);
     if (ag) { f.agente = ag.toUpperCase(); }

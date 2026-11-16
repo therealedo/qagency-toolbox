@@ -479,8 +479,8 @@ const OC_DOCS = {
     idioma: "es", periodo: "SEP", motivoSep: "Mudanza", agente: "LAURA GOMEZ-VIDAL", npn: "12345678",
     plataforma: "HealthSherpa", genero: "o",
     personas: [{ nombre: "CARLOS MENDEZ RUIZ", titular: true, dob: "09/01/1989", ingreso: "$30,000.00" },
-      { nombre: "ELENA MENDEZ", parentesco: "Cónyuge", dob: "03/15/1991", ingreso: "$18,000.00" },
-      { nombre: "MATEO MENDEZ", parentesco: "Hijo/a", dob: "06/20/2015", ingreso: "$0.00" }] } },
+      { nombre: "ELENA MENDEZ", parentesco: "Cónyuge", dob: "03/15/1991", ingreso: "$18,000.00", sexo: "a" },
+      { nombre: "MATEO MENDEZ", parentesco: "Hijo/a", dob: "06/20/2015", ingreso: "$0.00", sexo: "o" }] } },
   /* la página "Review your application" de HealthCare.gov impresa desde el
      navegador: cada rótulo termina en "Edit", la dirección va en dos líneas
      y el agente está en "Agent or Broker" (nombre y NPN debajo) */
@@ -489,9 +489,9 @@ const OC_DOCS = {
     direccion: "55 Coral Way Apt 2, Cape Coral, FL 33990-1111", clienteEmail: "carmen.rivas@example.com", clienteTel: "(239) 555-0147",
     agente: "LAURA GOMEZ", npn: "12345678", idioma: "es", genero: "a",
     personas: [{ nombre: "CARMEN RIVAS SOTO", titular: true, dob: "06/27/1985", estatus: "residente", ingreso: "$36,384.00" },
-      { nombre: "LUCIA NAVARRO", parentesco: "Hijo/a", dob: "09/25/2009", estatus: "residente", ingreso: "$0.00" },
-      { nombre: "PAULA NAVARRO", parentesco: "Hijo/a", dob: "10/01/2014", estatus: "residente", ingreso: "$0.00" },
-      { nombre: "JORGE NAVARRO SOTO", parentesco: "Cónyuge", dob: "01/06/1983", estatus: "residente", ingreso: "$33,600.00" }] } },
+      { nombre: "LUCIA NAVARRO", parentesco: "Hijo/a", dob: "09/25/2009", estatus: "residente", ingreso: "$0.00", sexo: "a" },
+      { nombre: "PAULA NAVARRO", parentesco: "Hijo/a", dob: "10/01/2014", estatus: "residente", ingreso: "$0.00", sexo: "a" },
+      { nombre: "JORGE NAVARRO SOTO", parentesco: "Cónyuge", dob: "01/06/1983", estatus: "residente", ingreso: "$33,600.00", sexo: "o" }] } },
   /* Docs Submitted: el punto abierto es de quien abrió la cuenta (el titular) */
   "OC Docs Submitted Principal": { type: "oc_docs", net: "docsub", fields: {
     appId: "4498765432", anio: "2027", nombres: "ROSA", apellidos: "PEREZ LIMA",
@@ -512,6 +512,12 @@ for (const [name, exp] of Object.entries(OC_DOCS)) {
     assert.equal(X.extract(fixture(name), "scan0001.pdf", "mc").type, exp.type);
   });
 }
+
+test("App Summary: la dirección completa aunque la ciudad venga en la línea siguiente", () => {
+  const t = "HealthCare.gov\nReview your application\nReview your contact information\nFull name\nAna Torres\n" +
+    "Home address: 77 Oak St\nCape Coral FL 33990\nEmail address\nana@example.com";
+  assert.equal(X.extract(t, "document.pdf", "oc").fields.direccion, "77 Oak St, Cape Coral, FL 33990");
+});
 
 test("HealthSherpa: una titular es «la cliente»", () => {
   const text = fixture("OC App Summary HealthSherpa").replace(/Self( +)Male/, "Self$1Female");
@@ -646,7 +652,7 @@ test("App Summary: cada persona del hogar con su parentesco, estatus e ingreso a
   assert.equal(r.fields.ingreso, "$42,000.00");
   assert.deepEqual(r.fields.personas, [
     { nombre: "ANA TORRES", titular: true, dob: "05/02/1980", estatus: "ciudadano", ingreso: "$42,000.00" },
-    { nombre: "LUIS TORRES", dob: "08/21/1978", parentesco: "Cónyuge", estatus: "residente", ingreso: "$22,500.00" },
+    { nombre: "LUIS TORRES", dob: "08/21/1978", parentesco: "Cónyuge", estatus: "residente", ingreso: "$22,500.00", sexo: "o" },
     { nombre: "SOFIA TORRES", dob: "03/09/2012", parentesco: "Hijo/a", estatus: "ciudadano", ingreso: "$0.00" }
   ]);
   assert.equal(r.fields.agente, "LAURA GOMEZ");
