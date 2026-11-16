@@ -367,7 +367,9 @@ test("pdfToText: un PDF sin formulario da solo el texto de sus páginas", async 
    campo que el documento no muestra queda vacío. `read` es la pestaña
    abierta al soltar el documento. */
 const carrierOf = (line, word) => (C.CARRIERS[line].find((c) => c.re.test(word)) || { name: "(sin compañía para " + word + ")" }).name;
-const fixture = (name) => fs.readFileSync(path.join(__dirname, "fixtures", name + ".txt"), "utf8");
+/* el texto con saltos de línea de Unix, como lo deja el lector: con
+   core.autocrlf los fixtures pueden llegar con CRLF */
+const fixture = (name) => fs.readFileSync(path.join(__dirname, "fixtures", name + ".txt"), "utf8").replace(/\r\n/g, "\n");
 const GR = carrierOf("supp", "Golden Rule");
 const ALLSTATE = carrierOf("supp", "Integon Indemnity Corporation");
 const AGENT_GR = { agente: "MARTA R QUINTERO", npn: "19876543" };
