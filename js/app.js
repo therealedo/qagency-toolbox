@@ -1305,7 +1305,28 @@
     var signer = p.talker || p.me;
     d.firmaNombre = signer ? signer.name : "";
     d.firmaTel = signer ? (signer.tel || "") : "";
+    /* hoja de cambios: el agente que atiende, el colaborador, y el NPN del
+       proceso anterior (el agente del último documento) junto al elegido */
+    d.sheetAgente = signer ? signer.name : "";
+    d.sheetColaborador = p.collab ? p.collab.name : "";
+    d.npnSeleccionado = p.agent ? npnLabel(p.agent.npn, agentIniOf(p.agent)) : "";
+    var prev = docAgent();
+    if (prev) {
+      var m = settings.team.filter(function (t) { return (prev.npn && t.npn === prev.npn) || (prev.name && sameName(t.name, prev.name)); })[0];
+      d.npnAnterior = npnLabel(prev.npn || (m && m.npn), m ? agentIniOf(m) : U.initials(prev.name));
+    }
     return d;
+  }
+
+  function npnLabel(npn, ini) { return [U.collapse(npn), ini ? "(" + ini + ")" : ""].filter(Boolean).join(" "); }
+
+  /* el agente que trae el último documento leído (el App Summary del proceso anterior) */
+  function docAgent() {
+    for (var i = S.files.length - 1; i >= 0; i--) {
+      var r = S.files[i].res, f = r && r.fields;
+      if (f && (f.npn || f.agente)) { return { name: f.agente || "", npn: f.npn || "" }; }
+    }
+    return null;
   }
 
   /* el cuadro crece con el texto, para leerlo entero sin barra de scroll */
@@ -1411,6 +1432,7 @@
     updatePeopleSummary();
     $("outcomeDesc").textContent = O().desc + ".";
     renderSign(d);
+    renderSheet(d);
     renderRail();
   }
 
@@ -1436,6 +1458,150 @@
       wrap.appendChild(lab); wrap.appendChild(inp);
       grid.appendChild(wrap);
     });
+  }
+
+  /* ------------------------------------------------------ hoja de cambios --
+     Obamacare Pendiente: la hoja para el colaborador. Se dibuja con los datos
+     de la nota; al imprimir, solo ella sale en el papel o en el PDF. */
+  var sheetName = "";
+  function renderSheet(d) {
+    var on = isOC("pendiente");
+    $("sec-hoja").hidden = !on;
+    if (!on) { return; }
+    var s = N.changeSheet(d);
+    sheetName = s.archivo;
+    $("sheetFile").textContent = s.archivo + ".pdf";
+    drawSheet($("sheetPreview"), s);
+    fitSheet();
+  }
+
+  /* la vista previa es la página entera, achicada al ancho de la tarjeta */
+  var SHEET_WIDTH = 780;
+  function fitSheet() {
+    var frame = $("sheetPreview").parentNode;
+    if (!frame.clientWidth) { return; }
+    $("sheetPreview").style.zoom = String(Math.min(1, (frame.clientWidth - 2) / SHEET_WIDTH));
+  }
+
+  function drawSheet(box, s) {
+    var dash = "—";
+    function txt(tag, cls, t) { return el(tag, cls, U.collapse(t) ? t : dash); }
+    function item(label, value, mark) {
+      var w = el("div", "sh-item" + (mark ? " sh-mark" : ""));
+      w.appendChild(el("div", "sh-label", label));
+      w.appendChild(txt("div", "sh-value", value));
+      return w;
+    }
+    box.textContent = "";
+    var head = el("div", "sh-head");
+    var ht = el("div");
+    ht.appendChild(el("h1", "sh-title", s.titulo));
+    if (s.anio) { ht.appendChild(el("div", "sh-sub", "Datos actualizados para " + s.anio)); }
+    head.appendChild(ht);
+    var date = el("div", "sh-date", "Fecha: ");
+    date.appendChild(el("strong", null, s.fecha));
+    head.appendChild(date);
+    box.appendChild(head);
+
+    var legend = el("p", "sh-legend");
+    legend.appendChild(el("span", "sh-swatch"));
+    legend.appendChild(document.createTextNode("Los datos resaltados indican cambios en relación con el proceso anterior" + (s.anioAnterior ? " (" + s.anioAnterior + ")" : "") + "."));
+    box.appendChild(legend);
+    box.appendChild(el("div", "sh-banner", "PROCESAR POR EL PORTAL: " + s.portal));
+
+    var top = el("div", "sh-grid3");
+    var c1 = el("div"), c2 = el("div"), c3 = el("div");
+    c1.appendChild(item("Cliente", s.cliente));
+    c1.appendChild(item("Colaborador", s.colaborador));
+    c1.appendChild(item("Carta de consentimiento", s.consent));
+    c2.appendChild(item("Código de Zoho", s.codigo));
+    c2.appendChild(item("NPN anterior", s.npnAnterior));
+    c3.appendChild(item("Agente", s.agente));
+    c3.appendChild(item("NPN seleccionado", s.npnSeleccionado, true));
+    [c1, c2, c3].forEach(function (c) { top.appendChild(c); });
+    box.appendChild(top);
+
+    box.appendChild(el("h2", "sh-h2", "Plan elegido"));
+    if (s.plan) {
+      var plan = el("div", "sh-plan");
+      var pn = el("div", "sh-plan-name");
+      pn.appendChild(el("span", "sh-chip", "ELEGIDO"));
+      pn.appendChild(txt("span", null, s.plan.nombre));
+      plan.appendChild(pn);
+      var pr = el("div", "sh-plan-cell");
+      pr.appendChild(el("div", "sh-plan-label", "Prima"));
+      pr.appendChild(el("div", "sh-plan-big", s.plan.prima ? s.plan.prima + "/mo" : dash));
+      plan.appendChild(pr);
+      var st = el("div", "sh-plan-cell");
+      st.appendChild(el("div", "sh-plan-label", "Inicia cobertura"));
+      st.appendChild(el("div", "sh-plan-big", s.plan.inicio || dash));
+      plan.appendChild(st);
+      box.appendChild(plan);
+    } else {
+      box.appendChild(el("p", "sh-empty", "Sin plan elegido: selecciona uno en Planes cotizados."));
+    }
+
+    box.appendChild(el("h2", "sh-h2", "Datos de contacto"));
+    var ct = el("div", "sh-grid2");
+    s.contacto.forEach(function (c) { ct.appendChild(item(c.label, c.value, c.cambio)); });
+    box.appendChild(ct);
+
+    box.appendChild(el("h2", "sh-h2", "Integrantes del hogar"));
+    var table = el("table", "sh-table"), thead = el("thead"), hr = el("tr");
+    ["Nombre", "Nac. (DOB)", "Sexo", "En taxes", "Solicita cobertura", "Estatus migratorio", "Income anual estimado"].forEach(function (h, i) {
+      hr.appendChild(el("th", i === 6 ? "num" : (i === 3 || i === 4 ? "mid" : null), h));
+    });
+    thead.appendChild(hr); table.appendChild(thead);
+    var tb = el("tbody");
+    s.personas.forEach(function (p) {
+      var tr = el("tr", p.nuevo ? "sh-new" : null);
+      var name = txt("td", "sh-name", p.nombre);
+      if (p.nuevo) { name.appendChild(el("span", "sh-tag", "Nuevo")); }
+      tr.appendChild(name);
+      tr.appendChild(txt("td", p.cambio.dob ? "sh-mark" : null, p.dob));
+      tr.appendChild(txt("td", null, p.sexo));
+      tr.appendChild(el("td", "mid " + (p.taxes ? "sh-yes" : "sh-no") + (p.cambio.taxes ? " sh-mark" : ""), p.taxes ? "Sí" : "No"));
+      tr.appendChild(el("td", "mid " + (p.cobertura ? "sh-yes" : "sh-no") + (p.cambio.cobertura ? " sh-mark" : ""), p.cobertura ? "Sí" : "No"));
+      tr.appendChild(txt("td", p.cambio.estatus ? "sh-mark" : null, p.estatus));
+      tr.appendChild(txt("td", "num" + (p.cambio.ingreso ? " sh-mark" : ""), p.ingreso));
+      tb.appendChild(tr);
+    });
+    s.quitados.forEach(function (n) {
+      var tr = el("tr", "sh-gone");
+      tr.appendChild(el("td", "sh-name", n));
+      var td = el("td", null, "Se quita del hogar");
+      td.colSpan = 6;
+      tr.appendChild(td);
+      tb.appendChild(tr);
+    });
+    table.appendChild(tb);
+    var tf = el("tfoot"), fr = el("tr"), fl = el("td", "num", "Income anual estimado del hogar" + (s.anio ? " " + s.anio : ""));
+    fl.colSpan = 6;
+    fr.appendChild(fl);
+    fr.appendChild(txt("td", "num", s.total));
+    tf.appendChild(fr); table.appendChild(tf);
+    box.appendChild(table);
+
+    var foot = el("div", "sh-foot");
+    foot.appendChild(el("span", null, "Uso interno · sin SSN"));
+    foot.appendChild(el("span", null, "Q Agency Toolbox · Verificación previa"));
+    box.appendChild(foot);
+  }
+
+  /* Imprime solo la hoja; el título de la página es el nombre que propone
+     «Guardar como PDF». */
+  function printSheet() {
+    var d = data(), s = N.changeSheet(d), title = document.title;
+    drawSheet($("printSheet"), s);
+    document.title = s.archivo;
+    document.body.classList.add("printing-sheet");
+    var done = function () {
+      document.title = title;
+      document.body.classList.remove("printing-sheet");
+      window.removeEventListener("afterprint", done);
+    };
+    window.addEventListener("afterprint", done);
+    window.print();
   }
 
   function renderSign(d) {
@@ -1848,6 +2014,10 @@
       var replaceable = S.auto[k] ? (S.auto[k] === "calc" || rank >= (S.rank[k] || 0))
         : DEFAULTABLE.indexOf(k) >= 0 && S.f[k] === freshFields()[k];
       if (!empty && !replaceable) { return; }
+      /* en Obamacare Pendiente los documentos son del proceso anterior: su año
+         no reemplaza un año del plan más nuevo (la renovación de 2027 con el
+         App Summary de 2026) */
+      if (k === "anio" && S.line === "oc" && S.outcome === "pendiente" && +v < +S.f.anio) { return; }
       S.f[k] = v; S.auto[k] = true; S.rank[k] = rank; S.base[k] = v; applied++;
     });
     if (special.miembros && S.line !== "mc") { applied += N.mergeMembers(S.f, U.parseList(special.miembros)); }
@@ -2567,6 +2737,8 @@
     });
     $("signReset").addEventListener("click", function () { delete S.signEdits[signKind]; renderSign(data()); });
     $("signDownload").addEventListener("click", function () { downloadSign(this); });
+    $("sheetPrint").addEventListener("click", printSheet);
+    window.addEventListener("resize", fitSheet);
     [["copySignCliq", "signCliq"], ["copySignUrl", "signUrl"], ["copySignSms", "signSms"], ["copySignEmail", "signEmail"]].forEach(function (p) {
       $(p[0]).addEventListener("click", function () {
         var btn = this, text = $(p[1]).value;
