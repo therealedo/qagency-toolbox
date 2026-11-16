@@ -465,7 +465,9 @@ const OC_DOCS = {
      es una fecha de nacimiento, no puede ser de 2041 */
   "OC App Summary OCR": { type: "oc_app", net: "appsummary", fields: {
     nombres: "LAURA", apellidos: "RAMOS", anio: "2027", ingreso: "$31,200.00", dob: "02/17/1941",
-    direccion: "Fort Myers, FL 33901-", plataforma: "MKPL" } },
+    direccion: "Fort Myers, FL 33901-", plataforma: "MKPL",
+    personas: [{ nombre: "LAURA RAMOS", titular: true, dob: "02/17/1941", estatus: "ciudadano", ingreso: "$31,200.00" },
+      { nombre: "DIEGO", parentesco: "Hijo/a", ingreso: "$0.00" }] } },
   /* Docs Submitted: el punto abierto es de quien abrió la cuenta (el titular) */
   "OC Docs Submitted Principal": { type: "oc_docs", net: "docsub", fields: {
     appId: "4498765432", anio: "2027", nombres: "ROSA", apellidos: "PEREZ LIMA",
@@ -597,4 +599,41 @@ test("HealthSherpa: con las palabras del OCR, otros documentos se leen igual que
   const plain = X.extract(text, "captura.png", "oc");
   const withWords = X.extract(text, "captura.png", "oc", { words: words([[100, 100, "Monthly premium"]]) });
   assert.deepEqual(withWords, plain);
+});
+
+/* App Summary de HealthCare.gov con todo el hogar: cada persona trae su
+   fecha de nacimiento, parentesco, estatus e ingreso anual; el agente va al
+   final con su NPN. */
+test("App Summary: cada persona del hogar con su parentesco, estatus e ingreso anual, y el agente", () => {
+  const r = X.extract(fixture("OC App Summary Household"), "document.pdf", "oc");
+  assert.equal(r.type, "oc_app");
+  assert.equal(r.fields.ingreso, "$42,000.00");
+  assert.deepEqual(r.fields.personas, [
+    { nombre: "ANA TORRES", titular: true, dob: "05/02/1980", estatus: "ciudadano", ingreso: "$42,000.00" },
+    { nombre: "LUIS TORRES", dob: "08/21/1978", parentesco: "Cónyuge", estatus: "residente", ingreso: "$22,500.00" },
+    { nombre: "SOFIA TORRES", dob: "03/09/2012", parentesco: "Hijo/a", estatus: "ciudadano", ingreso: "$0.00" }
+  ]);
+  assert.equal(r.fields.agente, "LAURA GOMEZ");
+  assert.equal(r.fields.npn, "12345678");
+});
+
+test("App Summary: sin «Estimated income next year» legible el ingreso sigue siendo el anual, no el del mes", () => {
+  const text = fixture("OC App Summary Household").replace(/Estimated income next year/g, "Estimated incone next yeer");
+  const r = X.extract(text, "document.pdf", "oc");
+  assert.equal(r.fields.ingreso, "$42,000.00");
+  assert.deepEqual(r.fields.personas.map((p) => p.ingreso), ["$42,000.00", "$22,500.00", "$0.00"]);
+});
+
+test("App Summary: el parentesco sale también de lo que dice el titular de cada uno", () => {
+  const text = fixture("OC App Summary Household").replace("Ana's child\nLuis's child\n", "");
+  const r = X.extract(text, "document.pdf", "oc");
+  assert.equal(r.fields.personas[2].parentesco, "Hijo/a");
+});
+
+test("aplicación de Medicare: el NPN se lee también como «NPN #:» o «Agent NPN»", () => {
+  const base = fixture("Diaz Beatriz - Medicare App Summary ES");
+  for (const line of ["NPN #: 12345678", "Agent NPN 12345678", "NPN Number: 12345678"]) {
+    const r = X.extract(base.replace(/^NPN:.*$/m, line), "document.pdf", "mc");
+    assert.equal(r.fields.npn, "12345678", line);
+  }
 });

@@ -646,6 +646,49 @@
     return added;
   }
 
+  /* Personas del hogar de un App Summary: el titular y quien ya está en la
+     lista reciben lo que el documento dice de ellos (parentesco, estatus,
+     ingreso anual, DOB) donde el campo está vacío; quien falta se agrega,
+     salvo que el agente lo haya quitado. Lo del documento queda en `orig`,
+     así lo que difiera sale en Cambios; `filled` dice qué campos llenó, para
+     vaciarlos si se quita el documento. */
+  var HOGAR_KEYS = ["parentesco", "estatus", "ingreso", "dob"];
+  function householdMatch(f, x) {
+    if (x.titular) { return (f.personas || []).filter(function (p) { return p.titular; })[0] || null; }
+    var exact = findPersona(f, x.nombre);
+    if (exact && !exact.titular) { return exact; }
+    var firstOf = function (s) { return val(s).split(" ")[0]; };
+    var ps = (f.personas || []).filter(function (p) { return !p.titular && sameName(firstOf(p.nombre), firstOf(x.nombre)); });
+    return ps.length === 1 ? ps[0] : null;
+  }
+  function mergeHousehold(f, list) {
+    var n = 0;
+    f.personas = f.personas || [];
+    (list || []).forEach(function (x) {
+      var keys = HOGAR_KEYS.filter(function (k) { return val(x[k]) && !(k === "parentesco" && x.titular); });
+      var p = householdMatch(f, x);
+      if (!p) {
+        if (x.titular || !val(x.nombre) || (f.quitados || []).some(function (q) { return sameName(q, x.nombre); })) { return; }
+        var nombre = upper(x.nombre), orig = { nombre: nombre, taxes: true, cobertura: true };
+        p = { nombre: nombre, parentesco: "", taxes: true, cobertura: true, ingreso: "", estatus: "", dob: "", auto: true, orig: orig };
+        keys.forEach(function (k) { p[k] = x[k]; orig[k] = x[k]; });
+        f.personas.push(p);
+        f.hogarPdf = true;
+        n++;
+        return;
+      }
+      p.orig = p.orig || {};
+      keys.forEach(function (k) {
+        if (!(k in p.orig)) { p.orig[k] = x[k]; }
+        if (val(p[k])) { return; }
+        p[k] = x[k]; p.orig[k] = x[k];
+        p.filled = p.filled || {}; p.filled[k] = true;
+        n++;
+      });
+    });
+    return n;
+  }
+
   /* La fila de Docs Submitted de un documento cambia de clave al cambiar su
      persona o su tipo: su casilla y el archivo soltado pasan a la clave nueva. */
   function moveDocKey(f, files, from, to) {
@@ -1122,7 +1165,7 @@
     productOf: productOf, carrierShort: carrierShort, carrierName: carrierName, carrierOptions: carrierOptions,
     carrierChoice: carrierChoice, carrierFromChoice: carrierFromChoice, CARRIER_OTHER: CARRIER_OTHER, memberDelta: memberDelta, zohoName: zohoName, clientInitials: clientInitials,
     personas: personas, docsOf: docsOf, pendingDocs: pendingDocs, planesOf: planesOf, networkOf: networkOf, docKey: docKey,
-    mergeDocs: mergeDocs, moveDocKey: moveDocKey,
+    mergeDocs: mergeDocs, mergeHousehold: mergeHousehold, moveDocKey: moveDocKey,
     enTaxes: enTaxes, conCobertura: conCobertura, ingresoHogar: ingresoHogar, moneyShort: moneyShort,
     NET_DIRS: NET_DIRS, netDirFor: netDirFor
   };

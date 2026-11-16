@@ -1748,7 +1748,9 @@
     S.f.personas = S.f.personas.filter(function (p) { return p.titular || !p.auto; });
     S.f.personas.forEach(function (p) {
       if (p.titular && p.auto) { p.ingreso = ""; p.dob = ""; delete p.auto; }
-      delete p.orig;
+      /* lo que llenó el App Summary se vacía, salvo que el agente lo haya cambiado */
+      Object.keys(p.filled || {}).forEach(function (k) { if (!p.orig || p[k] === p.orig[k]) { p[k] = ""; } });
+      delete p.filled; delete p.orig;
     });
     S.f.docs = S.f.docs.filter(function (x) { return !x.auto; });
     S.f.planes = S.f.planes.filter(function (x) { return !x.auto; });
@@ -1787,7 +1789,7 @@
     delete fields.escritura;
     /* lo que va a las listas o a los selectores se aparta del resto */
     var special = {};
-    ["miembros", "ingreso", "hogar", "docs", "agente", "npn", "dob", "planes"].forEach(function (k) {
+    ["miembros", "ingreso", "hogar", "docs", "agente", "npn", "dob", "planes", "personas"].forEach(function (k) {
       if (k in fields) { special[k] = fields[k]; delete fields[k]; }
     });
     /* Cotización de HealthSherpa: los planes van a Planes cotizados y la nota
@@ -1823,6 +1825,8 @@
         if (!(x[0] in tit.orig)) { tit.orig[x[0]] = x[1]; }
         if (!U.collapse(tit[x[0]])) { tit[x[0]] = x[1]; tit.orig[x[0]] = x[1]; tit.auto = true; applied++; }
       });
+      /* las personas del App Summary: parentesco, estatus, ingreso anual y DOB */
+      if (special.personas) { applied += N.mergeHousehold(S.f, special.personas); }
       if (special.hogar) { S.f.hogarDoc = special.hogar; }
       if (special.docs) { applied += N.mergeDocs(S.f, special.docs, sent); }
     }
