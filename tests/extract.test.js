@@ -467,7 +467,7 @@ const OC_DOCS = {
      es una fecha de nacimiento, no puede ser de 2041 */
   "OC App Summary OCR": { type: "oc_app", net: "appsummary", fields: {
     nombres: "LAURA", apellidos: "RAMOS", anio: "2027", ingreso: "$31,200.00", dob: "02/17/1941",
-    direccion: "Fort Myers, FL 33901-", plataforma: "MKPL", genero: "a", idioma: "en",
+    direccion: "Fort Myers, FL 33901-", plataforma: "MKPL", genero: "a", idioma: "en", estadoCivil: "soltero",
     personas: [{ nombre: "LAURA RAMOS", titular: true, dob: "02/17/1941", estatus: "ciudadano", ingreso: "$31,200.00" },
       { nombre: "DIEGO", parentesco: "Hijo/a", ingreso: "$0.00" }] } },
   /* el resumen impreso de HealthSherpa: el agente arriba en una tabla (su
@@ -477,7 +477,7 @@ const OC_DOCS = {
     anio: "2026", nombres: "CARLOS", apellidos: "MENDEZ RUIZ", ingreso: "$30,000.00", hogar: "3", dob: "09/01/1989",
     direccion: "45 Palm Ave, North Port, FL 34286-1234", clienteEmail: "carlos.mendez@example.com", clienteTel: "(305) 555-0147",
     idioma: "es", periodo: "SEP", motivoSep: "Mudanza", agente: "LAURA GOMEZ-VIDAL", npn: "12345678",
-    plataforma: "HealthSherpa", genero: "o",
+    plataforma: "HealthSherpa", genero: "o", estadoCivil: "casado",
     personas: [{ nombre: "CARLOS MENDEZ RUIZ", titular: true, dob: "09/01/1989", ingreso: "$30,000.00" },
       { nombre: "ELENA MENDEZ", parentesco: "Cónyuge", dob: "03/15/1991", ingreso: "$18,000.00", sexo: "a" },
       { nombre: "MATEO MENDEZ", parentesco: "Hijo/a", dob: "06/20/2015", ingreso: "$0.00", sexo: "o" }] } },
@@ -487,7 +487,7 @@ const OC_DOCS = {
   "OC App Summary Review Page": { type: "oc_app", net: "appsummary", fields: {
     appId: "4400000001", anio: "2026", nombres: "CARMEN", apellidos: "RIVAS SOTO", ingreso: "$36,384.00", dob: "06/27/1985",
     direccion: "55 Coral Way Apt 2, Cape Coral, FL 33990-1111", clienteEmail: "carmen.rivas@example.com", clienteTel: "(239) 555-0147",
-    agente: "LAURA GOMEZ", npn: "12345678", idioma: "es", genero: "a",
+    agente: "LAURA GOMEZ", npn: "12345678", idioma: "es", genero: "a", estadoCivil: "casado",
     personas: [{ nombre: "CARMEN RIVAS SOTO", titular: true, dob: "06/27/1985", estatus: "residente", ingreso: "$36,384.00" },
       { nombre: "LUCIA NAVARRO", parentesco: "Hijo/a", dob: "09/25/2009", estatus: "residente", ingreso: "$0.00", sexo: "a" },
       { nombre: "PAULA NAVARRO", parentesco: "Hijo/a", dob: "10/01/2014", estatus: "residente", ingreso: "$0.00", sexo: "a" },
@@ -665,6 +665,7 @@ test("App Summary: cada persona del hogar con su parentesco, estatus e ingreso a
     { nombre: "LUIS TORRES", dob: "08/21/1978", parentesco: "Cónyuge", estatus: "residente", ingreso: "$22,500.00", sexo: "o" },
     { nombre: "SOFIA TORRES", dob: "03/09/2012", parentesco: "Hijo/a", estatus: "ciudadano", ingreso: "$0.00" }
   ]);
+  assert.equal(r.fields.estadoCivil, "casado");
   assert.equal(r.fields.agente, "LAURA GOMEZ");
   assert.equal(r.fields.npn, "12345678");
 });

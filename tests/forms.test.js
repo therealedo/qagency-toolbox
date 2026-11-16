@@ -127,6 +127,15 @@ test("valores del Consent: estado civil según el idioma y solo si hay cónyuge 
   assert.equal(F.consentValues(Object.assign({}, d, { personas: [familia[0], familia[2]] })).marital, "");
 });
 
+test("valores del Consent: sin cónyuge, el estado civil que leyó el App Summary, en el idioma y género del cliente", () => {
+  const d = make({ line: "oc", outcome: "pendiente", personas: [familia[0], familia[2]], planes: planes });
+  assert.equal(F.consentValues(Object.assign({}, d, { estadoCivil: "soltero", genero: "a" })).marital, "Soltera");
+  assert.equal(F.consentValues(Object.assign({}, d, { estadoCivil: "viudo", genero: "o" })).marital, "Viudo");
+  assert.equal(F.consentValues(Object.assign({}, d, { estadoCivil: "divorciado", idioma: "en" })).marital, "Divorced");
+  /* un cónyuge en el hogar manda sobre lo leído */
+  assert.equal(F.consentValues(Object.assign({}, d, { personas: familia, estadoCivil: "soltero", genero: "o" })).marital, "Casado");
+});
+
 test("valores del Consent: sin plan seleccionado se usa el único cotizado; con varios, ninguno", () => {
   const uno = F.consentValues(make({ line: "oc", outcome: "pendiente", planes: [Object.assign({}, planes[1])] }));
   assert.equal(uno.plan, "Oscar Bronze Classic");
