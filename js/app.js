@@ -90,7 +90,9 @@
       companiaSel: "", bcbsEstado: "", tipoCancel: "cancelled", fechaTermino: "",
       direccion: "", clienteTel: "", clienteEmail: "", idioma: "es",
       /* Cambios: personas de un documento que se quitaron y si el hogar vino de un documento */
-      quitados: [], hogarPdf: false
+      quitados: [], hogarPdf: false,
+      /* filas de documentos o planes cotizados que el agente borró */
+      descartados: []
     };
   }
 
@@ -155,7 +157,9 @@
     var out = [{ v: "", l: "Elige el agente" }];
     settings.team.forEach(function (t) { if (t.name && t.npn) { out.push({ v: t.name, l: t.name.toUpperCase() + " · " + t.npn }); } });
     var x = S.f.agenteExtra;
-    if (x && x.name) { out.push({ v: "__extra", l: x.name.toUpperCase() + (x.npn ? " · " + x.npn : "") + " (del documento)" }); }
+    if (x && (x.name || x.npn)) {
+      out.push({ v: "__extra", l: (x.name ? x.name.toUpperCase() + (x.npn ? " · " + x.npn : "") : "NPN " + x.npn) + " (del documento)" });
+    }
     return out;
   }
 
@@ -810,9 +814,9 @@
         var sel = document.querySelector('#list_docs [data-i="' + (S.f.docs.length - 1) + '"] select[data-prop="cat"]');
         if (sel) { sel.focus(); }
         break;
-      case "remove-doc": S.f.docs.splice(i, 1); renderDocs(); break;
+      case "remove-doc": N.discardRow(S.f, S.f.docs[i]); S.f.docs.splice(i, 1); renderDocs(); break;
       case "add-plan": S.f.planes.push({ compania: "", plan: "", prima: "", sel: false }); renderPlanes(); break;
-      case "remove-plan": S.f.planes.splice(i, 1); renderPlanes(); break;
+      case "remove-plan": N.discardRow(S.f, S.f.planes[i]); S.f.planes.splice(i, 1); renderPlanes(); break;
       case "select-plan":
         var on = !S.f.planes[i].sel;
         S.f.planes.forEach(function (p, j) { p.sel = on && j === i; });
@@ -1251,7 +1255,9 @@
     var f = S.f;
     var pay = U.moneyNumber(f.prima);
     if (pay === 0 && !f.pagoEstado) { f.pagoEstado = "NO PREMIUM"; S.auto.pagoEstado = "calc"; }
-    else if (pay !== null && pay > 0 && f.pagoEstado === "NO PREMIUM" && S.auto.pagoEstado === "calc") { f.pagoEstado = ""; delete S.auto.pagoEstado; }
+    /* sin la prima en $0 (otra prima, o se borró o se quitó el documento que
+       la trajo) el NO PREMIUM que se puso solo se quita */
+    else if (pay !== 0 && f.pagoEstado === "NO PREMIUM" && S.auto.pagoEstado === "calc") { f.pagoEstado = ""; delete S.auto.pagoEstado; }
     var segPay = $("form").querySelector('[data-seg="pagoEstado"]');
     if (segPay) { syncSeg(segPay, f.pagoEstado || ""); }
     /* Medicare: el SOA es del día de la nota mientras nadie lo cambie */
@@ -1783,7 +1789,7 @@
     S.f.planes = S.f.planes.filter(function (x) { return !x.auto; });
     S.f.hogarDoc = ""; S.f.hogarPdf = false;
     /* sin documentos no queda nadie que se haya quitado de ellos */
-    if (!S.files.length) { S.f.quitados = []; }
+    if (!S.files.length) { S.f.quitados = []; S.f.descartados = []; }
     /* las casillas del Network que marcó un documento se vuelven a marcar
        solo si otro documento las marca */
     [entry].concat(S.files).forEach(function (f) { if (f.res && f.res.net) { S.f.net[f.res.net] = false; } });
@@ -1883,7 +1889,10 @@
     S.f.planes = S.f.planes.filter(function (p) { return p.sel || U.collapse(p.compania) || U.collapse(p.plan) || U.collapse(p.prima); });
     list.forEach(function (q) {
       if (!U.collapse(q.plan) || S.f.planes.some(function (p) { return planKey(p.plan) === planKey(q.plan); })) { return; }
-      S.f.planes.push({ compania: q.compania || "", plan: U.collapse(q.plan), prima: U.parseMoney(q.prima), sel: false, auto: true });
+      /* un plan que el agente borró o corrigió no vuelve */
+      var src = N.rowSource("plan", q.plan);
+      if (N.discarded(S.f, src) || S.f.planes.some(function (p) { return p.src === src; })) { return; }
+      S.f.planes.push({ compania: q.compania || "", plan: U.collapse(q.plan), prima: U.parseMoney(q.prima), sel: false, auto: true, src: src });
       added++;
     });
     return added;
@@ -1897,7 +1906,9 @@
     if (S.f.npnAgente === "__extra" && x && !npn && name && sameName(x.name, name)) { return 0; }
     var m = settings.team.filter(function (t) { return (npn && t.npn === npn) || (name && sameName(t.name, name)); })[0];
     if (m) { S.f.npnAgente = m.name; }
-    else if (name) { S.f.agenteExtra = { name: U.collapse(name).toUpperCase(), npn: npn || "" }; S.f.npnAgente = "__extra"; }
+    /* un agente que no está en el equipo queda como el del documento, aunque
+       solo traiga el NPN */
+    else if (name || npn) { S.f.agenteExtra = { name: U.collapse(name).toUpperCase(), npn: npn || "" }; S.f.npnAgente = "__extra"; }
     else { return 0; }
     S.auto.npnAgente = true;
     return 1;

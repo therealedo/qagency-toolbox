@@ -30,10 +30,11 @@ Branch: fix/review-findings (stacked on fix/app-summary-household). Delivery: si
 - T4: mc/supp contact fields; App Summary contact never read from the agent block; payment amount/date fallbacks skip due amounts and birth dates; "month" misread by OCR.
 - T5: DOB typed with a two-digit year is a birth year; phones compare by their last 10 digits.
 
-Deferred (reported, not fixed here): documents or plans the agent deleted come back when another file is removed; NO PREMIUM stays after removing the $0 document; an NPN with no name and no team match fills nothing (the note prints only initials).
+Deferred, then fixed on fix/deferred-review (L4): documents or plans the agent deleted come back when another file is removed; NO PREMIUM stays after removing the $0 document; an NPN with no name and no team match fills nothing (the note prints only initials).
 
 ## Log
 
 - L1 (2026-11-16, user): "Wait till everything is ready then merge everything. Also Can you launch a deep review with fable 5.2 to spot any other hidden errors like these?"
 - L2 (evidence): two Fable 5.2 reviewers (document → field mapping; note, Cambios and undo) reported 27 findings, most reproduced in node or the running app; deduplicated into T1–T5 plus the deferred list.
 - L3 (evidence): 229/229 tests. Tests for T1-T5 were written right after each change (no RED observed first); app.js has no unit harness, so its wiring was checked in the app with fixture texts. Fixture differential vs 23daf88: only the mc/supp/App Summary fixtures whose expectations were updated changed.
+- L4 (2026-11-16, user): "Fix those three". Rows a document adds (requested docs, quoted plans) keep their source; one the agent deletes goes to `descartados` and one the agent changes keeps its source, so neither comes back when documents are re-applied. NO PREMIUM set automatically is cleared whenever the premium is no longer $0, including empty. An agent from a document with only an NPN is kept as the document agent and the note writes the NPN number. 231/231 tests; all three checked in the app.
