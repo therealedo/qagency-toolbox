@@ -758,6 +758,20 @@ test("archivo oficial: Docs submitted (OC) de un dependiente o cónyuge, con su 
     "Perez Lima, Rosa - OC_Docs Submitted_Yanet_Immigration status 2026 NOV"]]);
 });
 
+test("Docs submitted: el documento del titular sigue siendo suyo aunque se corrija el nombre", () => {
+  const principal = /- OC_Docs Submitted_Immigration status 2026 NOV$/;
+  const leido = { cat: "immigration", persona: "ROSA PEREZ LIMA", enviado: true, titular: true };
+  /* con acento o con segundo nombre después de leer el documento */
+  assert.match(docsub([leido], { apellidos: "PÉREZ LIMA" })[0].name, principal);
+  assert.match(docsub([leido], { nombres: "ROSA MARIA" })[0].name, principal);
+  /* leído antes de escribir el nombre del cliente */
+  assert.match(docsub([Object.assign({}, leido, { persona: "" })])[0].name, principal);
+  /* sin la marca, el nombre se compara sin acentos */
+  assert.match(docsub([{ cat: "immigration", persona: "ROSA PÉREZ LIMA", enviado: true }])[0].name, principal);
+  /* el de un dependiente sigue siendo suyo */
+  assert.match(docsub([{ cat: "immigration", persona: "YANET SOTO MESA", enviado: true, titular: false }])[0].name, /_Yanet_Immigration status/);
+});
+
 test("Docs submitted: solo lo enviado, uno por documento, y va a la nota si se marca", () => {
   const titular = { cat: "immigration", persona: "ROSA PEREZ LIMA", enviado: true };
   const dep = { cat: "immigration", persona: "YANET SOTO MESA", enviado: true };

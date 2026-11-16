@@ -750,6 +750,8 @@
     if (committed && (prop === "nombre" || prop === "compania")) { v = U.collapse(v).toUpperCase(); t.value = v; }
     item[prop] = v;
     delete item.auto;
+    /* elegir a una persona en un documento dice si es del titular */
+    if (t.dataset.list === "docs" && prop === "persona") { item.titular = v === personLabel(S.f.personas[0]); }
     S.dirty = true;
     if (t.dataset.list === "personas") {
       if (prop === "taxes" || prop === "cobertura" || prop === "estatus") { renderPersonas(); }
@@ -1781,22 +1783,25 @@
   function mergeDocs(list, sent) {
     /* sin el nombre del titular la persona queda vacía (es del titular), no
        "Sin nombre: escríbelo arriba" */
-    var added = 0, tit = S.f.personas[0], titName = U.collapse(S.f.nombres + S.f.apellidos) ? personLabel(tit) : "";
+    var added = 0, tit = S.f.personas[0], titName = U.collapse((S.f.nombres || "") + (S.f.apellidos || "")) ? personLabel(tit) : "";
     list.forEach(function (x) {
-      var persona = "";
+      var persona = "", isTit = !!x.titular || !x.persona;
       if (x.titular) { persona = titName; }
       else if (x.persona) {
         var match = findPersona(x.persona);
         persona = match ? personLabel(match) : U.collapse(x.persona).toUpperCase();
+        isTit = match === tit;
       }
       persona = persona || titName;
       var dup = S.f.docs.filter(function (y) { return y.cat === x.cat && sameName(y.persona, persona); })[0];
       if (dup) {
         if (x.enviado && !dup.enviado) { dup.enviado = true; dup.doc = dup.doc || x.doc || ""; added++; }
+        if (isTit) { dup.titular = true; }
         if (x.enviado) { sent.push(dup); }
         return;
       }
-      var item = { cat: x.cat, persona: persona, fecha: x.fecha || "", enviado: !!x.enviado, doc: x.doc || "", auto: true };
+      /* titular: el documento es del titular aunque luego se corrija su nombre */
+      var item = { cat: x.cat, persona: persona, fecha: x.fecha || "", enviado: !!x.enviado, doc: x.doc || "", auto: true, titular: isTit };
       S.f.docs.push(item);
       if (x.enviado) { sent.push(item); }
       added++;
