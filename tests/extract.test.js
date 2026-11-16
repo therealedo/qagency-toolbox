@@ -165,7 +165,7 @@ test("Aplicación de Medicare en inglés, en tabla", () => {
    archivo y da sus datos; un campo que el documento no trae queda vacío. */
 const mcCarrier = (word) => C.CARRIERS.mc.find((c) => c.re.test(word)).name;
 const MC_APPS = {
-  Humana: { genero: "o",
+  Humana: { clienteTel: "(555) 010-4821", genero: "o",
     nombres: "ANDRES FELIPE", apellidos: "MORALES", mbi: "4CD5EF6GH78", parteA: "09/01/2010", parteB: "10/01/2010",
     efectiva: "01/01/2027", plan: "Humana Gold Plus - Diabetes and Heart (HMO C-SNP) H1036-311-000", periodoMC: "AEP",
     pcp: "RIVAS TOMAS J MD", pcpId: "731902", confirmacion: "H4QW27XTRA", prima: "$0.00", agente: "MARTA QUINTERO",
@@ -177,7 +177,7 @@ const MC_APPS = {
     medicaid: "1234509876", periodoMC: "AEP", pcp: "Hector Villalba", pcpId: "001234567890", prima: "$0.00",
     agente: "MARTA QUINTERO LUGO", npn: "19876543", compania: mcCarrier("UnitedHealthcare")
   },
-  Aetna: { genero: "a",
+  Aetna: { clienteEmail: "client@example.com", clienteTel: "(555) 010-4477", genero: "a",
     nombres: "GLORIA", apellidos: "PAREDES", mbi: "6GH7JK8MN90", parteA: "08/01/2016", parteB: "08/01/2016",
     efectiva: "01/01/2027", plan: "Aetna Medicare Select (HMO) H1609-027", periodoMC: "AEP",
     pcp: "Benitez, Ramon, MD", pcpId: "506070", confirmacion: "T9876543210987A", prima: "$0.00",
@@ -191,7 +191,7 @@ const MC_APPS = {
     compania: mcCarrier("Freedom Health")
   },
   /* Devoted deja la Parte A/B, el PCP y la prima en "-" */
-  Devoted: { genero: "o",
+  Devoted: { clienteEmail: "client727@example.com", clienteTel: "(555) 010-9684", genero: "o",
     nombres: "PABLO", apellidos: "ANDRES RUIZ", mbi: "7JK8MN9PQ01", efectiva: "01/01/2027",
     plan: "DEVOTED CHOICE GIVEBACK 016 FL (PPO) (H9884-016)", periodoMC: "AEP", confirmacion: "KZPTRWM5N2Q",
     agente: "LUCIA FERRER CAMPOS", npn: "18765432", compania: mcCarrier("Devoted Health")
@@ -387,21 +387,21 @@ const SUPP_DOCS = {
     nombres: "SILVIA", apellidos: "LUNA PRIETO", compania: GR, producto: "Hospital", plan: "Hospital Indemnity", prima: "$38.38",
     efectiva: "01/01/2027", poliza: "900456789" }, AGENT_GR) }),
   /* la prima es el total mensual de la tabla, no un rider ni "Premium Amount Sent" */
-  "Supp App Allstate Accident": Object.assign({}, SUPP_APP, { fields: {
+  "Supp App Allstate Accident": Object.assign({}, SUPP_APP, { fields: { clienteEmail: "julio.mena@example.com", clienteTel: "(555) 010-4455", direccion: "700 Palmetto Rd, Venice, FL 34285",
     nombres: "JULIO", apellidos: "MENA DUARTE", compania: ALLSTATE, producto: "Accident", plan: "Accident Medical Expense Plan",
     prima: "$12.89", efectiva: "01/01/2027", beneficiario: "Mena Ochoa, Alba", agente: "LUCIA FERRER CAMPOS" } }),
-  "Supp App Allstate Accident Spouse": Object.assign({}, SUPP_APP, { fields: {
+  "Supp App Allstate Accident Spouse": Object.assign({}, SUPP_APP, { fields: { clienteEmail: "silvia.luna@example.com", clienteTel: "(555) 010-5501", direccion: "45000 Bay View Way, Fort Myers, FL 33901",
     nombres: "SILVIA", apellidos: "LUNA PRIETO", compania: ALLSTATE, producto: "Accident", plan: "Accident Medical Expense Plan",
     prima: "$26.61", efectiva: "01/01/2027", beneficiario: "Luna Prieto, Ramon", agente: "LUCIA FERRER CAMPOS" } }),
   /* Florida Blue no muestra la prima en la aplicación */
   "Supp App Dental Florida Blue": Object.assign({}, SUPP_APP, { fields: {
     nombres: "MARIO", apellidos: "BENITEZ", compania: carrierOf("supp", "Florida Combined Life"), producto: "Dental",
     plan: "BlueDental Copayment QF", efectiva: "10/01/2026", agente: "LUCIA FERRER CAMPOS" } }),
-  "Supp App Dental Cigna": Object.assign({}, SUPP_APP, { fields: {
+  "Supp App Dental Cigna": Object.assign({}, SUPP_APP, { fields: { clienteEmail: "laura.pineda@example.com",
     nombres: "LAURA", apellidos: "PINEDA", compania: carrierOf("supp", "Cigna"), producto: "Dental", plan: "Cigna Dental Vision Hearing 3500",
     prima: "$62.66", efectiva: "09/01/2026", agente: "MARTA QUINTERO" } }),
   /* "No Dependents added" no es un beneficiario; el NPN viene en el enlace */
-  "Supp App Dental Humana": Object.assign({}, SUPP_APP, { fields: {
+  "Supp App Dental Humana": Object.assign({}, SUPP_APP, { fields: { clienteEmail: "tomas.ibarra@example.com", clienteTel: "(555) 010-2843", direccion: "450 Orchid Ct, Naples, COLLIER, FL 34102",
     nombres: "TOMAS", apellidos: "IBARRA", compania: carrierOf("supp", "Humana"), producto: "Dental", plan: "Dental Value HI215",
     prima: "$11.99", efectiva: "08/01/2026", agente: "MARTA QUINTERO", npn: "19876543" } }),
   "Supp App Dental Allstate": Object.assign({}, SUPP_APP, { fields: {
@@ -655,4 +655,28 @@ test("App Summary: el ingreso y el DOB del titular son los de su sección, aunqu
   assert.equal(r.ingreso, undefined);
   assert.equal(r.personas[0].ingreso, undefined);
   assert.equal(r.personas[1].ingreso, "$22,500.00");
+});
+
+test("App Summary: el teléfono y el email del agente no pasan por los del cliente", () => {
+  const t = fixture("OC App Summary Household")
+    .replace("ana.torres@example.com\n", "\n").replace("Mobile: (305) 555-0123\n", "\n")
+    .replace("National Producer Number (NPN)", "Email address\nlaura@agency.example.com\nPhone number\n(786) 555-0199\nNational Producer Number (NPN)");
+  const r = X.extract(t, "document.pdf", "oc").fields;
+  assert.equal(r.clienteEmail, undefined);
+  assert.equal(r.clienteTel, undefined);
+});
+
+test("comprobante de pago: lo pagado, no lo que se debe, ni la fecha de nacimiento como fecha del pago", () => {
+  const head = "Payment Receipt\nFlorida Blue\nMember Name: Ana Torres\n";
+  let r = X.extract(head + "Amount due: $120.00\nAmount paid: $60.00\nDate of birth: 05/02/1980\nConfirmation number: 150099887\n", "receipt.pdf", "oc");
+  assert.equal(r.type, "pay");
+  assert.equal(r.fields.pagoMonto, "$60.00");
+  assert.notEqual(r.fields.pagoFecha, "05/02/1980");
+  r = X.extract(head + "Total premium due $240.00\nTotal $80.00\nConfirmation number: 150099887\n", "receipt.pdf", "oc");
+  assert.equal(r.fields.pagoMonto, "$80.00");
+});
+
+test("App Summary: «month» mal leído por el OCR («rnonth») tampoco da el ingreso del mes", () => {
+  const t = fixture("OC App Summary Household").replace(/This month's/g, "This rnonth's").replace(/Estimated income next year/g, "Estimated incone next yeer");
+  assert.equal(X.extract(t, "document.pdf", "oc").fields.ingreso, "$42,000.00");
 });

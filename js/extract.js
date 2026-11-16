@@ -398,6 +398,7 @@
 
     var sex = after(doc, [SEX_LABEL], vSex, 1);
     if (sex) { f.genero = sex; }
+    contactInfo(doc, f);
     agentInfo(doc, f);
     if (!f.agente) {
       var ag = mcAgent(doc);
@@ -705,8 +706,7 @@
     f.direccion = after(doc, [/\bHome\s*address\b/i, /Direcci[oó]n\s*(de\s*(la\s*)?casa|del\s*hogar|residencial)/i], vAddress, 1);
     /* teléfono y email del contacto del hogar: van a Teléfono y Email del
        titular, y quedan como base para Cambios */
-    f.clienteEmail = after(doc, [/\bE-?mail(\s*address)?\b/i, /Correo\s*electr[oó]nico/i], vEmail, 1);
-    f.clienteTel = after(doc, [/\bPhone\s*numbers?(\s*\(s\))?/i, /\bPhone\b/i, /Tel[eé]fonos?(\s*\(s\))?/i], vPhone, 1);
+    contactInfo(doc, f);
     if (/healthsherpa/i.test(doc.flat)) { f.plataforma = "HealthSherpa"; }
     else if (/healthcare\.gov|cuidadodesalud\.gov/i.test(doc.flat)) { f.plataforma = "MKPL"; }
     /* el agente o broker que envió la aplicación, con su NPN */
@@ -729,7 +729,31 @@
 
   /* El ingreso anual: el estimado para el año que viene manda; nunca el del
      mes ("This month's total income (November 2026)  $2,600.00"). */
-  var MONTHLY = /\bmonth|\bmes\b|\bmensual/i;
+  /* "month" también como lo lee mal el OCR ("rnonth") */
+  var MONTHLY = /\b(m|rn)onth|\bmes\b|\bmensual/i;
+
+  /* Teléfono, email y dirección del cliente: se buscan antes del bloque del
+     agente, que trae los suyos. */
+  var AGENT_BLOCK = /^\s*(Agent|Broker|Agente|Producer)\b|agent\s*or\s*broker|Informaci[oó]n del agente|agente\s*o\s*corredor/i;
+  function contactInfo(doc, f) {
+    var stop = -1;
+    for (var i = 0; i < doc.lines.length; i++) { if (AGENT_BLOCK.test(doc.lines[i])) { stop = i; break; } }
+    var d = stop > 0 ? makeDoc(doc.lines.slice(0, stop).join("\n")) : doc;
+    var email = after(d, [/\bE-?mail(\s*address)?\b/i, /Correo\s*electr[oó]nico/i], vEmail, 1);
+    var tel = after(d, [/\bPhone\s*numbers?,?(\s*\(s\))?(\s*including\s*area\s*code)?/i, /\b(Primary\s*)?Phone\b/i, /Tel[eé]fonos?(\s*\(s\))?/i], vPhone, 1);
+    if (email) { f.clienteEmail = email; }
+    if (tel) { f.clienteTel = tel; }
+  }
+
+  /* "4. Resident Address: 700 Palmetto Rd     Venice     FL     34285" */
+  function vAddressRow(t) {
+    var cells = String(t || "").trim().split(/\s{2,}|\t/);
+    var n = cells.length;
+    if (n >= 4 && /^[A-Z]{2}$/.test(cells[n - 2]) && /^\d{5}(-\d{4})?$/.test(cells[n - 1]) && vAddress(cells[0])) {
+      return cells[0] + ", " + cells[n - 3] + ", " + cells[n - 2] + " " + cells[n - 1];
+    }
+    return vAddress(t);
+  }
   function annualIncome(doc) {
     var v = afterFirst(doc, [/\bEstimated\s*income\s*next\s*year\b/i, /\bIngresos?\s*estimados?\s*(para\s*)?el\s*pr[oó]ximo\s*a[nñ]o\b/i], vMoney, 1);
     if (v) { return v; }
@@ -950,14 +974,17 @@
 
   function extractPay(doc, line) {
     var f = { pagoEstado: "PAYMENT" };
+    /* lo pagado; un "Amount" o "Total" suelto solo si no hay rótulo de pago,
+       y nunca lo que se debe ("Amount due", "Total premium due") */
     f.pagoMonto = after(doc, [/\bAmount\s*charged\b/i, /\b(Payment\s*amount|Amount\s*paid|Total\s*paid|Total\s*payment)\b/i, /Monto\s*(pagado|del pago)/i,
-      /Importe\s*(pagado|del pago)?/i, /^\s*(Amount|Monto|Total)\b/i], vMoney, 1);
+      /Importe\s*(pagado|del pago)?/i], vMoney, 1) ||
+      after(doc, [/^\s*(Amount|Monto|Total)\b(?![^\n]*\b(due|pendiente|a\s*pagar|adeudado)\b)/i], vMoney, 1);
     /* Oscar: "Payment #<código> has been submitted for processing" */
     f.pagoConf = after(doc, [/\b(Confirmation|Reference|Transaction|Receipt)\s*(number|#|no\.?|ID|code)/i,
       /N[uú]mero de (confirmaci[oó]n|referencia|transacci[oó]n)/i, /^\s*Confirmation\s*:/i], vCode(5, 24), 1) ||
       find(doc, /\bPayment\s*#\s?([A-Za-z0-9]{6,64})\s+has been submitted/i);
     f.pagoFecha = afterFirst(doc, [/\bPayment\s*date\b/i, /\bDate\s*(paid|of payment)\b/i, /Fecha\s*(del|de)\s*pago/i,
-      /\bPayment\s*Details\b/i, /^\s*(Date|Fecha)\b/i], vDate, 1) || printDate(doc);
+      /\bPayment\s*Details\b/i, /^\s*(Date|Fecha)\b(?!\s*(of\s*birth|de\s*nacimiento))/i], vDate, 1) || printDate(doc);
     f.pagoMetodo = after(doc, [/\bPayment\s*method\b/i, /M[eé]todo de pago/i], vPayMethod, 1);
     if (!f.pagoMetodo && CARD_PAY.test(doc.flat)) { f.pagoMetodo = "Tarjeta CC"; }
     else if (!f.pagoMetodo && BANK_PAY.test(doc.flat)) { f.pagoMetodo = "Cuenta de banco"; }
@@ -1205,6 +1232,9 @@
     if (f.poliza && f.poliza === app) { delete f.poliza; }
     var ben = suppBeneficiary(doc);
     if (ben) { f.beneficiario = ben; }
+    contactInfo(doc, f);
+    var home = after(doc, [/\bResident(ial)?\s*Address\b/i, /\bHome\s*address\b/i], vAddressRow, 0);
+    if (home) { f.direccion = home; }
     var ag = suppAgent(doc);
     agentInfo(doc, f);
     if (ag) { f.agente = ag.toUpperCase(); }
