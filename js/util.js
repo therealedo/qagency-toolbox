@@ -63,6 +63,13 @@
   }
 
   /* Fechas con el mes en letras, en inglés o español. */
+  /* Fecha de nacimiento: con el año en dos cifras ("5/2/80") no puede
+     quedar en el futuro, así que es 1980 y no 2080 */
+  function parseBirth(input) {
+    var v = parseDate(input), y = v ? +v.slice(-4) : 0;
+    return y > new Date().getFullYear() ? v.slice(0, 6) + (y - 100) : v;
+  }
+
   function parseDateWords(t) {
     t = String(t || "");
     var m = t.match(/([A-Za-zÁÉÍÓÚáéíóú]{3,12})\.?\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(?:de\s+|del\s+)?(\d{4})/);
@@ -332,7 +339,7 @@
   }
 
   var api = {
-    pad2: pad2, fmtDate: fmtDate, today: today, parseDate: parseDate, parseDateWords: parseDateWords,
+    pad2: pad2, fmtDate: fmtDate, today: today, parseDate: parseDate, parseBirth: parseBirth, parseDateWords: parseDateWords,
     findDate: findDate, toDateObj: toDateObj, addDays: addDays, addMonths: addMonths, taskDate: taskDate,
     parseTime: parseTime, parseSlot: parseSlot, to12h: to12h, timeLabel: timeLabel, halfHourSlots: halfHourSlots, yearMonth: yearMonth, defaultPlanYear: defaultPlanYear, moneyNumber: moneyNumber, parseMoney: parseMoney,
     stripAccents: stripAccents, collapse: collapse, titleCase: titleCase, initials: initials,

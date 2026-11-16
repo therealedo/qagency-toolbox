@@ -732,7 +732,7 @@
     if (committed && prop === "ingreso") { v = U.parseMoney(v) || ""; t.value = v; }
     if (committed && prop === "prima") { v = U.parseMoney(v) || ""; t.value = v; }
     if (committed && (prop === "fecha" || prop === "dob")) {
-      var dd = U.parseDate(v);
+      var dd = prop === "dob" ? U.parseBirth(v) : U.parseDate(v);
       t.closest(".mini").classList.toggle("bad", !!U.collapse(v) && !dd);
       if (dd || !U.collapse(v)) { v = dd; t.value = dd; }
     }

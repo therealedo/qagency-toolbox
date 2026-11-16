@@ -399,10 +399,12 @@
   function same(a, b) { return U.stripAccents(val(a)).toUpperCase() === U.stripAccents(val(b)).toUpperCase(); }
   function dateOrText(v) { return U.parseDate(v) || val(v); }
 
-  /* el teléfono se compara por sus dígitos: (305) 555-0199 es 305-555-0199 */
+  /* el teléfono se compara por sus dígitos, sin el 1 del país:
+     (305) 555-0199 es 305-555-0199 y +1 305 555 0199 */
+  function phoneDigits(v) { return String(v || "").replace(/\D/g, "").replace(/^1(?=\d{10}$)/, ""); }
   var CONTACTO = [
     { k: "direccion", label: "Dirección", eq: same },
-    { k: "clienteTel", label: "Teléfono", eq: function (a, b) { return String(a || "").replace(/\D/g, "") === String(b || "").replace(/\D/g, ""); } },
+    { k: "clienteTel", label: "Teléfono", eq: function (a, b) { return phoneDigits(a) === phoneDigits(b); } },
     { k: "clienteEmail", label: "Email", eq: same }
   ];
 

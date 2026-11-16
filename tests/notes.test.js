@@ -1139,3 +1139,10 @@ test("mergeHousehold: al volver a usar el documento (después de quitar otro) lo
   N.mergeHousehold(f, DOC_HOGAR, 1);
   assert.deepEqual(N.cambios(f), before);
 });
+
+test("cambios: el teléfono con o sin el +1 del país es el mismo", () => {
+  const d = { line: "oc", base: { clienteTel: "(305) 555-0123" }, personas: [] };
+  assert.deepEqual(N.cambios(Object.assign({ clienteTel: "+1 305 555 0123" }, d)), []);
+  assert.deepEqual(N.cambios(Object.assign({ clienteTel: "1-305-555-0123" }, d)), []);
+  assert.deepEqual(N.cambios(Object.assign({ clienteTel: "(786) 555-0123" }, d)), ["- Teléfono: (786) 555-0123 (antes (305) 555-0123)"]);
+});
