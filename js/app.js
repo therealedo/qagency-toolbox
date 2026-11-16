@@ -1451,8 +1451,17 @@
     var title = kind === "soa" ? "SOA" : "Consent";
     sec.dataset.rail = title;
     $("signTitle").textContent = title + " para firmar";
-    $("signTemplate").textContent = "Plantilla: " + T.label + (kind === "consent" ? ". La oficina se elige en Ajustes."
-      : ". Se descarga sin llenar: la sección del agente se completa y se firma después de que firme el cliente.");
+    /* el Consent es de la oficina elegida arriba: se confirma cuál se usará */
+    var tpl = $("signTemplate");
+    tpl.textContent = "";
+    tpl.classList.toggle("sign-office", kind === "consent");
+    if (kind === "consent") {
+      tpl.appendChild(document.createTextNode("Se usará el Consent de "));
+      tpl.appendChild(el("strong", null, settings.oficina));
+      tpl.appendChild(document.createTextNode(" (" + T.label + "). Revisa que sea la oficina correcta; si no, cámbiala arriba, debajo de Q Agency Toolbox."));
+    } else {
+      tpl.textContent = "Plantilla: " + T.label + ". Se descarga sin llenar: la sección del agente se completa y se firma después de que firme el cliente.";
+    }
     /* el SOA no lleva datos: se descarga la plantilla tal cual */
     $("signDownload").textContent = kind === "soa" ? "Descargar PDF" : "Descargar PDF lleno";
     if (signKind !== kind) { buildSignGrid(kind); signKind = kind; }
@@ -2098,7 +2107,25 @@
     });
     var add = el("option", null, "Agregar o editar…"); add.value = "__edit"; sel.appendChild(add);
     sel.value = memberByName(settings.autor) ? memberByName(settings.autor).name : "";
-    $("officeTag").textContent = settings.oficina;
+    renderOffice();
+  }
+
+  /* La oficina se elige arriba, sin abrir Ajustes: cambia el nombre del SMS,
+     el teléfono de la oficina y el Consent que se llena. */
+  function renderOffice() {
+    var sel = $("oficinaTop");
+    if (!sel.options.length) {
+      C.OFFICES.forEach(function (o) { var op = el("option", null, o); op.value = o; sel.appendChild(op); });
+    }
+    sel.value = settings.oficina;
+  }
+  function setOffice(v) {
+    if (C.OFFICES.indexOf(v) < 0 || v === settings.oficina) { renderOffice(); return; }
+    settings.oficina = v; saveSettings();
+    renderOffice();
+    syncSeg($("officeSeg"), v);
+    $("officeTel").value = settings.telefonos[v] || "";
+    refresh();
   }
 
   /* Por defecto, quien hace la nota es el agente escritor (si tiene NPN) y
@@ -2499,10 +2526,9 @@
     $("officeSeg").addEventListener("click", function (e) {
       var b = e.target.closest("button");
       if (!b) { return; }
-      settings.oficina = b.dataset.v; saveSettings();
-      syncSeg(this, settings.oficina);
-      $("officeTel").value = settings.telefonos[settings.oficina] || "";
+      setOffice(b.dataset.v);
     });
+    $("oficinaTop").addEventListener("change", function () { setOffice(this.value); });
     $("officeTel").addEventListener("input", function () {
       settings.telefonos[settings.oficina] = U.collapse(this.value);
       saveSettings();

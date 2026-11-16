@@ -80,7 +80,7 @@ In both, *Cliente* also has the client's phone and email, which only feed the SO
 
 ### Consent and SOA
 
-**Consent para firmar** (Obamacare *Pendiente*) and **SOA para firmar** (Medicare, both situations) work with the agency's PDF forms, which are bundled with the app. The consent template follows the office in **Ajustes** (QAgency or ATH Insurance); both follow the language switch in the section (Español / English), which is the same client language the SMS uses.
+**Consent para firmar** (Obamacare *Pendiente*) and **SOA para firmar** (Medicare, both situations) work with the agency's PDF forms, which are bundled with the app. The consent template follows the office chosen at the top of the screen, under *Q Agency Toolbox* (QAgency or ATH Insurance; the same choice is in **Ajustes**), and the section says which office's Consent it will use so it can be checked before sending; both follow the language switch in the section (Español / English), which is the same client language the SMS uses.
 
 - **Consent:** client name, consent date (the note date, also on page 2), agent and NPN (from *Agente (NPN)*), marital status (*Casado/a* or *Married* when the household has a *Cónyuge*, otherwise typed), yearly household income, people in the taxes, people asking for coverage, and the selected quoted plan with its premium (the only quoted plan when none is selected).
 - **SOA:** nothing is filled in. Every field on the SOA is in the agent's section, which the agent completes and signs after the client signs, so **Descargar PDF** downloads the form as it is, with the five product boxes checked as they are on both SOAs. The section only shows the beneficiary's name and phone, for the Cliq line and the SMS.
@@ -128,7 +128,7 @@ The note never asks for or includes Marketplace usernames, passwords or security
 
 ### SMS, email and file names
 
-The SMS card writes a short message for the client: what was done and what they need to do next, greeting them by first name and signed by the office chosen in Ajustes, with that office's phone number if one is set. The counter shows how many text messages it takes; accents or emoji make each one hold 70 characters instead of 160.
+The SMS card writes a short message for the client: what was done and what they need to do next, greeting them by first name and signed by the office chosen at the top of the screen (or in Ajustes), with that office's phone number if one is set. The counter shows how many text messages it takes; accents or emoji make each one hold 70 characters instead of 160.
 
 For an Obamacare **App enviada**, the SMS follows the agency's format, in **Español** or **English** (the switch on the SMS and email cards):
 
