@@ -54,6 +54,8 @@ test("plantilla: el SOA solo depende del idioma", () => {
 
 test("plantilla: Consent en Obamacare Pendiente y SOA en las situaciones de Medicare que guardan SOA", () => {
   assert.equal(F.formKind({ line: "oc", outcome: "pendiente" }), "consent");
+  assert.equal(F.formKind({ line: "oc", outcome: "pendiente", net: { consent: true } }), "", "consent ya recibido");
+  assert.equal(F.formKind({ line: "oc", outcome: "pendiente", net: { consent: false } }), "consent");
   assert.equal(F.formKind({ line: "oc", outcome: "enviada" }), "");
   assert.equal(F.formKind({ line: "oc", outcome: "cancelada" }), "");
   assert.equal(F.formKind({ line: "mc", outcome: "enviada" }), "soa");
