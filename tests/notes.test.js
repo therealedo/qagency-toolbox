@@ -755,7 +755,7 @@ test("archivo oficial: Docs submitted (OC) del titular", () => {
 test("archivo oficial: Docs submitted (OC) de un dependiente o cónyuge, con su nombre", () => {
   const doc = { cat: "immigration", persona: "YANET SOTO MESA", enviado: true, doc: "Employment Authorization Card (I-766)" };
   assert.deepEqual(docsub([doc]).map((f) => [f.k, f.label, f.name]), [[N.docKey(doc), "Docs Submitted: Estatus migratorio (Yanet)",
-    "Perez Lima, Rosa - OC_Docs Submitted_YANET_Immigration status 2026 NOV"]]);
+    "Perez Lima, Rosa - OC_Docs Submitted_Yanet_Immigration status 2026 NOV"]]);
 });
 
 test("Docs submitted: solo lo enviado, uno por documento, y va a la nota si se marca", () => {
@@ -764,7 +764,7 @@ test("Docs submitted: solo lo enviado, uno por documento, y va a la nota si se m
   const pend = { cat: "income", persona: "ROSA PEREZ LIMA", fecha: "02/12/2027" };
   assert.deepEqual(docsub([titular, pend, dep]).map((f) => f.name), [
     "Perez Lima, Rosa - OC_Docs Submitted_Immigration status 2026 NOV",
-    "Perez Lima, Rosa - OC_Docs Submitted_YANET_Immigration status 2026 NOV"]);
+    "Perez Lima, Rosa - OC_Docs Submitted_Yanet_Immigration status 2026 NOV"]);
   assert.notEqual(N.docKey(titular), N.docKey(dep));
   assert.deepEqual(docsub([pend]), []);
   const d = make(Object.assign({}, rosa, { docs: [dep], net: { [N.docKey(dep)]: true } }));

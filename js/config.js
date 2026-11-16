@@ -289,7 +289,7 @@
      cobertura no llegó a empezar) o a una terminación (terminated).
      `perDoc` da un archivo por cada documento pedido que se marcó como
      enviado: {doc} es el `file` de MKPL_DOCS, con el nombre de pila delante
-     si es de otra persona del hogar ("YANET_Immigration status"). */
+     si es de otra persona del hogar ("Yanet_Immigration status"). */
   var LINES = {
     oc: {
       label: "Obamacare",
