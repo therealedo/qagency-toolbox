@@ -109,6 +109,8 @@
     signEdits: {},
     /* la hora ya se puso: "doc" con el primer documento, "user" a mano */
     horaFrom: "",
+    /* campos de MUST_CHOOSE que el agente ya eligió o confirmó */
+    chosen: {},
     dirty: false
   };
 
@@ -729,6 +731,15 @@
 
   function renderLists() { renderPersonas(); renderDocs(); renderPlanes(); }
 
+  /* Datos que casi nunca vienen en un documento y que importan mucho: van en
+     rojo hasta que el agente elige una opción (aunque sea la que ya estaba)
+     o confirma la sección. */
+  var MUST_CHOOSE = ["canal", "codigoTipo", "periodo", "periodoMC"];
+  function mustChoose(F) {
+    var k = key(F);
+    return MUST_CHOOSE.indexOf(k) >= 0 && !S.chosen[k] && S.auto[k] !== true;
+  }
+
   /* Una persona del hogar que llenó un documento queda en dorado hasta que se
      confirma (ok); si otro documento le trae un dato nuevo, vuelve a dorado. */
   function toReview(x) {
@@ -741,6 +752,7 @@
     FIELDS.forEach(function (F) {
       if (group && F.g !== group) { return; }
       if (S.auto[key(F)] === true) { delete S.auto[key(F)]; }
+      if (MUST_CHOOSE.indexOf(key(F)) >= 0 && fieldVisible(F)) { S.chosen[key(F)] = true; }
       if (Array.isArray(S.f[F.k])) {
         S.f[F.k].forEach(function (x) { if (x && typeof x === "object") { delete x.auto; if (F.k === "personas") { x.ok = true; } } });
       }
@@ -1098,7 +1110,9 @@
       /* el dorado es solo para lo leído de un documento, no para lo calculado */
       var fromDoc = S.auto[key(F)] === true;
       wrap.classList.toggle("is-auto", fromDoc);
-      if (fromDoc && visible) { pending[F.g] = (pending[F.g] || 0) + 1; }
+      var choose = mustChoose(F);
+      wrap.classList.toggle("is-choose", choose);
+      if ((fromDoc || choose) && visible) { pending[F.g] = (pending[F.g] || 0) + 1; }
       if (visible && Array.isArray(S.f[F.k])) {
         var n = S.f[F.k].filter(function (x) { return F.k === "personas" ? toReview(x) : x && x.auto; }).length;
         if (n) { pending[F.g] = (pending[F.g] || 0) + n; }
@@ -1312,6 +1326,8 @@
   function data() {
     var d = Object.assign({}, S.f), p = people();
     d.line = S.line; d.outcome = S.outcome;
+    /* lo que el agente todavía no eligió ni confirmó (va en los avisos) */
+    d.porElegir = FIELDS.filter(function (F) { return mustChoose(F) && fieldVisible(F); }).map(function (F) { return resolve(F.label); });
     d.ini = p.me ? p.me.ini : "";
     d.agente = p.agent ? p.agent.name : "";
     d.npn = p.agent ? p.agent.npn : "";
@@ -2623,6 +2639,7 @@
 
   function touched(k) {
     delete S.auto[k]; delete S.rank[k];
+    S.chosen[k] = true;
     S.dirty = true;
   }
 
@@ -2821,7 +2838,7 @@
     /* nueva nota */
     $("btnNew").addEventListener("click", function () {
       if (hasClientData() && S.dirty && !window.confirm("La nota actual no se ha copiado. ¿Empezar una nueva?")) { return; }
-      S.f = freshFields(); S.auto = {}; S.rank = {}; S.base = {}; S.files = []; S.signEdits = {}; S.horaFrom = "";
+      S.f = freshFields(); S.auto = {}; S.rank = {}; S.base = {}; S.files = []; S.signEdits = {}; S.horaFrom = ""; S.chosen = {};
       $("taskId").dataset.line = "";
       S.edited = freshEdited(); S.dirty = false;
       S.outcome = L().outcomes[0].id;

@@ -1262,3 +1262,9 @@ test("hoja de cambios: persona agregada, quitada, consent recibido y sin plan el
   assert.equal(N.changeSheet(d).plan.inicio, "");
   assert.equal(N.changeSheet(Object.assign(hojaBase(), { revisaPlanes: true })).consent, "No enviada (revisará los planes)");
 });
+
+test("avisos: lo que el agente todavía no eligió ni confirmó (Canal, Código en Zoho, Enrollment Period)", () => {
+  const w = N.warnings(make({ line: "oc", outcome: "pendiente", porElegir: ["Canal", "Enrollment Period"] }), "");
+  assert.ok(w.includes("Elige o confirma: Canal, Enrollment Period."));
+  assert.ok(!N.warnings(make({ line: "oc", outcome: "pendiente", porElegir: [] }), "").some((x) => /Elige o confirma/.test(x)));
+});

@@ -453,6 +453,9 @@ kbd {
 .fld.is-auto input[type="text"]:focus, .fld.is-auto textarea:focus {
   box-shadow: inset 3px 0 0 var(--gold), 0 0 0 3px var(--brand-soft);
 }
+/* dato que casi nunca viene en un documento: pendiente de elegir */
+.fld.is-choose .seg, .fld.is-choose select { border-color: var(--danger); box-shadow: inset 3px 0 0 var(--danger); }
+.fld.is-choose .field-label::after { content: " · elígelo"; color: var(--danger); font-weight: 600; }
 .fld.bad input, .mini.bad input { border-color: var(--danger); }
 .fld.bad::after { content: "Revisa el formato"; display: block; margin-top: 5px; font-size: 12px; color: var(--danger); }
 

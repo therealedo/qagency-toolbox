@@ -1131,6 +1131,7 @@
     var O = outcomeOf(d), w = [];
     if (!val(d.ini)) { w.push("Elige quién hace la nota (arriba a la derecha)."); }
     if (!val(d.nombres) && !val(d.apellidos)) { w.push("Falta el nombre del cliente."); }
+    if (Array.isArray(d.porElegir) && d.porElegir.length) { w.push("Elige o confirma: " + d.porElegir.join(", ") + "."); }
     var noChange = d.line === "mc" && O.id === "sincambio";
     if (noChange && !val(d.plan)) { w.push("Reporte: falta el nombre del plan."); }
     if (O.report && !noChange) {
