@@ -1703,6 +1703,15 @@
     S.f.gestion = ""; S.f.taskId = "";
     var fresh = freshFields();
     PRODUCT_KEYS.forEach(function (k) { resetField(k, fresh); delete S.base[k]; });
+    /* lo que los documentos marcaron o agregaron era de la otra línea: las
+       casillas del Network y las personas del hogar que trajo un documento */
+    S.f.net = {};
+    S.f.personas = S.f.personas.filter(function (p) { return p.titular || !p.auto; });
+    S.f.personas.forEach(function (p) {
+      Object.keys(p.filled || {}).forEach(function (k) { if (!p.orig || p[k] === p.orig[k]) { p[k] = ""; } });
+      delete p.filled; delete p.orig;
+    });
+    S.f.hogarPdf = false;
     afterOutcomeChange();
   }
 
@@ -1722,15 +1731,32 @@
      compañía u otro número) se aparta con un aviso y no se usa, salvo que el
      agente pida usarlo igual. */
   function useFile(entry) {
+    /* al volver a usarlo (después de quitar otro documento) la línea ya no
+       cambia: se guarda a cuál volver */
+    var hadLine = entry.lineFrom, hadOutcome = entry.outcomeFrom;
     delete entry.held; delete entry.lineFrom; delete entry.outcomeFrom;
     entry.applied = 0;
     if (!entry.res) { return; }
+    /* un documento sin línea propia (un recibo de pago) se lee para la
+       línea en la que está la nota */
+    if (!entry.res.line && entry.text != null && entry.readFor !== S.line) { readEntry(entry); }
     var why = entry.force ? [] : N.docConflicts(caseIdentity(), S.line, entry.res);
     if (why.length) { entry.held = why; return; }
     var lineBefore = S.line, outcomeBefore = S.outcome;
     entry.applied = applyExtraction(entry.res);
-    if (S.line !== lineBefore) { entry.lineFrom = lineBefore; }
-    else if (S.outcome !== outcomeBefore) { entry.outcomeFrom = outcomeBefore; }
+    if (S.line !== lineBefore) {
+      entry.lineFrom = lineBefore;
+      /* los otros documentos sin línea propia se vuelven a leer y usar para
+         la línea nueva: un recibo soltado antes que su aplicación */
+      S.files.forEach(function (f) { if (f !== entry && f.res && !f.res.line) { useFile(f); } });
+    } else if (S.outcome !== outcomeBefore) { entry.outcomeFrom = outcomeBefore; }
+    else if (hadLine && S.line === entry.res.line) { entry.lineFrom = hadLine; }
+    else if (hadOutcome && S.outcome !== hadOutcome) { entry.outcomeFrom = hadOutcome; }
+  }
+
+  function readEntry(entry) {
+    entry.res = X.extract(entry.text, entry.name, S.line, entry.words ? { words: entry.words } : null);
+    entry.readFor = S.line;
   }
 
   /* Quitar un documento deshace lo que llenó: se vacía lo que vino de
@@ -1920,7 +1946,8 @@
   function finishFile(entry, text, status, words) {
     entry.text = text || "";
     var readable = entry.text.replace(/\s/g, "").length >= 40;
-    entry.res = X.extract(entry.text, entry.name, S.line, words ? { words: words } : null);
+    if (words) { entry.words = words; }
+    readEntry(entry);
     entry.status = status || (readable ? "ok" : "scanned");
     useFile(entry);
     renderFiles();
