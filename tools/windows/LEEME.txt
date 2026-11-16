@@ -15,14 +15,26 @@ Que hace el instalador
 - Crea un acceso directo en el Escritorio y otro en el menu Inicio que la
   abren en su propia ventana usando Chrome o Edge (Brave solo si no hay
   ninguno de los dos, porque Brave no deja elegir la carpeta del Network).
+- Crea tambien "Actualizar Q Agency Toolbox" en el Escritorio y en el menu
+  Inicio.
 - No necesita permisos de administrador ni internet.
 
-Actualizar: extrae el paquete nuevo y ejecuta Instalar.bat otra vez.
+Actualizar: cuando la herramienta avisa que hay una version nueva, cierrala
+y abre "Actualizar Q Agency Toolbox". Revisa GitHub y solo descarga e
+instala algo si hay una version mas nueva; si no, dice que ya esta al dia.
+(Tambien sirve Actualizar.bat de este paquete, o extraer el paquete nuevo y
+ejecutar Instalar.bat otra vez.)
+
+Equipo: los nombres y los NPN del equipo no vienen en la herramienta. La
+primera vez, en Ajustes > Equipo pulsa "Importar equipo" y elige el archivo
+QAgency-Equipo.json que comparte la oficina.
+
 Tus ajustes (tu nombre, el equipo, el tema) se conservan mientras se abra
 con el mismo navegador. Cada navegador guarda los suyos: si antes se abria
 con Brave y ahora con Chrome o Edge, vuelve a llenar los Ajustes una vez.
 
 Quitar: doble clic en Desinstalar.bat.
 
-Privacidad: la herramienta lee los documentos dentro del navegador. No
-envia nada a internet y no guarda datos de clientes.
+Privacidad: la herramienta lee los documentos dentro del navegador y no
+guarda datos de clientes. Lo unico que pide a internet es el numero de la
+ultima version, a GitHub; no envia nada.

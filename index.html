@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <!-- Nada sale de esta página: sin conexiones externas, sin fuentes ni scripts remotos. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' data: blob: file: 'wasm-unsafe-eval'; connect-src 'none'; object-src 'none'; base-uri 'self'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' data: blob: file: 'wasm-unsafe-eval'; connect-src https://raw.githubusercontent.com/therealedo/qagency-toolbox/main/package.json; object-src 'none'; base-uri 'self'; form-action 'none'">
 <meta name="color-scheme" content="light dark">
 <meta name="theme-color" content="#F4F6FA" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0B111C" media="(prefers-color-scheme: dark)">
@@ -59,8 +59,9 @@
 </header>
 
 <div class="update-bar" id="updateBar" hidden>
-  <span>Hay una versión nueva de la herramienta.</span>
+  <span id="updateText">Hay una versión nueva de la herramienta.</span>
   <button type="button" class="btn small primary" id="btnReload">Actualizar</button>
+  <button type="button" class="icon-btn tiny" id="btnUpdateClose" aria-label="Ocultar el aviso" hidden>✕</button>
 </div>
 
 <main id="main" tabindex="-1">

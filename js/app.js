@@ -2165,7 +2165,7 @@
     var standalone = window.matchMedia("(display-mode: standalone)").matches || window.matchMedia("(display-mode: window-controls-overlay)").matches;
     if (standalone) { return "La herramienta ya está instalada como aplicación en esta computadora."; }
     if (location.protocol === "file:") {
-      return "Estás usando el archivo suelto. Para tenerla como aplicación, con su ícono, ejecuta Instalar.bat del paquete de Windows y luego fíjala a la barra de tareas con clic derecho.";
+      return "Abierta como archivo. Si la instalaste con Instalar.bat, para actualizarla abre «Actualizar Q Agency Toolbox» en el Escritorio o en el menú Inicio: solo instala algo cuando hay una versión nueva. Si es el archivo suelto, ejecuta Instalar.bat del paquete de Windows para tenerla como aplicación, con su ícono y el actualizador.";
     }
     if (deferredInstall) { return "Pulsa «Instalar», arriba a la derecha, para tenerla como aplicación con su propio ícono. Funciona también sin internet."; }
     return "En el menú del navegador elige «Instalar Q Agency Toolbox» (o «Instalar página como aplicación»). Queda con su propio ícono y funciona sin internet.";
@@ -2222,6 +2222,28 @@
       });
     }
     $("btnReload").addEventListener("click", function () { location.reload(); });
+    $("btnUpdateClose").addEventListener("click", function () { $("updateBar").hidden = true; });
+    checkForUpdate();
+  }
+
+  /* Instalada con el paquete de Windows (abierta como archivo): pregunta a
+     GitHub el número de la última versión y, si hay una más nueva, avisa que
+     se use el acceso directo «Actualizar». La petición no lleva datos de
+     clientes ni de quien la usa, y la política de seguridad de la página solo
+     deja salir esta. Sin internet no pasa nada. */
+  function checkForUpdate() {
+    if (location.protocol !== "file:" || !window.fetch) { return; }
+    fetch(C.UPDATE_URL, { cache: "no-store", credentials: "omit", referrerPolicy: "no-referrer" })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (pkg) {
+        var v = pkg && typeof pkg.version === "string" ? pkg.version : "";
+        if (!U.newerVersion(v, C.VERSION)) { return; }
+        $("updateText").textContent = "Hay una versión nueva (" + v + "). Cierra la herramienta y abre «Actualizar Q Agency Toolbox» en el Escritorio o en el menú Inicio.";
+        $("btnReload").hidden = true;
+        $("btnUpdateClose").hidden = false;
+        $("updateBar").hidden = false;
+      })
+      .catch(function () { /* sin internet o GitHub no responde: se sigue igual */ });
   }
 
   /* -------------------------------------------------------------- eventos */

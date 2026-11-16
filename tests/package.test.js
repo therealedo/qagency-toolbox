@@ -66,11 +66,34 @@ test("el instalador prefiere Chrome, luego Edge, y Brave al final (Brave no deja
   assert.match(ps, /No se encontro Chrome, Edge ni Brave/);
 });
 
-test("la página sigue sin conexiones: el OCR solo agrega 'wasm-unsafe-eval'", () => {
+test("la página solo puede pedir el número de versión: el OCR solo agrega 'wasm-unsafe-eval'", () => {
   const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
   const csp = html.match(/Content-Security-Policy" content="([^"]+)"/)[1];
-  assert.equal(csp, "default-src 'self' 'unsafe-inline' data: blob: file: 'wasm-unsafe-eval'; connect-src 'none'; object-src 'none'; base-uri 'self'; form-action 'none'");
+  assert.equal(C.UPDATE_URL, "https://raw.githubusercontent.com/therealedo/qagency-toolbox/main/package.json");
+  assert.equal(csp, "default-src 'self' 'unsafe-inline' data: blob: file: 'wasm-unsafe-eval'; connect-src " + C.UPDATE_URL + "; object-src 'none'; base-uri 'self'; form-action 'none'");
   /* el motor y los modelos del OCR van dentro de la herramienta */
   ["vendor/tesseract/ocr-loader.js", "vendor/tesseract/ocr-wasm.js", "vendor/tesseract/ocr-lang-spa.js",
     "vendor/tesseract/ocr-lang-eng.js", "js/ocr.js"].forEach((f) => assert.ok(html.includes('<script src="' + f + '"></script>'), f));
+});
+
+test("el actualizador: misma fuente que la página, revisa la versión del paquete y se instala con la herramienta", () => {
+  const win = (f) => fs.readFileSync(path.join(root, "tools", "windows", f), "utf8");
+  const ps = win("actualizar.ps1");
+  const base = C.UPDATE_URL.replace(/\/package\.json$/, "");
+  assert.ok(ps.includes('"' + base + '"'), "la fuente por defecto es el repositorio");
+  assert.match(ps, /\/package\.json/);
+  assert.match(ps, /\/dist\/QAgency-Toolbox-Windows\.zip/);
+  assert.match(ps, /-le \$local/, "solo instala si la de GitHub es más nueva");
+  assert.match(ps, /-ne \$remota/, "rechaza un paquete con otra versión");
+  assert.match(win("Actualizar.bat"), /actualizar\.ps1/);
+  const inst = win("instalar.ps1");
+  assert.match(inst, /actualizar\.ps1/);
+  assert.match(inst, /Actualizar \$nombre\.lnk/);
+  const build = fs.readFileSync(path.join(root, "tools", "build.js"), "utf8");
+  assert.match(build, /tools\/windows\/Actualizar\.bat/);
+  assert.match(build, /tools\/windows\/actualizar\.ps1/);
+  /* la página avisa, solo abierta como archivo */
+  const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
+  ["updateBar", "updateText", "btnUpdateClose"].forEach((id) => assert.match(html, new RegExp('id="' + id + '"')));
+  assert.ok(fs.readFileSync(path.join(root, "js", "app.js"), "utf8").includes('fetch(C.UPDATE_URL, { cache: "no-store", credentials: "omit"'));
 });

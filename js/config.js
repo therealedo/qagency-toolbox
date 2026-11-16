@@ -4,7 +4,11 @@
 (function (root) {
   "use strict";
 
-  var VERSION = "1.9.0";
+  var VERSION = "1.10.0";
+  /* De aquí la herramienta instalada lee el número de la última versión (y
+     nada más). La política de seguridad de index.html solo permite esta
+     dirección, y el actualizador de Windows usa el mismo repositorio. */
+  var UPDATE_URL = "https://raw.githubusercontent.com/therealedo/qagency-toolbox/main/package.json";
 
   /* Equipo por defecto: vacío. El código es público, así que los nombres y
      los NPN del equipo no van aquí: cada persona importa en Ajustes el archivo
@@ -385,7 +389,7 @@
   };
 
   var api = {
-    VERSION: VERSION, TEAM: TEAM, OFFICES: OFFICES, OFFICE_NAMES: OFFICE_NAMES, CARRIERS: CARRIERS, TASKS: TASKS, PAYMENT: PAYMENT,
+    VERSION: VERSION, UPDATE_URL: UPDATE_URL, TEAM: TEAM, OFFICES: OFFICES, OFFICE_NAMES: OFFICE_NAMES, CARRIERS: CARRIERS, TASKS: TASKS, PAYMENT: PAYMENT,
     TASK_TAGS: TASK_TAGS, OBS_TAGS: OBS_TAGS, TASK_RULES: TASK_RULES,
     CHANNELS: CHANNELS, MODALIDADES: MODALIDADES, LINES: LINES, LINE_TASK_CATS: LINE_TASK_CATS,
     PAY_METHODS: PAY_METHODS, CANCEL_REASONS: CANCEL_REASONS, CANCEL_TYPES: CANCEL_TYPES, PARENTESCOS: PARENTESCOS, ESTATUS: ESTATUS, MKPL_DOCS: MKPL_DOCS

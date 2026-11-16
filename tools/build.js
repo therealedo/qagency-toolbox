@@ -6,7 +6,8 @@
                                    del Consent y del SOA, fuentes y logo);
                                    se abre con doble clic, sin internet
      QAgency-Toolbox-Windows.zip   ese archivo más un instalador que crea el
-                                   acceso directo con ícono en Windows
+                                   acceso directo con ícono en Windows y un
+                                   actualizador que la baja de GitHub
 
    No usa dependencias. Uso: node tools/build.js */
 "use strict";
@@ -147,7 +148,9 @@ const pack = zip([
   { name: folder + "toolbox.ico", data: ico(bytes("assets/icon-256.png")) },
   { name: folder + "Instalar.bat", data: Buffer.from(crlf("tools/windows/Instalar.bat"), "latin1") },
   { name: folder + "Desinstalar.bat", data: Buffer.from(crlf("tools/windows/Desinstalar.bat"), "latin1") },
+  { name: folder + "Actualizar.bat", data: Buffer.from(crlf("tools/windows/Actualizar.bat"), "latin1") },
   { name: folder + "instalar.ps1", data: Buffer.from("﻿" + crlf("tools/windows/instalar.ps1"), "utf8") },
+  { name: folder + "actualizar.ps1", data: Buffer.from("﻿" + crlf("tools/windows/actualizar.ps1"), "utf8") },
   { name: folder + "LEEME.txt", data: Buffer.from("﻿" + crlf("tools/windows/LEEME.txt"), "utf8") }
 ]);
 fs.writeFileSync(path.join(dist, "QAgency-Toolbox-Windows.zip"), pack);
