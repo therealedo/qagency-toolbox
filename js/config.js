@@ -4,7 +4,7 @@
 (function (root) {
   "use strict";
 
-  var VERSION = "1.8.0";
+  var VERSION = "1.9.0";
 
   /* Equipo por defecto. Cada persona puede editarlo en Ajustes; los cambios
      se guardan en su navegador.
@@ -27,35 +27,42 @@
   var OFFICE_NAMES = { "QAgency": "QAgency Insurance", "ATH Insurance": "ATH Insurance" };
 
   /* Compañías: `re` reconoce el nombre dentro de un documento, `name` es como
-     sale en la nota, `short` como sale en el reporte de Cliq y `display` como
-     se le escribe al cliente en el SMS y el email. */
+     sale en la nota, `short` como sale en el reporte de Cliq y en los nombres
+     de archivo, y `display` como se le escribe al cliente en el SMS y el email.
+     En Obamacare y Medicare, `option` marca la lista oficial de la agencia:
+     es el texto de la opción en el formulario, y van primero y en el orden
+     oficial. Las demás se siguen reconociendo en los documentos y salen como
+     «Otra», con su nombre. `state` pide el estado en dos letras: BCBS of GA. */
   var CARRIERS = {
     oc: [
-      { re: /florida\s*blue|blue\s*cross|bluecare|blueselect|blueoptions|myblue/i, name: "FLORIDA BLUE", display: "Florida Blue", short: "FB" },
-      { re: /ambetter|celtic|sunshine\s*health/i, name: "AMBETTER", display: "Ambetter", short: "Ambetter" },
-      { re: /\boscar\b/i, name: "OSCAR", display: "Oscar", short: "Oscar" },
+      { re: /florida\s*blue|blue\s*cross|bluecare|blueselect|blueoptions|myblue/i, name: "FLORIDA BLUE", display: "Florida Blue", short: "FB", option: "Florida Blue" },
+      { re: /ambetter|celtic|sunshine\s*health/i, name: "AMBETTER", display: "Ambetter", short: "Ambetter", option: "Ambetter" },
+      { re: /wellpoint/i, name: "WELLPOINT", display: "Wellpoint", short: "Wellpoint", option: "Wellpoint" },
+      { re: /unitedhealthcare|united\s*healthcare|\bUHC\b/i, name: "UNITED HEALTHCARE", display: "UnitedHealthcare", short: "UHC", option: "UHC" },
+      { re: /\boscar\b/i, name: "OSCAR", display: "Oscar", short: "Oscar", option: "Oscar" },
+      { re: /cigna/i, name: "CIGNA", display: "Cigna", short: "Cigna", option: "Cigna" },
       { re: /molina/i, name: "MOLINA", display: "Molina", short: "Molina" },
       { re: /aetna/i, name: "AETNA CVS HEALTH", display: "Aetna CVS Health", short: "Aetna" },
-      { re: /cigna/i, name: "CIGNA", display: "Cigna", short: "Cigna" },
-      { re: /unitedhealthcare|united\s*healthcare|\bUHC\b/i, name: "UNITED HEALTHCARE", display: "UnitedHealthcare", short: "UHC" },
       { re: /avmed/i, name: "AVMED", display: "AvMed", short: "AvMed" },
       { re: /health\s*first/i, name: "HEALTH FIRST", display: "Health First", short: "Health First" },
-      { re: /wellpoint/i, name: "WELLPOINT", display: "Wellpoint", short: "Wellpoint" },
       { re: /amerihealth/i, name: "AMERIHEALTH CARITAS", display: "AmeriHealth Caritas", short: "AmeriHealth" }
     ],
     mc: [
-      { re: /humana/i, name: "HUMANA", short: "Humana" },
-      { re: /aetna/i, name: "AETNA", short: "Aetna" },
-      { re: /unitedhealthcare|united\s*healthcare|\bUHC\b|\bAARP\b/i, name: "UNITED HEALTHCARE", short: "UHC" },
+      { re: /humana/i, name: "HUMANA", short: "Humana", option: "Humana" },
+      { re: /unitedhealthcare|united\s*healthcare|\bUHC\b|\bAARP\b/i, name: "UNITED HEALTHCARE", short: "UHC", option: "UHC" },
+      { re: /aetna/i, name: "AETNA", short: "Aetna", option: "Aetna" },
+      { re: /florida\s*blue|blue\s*cross|bluemedicare/i, name: "FLORIDA BLUE", short: "FB", option: "Florida Blue" },
+      { re: /\bBCBS\s+of\b/i, name: "BCBS OF", short: "BCBS of", display: "BCBS of", option: "BCBS of", state: /\bBCBS\s+of\s+([A-Z]{2})\b/i },
+      /* Healthspring ya no es parte de Cigna: "Cigna Healthspring" es Healthspring */
+      { re: /(cigna[\s-]*)?health\s*spring/i, name: "HEALTHSPRING", short: "Healthspring", option: "Healthspring" },
+      { re: /devoted/i, name: "DEVOTED HEALTH", short: "Devoted", option: "Devoted" },
+      { re: /freedom\s*health/i, name: "FREEDOM HEALTH", short: "Freedom", option: "Freedom" },
+      { re: /simply\s*health/i, name: "SIMPLY HEALTHCARE", short: "Simply", option: "Simply" },
       { re: /wellcare/i, name: "WELLCARE", short: "Wellcare" },
-      { re: /devoted/i, name: "DEVOTED HEALTH", short: "Devoted" },
       { re: /care\s*plus/i, name: "CAREPLUS", short: "CarePlus" },
       { re: /preferred\s*care/i, name: "PREFERRED CARE PARTNERS", short: "Preferred Care" },
-      { re: /simply\s*health/i, name: "SIMPLY HEALTHCARE", short: "Simply" },
-      { re: /florida\s*blue|blue\s*cross|bluemedicare/i, name: "FLORIDA BLUE", short: "FB" },
-      { re: /cigna|healthspring/i, name: "CIGNA", short: "Cigna" },
+      { re: /cigna/i, name: "CIGNA", short: "Cigna" },
       { re: /molina/i, name: "MOLINA", short: "Molina" },
-      { re: /freedom\s*health/i, name: "FREEDOM HEALTH", short: "Freedom" },
       { re: /optimum\s*health/i, name: "OPTIMUM HEALTHCARE", short: "Optimum" },
       { re: /doctors\s*health\s*care/i, name: "DOCTORS HEALTHCARE PLANS", short: "Doctors" },
       { re: /leon\s*health/i, name: "LEON HEALTH", short: "Leon" },
@@ -67,10 +74,13 @@
       { re: /florida\s*combined\s*life|\bFCL\b|bluedental|florida\s*blue/i, name: "FLORIDA BLUE (FCL)", short: "FB", display: "Florida Blue" },
       { re: /golden\s*rule|\bGR\b/i, name: "GOLDEN RULE", short: "GR" },
       { re: /unitedhealthcare|united\s*healthcare|\bUHC\b/i, name: "UNITED HEALTHCARE", short: "UHC", display: "UnitedHealthcare" },
-      { re: /allstate/i, name: "ALLSTATE", short: "Allstate" },
+      /* Allstate Health Solutions solo nombra a sus aseguradoras (Integon,
+         National Health Insurance Company) */
+      { re: /allstate|integon|national\s*health\s*insurance\s*company|national\s*general/i, name: "ALLSTATE", short: "Allstate" },
       { re: /usable/i, name: "USABLE LIFE", short: "USAble", display: "USAble Life" },
       { re: /occidental/i, name: "OCCIDENTAL", short: "Occidental" },
-      { re: /geo\s*blue/i, name: "GEOBLUE", short: "Geoblue", display: "GeoBlue" },
+      /* las páginas de GeoBlue dicen "Blue Cross Blue Shield Global Solutions" */
+      { re: /geo\s*blue|blue\s*cross\s*blue\s*shield\s*global|bcbs\s*global/i, name: "GEOBLUE", short: "Geoblue", display: "GeoBlue" },
       { re: /ameritas|primestar/i, name: "AMERITAS", short: "Ameritas" },
       { re: /humana/i, name: "HUMANA", short: "Humana" },
       { re: /delta\s*dental/i, name: "DELTA DENTAL", short: "Delta Dental" },
@@ -191,6 +201,12 @@
 
   var PAY_METHODS = ["Tarjeta CC", "Cuenta de banco"];
   var CANCEL_REASONS = ["Demasiado caro", "Seguro por el trabajo", "Estatus migratorio", "Otro"];
+  /* Cancelación de Obamacare: si la cobertura no llegó a empezar (CANCELLED)
+     o si termina en un mes (TERMINATED), como dice el nombre del archivo. */
+  var CANCEL_TYPES = [
+    { v: "cancelled", l: "Cancelada", t: "La cobertura no llegó a empezar: renovación para el próximo año, o app cancelada antes de la fecha efectiva o sin pago" },
+    { v: "terminated", l: "Terminada", t: "La cobertura termina en un mes: paso a Medicare o a un seguro del trabajo" }
+  ];
   var PARENTESCOS = ["Titular", "Cónyuge", "Hijo/a", "Padre/Madre", "Hermano/a", "Otro"];
   /* Estatus en EE. UU. de cada persona del hogar. "Otro" pide escribirlo. */
   var ESTATUS = [{ v: "ciudadano", l: "Ciudadano" }, { v: "residente", l: "Residente" },
@@ -198,16 +214,17 @@
 
   /* Documentos que puede pedir el Mercado por una inconsistencia (data
      matching issue), según healthcare.gov/help/how-do-i-resolve-an-inconsistency.
-     label: cómo sale en la nota; es / en: cómo sale en el email al cliente;
-     docs: lo que se puede enviar, con el nombre que usa el Mercado. */
+     label: cómo sale en la nota; file: cómo va en el nombre del archivo
+     Docs Submitted; es / en: cómo sale en el email al cliente; docs: lo que
+     se puede enviar, con el nombre que usa el Mercado. */
   var MKPL_DOCS = [
-    { v: "income", label: "Ingresos", es: "Pruebas de Ingresos", en: "Proof of Income", docs: [
+    { v: "income", label: "Ingresos", file: "Income", es: "Pruebas de Ingresos", en: "Proof of Income", docs: [
       "Pay stub", "W-2 and/or 1099", "1040 federal or state tax return (with Schedule 1 if filed)",
       "Self-employment ledger / Schedule C / profit and loss statement", "1040 SE with Schedule C, F, or SE",
       "Social Security Benefits Letter", "Unemployment Benefits Letter", "Statement of pension distribution",
       "Annuity statement", "Worker's compensation letter", "Interests and dividends income statement",
       "Letter from employer", "Written explanation form (Other)"] },
-    { v: "immigration", label: "Estatus migratorio", es: "Pruebas de Estatus Migratorio", en: "Proof of Immigration Status", docs: [
+    { v: "immigration", label: "Estatus migratorio", file: "Immigration status", es: "Pruebas de Estatus Migratorio", en: "Proof of Immigration Status", docs: [
       "Permanent Resident Card, Green Card (I-551)", "Employment Authorization Card (I-766)",
       "Arrival/Departure Record (I-94/I-94A)", "Arrival/Departure Record in foreign passport (I-94)",
       "Notice of Action (I-797)", "USCIS Acknowledgement of Receipt (I-797C)", "Foreign passport",
@@ -217,33 +234,33 @@
       "Certificate of Eligibility for Exchange Visitor Status (DS-2019)",
       "Certification from HHS Office of Refugee Resettlement (ORR)", "ORR eligibility letter (if under 18)",
       "Document indicating withholding of removal", "Document of federally recognized Indian tribe or American Indian born in Canada"] },
-    { v: "citizenship", label: "Ciudadanía", es: "Pruebas de Ciudadanía", en: "Proof of Citizenship", docs: [
+    { v: "citizenship", label: "Ciudadanía", file: "Citizenship", es: "Pruebas de Ciudadanía", en: "Proof of Citizenship", docs: [
       "U.S. passport", "Certificate of Naturalization (N-550/N-570)", "Certificate of Citizenship (N-560/N-561)",
       "U.S. public birth certificate + photo ID", "Consular Report of Birth Abroad (FS-240) + photo ID",
       "State-issued enhanced driver's license", "Tribal document (enrollment card, CDIB, census or letterhead)",
       "Other U.S. record of birth + photo ID"] },
-    { v: "ssn", label: "Seguro Social (SSN)", es: "Pruebas de Seguro Social", en: "Proof of Social Security Number", docs: [
+    { v: "ssn", label: "Seguro Social (SSN)", file: "SSN", es: "Pruebas de Seguro Social", en: "Proof of Social Security Number", docs: [
       "Social Security card", "1040 Tax Return", "W2 and/or 1099s", "Pay stub documentation",
       "Social Security Administration documentation", "1095 (A, B or C)", "W4 Withholding Allowance Certificate",
       "Unemployment Benefits Letter", "Military record", "U.S. Military ID card", "Military dependent's ID card",
       "Court Order Granting a Name Change", "Divorce decree"] },
-    { v: "esi", label: "Cobertura del trabajo", es: "Pruebas de Cobertura del Trabajo", en: "Proof of Job-Based Coverage", docs: [
+    { v: "esi", label: "Cobertura del trabajo", file: "Job-based coverage", es: "Pruebas de Cobertura del Trabajo", en: "Proof of Job-Based Coverage", docs: [
       "Employer Coverage Tool + cover letter signed by employer", "Letter from employer",
       "Health insurance letter with coverage and expiration dates"] },
-    { v: "medicaid", label: "Medicaid / CHIP", es: "Pruebas de Medicaid / CHIP", en: "Proof of Medicaid / CHIP", docs: [
+    { v: "medicaid", label: "Medicaid / CHIP", file: "Medicaid CHIP", es: "Pruebas de Medicaid / CHIP", en: "Proof of Medicaid / CHIP", docs: [
       "Letter from Medicaid/CHIP agency: not enrolled or eligible", "Letter from Medicaid agency: program is not qualifying coverage",
       "Letter describing recent coverage (Other)"] },
-    { v: "medicare", label: "Medicare", es: "Pruebas de Medicare", en: "Proof of Medicare", docs: [
+    { v: "medicare", label: "Medicare", file: "Medicare", es: "Pruebas de Medicare", en: "Proof of Medicare", docs: [
       "Letter from Medicare or SSA: not eligible for premium-free Part A", "Letter describing why not eligible for Part A (Other)"] },
-    { v: "aian", label: "Indígena americano / nativo de Alaska", es: "Pruebas de Indígena Americano / Nativo de Alaska", en: "Proof of American Indian / Alaska Native Status", docs: [
+    { v: "aian", label: "Indígena americano / nativo de Alaska", file: "American Indian status", es: "Pruebas de Indígena Americano / Nativo de Alaska", en: "Proof of American Indian / Alaska Native Status", docs: [
       "Tribal Enrollment/Membership card", "Document issued by Bureau of Indian Affairs (BIA)",
       "Certificate of Degree of Indian Blood", "Document from Indian Health Service (IHS)",
       "Authentic document from a federally recognized tribe", "Certificate of Indian status card", "I-872 American Indian Card"] },
-    { v: "tricare", label: "TRICARE", es: "Pruebas de TRICARE", en: "Proof of TRICARE", docs: [
+    { v: "tricare", label: "TRICARE", file: "TRICARE", es: "Pruebas de TRICARE", en: "Proof of TRICARE", docs: [
       "Letter from TRICARE with end or un-enrollment date", "Letter from TRICARE confirming ineligibility",
       "Document showing life change that ends TRICARE eligibility", "Letter describing TRICARE enrollment (Other)"] },
-    { v: "va", label: "VA", es: "Pruebas de Cobertura de VA", en: "Proof of VA Coverage", docs: ["Letter from the VA with expiration date of coverage", "Letter describing no VA coverage (Other)"] },
-    { v: "peace", label: "Peace Corps", es: "Pruebas de Peace Corps", en: "Proof of Peace Corps Coverage", docs: ["Letter from the Peace Corps with expiration date of coverage", "Letter describing no Peace Corps coverage (Other)"] }
+    { v: "va", label: "VA", file: "VA coverage", es: "Pruebas de Cobertura de VA", en: "Proof of VA Coverage", docs: ["Letter from the VA with expiration date of coverage", "Letter describing no VA coverage (Other)"] },
+    { v: "peace", label: "Peace Corps", file: "Peace Corps", es: "Pruebas de Peace Corps", en: "Proof of Peace Corps Coverage", docs: ["Letter from the Peace Corps with expiration date of coverage", "Letter describing no Peace Corps coverage (Other)"] }
   ];
   var MODALIDADES = ["presencial", "telefónica", "Zoom", "en casa"];
 
@@ -262,11 +279,17 @@
        network    documentos de Network propios de la situación (si no, los
                   de la línea); `suffix` va al final del nombre del archivo
 
-     Documentos de Network: `file` es el nombre con que se guarda el archivo
-     (NOMBRE DE ARCHIVOS), sin el cliente delante ni el año y mes detrás.
-     Admite {carrier} y {product}. `date` dice de dónde salen el año y el mes:
-     note (fecha de la nota), effective (inicio de la cobertura), soa
-     (firma del SOA) o payment (fecha del pago). */
+     Documentos de Network: `file` es el nombre con que se guarda el archivo,
+     en el formato oficial de la agencia, sin el cliente delante ni el año y
+     mes detrás. Admite {carrier} (la forma corta: FB) y {product}. `date`
+     dice de dónde salen el año y el mes: note (fecha de la nota), effective
+     (inicio de la cobertura), soa (firma del SOA), payment (fecha del pago),
+     termination (fin de la cobertura) o plan (solo el año del plan).
+     `tipoCancel` limita el documento a una cancelación (cancelled: la
+     cobertura no llegó a empezar) o a una terminación (terminated).
+     `perDoc` da un archivo por cada documento pedido que se marcó como
+     enviado: {doc} es el `file` de MKPL_DOCS, con el nombre de pila delante
+     si es de otra persona del hogar ("Yanet_Immigration status"). */
   var LINES = {
     oc: {
       label: "Obamacare",
@@ -283,18 +306,22 @@
         { id: "pendiente", label: "Pendiente", desc: "Cotización, consent por firmar o app lista para procesar",
           task: "oc_consent", noSms: true,
           sections: ["cliente", "proceso", "planes", "agente", "network"],
-          network: [{ k: "consent", label: "Carta de consentimiento recibida", file: "OC_Consent", date: "note" }] },
+          network: [{ k: "consent", label: "Carta de consentimiento recibida", file: "OC_Consent {carrier}", date: "note" }] },
         { id: "cancelada", label: "Cancelación", desc: "Se cancela o termina la póliza",
           task: "oc_inactive", report: true, cancelled: true,
           sections: ["cliente", "cancelacion", "network"],
-          network: [{ k: "plans", label: "My Plans & Programs (CANCELLED)", file: "OC_My Plans & Programs {carrier}", date: "note", suffix: " CANCELLED" }] }
+          network: [
+            { k: "plans", label: "My Plans & Programs (CANCELLED)", file: "OC_My Plans & Programs {carrier}", date: "effective", suffix: " CANCELLED", tipoCancel: "cancelled" },
+            { k: "plans", label: "My Plans & Programs (TERMINATED)", file: "OC_My Plans & Programs {carrier}", date: "termination", suffix: " TERMINATED", tipoCancel: "terminated" }
+          ] }
       ],
       network: [
-        { k: "appsummary", label: "App Summary", file: "OC_App Summary", date: "note" },
-        { k: "eligibility", label: "Eligibility Letter", file: "OC_EligibilityNotice", date: "note" },
+        { k: "appsummary", label: "App Summary", file: "OC_App Summary", date: "plan" },
+        { k: "eligibility", label: "Eligibility Letter", file: "OC_EligibilityNotice", date: "plan" },
         { k: "plans", label: "My Plans & Programs", file: "OC_My Plans & Programs {carrier}", date: "effective" },
-        { k: "payment", label: "Pago", file: "OC_{carrier} Payment", date: "payment" },
-        { k: "consent", label: "Consent", file: "OC_Consent", date: "note" }
+        { k: "payment", label: "Pago", file: "Payment Confirmation - OC_{carrier}", date: "payment" },
+        { k: "consent", label: "Consent", file: "OC_Consent {carrier}", date: "note" },
+        { k: "docsub", label: "Docs Submitted", file: "OC_Docs Submitted_{doc}", date: "note", perDoc: true }
       ]
     },
 
@@ -315,9 +342,10 @@
           task: "mc_mant", report: true, sections: ["cliente", "plan", "network"],
           network: [{ k: "soa", label: "SOA", file: "Medicare_SOA", date: "soa" }] }
       ],
+      /* el SOA de una app o un cambio lleva la compañía; el de Sin cambios, no */
       network: [
-        { k: "soa", label: "SOA", file: "Medicare_SOA", date: "soa" },
-        { k: "appsummary", label: "App", file: "Medicare_{carrier}", date: "effective" }
+        { k: "soa", label: "SOA", file: "Medicare_{carrier}_SOA", date: "soa" },
+        { k: "appsummary", label: "App", file: "Medicare_{carrier}_App", date: "effective" }
       ]
     },
 
@@ -336,21 +364,21 @@
       ],
       /* estados del pago que se ofrecen en Suplementario */
       pagos: ["PAYMENT", "NO PAYMENT"],
-      /* v: lo que se elige; es: cómo se nombra en la nota; sms: cómo se le
-         nombra al cliente; file: cómo va en el nombre del archivo y en el
-         reporte de Cliq */
+      /* v: lo que se elige; es: cómo se nombra en la nota; sms y smsEn: cómo
+         se le nombra al cliente en español y en inglés; file: cómo va en el
+         nombre del archivo y en el reporte de Cliq */
       productos: [
-        { v: "Dental", es: "Dental", sms: "seguro dental", file: "Dental" },
-        { v: "Vision", es: "Visión", sms: "seguro de visión", file: "Vision" },
-        { v: "Dental + Vision", es: "Dental y Visión", sms: "seguro dental y de visión", file: "Dental" },
-        { v: "Hospital", es: "Hospital", sms: "seguro de hospital", file: "Hospital" },
-        { v: "Accident", es: "Accidente", sms: "seguro de accidentes", file: "Accident" },
-        { v: "Cancer", es: "Cáncer", sms: "seguro de cáncer", file: "Cancer" },
-        { v: "Short Term", es: "Short Term", sms: "seguro Short Term", file: "Short Term" },
-        { v: "Life", es: "Vida", sms: "seguro de vida", file: "Life" },
-        { v: "International", es: "Internacional", sms: "seguro internacional", file: "International" },
-        { v: "Discount Plan", es: "Plan de descuento", sms: "plan de descuento", file: "Discount" },
-        { v: "Otro", es: "", sms: "seguro", file: "Supp" }
+        { v: "Dental", es: "Dental", sms: "seguro dental", smsEn: "dental insurance", file: "Dental" },
+        { v: "Vision", es: "Visión", sms: "seguro de visión", smsEn: "vision insurance", file: "Vision" },
+        { v: "Dental + Vision", es: "Dental y Visión", sms: "seguro dental y de visión", smsEn: "dental and vision insurance", file: "Dental" },
+        { v: "Hospital", es: "Hospital", sms: "seguro de hospital", smsEn: "hospital insurance", file: "Hospital" },
+        { v: "Accident", es: "Accidente", sms: "seguro de accidentes", smsEn: "accident insurance", file: "Accident" },
+        { v: "Cancer", es: "Cáncer", sms: "seguro de cáncer", smsEn: "cancer insurance", file: "Cancer" },
+        { v: "Short Term", es: "Short Term", sms: "seguro Short Term", smsEn: "Short Term insurance", file: "Short Term" },
+        { v: "Life", es: "Vida", sms: "seguro de vida", smsEn: "life insurance", file: "Life" },
+        { v: "International", es: "Internacional", sms: "seguro internacional", smsEn: "international insurance", file: "International" },
+        { v: "Discount Plan", es: "Plan de descuento", sms: "plan de descuento", smsEn: "discount plan", file: "Discount" },
+        { v: "Otro", es: "", sms: "seguro", smsEn: "insurance", file: "Supp" }
       ],
       network: [
         { k: "appsummary", label: "Aplicación", file: "{product}_{carrier}", date: "effective" },
@@ -364,7 +392,7 @@
     VERSION: VERSION, TEAM: TEAM, OFFICES: OFFICES, OFFICE_NAMES: OFFICE_NAMES, CARRIERS: CARRIERS, TASKS: TASKS, PAYMENT: PAYMENT,
     TASK_TAGS: TASK_TAGS, OBS_TAGS: OBS_TAGS, TASK_RULES: TASK_RULES,
     CHANNELS: CHANNELS, MODALIDADES: MODALIDADES, LINES: LINES, LINE_TASK_CATS: LINE_TASK_CATS,
-    PAY_METHODS: PAY_METHODS, CANCEL_REASONS: CANCEL_REASONS, PARENTESCOS: PARENTESCOS, ESTATUS: ESTATUS, MKPL_DOCS: MKPL_DOCS
+    PAY_METHODS: PAY_METHODS, CANCEL_REASONS: CANCEL_REASONS, CANCEL_TYPES: CANCEL_TYPES, PARENTESCOS: PARENTESCOS, ESTATUS: ESTATUS, MKPL_DOCS: MKPL_DOCS
   };
   root.QA = root.QA || {};
   root.QA.config = api;

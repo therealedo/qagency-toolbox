@@ -279,6 +279,17 @@ test("nota: cancelación con motivo y My Plans & Programs (CANCELLED)", () => {
   assert.match(N.buildNote(Object.assign({}, d, { motivoCancel: "Demasiado caro" })), /\nMotivo: Demasiado caro\n/);
 });
 
+test("Reporte de una cancelación TERMINATED: _Terminated; la CANCELLED sigue con _Cancelled", () => {
+  const base = { ini: "ER", line: "oc", outcome: "cancelada", gestion: "renovacion", genero: "a", compania: "UHC",
+    personas: familia, motivoCancel: "Otro", motivoOtro: "Se mudó de estado" };
+  const term = make(Object.assign({}, base, { tipoCancel: "terminated", fechaTermino: "03/31/2026" }));
+  assert.equal(N.buildReport(term), "QXXXX - Diaz, Beatriz - Renew OC UHC 2026_Terminated - Call (LI) +1");
+  const canc = make(Object.assign({}, base, { tipoCancel: "cancelled" }));
+  assert.equal(N.buildReport(canc), "QXXXX - Diaz, Beatriz - Renew OC UHC 2026_Cancelled - Call (LI) +1");
+  /* recuperada y terminada: las dos marcas, en el mismo orden de siempre */
+  assert.equal(N.buildReport(Object.assign({}, term, { recuperado: true })), "QXXXX - Diaz, Beatriz - Renew OC UHC 2026_Recovered_Terminated - Call (LI) +1");
+});
+
 test("nota: Medicare enviada como el template MEDICARE", () => {
   const note = N.buildNote(make({
     ini: "ER", line: "mc", outcome: "enviada", gestion: "nueva", nombres: "ANGEL", apellidos: "CASO",
@@ -430,12 +441,13 @@ test("nota: sin acentos cuando se pide", () => {
 test("SMS: lleva la oficina, el nombre del cliente y el teléfono", () => {
   const sms = N.buildSms(make({ line: "oc", outcome: "cancelada", gestion: "nueva", anio: "2027", compania: "UHC", oficina: "ATH Insurance" }));
   assert.equal(sms, "Hola Beatriz, le saluda el equipo de ATH Insurance. Su seguro de Obamacare 2027 con UHC quedó cancelado según lo solicitado. Cualquier duda, estamos a la orden.");
-  const tel = N.buildSms(make({ line: "supp", outcome: "enviada", gestion: "nueva", producto: "Dental", oficina: "QAgency", telefono: "(305) 555-0100" }));
+  const tel = N.buildSms(make({ line: "supp", outcome: "cotizacion", gestion: "nueva", producto: "Dental", oficina: "QAgency", telefono: "(305) 555-0100" }));
   assert.match(tel, /^Hola Beatriz, le saluda el equipo de QAgency\. .* Cualquier duda, llámenos al \(305\) 555-0100\.$/);
   Object.keys(C.LINES).forEach((line) => C.LINES[line].outcomes.forEach((o) => {
     const s = N.buildSms(make({ line, outcome: o.id, oficina: "QAgency" }));
     if (o.noSms) { assert.equal(s, "", line + "/" + o.id); return; }
     if (line === "oc" && o.id === "enviada") { assert.match(s, /^Estimado Beatriz: Somos QAgency Insurance\. /); return; }
+    if (o.id === "enviada") { assert.match(s, /^Estimado Beatriz:\nSomos QAgency Insurance\. /, line + "/" + o.id); return; }
     assert.match(s, /^Hola Beatriz, le saluda el equipo de QAgency\. \S/, line + "/" + o.id);
     assert.doesNotMatch(s, /undefined|null|NaN/, line + "/" + o.id);
   }));
@@ -479,6 +491,88 @@ test("SMS Obamacare enviada: formato de la agencia en español e inglés", () =>
     /^Dear Beatriz:\nWe are QAgency Insurance\. We have updated your 2027 health insurance with UnitedHealthcare\.\n/);
   assert.match(N.buildSms(make({ line: "oc", outcome: "enviada", gestion: "cambio", compania: "UHC", anio: "2027" })),
     /^Estimado Beatriz: Somos QAgency Insurance\. Hemos actualizado su seguro de salud 2027 con UnitedHealthcare\.\n/);
+});
+
+test("SMS Medicare enviada: formato oficial de la agencia en español e inglés", () => {
+  const d = make({ line: "mc", outcome: "enviada", gestion: "nueva", anio: "2027", nombres: "MIGUEL ANGEL", genero: "o", oficina: "ATH Insurance",
+    compania: "HUMANA", plan: "Gold Plus - Diabetes and Heart (HMO C-SNP) H1036-311-000", efectiva: "1/1/2027", prima: "0",
+    firmaNombre: "ANA RUIZ", firmaTel: "(305) 555-0101", telefono: "(305) 555-0100" });
+  assert.equal(N.buildSms(d), [
+    "Estimado Miguel:",
+    "Somos ATH Insurance. Le confirmamos que su inscripción en Medicare para el 2027 se ha completado con éxito.",
+    "Compañía: Humana",
+    "Plan: Gold Plus - Diabetes and Heart (HMO C-SNP) H1036-311-000",
+    "Fecha de efectividad: 01/01/2027",
+    "Para cualquier duda, comuníquese de inmediato con nosotros. Saludos",
+    "Ana Ruiz",
+    "Directo: (305) 555-0101",
+    "Oficina: (305) 555-0100"
+  ].join("\n"));
+  /* la agencia sale de la oficina elegida en Ajustes */
+  assert.equal(N.buildSms(Object.assign({}, d, { idioma: "en", oficina: "QAgency" })), [
+    "Dear Miguel:",
+    "We are QAgency Insurance. We confirm that your 2027 Medicare enrollment has been completed successfully.",
+    "Company: Humana",
+    "Plan: Gold Plus - Diabetes and Heart (HMO C-SNP) H1036-311-000",
+    "Effective date: 01/01/2027",
+    "If you have any questions, contact us right away. Regards",
+    "Ana Ruiz",
+    "Direct: (305) 555-0101",
+    "Office: (305) 555-0100"
+  ].join("\n"));
+  /* sin año del plan, el de la fecha efectiva; sin ninguno de los dos, sin año */
+  assert.match(N.buildSms(Object.assign({}, d, { anio: "", efectiva: "2/1/2027" })), /su inscripción en Medicare para el 2027 se ha completado/);
+  assert.match(N.buildSms(Object.assign({}, d, { anio: "", efectiva: "", idioma: "en" })), /We confirm that your Medicare enrollment has been completed successfully\./);
+  /* una cliente, sin compañía, plan, fecha, firma ni teléfonos */
+  assert.equal(N.buildSms(make({ line: "mc", outcome: "enviada", gestion: "cambio", anio: "2027", genero: "a", oficina: "QAgency" })), [
+    "Estimada Beatriz:",
+    "Somos QAgency Insurance. Le confirmamos que su inscripción en Medicare para el 2027 se ha completado con éxito.",
+    "Para cualquier duda, comuníquese de inmediato con nosotros. Saludos"
+  ].join("\n"));
+});
+
+test("SMS Suplementario enviada: formato oficial de la agencia en español e inglés", () => {
+  const d = make({ line: "supp", outcome: "enviada", gestion: "nueva", nombres: "ALEIDA", genero: "a", oficina: "ATH Insurance",
+    producto: "Hospital", compania: "Golden Rule", plan: "AdvantageGuard Hospital", efectiva: "1/1/2027", prima: "78.03", poliza: "900000123",
+    firmaNombre: "ANA RUIZ", firmaTel: "(305) 555-0101", telefono: "(305) 555-0100" });
+  assert.equal(N.buildSms(d), [
+    "Estimada Aleida:",
+    "Somos ATH Insurance. Hemos completado la solicitud de su seguro de hospital con Golden Rule",
+    "Plan: AdvantageGuard Hospital",
+    "Inicio: 01/01/2027",
+    "Premium: $78.03/mes",
+    "Policy #: 900000123",
+    "Detalles en su email. Si tiene dudas, llámeme de inmediato. Saludos",
+    "Ana Ruiz",
+    "Directo: (305) 555-0101",
+    "Oficina: (305) 555-0100"
+  ].join("\n"));
+  assert.equal(N.buildSms(Object.assign({}, d, { idioma: "en", oficina: "QAgency" })), [
+    "Dear Aleida:",
+    "We are QAgency Insurance. We have completed the application for your hospital insurance with Golden Rule",
+    "Plan: AdvantageGuard Hospital",
+    "Start: 01/01/2027",
+    "Premium: $78.03/month",
+    "Policy #: 900000123",
+    "Details in your email. If you have any questions, call me right away. Regards",
+    "Ana Ruiz",
+    "Direct: (305) 555-0101",
+    "Office: (305) 555-0100"
+  ].join("\n"));
+  /* cada producto se nombra en los dos idiomas */
+  C.LINES.supp.productos.forEach((p) => {
+    const es = N.buildSms(make({ line: "supp", outcome: "enviada", producto: p.v, compania: "Allstate" }));
+    const en = N.buildSms(make({ line: "supp", outcome: "enviada", producto: p.v, compania: "Allstate", idioma: "en" }));
+    assert.match(es, new RegExp("la solicitud de su " + p.sms + " con Allstate\\n"), p.v);
+    assert.ok(p.smsEn, p.v + " sin nombre en inglés");
+    assert.match(en, new RegExp("the application for your " + p.smsEn + " with Allstate\\n"), p.v);
+  });
+  /* sin compañía, plan, fecha, prima, póliza, firma ni teléfonos */
+  assert.equal(N.buildSms(make({ line: "supp", outcome: "enviada", producto: "Dental", oficina: "QAgency" })), [
+    "Estimado Beatriz:",
+    "Somos QAgency Insurance. Hemos completado la solicitud de su seguro dental",
+    "Detalles en su email. Si tiene dudas, llámeme de inmediato. Saludos"
+  ].join("\n"));
 });
 
 test("email Obamacare: parte 1 con la póliza y parte 2 con lo que pide el Mercado", () => {
@@ -581,17 +675,17 @@ test("SMS: cuenta caracteres y mensajes", () => {
 
 /* --------------------------------------------------- nombres de archivo -- */
 
-test("nombres de archivo como en NOMBRE DE ARCHIVOS", () => {
+test("nombres de archivo que no cambian: My Plans & Programs, SOA sin cambios y Suplementario", () => {
   const names = (d) => Object.fromEntries(N.buildFileNames(d).map((f) => [f.k, f.name]));
   const oc = names(make({ line: "oc", nombres: "KARLA ALEJANDRA", apellidos: "AGUILAR", fecha: "03/20/2026", compania: "Ambetter", efectiva: "04/01/2026", pagoFecha: "09/01/2026" }));
-  assert.equal(oc.appsummary, "Aguilar, Karla Alejandra - OC_App Summary 2026 MAR");
-  assert.equal(oc.eligibility, "Aguilar, Karla Alejandra - OC_EligibilityNotice 2026 MAR");
   assert.equal(oc.plans, "Aguilar, Karla Alejandra - OC_My Plans & Programs Ambetter 2026 APR");
-  assert.equal(oc.payment, "Aguilar, Karla Alejandra - OC_Ambetter Payment 2026 SEP");
 
-  const mc = names(make({ line: "mc", nombres: "ANGEL", apellidos: "CASO", fecha: "09/15/2026", soaFecha: "09/10/2026", compania: "Humana", efectiva: "10/01/2026" }));
-  assert.equal(mc.appsummary, "Caso, Angel - Medicare_Humana 2026 OCT");
-  assert.equal(mc.soa, "Caso, Angel - Medicare_SOA 2026 SEP");
+  /* SOA de Medicare sin cambios: sin la compañía */
+  const mc = names(make({ line: "mc", outcome: "sincambio", nombres: "ANGEL", apellidos: "CASO", fecha: "09/15/2026", soaFecha: "09/10/2026", compania: "Humana", efectiva: "10/01/2026" }));
+  assert.deepEqual(mc, { soa: "Caso, Angel - Medicare_SOA 2026 SEP" });
+
+  const accident = names(make({ line: "supp", producto: "Accident", nombres: "BEATRIZ ELENA", apellidos: "DIAZ", compania: "ALLSTATE", efectiva: "01/01/2027" }));
+  assert.equal(accident.appsummary, "Diaz, Beatriz Elena - Accident_Allstate 2027 JAN");
 
   const dental = names(make({ line: "supp", producto: "Dental", nombres: "ADNIE VIRGEN", apellidos: "TELLEZ ARMAS", compania: "Florida Blue", pagoFecha: "07/02/2026", efectiva: "07/01/2026" }));
   assert.equal(dental.payment, "Tellez Armas, Adnie Virgen - Payment Confirmation - Dental_FB 2026 JUL");
@@ -601,6 +695,163 @@ test("nombres de archivo como en NOMBRE DE ARCHIVOS", () => {
   assert.equal(st.appsummary, "Varona De La Pena, Florinda - Short Term_GR 2026 DEC");
   const life = names(make({ line: "supp", producto: "Life", nombres: "KATHERINA", apellidos: "COLLANTES VASQUEZ", compania: "Occidental", efectiva: "05/15/2026" }));
   assert.equal(life.appsummary, "Collantes Vasquez, Katherina - Life_Occidental 2026 MAY");
+});
+
+/* Formatos oficiales de la agencia (Lastname, Firstname OptionalMiddleName - …). */
+const cliente = { nombres: "BEATRIZ ELENA", apellidos: "DIAZ", fecha: "11/15/2026" };
+const conCliente = (extra) => make(Object.assign({}, cliente, extra));
+const fileOf = (extra, k) => (N.buildFileNames(conCliente(extra)).find((f) => f.k === k) || {}).name;
+
+test("archivo oficial: App Summary (OC) con el año del plan", () => {
+  assert.equal(fileOf({ line: "oc", anio: "2027", efectiva: "01/01/2027" }, "appsummary"), "Diaz, Beatriz Elena - OC_App Summary 2027");
+  /* sin año del plan: el de la cobertura y, si tampoco hay, el de la nota */
+  assert.equal(fileOf({ line: "oc", anio: "", efectiva: "01/01/2027" }, "appsummary"), "Diaz, Beatriz Elena - OC_App Summary 2027");
+  assert.equal(fileOf({ line: "oc", anio: "", efectiva: "" }, "appsummary"), "Diaz, Beatriz Elena - OC_App Summary 2026");
+});
+
+test("archivo oficial: Consent (OC) con la compañía y el mes de la nota", () => {
+  assert.equal(fileOf({ line: "oc", compania: "AMBETTER" }, "consent"), "Diaz, Beatriz Elena - OC_Consent Ambetter 2026 NOV");
+  assert.equal(fileOf({ line: "oc", outcome: "pendiente", compania: "AMBETTER" }, "consent"), "Diaz, Beatriz Elena - OC_Consent Ambetter 2026 NOV");
+});
+
+test("archivo oficial: Eligibility letter (OC) con el año del plan", () => {
+  assert.equal(fileOf({ line: "oc", anio: "2027", efectiva: "01/01/2027" }, "eligibility"), "Diaz, Beatriz Elena - OC_EligibilityNotice 2027");
+});
+
+test("archivo oficial: Cancelled OC con el mes en que iba a empezar la cobertura", () => {
+  assert.equal(fileOf({ line: "oc", outcome: "cancelada", compania: "AMBETTER", efectiva: "01/01/2027" }, "plans"),
+    "Diaz, Beatriz Elena - OC_My Plans & Programs Ambetter 2027 JAN CANCELLED");
+});
+
+test("archivo oficial: Terminated OC con el mes en que termina la cobertura", () => {
+  const d = conCliente({ line: "oc", outcome: "cancelada", gestion: "cambio", tipoCancel: "terminated", compania: "AMBETTER",
+    efectiva: "01/01/2026", fechaTermino: "01/31/2027", motivoCancel: "Seguro por el trabajo", net: { plans: true } });
+  assert.deepEqual(N.buildFileNames(d).map((f) => [f.k, f.label, f.name]),
+    [["plans", "My Plans & Programs (TERMINATED)", "Diaz, Beatriz Elena - OC_My Plans & Programs Ambetter 2027 JAN TERMINATED"]]);
+  assert.match(N.buildNote(d), /\nDocs en mi folder del NETW: My Plans & Programs \(TERMINATED\)\.$/);
+  /* sin la fecha de terminación, se avisa */
+  assert.ok(N.warnings(Object.assign({}, d, { fechaTermino: "" }), "").some((x) => /fecha de terminación/.test(x)));
+  assert.ok(!N.warnings(d, "").some((x) => /fecha de terminación/.test(x)));
+});
+
+test("archivo oficial: App MC con la compañía", () => {
+  assert.equal(fileOf({ line: "mc", compania: "HUMANA", efectiva: "01/01/2027" }, "appsummary"), "Diaz, Beatriz Elena - Medicare_Humana_App 2027 JAN");
+});
+
+test("archivo oficial: SOA de MC con app o cambio lleva la compañía", () => {
+  assert.equal(fileOf({ line: "mc", outcome: "enviada", gestion: "nueva", compania: "HUMANA", soaFecha: "11/10/2026" }, "soa"),
+    "Diaz, Beatriz Elena - Medicare_Humana_SOA 2026 NOV");
+  assert.equal(fileOf({ line: "mc", outcome: "enviada", gestion: "cambio", compania: "HUMANA", soaFecha: "11/10/2026" }, "soa"),
+    "Diaz, Beatriz Elena - Medicare_Humana_SOA 2026 NOV");
+});
+
+test("archivo oficial: Payment confirmation (OC)", () => {
+  assert.equal(fileOf({ line: "oc", compania: "FLORIDA BLUE", pagoFecha: "07/02/2026" }, "payment"),
+    "Diaz, Beatriz Elena - Payment Confirmation - OC_FB 2026 JUL");
+});
+
+/* Docs Submitted: un archivo por documento enviado, con el mes de la nota. */
+const rosa = { line: "oc", outcome: "enviada", nombres: "ROSA", apellidos: "PEREZ LIMA", fecha: "11/15/2026" };
+const docsub = (docs, extra) => N.buildFileNames(make(Object.assign({}, rosa, { docs }, extra))).filter((f) => /^docsub/.test(f.k));
+
+test("archivo oficial: Docs submitted (OC) del titular", () => {
+  const doc = { cat: "immigration", persona: "ROSA PEREZ LIMA", enviado: true, doc: "Permanent Resident Card, Green Card (I-551)" };
+  assert.deepEqual(docsub([doc]).map((f) => [f.k, f.label, f.name]), [[N.docKey(doc), "Docs Submitted: Estatus migratorio",
+    "Perez Lima, Rosa - OC_Docs Submitted_Immigration status 2026 NOV"]]);
+  /* sin persona, o con solo el nombre de pila del titular, también es del titular */
+  assert.equal(docsub([{ cat: "immigration", persona: "", enviado: true }])[0].name, "Perez Lima, Rosa - OC_Docs Submitted_Immigration status 2026 NOV");
+  assert.equal(docsub([{ cat: "immigration", persona: "ROSA", enviado: true }])[0].name, "Perez Lima, Rosa - OC_Docs Submitted_Immigration status 2026 NOV");
+});
+
+test("archivo oficial: Docs submitted (OC) de un dependiente o cónyuge, con su nombre", () => {
+  const doc = { cat: "immigration", persona: "YANET SOTO MESA", enviado: true, doc: "Employment Authorization Card (I-766)" };
+  assert.deepEqual(docsub([doc]).map((f) => [f.k, f.label, f.name]), [[N.docKey(doc), "Docs Submitted: Estatus migratorio (Yanet)",
+    "Perez Lima, Rosa - OC_Docs Submitted_Yanet_Immigration status 2026 NOV"]]);
+});
+
+test("Docs submitted: el documento del titular sigue siendo suyo aunque se corrija el nombre", () => {
+  const principal = /- OC_Docs Submitted_Immigration status 2026 NOV$/;
+  const leido = { cat: "immigration", persona: "ROSA PEREZ LIMA", enviado: true, titular: true };
+  /* con acento o con segundo nombre después de leer el documento */
+  assert.match(docsub([leido], { apellidos: "PÉREZ LIMA" })[0].name, principal);
+  assert.match(docsub([leido], { nombres: "ROSA MARIA" })[0].name, principal);
+  /* leído antes de escribir el nombre del cliente */
+  assert.match(docsub([Object.assign({}, leido, { persona: "" })])[0].name, principal);
+  /* sin la marca, el nombre se compara sin acentos */
+  assert.match(docsub([{ cat: "immigration", persona: "ROSA PÉREZ LIMA", enviado: true }])[0].name, principal);
+  /* el de un dependiente sigue siendo suyo */
+  assert.match(docsub([{ cat: "immigration", persona: "YANET SOTO MESA", enviado: true, titular: false }])[0].name, /_Yanet_Immigration status/);
+});
+
+test("Docs submitted: solo lo enviado, uno por documento, y va a la nota si se marca", () => {
+  const titular = { cat: "immigration", persona: "ROSA PEREZ LIMA", enviado: true };
+  const dep = { cat: "immigration", persona: "YANET SOTO MESA", enviado: true };
+  const pend = { cat: "income", persona: "ROSA PEREZ LIMA", fecha: "02/12/2027" };
+  assert.deepEqual(docsub([titular, pend, dep]).map((f) => f.name), [
+    "Perez Lima, Rosa - OC_Docs Submitted_Immigration status 2026 NOV",
+    "Perez Lima, Rosa - OC_Docs Submitted_Yanet_Immigration status 2026 NOV"]);
+  assert.notEqual(N.docKey(titular), N.docKey(dep));
+  assert.deepEqual(docsub([pend]), []);
+  const d = make(Object.assign({}, rosa, { docs: [dep], net: { [N.docKey(dep)]: true } }));
+  assert.match(N.buildNote(d), /\nDocs en mi folder del NETW: Docs Submitted: Estatus migratorio \(Yanet\)\.$/);
+});
+
+test("Docs submitted: sin documentos enviados, los archivos de Obamacare no cambian", () => {
+  const d = make(Object.assign({}, rosa, { docs: [{ cat: "income", persona: "ROSA PEREZ LIMA" }] }));
+  assert.deepEqual(N.buildFileNames(d).map((f) => f.k), ["appsummary", "eligibility", "plans", "payment", "consent"]);
+  assert.deepEqual(N.networkOf(d).map((n) => n.k), ["appsummary", "eligibility", "plans", "payment", "consent"]);
+});
+
+/* ----------------------------------------------------------- compañías -- */
+
+test("compañías oficiales de Obamacare y Medicare, en el orden de la agencia", () => {
+  assert.deepEqual(N.carrierOptions("oc").map((o) => o.l), ["Florida Blue", "Ambetter", "Wellpoint", "UHC", "Oscar", "Cigna"]);
+  assert.deepEqual(N.carrierOptions("mc").map((o) => o.l),
+    ["Humana", "UHC", "Aetna", "Florida Blue", "BCBS of", "Healthspring", "Devoted", "Freedom", "Simply"]);
+});
+
+test("compañía leída de un documento: su opción oficial, o Otra con el nombre", () => {
+  const sel = (line, name) => N.carrierChoice(line, name).sel;
+  ["FLORIDA BLUE", "AMBETTER", "WELLPOINT", "UNITED HEALTHCARE", "OSCAR", "CIGNA"].forEach((n) => assert.equal(sel("oc", n), n, n));
+  ["HUMANA", "UNITED HEALTHCARE", "AETNA", "FLORIDA BLUE", "HEALTHSPRING", "DEVOTED HEALTH", "FREEDOM HEALTH", "SIMPLY HEALTHCARE"]
+    .forEach((n) => assert.equal(sel("mc", n), n, n));
+  /* Healthspring ya no es Cigna */
+  assert.equal(sel("mc", "CIGNA HEALTHSPRING"), "HEALTHSPRING");
+  ["MOLINA", "AVMED", "AETNA CVS HEALTH", "HUMANA"].forEach((n) => assert.equal(sel("oc", n), N.CARRIER_OTHER, n));
+  ["WELLCARE", "MOLINA", "CIGNA"].forEach((n) => assert.equal(sel("mc", n), N.CARRIER_OTHER, n));
+  assert.deepEqual(N.carrierChoice("mc", "BCBS OF GA"), { sel: "BCBS OF", state: "GA" });
+  assert.deepEqual(N.carrierChoice("oc", ""), { sel: "", state: "" });
+  /* lo elegido vuelve a ser el nombre que usan la nota, el reporte y los archivos */
+  assert.equal(N.carrierFromChoice("mc", "BCBS OF", "ga"), "BCBS OF GA");
+  assert.equal(N.carrierFromChoice("mc", "BCBS OF", ""), "BCBS OF");
+  assert.equal(N.carrierFromChoice("oc", "AMBETTER", "GA"), "AMBETTER");
+});
+
+test("BCBS of, Healthspring y Otra en la nota, el reporte y los archivos", () => {
+  const d = conCliente({ line: "mc", outcome: "enviada", gestion: "nueva", codigoQ: "1234", compania: "BCBS OF GA",
+    efectiva: "01/01/2027", soaFecha: "11/10/2026" });
+  assert.match(N.buildNote(d), /^LI_11\/15\/2026: Se procesa app de MC con BCBS of GA\.\n/);
+  assert.equal(N.buildReport(d), "Q1234 - Diaz, Beatriz Elena - App MC BCBS of GA 2026 - Call (LI)");
+  assert.deepEqual(N.buildFileNames(d).map((f) => f.name), [
+    "Diaz, Beatriz Elena - Medicare_BCBS of GA_SOA 2026 NOV",
+    "Diaz, Beatriz Elena - Medicare_BCBS of GA_App 2027 JAN"
+  ]);
+  assert.equal(N.carrierShort("mc", "HEALTHSPRING"), "Healthspring");
+  assert.equal(N.buildReport(Object.assign({}, d, { compania: "HEALTHSPRING" })), "Q1234 - Diaz, Beatriz Elena - App MC Healthspring 2026 - Call (LI)");
+  /* una compañía fuera de la lista va con su nombre */
+  assert.equal(fileOf({ line: "oc", compania: "MOLINA", efectiva: "01/01/2027" }, "plans"), "Diaz, Beatriz Elena - OC_My Plans & Programs Molina 2027 JAN");
+  assert.equal(fileOf({ line: "mc", compania: "SUNRISE HEALTH", efectiva: "01/01/2027" }, "appsummary"), "Diaz, Beatriz Elena - Medicare_Sunrise Health_App 2027 JAN");
+  /* las formas cortas de siempre */
+  assert.equal(N.carrierShort("oc", "FLORIDA BLUE"), "FB");
+  assert.equal(N.carrierShort("mc", "UNITED HEALTHCARE"), "UHC");
+  assert.equal(N.carrierShort("mc", "CIGNA"), "Cigna");
+  assert.equal(N.carrierShort("supp", "GOLDEN RULE"), "GR");
+});
+
+test("nota de Medicare: NPN y sin Writing ID", () => {
+  const note = N.buildNote(make({ line: "mc", outcome: "enviada", gestion: "nueva", agente: "Ana Torres", agenteIni: "LI", escritura: "1234567" }));
+  assert.match(note, /\nNPN: LI(\n|$)/);
+  assert.doesNotMatch(note, /Writing ID|1234567/);
 });
 
 /* -------------------------------------------------------------- avisos -- */
@@ -677,4 +928,80 @@ test("ventana flotante: iniciales del cliente, nombre y apellido", () => {
   assert.equal(N.clientInitials({ nombres: "Beatriz" }), "B");
   assert.equal(N.clientInitials({ apellidos: "Diaz" }), "D");
   assert.equal(N.clientInitials({}), "");
+});
+
+test("Medicare: el teléfono y el email del cliente (para el SOA) no cambian la nota, el SMS ni el reporte", () => {
+  ["enviada", "sincambio"].forEach((outcome) => {
+    const d = make({ line: "mc", outcome: outcome, gestion: "nueva", compania: "Humana", plan: "Gold Plus", efectiva: "01/01/2027", oficina: "ATH Insurance" });
+    const con = Object.assign({}, d, { clienteTel: "(305) 555-0100", clienteEmail: "bea@example.com" });
+    assert.equal(N.buildNote(con), N.buildNote(d));
+    assert.equal(N.buildSms(con), N.buildSms(d));
+    assert.equal(N.buildReport(con), N.buildReport(d));
+    assert.deepEqual(N.warnings(con, ""), N.warnings(d, ""));
+  });
+});
+
+/* Documentos leídos de una carta o de Docs Submitted que entran a la lista
+   de documentos (antes en app.js, sin pruebas). */
+const hogar = (extra) => Object.assign({
+  nombres: "ROSA", apellidos: "PEREZ LIMA", docs: [],
+  personas: [{ titular: true, taxes: true, cobertura: true }, { nombre: "YANET SOTO MESA", taxes: true, cobertura: true }]
+}, extra);
+
+test("mergeDocs: el documento del titular lleva su nombre y queda marcado como suyo", () => {
+  const f = hogar(), sent = [];
+  assert.equal(N.mergeDocs(f, [{ cat: "immigration", persona: "ROSA PEREZ LIMA", titular: true, enviado: true, doc: "Permanent Resident Card, Green Card (I-551)" }], sent), 1);
+  assert.deepEqual(f.docs, [{ cat: "immigration", persona: "ROSA PEREZ LIMA", fecha: "", enviado: true, doc: "Permanent Resident Card, Green Card (I-551)", auto: true, titular: true }]);
+  assert.deepEqual(sent, f.docs);
+});
+
+test("mergeDocs: sin el nombre del titular la persona queda vacía, no «Sin nombre»", () => {
+  const f = hogar({ nombres: "", apellidos: "" }), sent = [];
+  N.mergeDocs(f, [{ cat: "income", persona: "", fecha: "02/15/2027" }], sent);
+  assert.deepEqual(f.docs, [{ cat: "income", persona: "", fecha: "02/15/2027", enviado: false, doc: "", auto: true, titular: true }]);
+  assert.deepEqual(sent, []);
+});
+
+test("mergeDocs: un nombre de pila es de la persona del hogar que empieza así", () => {
+  const f = hogar(), sent = [];
+  N.mergeDocs(f, [{ cat: "immigration", persona: "YANET", fecha: "01/31/2027" }], sent);
+  assert.equal(f.docs[0].persona, "YANET SOTO MESA");
+  assert.equal(f.docs[0].titular, false);
+});
+
+test("mergeDocs: alguien fuera del hogar entra con su nombre, sin ser el titular", () => {
+  const f = hogar(), sent = [];
+  N.mergeDocs(f, [{ cat: "ssn", persona: "Diego Ramos" }], sent);
+  assert.equal(f.docs[0].persona, "DIEGO RAMOS");
+  assert.equal(f.docs[0].titular, false);
+});
+
+test("mergeDocs: el documento enviado marca como enviado al que ya estaba pedido, sin repetirlo", () => {
+  const f = hogar(), sent = [];
+  N.mergeDocs(f, [{ cat: "immigration", persona: "YANET SOTO MESA", fecha: "01/31/2027" }], sent);
+  assert.equal(N.mergeDocs(f, [{ cat: "immigration", persona: "YANET SOTO MESA", enviado: true, doc: "Employment Authorization Card (I-766)" }], sent), 1);
+  assert.equal(f.docs.length, 1);
+  assert.deepEqual(f.docs[0], { cat: "immigration", persona: "YANET SOTO MESA", fecha: "01/31/2027", enviado: true, doc: "Employment Authorization Card (I-766)", auto: true, titular: false });
+  assert.deepEqual(sent, [f.docs[0]]);
+  /* la misma carta otra vez no agrega nada */
+  assert.equal(N.mergeDocs(f, [{ cat: "immigration", persona: "YANET SOTO MESA", enviado: true }], []), 0);
+  assert.equal(f.docs.length, 1);
+});
+
+test("mergeDocs: los acentos no cuentan al buscar a la persona", () => {
+  const f = hogar({ nombres: "JOSÉ", apellidos: "NÚÑEZ", personas: [{ titular: true }] }), sent = [];
+  N.mergeDocs(f, [{ cat: "income", persona: "JOSE NUNEZ" }], sent);
+  assert.equal(f.docs[0].persona, "JOSÉ NÚÑEZ");
+  assert.equal(f.docs[0].titular, true);
+});
+
+test("moveDocKey: cambiar la persona de un documento enviado conserva su casilla y su archivo", () => {
+  const f = hogar({ net: { "docsub:immigration:YANET": true, plans: true } });
+  const files = [{ res: { net: "docsub:immigration:YANET" } }, { res: { net: "plans" } }, { res: null }];
+  N.moveDocKey(f, files, "docsub:immigration:YANET", "docsub:immigration:YANET-SOTO-MESA");
+  assert.deepEqual(f.net, { plans: true, "docsub:immigration:YANET-SOTO-MESA": true });
+  assert.deepEqual(files.map((x) => x.res && x.res.net), ["docsub:immigration:YANET-SOTO-MESA", "plans", null]);
+  /* la misma clave no cambia nada */
+  N.moveDocKey(f, files, "plans", "plans");
+  assert.equal(f.net.plans, true);
 });
