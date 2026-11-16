@@ -32,8 +32,10 @@ primera vez, en Ajustes > Equipo pulsa "Importar equipo" y elige el archivo
 QAgency-Equipo.json que comparte la oficina.
 
 Tus ajustes (tu nombre, el equipo, el tema) se conservan mientras se abra
-con el mismo navegador. Cada navegador guarda los suyos: si antes se abria
-con Brave y ahora con Chrome o Edge, vuelve a llenar los Ajustes una vez.
+con el mismo navegador. Cada navegador guarda los suyos; por eso al
+actualizar se mantiene el navegador del acceso directo que ya tenias. Si
+alguna vez cambia, abre Ajustes > Equipo en el navegador anterior, pulsa
+"Exportar equipo" e importalo en el nuevo.
 
 Quitar: doble clic en Desinstalar.bat.
 

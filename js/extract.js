@@ -732,6 +732,8 @@
     /* HealthSherpa: el agente y el hogar vienen en tablas */
     if (sherpaAgent(doc, f)) { f.plataforma = "HealthSherpa"; }
     if (!ps.length) { ps = sherpaPeople(doc, f); }
+    var civil = maritalStatus(doc, f, ps);
+    if (civil) { f.estadoCivil = civil; }
     if (ps.length) {
       f.personas = ps;
       /* con una sección por persona, el ingreso y el DOB del titular son los
@@ -954,6 +956,33 @@
       if (!o.titular && r.sex) { o.sexo = r.sex; }
       return o;
     });
+  }
+
+  /* Estado civil del titular, para el Consent. HealthCare.gov lo dice en su
+     sección ("Marital status  Married to Denis…", "Single"); si no, se
+     interpreta: con cónyuge en el hogar o taxes en conjunto está casado, y un
+     hogar leído del documento sin ninguno de los dos es soltero. */
+  function vMarital(t) {
+    var c = firstCell(t).toLowerCase();
+    if (/^(married|casad[oa])\b/.test(c)) { return "casado"; }
+    if (/^(single|never\s*married|solter[oa])\b/.test(c)) { return "soltero"; }
+    if (/^(divorced|divorciad[oa])\b/.test(c)) { return "divorciado"; }
+    if (/^(widow(ed|er)?|viud[oa])\b/.test(c)) { return "viudo"; }
+    if (/^(separated|separad[oa])\b/.test(c)) { return "separado"; }
+    return "";
+  }
+  function maritalStatus(doc, f, ps) {
+    var starts = [];
+    doc.lines.forEach(function (l, i) { if (/^\s*(Name|Nombre)\s*$/i.test(l)) { starts.push(i); } });
+    var sections = starts.map(function (s, k) { return doc.lines.slice(s, k + 1 < starts.length ? starts[k + 1] : doc.lines.length); });
+    /* la sección del titular: la que lleva su nombre de pila, o la primera */
+    var first = U.stripAccents(f.nombres || "").split(" ")[0].toUpperCase();
+    var titular = sections.filter(function (sec) { return first && U.stripAccents(sec[1] || "").trim().toUpperCase().indexOf(first) === 0; })[0] || sections[0];
+    var said = titular ? after(makeDoc(titular.join("\n")), [/^\s*Marital\s*status\b/i, /^\s*Estado\s*civil\b/i], vMarital, 1) : "";
+    if (said) { return said; }
+    if (ps.some(function (p) { return p.parentesco === "Cónyuge"; })) { return "casado"; }
+    if (/\b(joint|jointly|en conjunto|conjunta)\b[^\n]{0,40}\btax|\btax return jointly\b|\bfiling jointly\b/i.test(doc.flat)) { return "casado"; }
+    return ps.length ? "soltero" : "";
   }
 
   /* El idioma del cliente: decide la plantilla del Consent y del SOA */
@@ -1407,7 +1436,7 @@
   var QUOTE_ISSUER = /\b(inc\.?|llc|company|compa[nñ][ií]\w*|corp\w*|insurance)\b|(\.\.\.|…)$/i;
   var QUOTE_FAMILIES = [
     [/^(bronze|silver|gold|platinum)\s+(simple|classic|elite|basic|core)\b/i, "Oscar"],
-    [/^(fundamental|everyday|signature(\s+expanded)?|thrive|focused|complete|enhanced\s+diabetes\s+care)\s+(bronze|silver|gold|platinum)\b/i, "Ambetter"]
+    [/^(fundamental|everyday|signature(\s+expanded)?|thrive|focused|complete|enhanced\s+diabetes\s+care|clarity|balanced\s+care)\s+(bronze|silver|gold|platinum)\b/i, "Ambetter"]
   ];
 
   function median(a) {

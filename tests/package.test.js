@@ -66,6 +66,14 @@ test("el instalador prefiere Chrome, luego Edge, y Brave al final (Brave no deja
   assert.match(ps, /No se encontro Chrome, Edge ni Brave/);
 });
 
+test("al actualizar, el instalador mantiene el navegador del acceso directo que ya existe (ahí están los ajustes)", () => {
+  const ps = fs.readFileSync(path.join(root, "tools", "windows", "instalar.ps1"), "utf8");
+  const keep = ps.indexOf("CreateShortcut($a).TargetPath");
+  assert.ok(keep > ps.indexOf("$navegador = $navegadores"), "se lee después de elegir el primero que exista");
+  assert.ok(keep < ps.indexOf("$s.TargetPath = $navegador"), "y antes de escribir los accesos directos");
+  assert.ok(ps.includes("(chrome|msedge|brave)\\.exe$"), "solo si sigue siendo uno de los navegadores conocidos");
+});
+
 test("la página solo puede pedir el número de versión: el OCR solo agrega 'wasm-unsafe-eval'", () => {
   const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
   const csp = html.match(/Content-Security-Policy" content="([^"]+)"/)[1];

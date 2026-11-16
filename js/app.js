@@ -107,6 +107,10 @@
     edited: freshEdited(),
     /* valores del Consent o del SOA que se cambiaron a mano, por formulario */
     signEdits: {},
+    /* la hora ya se puso: "doc" con el primer documento, "user" a mano */
+    horaFrom: "",
+    /* campos de MUST_CHOOSE que el agente ya eligió o confirmó */
+    chosen: {},
     dirty: false
   };
 
@@ -186,7 +190,7 @@
     { k: "anio", g: "contacto", type: "int", label: "Año del plan", max: 4 },
     { k: "canal", g: "contacto", type: "seg", label: "Canal", w: "w2", options: C.CHANNELS },
     { k: "hora", g: "contacto", type: "slot", label: "Hora de revisión del task", w: "w2",
-      hint: "Escríbela (2, 230, 2:30pm) o elígela. Va en la nota y en el task." },
+      hint: "Se pone sola al cargar el primer documento. La nota lleva la hora exacta; el task, la hora en punto o y media de antes (9:13 → 9:00, 9:34 → 9:30)." },
     { k: "modalidad", g: "contacto", type: "select", label: "Modalidad de la cita", options: C.MODALIDADES,
       when: function (f) { return f.canal === "Appointment"; } },
 
@@ -409,7 +413,7 @@
 
     if (F.type === "slot") {
       wrap.appendChild(slotPicker(ctl, function () { return S.f.hora; }, function (v) {
-        S.f.hora = v; touched("hora"); refresh();
+        S.f.hora = v; S.horaFrom = "user"; touched("hora"); refresh();
       }));
     } else if (F.prefix) {
       var box = el("div", "with-prefix");
@@ -464,7 +468,7 @@
     wrap.appendChild(pop);
 
     function show() {
-      each(pop.querySelectorAll("[data-slot]"), function (b) { b.classList.toggle("on", b.dataset.slot === get()); });
+      each(pop.querySelectorAll("[data-slot]"), function (b) { b.classList.toggle("on", b.dataset.slot === U.floorSlot(get())); });
       pop.hidden = false;
       input.setAttribute("aria-expanded", "true");
     }
@@ -472,11 +476,11 @@
     function commit(v) { if (v) { set(v); } input.value = U.timeLabel(get()); input.closest(".fld, .mini").classList.remove("bad"); }
     function typed() {
       if (!U.collapse(input.value)) { input.value = U.timeLabel(get()); return; }
-      var v = U.parseSlot(input.value);
+      var v = U.parseClock(input.value);
       if (v) { commit(v); } else { input.closest(".fld, .mini").classList.add("bad"); }
     }
     function step(n) {
-      var t = U.parseSlot(get()) || "09:00", mins = +t.slice(0, 2) * 60 + +t.slice(3) + n;
+      var t = U.floorSlot(get()) || "09:00", mins = +t.slice(0, 2) * 60 + +t.slice(3) + n;
       mins = Math.max(0, Math.min(1410, mins));
       commit(U.pad2(Math.floor(mins / 60)) + ":" + U.pad2(mins % 60));
       show();
@@ -556,8 +560,7 @@
     var cancel = isOC("cancelada"), supp = S.line === "supp";
     var listEl = el("div", "people");
     S.f.personas.forEach(function (p, i) {
-      var fromDoc = p.auto || Object.keys(p.filled || {}).length > 0;
-      var row = listItem("person" + (p.open ? " open" : "") + (fromDoc ? " is-auto" : ""), i);
+      var row = listItem("person" + (p.open ? " open" : "") + (toReview(p) ? " is-auto" : ""), i);
       var head = el("div", "person-head");
       var t = actBtn("toggle", i, "", "person-toggle");
       t.setAttribute("aria-expanded", p.open ? "true" : "false");
@@ -728,6 +731,36 @@
 
   function renderLists() { renderPersonas(); renderDocs(); renderPlanes(); }
 
+  /* Datos que casi nunca vienen en un documento y que importan mucho: van en
+     rojo hasta que el agente elige una opción (aunque sea la que ya estaba)
+     o confirma la sección. */
+  var MUST_CHOOSE = ["canal", "codigoTipo", "periodo", "periodoMC"];
+  function mustChoose(F) {
+    var k = key(F);
+    return MUST_CHOOSE.indexOf(k) >= 0 && !S.chosen[k] && S.auto[k] !== true;
+  }
+
+  /* Una persona del hogar que llenó un documento queda en dorado hasta que se
+     confirma (ok); si otro documento le trae un dato nuevo, vuelve a dorado. */
+  function toReview(x) {
+    return !!x && !x.ok && (!!x.auto || Object.keys(x.filled || {}).length > 0);
+  }
+
+  /* Confirma que lo leído de los documentos está bien, sin cambiarlo: en una
+     sección (group) o en todo el formulario. */
+  function confirmReviewed(group) {
+    FIELDS.forEach(function (F) {
+      if (group && F.g !== group) { return; }
+      if (S.auto[key(F)] === true) { delete S.auto[key(F)]; }
+      if (MUST_CHOOSE.indexOf(key(F)) >= 0 && fieldVisible(F)) { S.chosen[key(F)] = true; }
+      if (Array.isArray(S.f[F.k])) {
+        S.f[F.k].forEach(function (x) { if (x && typeof x === "object") { delete x.auto; if (F.k === "personas") { x.ok = true; } } });
+      }
+    });
+    renderLists();
+    refresh();
+  }
+
   /* Cambio en un campo de una lista. */
   function listInput(t, committed) {
     var list = S.f[t.dataset.list], item = list && list[+t.dataset.i], prop = t.dataset.prop;
@@ -841,6 +874,12 @@
       head.appendChild(h3);
       var badge = el("span", "review"); badge.hidden = true;
       head.appendChild(badge);
+      /* confirma lo dorado de esta sección aunque no haya que cambiar nada */
+      var ok = el("button", "link-btn review-ok", "Están bien");
+      ok.type = "button"; ok.hidden = true;
+      ok.title = "Quita el dorado de esta sección: los datos leídos están bien";
+      ok.addEventListener("click", function () { confirmReviewed(G.id); });
+      head.appendChild(ok);
       sec.appendChild(head);
       var grid = el("div", "grid");
       FIELDS.filter(function (F) { return F.g === G.id; }).forEach(function (F) { grid.appendChild(buildField(F)); });
@@ -1071,9 +1110,11 @@
       /* el dorado es solo para lo leído de un documento, no para lo calculado */
       var fromDoc = S.auto[key(F)] === true;
       wrap.classList.toggle("is-auto", fromDoc);
-      if (fromDoc && visible) { pending[F.g] = (pending[F.g] || 0) + 1; }
+      var choose = mustChoose(F);
+      wrap.classList.toggle("is-choose", choose);
+      if ((fromDoc || choose) && visible) { pending[F.g] = (pending[F.g] || 0) + 1; }
       if (visible && Array.isArray(S.f[F.k])) {
-        var n = S.f[F.k].filter(function (x) { return x && x.auto; }).length;
+        var n = S.f[F.k].filter(function (x) { return F.k === "personas" ? toReview(x) : x && x.auto; }).length;
         if (n) { pending[F.g] = (pending[F.g] || 0) + n; }
       }
     });
@@ -1086,6 +1127,7 @@
       var badge = g.querySelector(".review"), n = pending[id] || 0;
       badge.hidden = !n;
       badge.textContent = n + " por revisar";
+      g.querySelector(".review-ok").hidden = !n;
       g.dataset.pending = n;
     });
     var total = Object.keys(pending).reduce(function (s, k) { return s + pending[k]; }, 0);
@@ -1284,6 +1326,8 @@
   function data() {
     var d = Object.assign({}, S.f), p = people();
     d.line = S.line; d.outcome = S.outcome;
+    /* lo que el agente todavía no eligió ni confirmó (va en los avisos) */
+    d.porElegir = FIELDS.filter(function (F) { return mustChoose(F) && fieldVisible(F); }).map(function (F) { return resolve(F.label); });
     d.ini = p.me ? p.me.ini : "";
     d.agente = p.agent ? p.agent.name : "";
     d.npn = p.agent ? p.agent.npn : "";
@@ -2151,8 +2195,18 @@
     return String(text || "").replace(/\s/g, "").length < 200 && X.extract(text, "document.pdf", S.line).type === "unknown";
   }
 
+  /* La hora de la nota es la exacta en que se carga el primer documento,
+     salvo que el agente ya la haya puesto a mano. */
+  function stampHora() {
+    if (S.horaFrom) { return; }
+    var now = new Date();
+    S.f.hora = U.pad2(now.getHours()) + ":" + U.pad2(now.getMinutes());
+    S.horaFrom = "doc";
+  }
+
   function readFile(file) {
     var entry = { name: file.name, status: "reading", applied: 0, file: file };
+    stampHora();
     S.files.push(entry);
     renderFiles();
     var isPdf = /pdf/i.test(file.type) || /\.pdf$/i.test(file.name);
@@ -2585,6 +2639,7 @@
 
   function touched(k) {
     delete S.auto[k]; delete S.rank[k];
+    S.chosen[k] = true;
     S.dirty = true;
   }
 
@@ -2777,15 +2832,13 @@
 
     $("btnReviewed").addEventListener("click", function () {
       Object.keys(S.auto).forEach(function (k) { if (S.auto[k] === true) { delete S.auto[k]; } });
-      ["personas", "docs", "planes"].forEach(function (k) { S.f[k].forEach(function (x) { delete x.auto; }); });
-      renderLists();
-      refresh();
+      confirmReviewed("");
     });
 
     /* nueva nota */
     $("btnNew").addEventListener("click", function () {
       if (hasClientData() && S.dirty && !window.confirm("La nota actual no se ha copiado. ¿Empezar una nueva?")) { return; }
-      S.f = freshFields(); S.auto = {}; S.rank = {}; S.base = {}; S.files = []; S.signEdits = {};
+      S.f = freshFields(); S.auto = {}; S.rank = {}; S.base = {}; S.files = []; S.signEdits = {}; S.horaFrom = ""; S.chosen = {};
       $("taskId").dataset.line = "";
       S.edited = freshEdited(); S.dirty = false;
       S.outcome = L().outcomes[0].id;
@@ -2817,6 +2870,12 @@
       var t = e.target, editable = t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
       if (editable && Array.prototype.indexOf.call(e.clipboardData.types || [], "text/plain") >= 0) { return; }
       var imgs = Array.prototype.filter.call(e.clipboardData.files || [], function (f) { return /^image\//i.test(f.type); });
+      /* algunas herramientas de captura dejan la imagen solo como elemento
+         del portapapeles, sin la lista de archivos */
+      if (!imgs.length) {
+        imgs = Array.prototype.filter.call(e.clipboardData.items || [], function (it) { return it.kind === "file" && /^image\//i.test(it.type); })
+          .map(function (it) { return it.getAsFile(); }).filter(Boolean);
+      }
       if (!imgs.length) { return; }
       e.preventDefault();
       handleFiles(imgs.map(function (f, i) {
@@ -2851,6 +2910,7 @@
       var entry = { name: pasteSource ? pasteSource.name : "Texto pegado", status: "reading", applied: 0 };
       /* el texto pegado reemplaza al archivo: primero se deshace lo que llenó */
       if (pasteSource) { removeFile(pasteSource); }
+      stampHora();
       S.files.push(entry);
       finishFile(entry, text);
       $("dlgPaste").close();

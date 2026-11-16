@@ -97,7 +97,8 @@
   /* Consent en Obamacare Pendiente (cotización); SOA en las situaciones de
      Medicare que guardan un SOA en el Network. */
   function formKind(d) {
-    if (d.line === "oc") { return N.outcomeOf(d).id === "pendiente" ? "consent" : ""; }
+    /* con la carta de consentimiento ya recibida no hay nada que firmar */
+    if (d.line === "oc") { return N.outcomeOf(d).id === "pendiente" && !(d.net && d.net.consent) ? "consent" : ""; }
     if (d.line === "mc") { return N.networkOf(d).some(function (n) { return n.k === "soa"; }) ? "soa" : ""; }
     return "";
   }
@@ -119,11 +120,18 @@
     return sel || (list.length === 1 ? list[0] : null);
   }
 
-  /* Casado o casada si en el hogar hay un cónyuge; si no, se deja para escribirlo. */
+  /* Estado civil: casado o casada si en el hogar hay un cónyuge; si no, el que
+     leyó el App Summary (dicho o interpretado). Sin ninguno, se deja para
+     escribirlo. */
+  var CIVIL = {
+    casado: ["Married", "Casado", "Casada"], soltero: ["Single", "Soltero", "Soltera"], divorciado: ["Divorced", "Divorciado", "Divorciada"],
+    viudo: ["Widowed", "Viudo", "Viuda"], separado: ["Separated", "Separado", "Separada"]
+  };
   function maritalOf(d) {
     var married = N.personas(d).some(function (p) { return !p.titular && p.parentesco === "Cónyuge"; });
-    if (!married) { return ""; }
-    return d.idioma === "en" ? "Married" : (d.genero === "a" ? "Casada" : "Casado");
+    var w = CIVIL[married ? "casado" : val(d.estadoCivil)];
+    if (!w) { return ""; }
+    return d.idioma === "en" ? w[0] : (d.genero === "a" ? w[2] : w[1]);
   }
 
   function consentValues(d) {

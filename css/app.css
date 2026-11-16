@@ -453,6 +453,9 @@ kbd {
 .fld.is-auto input[type="text"]:focus, .fld.is-auto textarea:focus {
   box-shadow: inset 3px 0 0 var(--gold), 0 0 0 3px var(--brand-soft);
 }
+/* dato que casi nunca viene en un documento: pendiente de elegir */
+.fld.is-choose .seg, .fld.is-choose select { border-color: var(--danger); box-shadow: inset 3px 0 0 var(--danger); }
+.fld.is-choose .field-label::after { content: " · elígelo"; color: var(--danger); font-weight: 600; }
 .fld.bad input, .mini.bad input { border-color: var(--danger); }
 .fld.bad::after { content: "Revisa el formato"; display: block; margin-top: 5px; font-size: 12px; color: var(--danger); }
 
@@ -860,50 +863,76 @@ kbd {
 .sheet-frame { margin-top: 14px; border: 1px solid var(--line); border-radius: 10px; background: #FFFFFF; overflow: hidden; }
 #sheetPreview { width: 780px; box-sizing: border-box; }
 .sheet {
-  --sh-ink: #13233F; --sh-navy: #0E2F5A; --sh-label: #5B7290; --sh-line: #CBD5E1;
-  --sh-mark: #FDF4C7; --sh-mark-line: #E0B532; --sh-mark-ink: #6B5000; --sh-yes: #1E7A47; --sh-no: #8A94A6;
-  color: var(--sh-ink); background: #FFFFFF; font-family: Arial, Helvetica, sans-serif; font-size: 13px; line-height: 1.35;
+  --sh-ink: #111B2E; --sh-navy: #0E2F5A; --sh-label: #51627A; --sh-line: #D5DCE6; --sh-rule: #111B2E;
+  --sh-mark: #FFF3C2; --sh-mark-line: #8A6400; --sh-mark-ink: #5C4300; --sh-yes: #17683C; --sh-no: #566173; --sh-soft: #F4F6F9;
+  color: var(--sh-ink); background: #FFFFFF;
+  font-family: "Inter Variable", "Segoe UI", Arial, Helvetica, sans-serif; font-size: 12.5px; line-height: 1.35;
+  font-variant-numeric: tabular-nums;
   padding: 28px 30px;
   -webkit-print-color-adjust: exact; print-color-adjust: exact;
 }
-.sheet .sh-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; padding-bottom: 10px; border-bottom: 1.5px solid var(--sh-navy); }
-.sheet .sh-title { margin: 0; font-size: 24px; font-weight: 800; color: var(--sh-navy); letter-spacing: -.01em; }
-.sheet .sh-sub { color: var(--sh-label); margin-top: 2px; }
-.sheet .sh-date { color: var(--sh-label); white-space: nowrap; margin-top: 6px; }
-.sheet .sh-date strong { color: var(--sh-ink); }
-.sheet .sh-legend { display: flex; align-items: center; gap: 8px; margin: 10px 0; color: var(--sh-ink); }
-.sheet .sh-swatch { width: 18px; height: 11px; border-radius: 3px; background: var(--sh-mark); border: 1px solid var(--sh-mark-line); flex: none; }
-.sheet .sh-banner { padding: 9px 12px; border: 1.5px solid var(--sh-mark-line); border-radius: 6px; background: var(--sh-mark); text-align: center; font-weight: 800; font-size: 15px; letter-spacing: .02em; color: var(--sh-navy); }
-.sheet .sh-grid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px 24px; margin-top: 12px; }
-.sheet .sh-grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 24px; }
-.sheet .sh-item { padding: 5px 8px; margin: 0 -8px 2px; border-radius: 6px; border: 1.5px solid transparent; }
-.sheet .sh-item.sh-mark { background: var(--sh-mark); border-color: var(--sh-mark-line); margin: 2px 0 4px; }
-.sheet .sh-label { font-size: 11px; font-weight: 700; color: var(--sh-label); text-transform: uppercase; letter-spacing: .03em; }
+/* cabecera */
+.sheet .sh-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; padding-bottom: 9px; border-bottom: 2px solid var(--sh-rule); }
+.sheet .sh-title { margin: 0; font-size: 21px; line-height: 1.15; font-weight: 700; color: var(--sh-ink); letter-spacing: -.015em; }
+.sheet .sh-sub { color: var(--sh-label); margin-top: 3px; }
+.sheet .sh-date { color: var(--sh-label); white-space: nowrap; font-size: 12px; }
+.sheet .sh-date strong { color: var(--sh-ink); font-weight: 650; }
+/* leyenda: lleva la misma marca que los datos cambiados (barra y rombo), así
+   se distinguen también impresos en blanco y negro */
+.sheet .sh-legend { display: flex; align-items: center; gap: 8px; margin: 8px 0 9px; color: var(--sh-label); font-size: 11.5px; }
+.sheet .sh-swatch { position: relative; width: 22px; height: 12px; background: var(--sh-mark); border-left: 3px solid var(--sh-mark-line); flex: none; }
+.sheet .sh-swatch::after,
+.sheet .sh-item.sh-mark .sh-value::before,
+.sheet .sh-table td.sh-mark::before {
+  content: ""; display: inline-block; width: 5px; height: 5px; background: var(--sh-ink); transform: rotate(45deg);
+}
+.sheet .sh-swatch::after { position: absolute; left: 6px; top: 3.5px; }
+.sheet .sh-item.sh-mark .sh-value::before,
+.sheet .sh-table td.sh-mark::before { margin-right: 6px; vertical-align: .22em; }
+/* portal */
+.sheet .sh-banner { padding: 7px 12px; background: var(--sh-mark); border: 1px solid var(--sh-mark-line); border-left-width: 4px; text-align: center; font-weight: 700; font-size: 13.5px; letter-spacing: .06em; color: var(--sh-ink); }
+/* pares rótulo / valor */
+.sheet .sh-grid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 22px; margin-top: 10px; }
+.sheet .sh-grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 22px; }
+.sheet .sh-item { padding: 3px 8px; margin: 0 0 2px; border-left: 3px solid transparent; }
+.sheet .sh-item.sh-mark { background: var(--sh-mark); border-left-color: var(--sh-mark-line); }
+.sheet .sh-label { font-size: 10px; font-weight: 600; color: var(--sh-label); text-transform: uppercase; letter-spacing: .07em; }
 .sheet .sh-item.sh-mark .sh-label { color: var(--sh-mark-ink); }
-.sheet .sh-value { font-size: 15px; font-weight: 700; margin-top: 1px; overflow-wrap: anywhere; }
-.sheet .sh-grid2 .sh-value { font-weight: 400; }
-.sheet .sh-h2 { margin: 16px 0 8px; padding-bottom: 4px; border-bottom: 1px solid var(--sh-line); font-size: 16px; font-weight: 800; color: var(--sh-navy); }
-.sheet .sh-plan { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; border: 1.5px solid var(--sh-mark-line); border-radius: 6px; background: var(--sh-mark); padding: 12px 14px; }
-.sheet .sh-plan-name { display: flex; align-items: center; gap: 10px; font-size: 18px; font-weight: 800; color: var(--sh-navy); }
-.sheet .sh-chip { font-size: 11px; font-weight: 800; letter-spacing: .05em; color: var(--sh-yes); border: 1.5px solid var(--sh-yes); border-radius: 5px; padding: 2px 7px; background: #FFFFFF; }
-.sheet .sh-plan-cell { text-align: center; padding: 0 18px; border-left: 1.5px solid var(--sh-mark-line); }
-.sheet .sh-plan-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; color: var(--sh-mark-ink); }
-.sheet .sh-plan-big { font-size: 22px; font-weight: 800; color: var(--sh-navy); white-space: nowrap; }
+.sheet .sh-value { font-size: 14px; font-weight: 650; margin-top: 1px; overflow-wrap: anywhere; }
+.sheet .sh-grid2 .sh-value { font-size: 13px; font-weight: 450; }
+.sheet .sh-item.sh-mark .sh-value { font-weight: 700; }
+/* secciones */
+.sheet .sh-h2 { display: flex; align-items: center; gap: 10px; margin: 12px 0 6px; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: var(--sh-navy); break-after: avoid; }
+.sheet .sh-h2::after { content: ""; flex: 1; border-top: 1px solid var(--sh-line); }
+/* plan */
+.sheet .sh-plan { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; background: var(--sh-mark); border: 1px solid var(--sh-mark-line); border-left-width: 4px; padding: 9px 0 9px 12px; break-inside: avoid; }
+.sheet .sh-plan-name { display: flex; align-items: center; gap: 10px; font-size: 16px; font-weight: 700; color: var(--sh-ink); letter-spacing: -.01em; }
+.sheet .sh-chip { flex: none; font-size: 9.5px; font-weight: 700; letter-spacing: .08em; color: #FFFFFF; background: var(--sh-yes); border: 1px solid var(--sh-yes); padding: 2px 6px; }
+.sheet .sh-plan-cell { text-align: right; padding: 0 16px; border-left: 1px solid var(--sh-mark-line); }
+.sheet .sh-plan-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .07em; color: var(--sh-mark-ink); }
+.sheet .sh-plan-big { font-size: 18px; font-weight: 700; color: var(--sh-ink); white-space: nowrap; letter-spacing: -.01em; }
 .sheet .sh-empty { margin: 0; color: var(--sh-label); }
+/* tabla del hogar */
 .sheet .sh-table { width: 100%; border-collapse: collapse; }
-.sheet .sh-table th { text-align: left; vertical-align: bottom; font-size: 12px; font-weight: 800; color: var(--sh-navy); padding: 4px 6px; border-bottom: 1.5px solid var(--sh-navy); }
-.sheet .sh-table td { padding: 6px; border-bottom: 1px solid var(--sh-line); vertical-align: top; }
+.sheet .sh-table th { text-align: left; vertical-align: bottom; font-size: 10px; line-height: 1.25; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--sh-label); padding: 3px 7px 5px; border-bottom: 1.5px solid var(--sh-rule); }
+.sheet .sh-table td { padding: 4px 7px; border-bottom: 1px solid var(--sh-line); vertical-align: top; }
+.sheet .sh-table tr { break-inside: avoid; }
 .sheet .sh-table .num { text-align: right; }
+.sheet .sh-table td.num { white-space: nowrap; }
 .sheet .sh-table .mid { text-align: center; }
-.sheet .sh-table .sh-name { font-weight: 700; }
+.sheet .sh-table .sh-name { font-weight: 650; width: 27%; }
+.sheet .sh-table td:nth-child(2), .sheet .sh-table td:nth-child(3) { white-space: nowrap; }
 .sheet .sh-table .sh-yes { color: var(--sh-yes); font-weight: 700; }
-.sheet .sh-table .sh-no { color: var(--sh-no); font-weight: 700; }
-.sheet .sh-table td.sh-mark { background: var(--sh-mark); font-weight: 700; }
+.sheet .sh-table .sh-no { color: var(--sh-no); font-weight: 500; }
+.sheet .sh-table td.sh-mark { background: var(--sh-mark); border-left: 3px solid var(--sh-mark-line); font-weight: 700; }
 .sheet .sh-table tr.sh-new td { background: var(--sh-mark); }
-.sheet .sh-tag { display: inline-block; margin-left: 6px; font-size: 10px; font-weight: 800; text-transform: uppercase; color: var(--sh-mark-ink); border: 1px solid var(--sh-mark-line); border-radius: 4px; padding: 0 4px; }
-.sheet .sh-table tr.sh-gone td { color: var(--sh-no); text-decoration: line-through; }
-.sheet .sh-table tfoot td { border-bottom: 0; padding-top: 8px; font-size: 15px; font-weight: 800; }
-.sheet .sh-foot { display: flex; justify-content: space-between; gap: 12px; margin-top: 14px; padding-top: 8px; border-top: 1px solid var(--sh-line); color: var(--sh-label); font-size: 11.5px; }
+.sheet .sh-table tr.sh-new td:first-child { border-left: 3px solid var(--sh-mark-line); }
+.sheet .sh-tag { display: inline-block; margin-left: 6px; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: #FFFFFF; background: var(--sh-ink); padding: 1px 5px; vertical-align: .1em; }
+.sheet .sh-table tr.sh-gone td { color: var(--sh-no); background: var(--sh-soft); text-decoration: line-through; }
+.sheet .sh-table tfoot td { border-bottom: 0; border-top: 1.5px solid var(--sh-rule); padding-top: 7px; font-size: 13.5px; font-weight: 700; }
+.sheet .sh-table tfoot td:first-child { font-size: 10.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .07em; color: var(--sh-label); vertical-align: middle; }
+/* pie */
+.sheet .sh-foot { display: flex; justify-content: space-between; gap: 12px; margin-top: 12px; padding-top: 7px; border-top: 1px solid var(--sh-line); color: var(--sh-label); font-size: 10.5px; letter-spacing: .02em; }
 
 #printSheet { display: none; }
 @media print {
@@ -912,3 +941,6 @@ kbd {
   body.printing-sheet > *:not(#printSheet) { display: none !important; }
   body.printing-sheet #printSheet { display: block; padding: 0; min-width: 0; }
 }
+
+/* confirmar lo leído de una sección sin cambiarlo */
+.group-head .review-ok { font-size: 12px; font-weight: 600; }

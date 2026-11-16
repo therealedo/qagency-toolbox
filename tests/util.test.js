@@ -65,6 +65,16 @@ test("hora de la llamada y año-mes de los archivos", () => {
   assert.equal(slots[slots.length - 1].v, "21:30");
   assert.ok(slots.some((s) => s.v === "09:00" && s.l === "09:00 · 9:00 AM"));
   assert.equal(U.yearMonth("3/20/26"), "2026 MAR");
+  /* el task lleva la hora en punto o y media de antes; la nota, la exacta */
+  assert.equal(U.floorSlot("09:13"), "09:00");
+  assert.equal(U.floorSlot("09:32"), "09:30");
+  assert.equal(U.floorSlot("09:30"), "09:30");
+  assert.equal(U.floorSlot("14:59"), "14:30");
+  assert.equal(U.floorSlot(""), "");
+  assert.equal(U.parseClock("934"), "09:34");
+  assert.equal(U.parseClock("2:13"), "14:13");
+  assert.equal(U.parseClock("9:34am"), "09:34");
+  assert.equal(U.parseSlot("9:34"), "09:30", "redondear sigue igual");
   assert.equal(U.yearMonth(""), "");
 });
 

@@ -256,7 +256,8 @@ test("nota: pendiente como el template de cotización, con varios planes", () =>
   const note = N.buildNote(sel);
   assert.match(note, /desea aplicar con los siguientes datos:/);
   assert.match(note, /Compañía_Plan: Ambetter_Everyday Bronze - \$0 \(SELECCIONADO\)/);
-  assert.match(note, /\nSe firmó la carta de consentimiento en línea\.$/);
+  assert.match(note, /\nSe firmó la carta de consentimiento en línea, app pendiente\.$/);
+  assert.match(N.buildNote(Object.assign({}, sel, { canal: "Walk In" })), /\nSe firmó la carta de consentimiento en la oficina, app pendiente\.$/);
   /* revisará los planes: la cotización cierra la nota; el consent todavía no se envía ni se firma */
   const ofi = N.buildNote(Object.assign({}, sel, { canal: "Walk In", revisaPlanes: true }));
   assert.match(ofi, /desea cotizar/);
@@ -409,6 +410,15 @@ test("nota: al cliente / del cliente según el género", () => {
   const cancel = (genero) => N.buildNote(make({ line: "oc", outcome: "cancelada", compania: "UHC", genero })).split("\n")[0];
   assert.match(cancel("o"), /a solicitud del cliente\.$/);
   assert.match(cancel("a"), /a solicitud de la cliente\.$/);
+});
+
+test("hora exacta en la nota y en punto o y media de antes en el task", () => {
+  const d = make({ line: "oc", outcome: "pendiente", hora: "09:34" });
+  assert.match(N.buildNote(d), /\(09:34\)/);
+  assert.match(N.buildTask(d), /VER NOTA 02\/01\/2026 \(09:30\)$/);
+  const d2 = make({ line: "oc", outcome: "pendiente", hora: "14:13" });
+  assert.match(N.buildNote(d2), /\(02:13\)/);
+  assert.match(N.buildTask(d2), /VER NOTA 02\/01\/2026 \(02:00\)$/);
 });
 
 test("nota: hora de revisión en 12 horas; Suplementario ya no lleva seguimiento", () => {
@@ -1078,6 +1088,20 @@ test("mergeHousehold: lo que el agente ya escribió se queda, y la diferencia co
   ]);
 });
 
+test("mergeHousehold: una persona ya confirmada vuelve a revisión solo si el documento trae un dato nuevo", () => {
+  const f = casa([{ titular: true, taxes: true, cobertura: true, ingreso: "", estatus: "", dob: "" }]);
+  N.mergeHousehold(f, DOC_HOGAR);
+  f.personas.forEach((p) => { p.ok = true; });
+  /* el mismo documento otra vez: nada nuevo, sigue confirmada */
+  N.mergeHousehold(f, DOC_HOGAR);
+  assert.ok(f.personas.every((p) => p.ok));
+  /* otro documento con otro ingreso para el titular: vuelve a revisión */
+  N.mergeHousehold(f, DOC_HOGAR.map((x) => (x.titular ? Object.assign({}, x, { ingreso: "$50,000.00" }) : x)), 2);
+  assert.equal(f.personas[0].ingreso, "$50,000.00");
+  assert.equal(f.personas[0].ok, undefined);
+  assert.ok(f.personas.slice(1).every((p) => p.ok));
+});
+
 test("mergeHousehold: a quien el agente quitó no se le vuelve a agregar", () => {
   const f = casa([{ titular: true, taxes: true, cobertura: true }]);
   f.quitados = ["SOFIA TORRES"];
@@ -1238,4 +1262,10 @@ test("hoja de cambios: persona agregada, quitada, consent recibido y sin plan el
   d.planes = d.planes.slice(0, 1);
   assert.equal(N.changeSheet(d).plan.inicio, "");
   assert.equal(N.changeSheet(Object.assign(hojaBase(), { revisaPlanes: true })).consent, "No enviada (revisará los planes)");
+});
+
+test("avisos: lo que el agente todavía no eligió ni confirmó (Canal, Código en Zoho, Enrollment Period)", () => {
+  const w = N.warnings(make({ line: "oc", outcome: "pendiente", porElegir: ["Canal", "Enrollment Period"] }), "");
+  assert.ok(w.includes("Elige o confirma: Canal, Enrollment Period."));
+  assert.ok(!N.warnings(make({ line: "oc", outcome: "pendiente", porElegir: [] }), "").some((x) => /Elige o confirma/.test(x)));
 });
