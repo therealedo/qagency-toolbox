@@ -17,8 +17,7 @@
 
   /* --------------------------------------------------------- plantillas --
      fields: dato → nombres de los campos del PDF que lo llevan (un mismo dato
-     puede ir en varios: la fecha arriba y en la página 2). split: el teléfono
-     que va repartido en casillas (área, prefijo y línea). Las firmas no se
+     puede ir en varios: la fecha arriba y en la página 2). Las firmas no se
      nombran: quedan vacías. Los nombres son los del PDF, tal cual (algunos
      perdieron la ligadura «ti»: «connuación», «Endades», «Candad»). */
   var CONSENT_EN = {
@@ -37,7 +36,9 @@
   function withPremium(fields, name) { var f = Object.assign({}, fields); f.premium = [name]; return f; }
 
   /* El SOA en inglés no traía campos: tools/make-fillable-soa.js se los
-     agrega con estos nombres, en los mismos lugares que el de español. */
+     agrega con estos nombres, en los mismos lugares que el de español. La
+     herramienta no los llena (el SOA se descarga sin llenar), pero así el
+     agente puede escribir su sección en el PDF después. */
   var SOA_EN_FIELDS = {
     beneficiaryName: "Beneficiary Name",
     beneficiaryPhone: ["Beneficiary Phone Area", "Beneficiary Phone Prefix", "Beneficiary Phone Line"],
@@ -59,15 +60,11 @@
       file: "Consentimiento_2027_ATH_Spa.pdf", fields: withPremium(CONSENT_ES, "Pago") },
     "consent-ath-en": { kind: "consent", office: "ATH Insurance", lang: "en", label: "Consent ATH English",
       file: "Consent_2027_ATH_Eng.pdf", fields: withPremium(CONSENT_EN, "Premium") },
-    "soa-es": { kind: "soa", lang: "es", label: "SOA Español", file: "SOA_Spanish_Agency.pdf", fields: {
-      beneficiaryName: ["Nombre del beneficiario nombre y apellidos"], beneficiaryPhone: ["Teléfono del beneficiario"],
-      agentName: ["Nombre del Representante de Ventas con Licencia nombre y apellidos"],
-      npn: ["ID del Representante de Ventas con Licencia"], contactMethod: ["Método de contacto inicial"],
-      plans: ["Planes que el Representante de Ventas con Licencia explicará durante la reunión"] } },
-    "soa-en": { kind: "soa", lang: "en", label: "SOA English", file: "SOA_English_Agency_Fillable.pdf", fields: {
-      beneficiaryName: [SOA_EN_FIELDS.beneficiaryName], agentName: [SOA_EN_FIELDS.agentName], npn: [SOA_EN_FIELDS.npn],
-      contactMethod: [SOA_EN_FIELDS.contactMethod], plans: [SOA_EN_FIELDS.plans] },
-      split: { beneficiaryPhone: SOA_EN_FIELDS.beneficiaryPhone } }
+    /* El SOA se descarga sin llenar: todo lo que se escribe está en la
+       sección del agente, que el agente completa y firma después de que
+       firme el cliente. Las 5 casillas siguen marcadas como en la plantilla. */
+    "soa-es": { kind: "soa", lang: "es", label: "SOA Español", file: "SOA_Spanish_Agency.pdf", fields: {} },
+    "soa-en": { kind: "soa", lang: "en", label: "SOA English", file: "SOA_English_Agency_Fillable.pdf", fields: {} }
   };
 
   /* Datos que se muestran en la pantalla, en orden, con su etiqueta. */
@@ -78,10 +75,9 @@
       { k: "income", l: "Ingreso anual" }, { k: "taxPeople", l: "En los taxes" },
       { k: "coveredPeople", l: "Con cobertura" }, { k: "plan", l: "Plan", w: "w2" }, { k: "premium", l: "Prima mensual" }
     ],
+    /* del SOA solo a quién se le envía: van en la línea de Cliq y en el SMS, no en el PDF */
     soa: [
-      { k: "beneficiaryName", l: "Nombre del beneficiario", w: "w2" }, { k: "beneficiaryPhone", l: "Teléfono del beneficiario", w: "w2" },
-      { k: "agentName", l: "Agente", w: "w2" }, { k: "npn", l: "ID del agente (NPN)", w: "w2" },
-      { k: "contactMethod", l: "Método de contacto inicial", w: "w2" }, { k: "plans", l: "Planes que se explicarán", w: "w2" }
+      { k: "beneficiaryName", l: "Nombre del beneficiario", w: "w2" }, { k: "beneficiaryPhone", l: "Teléfono del beneficiario", w: "w2" }
     ]
   };
 
@@ -144,47 +140,11 @@
     };
   }
 
-  /* Método de contacto inicial: sale del canal de la nota. */
-  var CONTACT = {
-    es: { "Call": "Llamada telefónica", "Walk In": "En la oficina", "presencial": "Cita en la oficina", "telefónica": "Cita telefónica",
-      "Zoom": "Cita por Zoom", "en casa": "Visita a domicilio" },
-    en: { "Call": "Phone call", "Walk In": "Walk-in", "presencial": "Office appointment", "telefónica": "Phone appointment",
-      "Zoom": "Zoom appointment", "en casa": "Home visit" }
-  };
-
-  function contactOf(d) {
-    var t = CONTACT[d.idioma === "en" ? "en" : "es"];
-    return (d.canal === "Appointment" ? t[d.modalidad] || t.presencial : t[d.canal]) || "";
-  }
-
-  /* Planes que se explicarán: el plan de la nota (con la compañía delante si
-     el nombre no la trae) o, sin plan, Medicare Advantage. */
-  function plansOf(d) {
-    var carrier = N.carrierName("mc", d.compania), plan = val(d.plan);
-    if (plan && carrier && U.stripAccents(plan).toLowerCase().indexOf(U.stripAccents(carrier).toLowerCase()) >= 0) { return plan; }
-    if (plan || carrier) { return [carrier, plan].filter(Boolean).join(" "); }
-    return d.idioma === "en" ? "Medicare Advantage (Part C)" : "Medicare Advantage (Parte C)";
-  }
-
   function soaValues(d) {
-    return {
-      beneficiaryName: fullName(d),
-      beneficiaryPhone: val(d.clienteTel),
-      agentName: U.titleCase(d.agente),
-      npn: val(d.npn),
-      contactMethod: contactOf(d),
-      plans: plansOf(d)
-    };
+    return { beneficiaryName: fullName(d), beneficiaryPhone: val(d.clienteTel) };
   }
 
   function values(kind, d) { return kind === "soa" ? soaValues(d) : consentValues(d); }
-
-  /* Teléfono en sus casillas: 305 / 555 / 0100 (sin el 1 de delante). */
-  function phoneParts(phone) {
-    var digits = String(phone || "").replace(/\D/g, "");
-    if (digits.length === 11 && digits.charAt(0) === "1") { digits = digits.slice(1); }
-    return [digits.slice(0, 3), digits.slice(3, 6), digits.slice(6, 10)];
-  }
 
   /* { nombre del campo del PDF: valor }. Lo vacío no se escribe. */
   function fieldMap(key, v) {
@@ -193,10 +153,6 @@
     Object.keys(T.fields).forEach(function (k) {
       var value = val(v[k]);
       if (value) { T.fields[k].forEach(function (name) { out[name] = value; }); }
-    });
-    Object.keys(T.split || {}).forEach(function (k) {
-      var parts = phoneParts(v[k]);
-      T.split[k].forEach(function (name, i) { if (parts[i]) { out[name] = parts[i]; } });
     });
     return out;
   }
