@@ -40,6 +40,16 @@ $navegadores = @(
   "$env:LOCALAPPDATA\BraveSoftware\Brave-Browser\Application\brave.exe"
 )
 $navegador = $navegadores | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
+# Al actualizar se mantiene el navegador del acceso directo que ya existe: los
+# ajustes (tu nombre, el equipo, el tema) viven en ese navegador, y abrir la
+# herramienta con otro los dejaria vacios.
+$shellPrevio = New-Object -ComObject WScript.Shell
+foreach ($a in $accesos) {
+  if (Test-Path $a) {
+    $previo = $shellPrevio.CreateShortcut($a).TargetPath
+    if ($previo -and ($previo -match '\\(chrome|msedge|brave)\.exe$') -and (Test-Path $previo)) { $navegador = $previo; break }
+  }
+}
 if (-not $navegador) {
   Write-Host "No se encontro Chrome, Edge ni Brave en esta computadora."
   exit 1
