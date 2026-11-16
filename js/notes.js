@@ -733,7 +733,8 @@
      - `weak`: un dato que no es de la persona sino del hogar (el ingreso del
        hogar de la carta de elegibilidad, puesto en el titular): solo llena
        un campo vacío y cede ante cualquier dato de la persona. */
-  var HOGAR_KEYS = ["parentesco", "estatus", "ingreso", "dob"];
+  /* `sexo` ("a" / "o") no tiene campo en el hogar: sale en la hoja de cambios */
+  var HOGAR_KEYS = ["parentesco", "estatus", "ingreso", "dob", "sexo"];
   function sameValue(k, a, b) {
     if (k === "ingreso") { return U.moneyNumber(a) === U.moneyNumber(b); }
     if (k === "dob") { return same(dateOrText(a), dateOrText(b)); }
@@ -1240,7 +1241,67 @@
     return out;
   }
 
+  /* ------------------------------------------------------ hoja de cambios --
+     Resumen de una página (Obamacare Pendiente) para el colaborador que
+     completa la aplicación: se imprime o se guarda en PDF. `cambio` marca lo
+     que quedó distinto de los documentos del proceso anterior, con la misma
+     base que «Cambios» en la nota. */
+  var SEXO = { a: "Femenino", o: "Masculino" };
+  var PORTAL = { "HealthSherpa": "HEALTHSHERPA", "Portal de la compañía": "PORTAL DE LA COMPAÑÍA" };
+
+  function changeSheet(d) {
+    var base = d.base || {}, list = Array.isArray(d.personas) && d.personas.length ? d.personas : [{ titular: true, taxes: true, cobertura: true }];
+    var anio = /^\d{4}$/.test(val(d.anio)) ? val(d.anio) : "";
+    var sel = planesOf(d).filter(function (p) { return p.sel; })[0] || (planesOf(d).length === 1 ? planesOf(d)[0] : null);
+    var consent = d.net && d.net.consent ? "Recibida" : d.revisaPlanes ? "No enviada (revisará los planes)" : "Enviada";
+    var contacto = CONTACTO.map(function (c) {
+      var now = val(d[c.k]), was = val(base[c.k]);
+      return { label: { direccion: "Dirección postal", clienteTel: "Teléfono", clienteEmail: "Email" }[c.k], value: now, cambio: !c.eq(now, was) };
+    });
+    contacto.push({ label: "Idioma", value: d.idioma === "en" ? "English" : "Spanish", cambio: false });
+    var people = list.map(function (p) {
+      var o = p.orig || {}, nuevo = !p.titular && !p.orig && !!d.hogarPdf && !!val(p.nombre);
+      var name = p.titular ? U.titleCase(val(d.nombres) + " " + val(d.apellidos)) : U.titleCase(val(p.nombre));
+      var dob = dateOrText(p.dob), est = estatusLabel(p.estatus, p.estatusOtro);
+      var ing = U.moneyNumber(p.ingreso);
+      var changed = function (k, now, was, eq) { return nuevo || (k in o ? !eq(now, was) : false); };
+      return {
+        nombre: name, titular: !!p.titular, nuevo: nuevo,
+        dob: dob, sexo: SEXO[p.titular ? d.genero : p.sexo] || "",
+        taxes: !!p.taxes, cobertura: !!p.cobertura, estatus: est,
+        ingreso: ing ? U.parseMoney(p.ingreso) : (val(p.ingreso) ? "$0.00" : ""),
+        cambio: {
+          dob: nuevo || !same(dob, "dob" in o ? dateOrText(o.dob) : ""),
+          taxes: changed("taxes", !!p.taxes, !!o.taxes, function (a, b) { return a === b; }),
+          cobertura: changed("cobertura", !!p.cobertura, !!o.cobertura, function (a, b) { return a === b; }),
+          estatus: nuevo || !same(est, "estatus" in o ? estatusLabel(o.estatus, o.estatusOtro) : ""),
+          ingreso: changed("ingreso", ing, U.moneyNumber(o.ingreso), function (a, b) { return a === b; })
+        }
+      };
+    }).filter(function (p) { return p.titular || p.nombre; });
+    var total = ingresoHogar(d);
+    var inicio = U.parseDate(d.efectiva) || (d.periodo === "OEP" && anio ? "01/01/" + anio : "");
+    return {
+      titulo: "Hoja de cambios · Verificación previa",
+      fecha: U.parseDate(d.fecha) || U.today(),
+      anio: anio, anioAnterior: anio ? String(+anio - 1) : "",
+      portal: PORTAL[d.plataforma] || "MARKETPLACE",
+      cliente: zohoName(d), codigo: d.codigoTipo === "Q" && !val(d.codigoQ) ? "" : reportCode(d),
+      agente: U.titleCase(val(d.sheetAgente)), colaborador: U.titleCase(val(d.sheetColaborador)),
+      npnAnterior: val(d.npnAnterior), npnSeleccionado: val(d.npnSeleccionado),
+      consent: consent,
+      plan: sel ? { nombre: [carrierName("oc", sel.compania), val(sel.plan)].filter(Boolean).join(" · "),
+                    prima: U.parseMoney(sel.prima), inicio: inicio } : null,
+      contacto: contacto,
+      personas: people,
+      quitados: (Array.isArray(d.quitados) ? d.quitados : []).filter(val).map(function (n) { return U.titleCase(n); }),
+      total: total !== null ? U.parseMoney(String(total)) : "",
+      archivo: safeFileName(U.stripAccents(zohoName(d) || "Apellido, Nombre") + " - OC_Change Sheet " + (anio || U.today().slice(-4)))
+    };
+  }
+
   var api = {
+    changeSheet: changeSheet,
     docConflicts: docConflicts,
     copyOrder: copyOrder, smsLink: smsLink, mailtoLink: mailtoLink, safeFileName: safeFileName,
     buildNote: buildNote, buildTask: buildTask, formatTask: formatTask, buildReport: buildReport,

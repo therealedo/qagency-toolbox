@@ -1163,3 +1163,79 @@ test("NPN: un agente del documento que solo trae el número se anota con el núm
   assert.match(N.buildNote(d), /^NPN: 18765432$/m);
   assert.match(N.buildNote(Object.assign({}, d, { agente: "LUCIA FERRER CAMPOS" })), /^NPN: LF$/m);
 });
+
+/* ---------------------------------------------------- hoja de cambios -- */
+
+const hojaBase = () => make({
+  line: "oc", outcome: "pendiente", anio: "2027", codigoQ: "5393", genero: "a", periodo: "OEP", plataforma: "MKPL",
+  sheetAgente: "EDUARDO CHINEA", sheetColaborador: "", npnAnterior: "20586009 (FV)", npnSeleccionado: "20586009 (FV)",
+  direccion: "910 Apple Ave, Lehigh Acres, FL 33971-6441", clienteTel: "(305) 784-5644", clienteEmail: "mary@example.com", idioma: "es",
+  base: { direccion: "910 Apple Ave, Lehigh Acres, FL 33971-6441", clienteTel: "305-784-5644", clienteEmail: "mary@example.com" },
+  hogarPdf: true, net: {},
+  planes: [{ compania: "AMBETTER", plan: "Clarity Silver", prima: "27.43", sel: true }],
+  personas: [
+    { titular: true, taxes: true, cobertura: true, ingreso: "$35,000.00", dob: "12/02/1977", estatus: "residente",
+      orig: { ingreso: "$35,000.00", dob: "12/02/1977", estatus: "ciudadano" } },
+    { nombre: "KATHERINA SERRANO", taxes: true, cobertura: false, dob: "06/02/2006", sexo: "a",
+      orig: { nombre: "KATHERINA SERRANO", taxes: true, cobertura: true, dob: "06/02/2006" } }
+  ]
+});
+
+test("hoja de cambios: los datos del caso como en la hoja de la agencia", () => {
+  const s = N.changeSheet(hojaBase());
+  assert.equal(s.titulo, "Hoja de cambios · Verificación previa");
+  assert.equal(s.anio, "2027");
+  assert.equal(s.anioAnterior, "2026");
+  assert.equal(s.portal, "MARKETPLACE");
+  assert.equal(s.cliente, "Diaz, Beatriz");
+  assert.equal(s.codigo, "Q5393");
+  assert.equal(s.agente, "Eduardo Chinea");
+  assert.equal(s.colaborador, "");
+  assert.equal(s.npnAnterior, "20586009 (FV)");
+  assert.equal(s.npnSeleccionado, "20586009 (FV)");
+  assert.equal(s.consent, "Enviada");
+  assert.deepEqual(s.plan, { nombre: "Ambetter · Clarity Silver", prima: "$27.43", inicio: "01/01/2027" });
+  assert.equal(s.total, "$35,000.00");
+  assert.equal(s.archivo, "Diaz, Beatriz - OC_Change Sheet 2027");
+});
+
+test("hoja de cambios: lo resaltado es lo que cambió respecto a los documentos", () => {
+  const s = N.changeSheet(hojaBase());
+  const [tit, hija] = s.personas;
+  assert.equal(tit.sexo, "Femenino");
+  assert.equal(tit.estatus, "Residente");
+  assert.equal(tit.cambio.estatus, true);
+  assert.equal(tit.cambio.ingreso, false);
+  assert.equal(tit.cambio.dob, false);
+  assert.equal(hija.nombre, "Katherina Serrano");
+  assert.equal(hija.sexo, "Femenino");
+  assert.equal(hija.cobertura, false);
+  assert.equal(hija.cambio.cobertura, true);
+  assert.equal(hija.cambio.taxes, false);
+  /* el teléfono con otro formato no es un cambio; el email distinto sí */
+  const d = hojaBase();
+  d.clienteEmail = "otra@example.com";
+  const c = N.changeSheet(d).contacto;
+  assert.deepEqual(c.map((x) => [x.label, x.cambio]), [["Dirección postal", false], ["Teléfono", false], ["Email", true], ["Idioma", false]]);
+});
+
+test("hoja de cambios: persona agregada, quitada, consent recibido y sin plan elegido", () => {
+  const d = hojaBase();
+  d.personas.push({ nombre: "ELIJAH ORELLANA", taxes: true, cobertura: false, auto: false });
+  d.quitados = ["LUIS DIAZ"];
+  d.net = { consent: true };
+  d.planes = [{ compania: "AMBETTER", plan: "Clarity Silver", prima: "27.43" }, { compania: "OSCAR", plan: "Silver Simple", prima: "30" }];
+  d.codigoQ = "";
+  d.periodo = "SEP";
+  const s = N.changeSheet(d);
+  assert.equal(s.personas[2].nuevo, true);
+  assert.equal(s.personas[2].cambio.estatus, true);
+  assert.deepEqual(s.quitados, ["Luis Diaz"]);
+  assert.equal(s.consent, "Recibida");
+  assert.equal(s.plan, null);
+  assert.equal(s.codigo, "");
+  /* un solo plan cotizado es el elegido; fuera de OEP la cobertura no se supone */
+  d.planes = d.planes.slice(0, 1);
+  assert.equal(N.changeSheet(d).plan.inicio, "");
+  assert.equal(N.changeSheet(Object.assign(hojaBase(), { revisaPlanes: true })).consent, "No enviada (revisará los planes)");
+});

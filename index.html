@@ -149,6 +149,19 @@
           <p class="muted sign-hint" id="signLinkHint" hidden></p>
         </section>
 
+        <!-- Hoja de cambios (Obamacare Pendiente): resumen para el colaborador que completa la aplicación -->
+        <section class="card" id="sec-hoja" data-rail="Hoja de cambios" hidden>
+          <div class="group-head">
+            <h3>Hoja de cambios</h3>
+          </div>
+          <p class="muted sheet-intro">Para el colaborador que completa la aplicación, impresa o en PDF. Lo resaltado cambió respecto a los documentos del proceso anterior.</p>
+          <div class="sign-actions">
+            <button type="button" class="btn primary" id="sheetPrint">Imprimir o guardar PDF</button>
+            <span class="muted" id="sheetFile"></span>
+          </div>
+          <div class="sheet-frame"><div class="sheet" id="sheetPreview"></div></div>
+        </section>
+
         <p class="privacy">
           Los documentos se leen dentro de este navegador. Nada se envía a internet y los datos del cliente no se guardan al cerrar.
         </p>
@@ -375,6 +388,9 @@
 </dialog>
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<!-- la hoja de cambios que se imprime: lo único visible al imprimir -->
+<div class="sheet" id="printSheet" aria-hidden="true"></div>
 
 <script src="vendor/pdfjs/pdf.min.js"></script>
 <script src="vendor/pdfjs/pdf.worker.min.js"></script>
