@@ -18,11 +18,11 @@ Branch: fix/review-findings (stacked on fix/app-summary-household). Delivery: si
 
 | ID | Specs | Route | Status | Evidence |
 |----|-------|-------|--------|----------|
-| T1 | S2, S3 | inline | pending | |
-| T2 | S4, S5 | inline | pending | |
-| T3 | S5, S6 | inline | pending | |
-| T4 | S7 | inline | pending | |
-| T5 | S8 | inline | pending | |
+| T1 | S2, S3 | inline | done | cf044b5; gender tests; an Accident app reads Accident in the app |
+| T2 | S4, S5 | inline | done | 5e6cbdd; 6 notes tests, 1 extract test; letter then App Summary gives $31,200 in the app |
+| T3 | S5, S6 | inline | done | c06e361; receipt before its app keeps the payment, line returns to oc after removals (in the app) |
+| T4 | S7 | inline | done | 8313832; contact on 7 mc/supp fixtures; guard tests; differential only on intended fixtures |
+| T5 | S8 | inline | done | 4d538b9; parseBirth and phone tests |
 
 - T1: defaults are replaceable by documents; a later document of equal rank replaces an earlier one; gender from "Sex".
 - T2: household: titular section in the extractor; per-person, per-field document ranks instead of `tit.auto`; person matching shared by mergePersonas and mergeHousehold; Cambios baseline rebuilt on replay; hogarPdf for single-person applications; quitados cleared with the last document.
@@ -36,3 +36,4 @@ Deferred (reported, not fixed here): documents or plans the agent deleted come b
 
 - L1 (2026-11-16, user): "Wait till everything is ready then merge everything. Also Can you launch a deep review with fable 5.2 to spot any other hidden errors like these?"
 - L2 (evidence): two Fable 5.2 reviewers (document → field mapping; note, Cambios and undo) reported 27 findings, most reproduced in node or the running app; deduplicated into T1–T5 plus the deferred list.
+- L3 (evidence): 229/229 tests. Tests for T1-T5 were written right after each change (no RED observed first); app.js has no unit harness, so its wiring was checked in the app with fixture texts. Fixture differential vs 23daf88: only the mc/supp/App Summary fixtures whose expectations were updated changed.
