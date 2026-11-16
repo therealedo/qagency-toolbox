@@ -567,8 +567,28 @@
   /* Una cancelación de Obamacare guarda My Plans & Programs como CANCELLED o
      como TERMINATED, según lo que se eligió (CANCELLED si no se eligió). */
   function networkOf(d) {
-    var O = outcomeOf(d), tipo = d.tipoCancel || "cancelled";
-    return (O.network || lineOf(d).network).filter(function (n) { return !n.tipoCancel || n.tipoCancel === tipo; });
+    var O = outcomeOf(d), tipo = d.tipoCancel || "cancelled", out = [];
+    (O.network || lineOf(d).network).forEach(function (n) {
+      if (n.tipoCancel && n.tipoCancel !== tipo) { return; }
+      if (!n.perDoc) { out.push(n); return; }
+      docsOf(d).filter(function (x) { return x.enviado; }).forEach(function (x) {
+        var c = docCat(x.cat), who = docTitular(d, x) ? "" : first(x.persona);
+        out.push({ k: docKey(x), label: n.label + ": " + c.label + (who ? " (" + who + ")" : ""), date: n.date,
+                   file: n.file.replace("{doc}", (who ? who.toUpperCase() + "_" : "") + (c.file || c.label)) });
+      });
+    });
+    return out;
+  }
+
+  /* Docs Submitted: cada documento enviado es una fila del Network, con
+     clave propia por tipo y persona. */
+  function docKey(x) { return "docsub:" + x.cat + ":" + upper(x.persona).replace(/[^A-Z0-9ÁÉÍÓÚÑÜ]+/g, "-"); }
+
+  /* Un documento es del titular si no dice de quién es, si trae su nombre
+     completo o solo su nombre de pila ("ROSA"). */
+  function docTitular(d, x) {
+    var p = upper(x.persona), no = upper(d.nombres);
+    return !p || p === upper(no + " " + val(d.apellidos)) || (p.indexOf(" ") < 0 && p === no.split(" ")[0]);
   }
 
   function networkDocs(d) {
@@ -992,7 +1012,7 @@
     autoTaskId: autoTaskId, taskById: taskById, outcomeOf: outcomeOf, lineOf: lineOf, gestionOf: gestionOf,
     productOf: productOf, carrierShort: carrierShort, carrierName: carrierName, carrierOptions: carrierOptions,
     carrierChoice: carrierChoice, carrierFromChoice: carrierFromChoice, CARRIER_OTHER: CARRIER_OTHER, memberDelta: memberDelta, zohoName: zohoName, clientInitials: clientInitials,
-    personas: personas, docsOf: docsOf, pendingDocs: pendingDocs, planesOf: planesOf, networkOf: networkOf,
+    personas: personas, docsOf: docsOf, pendingDocs: pendingDocs, planesOf: planesOf, networkOf: networkOf, docKey: docKey,
     enTaxes: enTaxes, conCobertura: conCobertura, ingresoHogar: ingresoHogar, moneyShort: moneyShort,
     NET_DIRS: NET_DIRS, netDirFor: netDirFor
   };

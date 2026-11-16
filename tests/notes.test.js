@@ -739,6 +739,44 @@ test("archivo oficial: Payment confirmation (OC)", () => {
     "Diaz, Beatriz Elena - Payment Confirmation - OC_FB 2026 JUL");
 });
 
+/* Docs Submitted: un archivo por documento enviado, con el mes de la nota. */
+const rosa = { line: "oc", outcome: "enviada", nombres: "ROSA", apellidos: "PEREZ LIMA", fecha: "11/15/2026" };
+const docsub = (docs, extra) => N.buildFileNames(make(Object.assign({}, rosa, { docs }, extra))).filter((f) => /^docsub/.test(f.k));
+
+test("archivo oficial: Docs submitted (OC) del titular", () => {
+  const doc = { cat: "immigration", persona: "ROSA PEREZ LIMA", enviado: true, doc: "Permanent Resident Card, Green Card (I-551)" };
+  assert.deepEqual(docsub([doc]).map((f) => [f.k, f.label, f.name]), [[N.docKey(doc), "Docs Submitted: Estatus migratorio",
+    "Perez Lima, Rosa - OC_Docs Submitted_Immigration status 2026 NOV"]]);
+  /* sin persona, o con solo el nombre de pila del titular, también es del titular */
+  assert.equal(docsub([{ cat: "immigration", persona: "", enviado: true }])[0].name, "Perez Lima, Rosa - OC_Docs Submitted_Immigration status 2026 NOV");
+  assert.equal(docsub([{ cat: "immigration", persona: "ROSA", enviado: true }])[0].name, "Perez Lima, Rosa - OC_Docs Submitted_Immigration status 2026 NOV");
+});
+
+test("archivo oficial: Docs submitted (OC) de un dependiente o cónyuge, con su nombre", () => {
+  const doc = { cat: "immigration", persona: "YANET SOTO MESA", enviado: true, doc: "Employment Authorization Card (I-766)" };
+  assert.deepEqual(docsub([doc]).map((f) => [f.k, f.label, f.name]), [[N.docKey(doc), "Docs Submitted: Estatus migratorio (Yanet)",
+    "Perez Lima, Rosa - OC_Docs Submitted_YANET_Immigration status 2026 NOV"]]);
+});
+
+test("Docs submitted: solo lo enviado, uno por documento, y va a la nota si se marca", () => {
+  const titular = { cat: "immigration", persona: "ROSA PEREZ LIMA", enviado: true };
+  const dep = { cat: "immigration", persona: "YANET SOTO MESA", enviado: true };
+  const pend = { cat: "income", persona: "ROSA PEREZ LIMA", fecha: "02/12/2027" };
+  assert.deepEqual(docsub([titular, pend, dep]).map((f) => f.name), [
+    "Perez Lima, Rosa - OC_Docs Submitted_Immigration status 2026 NOV",
+    "Perez Lima, Rosa - OC_Docs Submitted_YANET_Immigration status 2026 NOV"]);
+  assert.notEqual(N.docKey(titular), N.docKey(dep));
+  assert.deepEqual(docsub([pend]), []);
+  const d = make(Object.assign({}, rosa, { docs: [dep], net: { [N.docKey(dep)]: true } }));
+  assert.match(N.buildNote(d), /\nDocs en mi folder del NETW: Docs Submitted: Estatus migratorio \(Yanet\)\.$/);
+});
+
+test("Docs submitted: sin documentos enviados, los archivos de Obamacare no cambian", () => {
+  const d = make(Object.assign({}, rosa, { docs: [{ cat: "income", persona: "ROSA PEREZ LIMA" }] }));
+  assert.deepEqual(N.buildFileNames(d).map((f) => f.k), ["appsummary", "eligibility", "plans", "payment", "consent"]);
+  assert.deepEqual(N.networkOf(d).map((n) => n.k), ["appsummary", "eligibility", "plans", "payment", "consent"]);
+});
+
 /* ----------------------------------------------------------- compañías -- */
 
 test("compañías oficiales de Obamacare y Medicare, en el orden de la agencia", () => {

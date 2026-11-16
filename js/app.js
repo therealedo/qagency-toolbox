@@ -681,7 +681,10 @@
       var item = listItem("doc-item" + (x.enviado ? " sent" : "") + (x.auto ? " is-auto" : ""), i);
       var row = el("div", "doc-row");
       row.appendChild(labeled("Qué pide", itemSelect("docs", i, "cat", x.cat, catOptions()), "grow"));
-      row.appendChild(labeled("Persona", itemSelect("docs", i, "persona", x.persona, personOptions())));
+      /* la persona que trajo un documento (Docs Submitted) aunque no esté en el hogar */
+      var people = personOptions();
+      if (U.collapse(x.persona) && !people.some(function (o) { return o.v === x.persona; })) { people.push({ v: x.persona, l: U.titleCase(x.persona) }); }
+      row.appendChild(labeled("Persona", itemSelect("docs", i, "persona", x.persona, people)));
       row.appendChild(labeled("Fecha tope", itemInput("docs", i, "fecha", x.fecha, { cls: "num", ph: "MM/DD/AAAA" }), "w-date"));
       row.appendChild(actBtn("remove-doc", i, "✕", "icon-btn tiny", "Quitar este documento"));
       item.appendChild(row);
@@ -1033,7 +1036,13 @@
   }
 
   function updateFileNames() {
-    N.buildFileNames(data()).forEach(function (f) {
+    var list = N.buildFileNames(data());
+    /* las filas de Docs Submitted cambian con los documentos enviados */
+    var rows = Array.prototype.map.call($("netGrid").querySelectorAll(".net-row"), function (r) {
+      return r.querySelector("[data-file-for]").dataset.fileFor + "|" + r.querySelector(".check span").textContent;
+    }).join("\n");
+    if (rows !== list.map(function (f) { return f.k + "|" + f.label; }).join("\n")) { renderNetwork(); return; }
+    list.forEach(function (f) {
       var code = $("netGrid").querySelector('[data-file-for="' + f.k + '"]');
       if (code) { code.textContent = f.name; code.title = f.name; }
     });
@@ -1671,7 +1680,7 @@
 
   /* ---------------------------------------------------------- documentos */
 
-  var RANK = { oc_plans: 3, mc_app: 3, supp_app: 3, oc_elig: 2, pay: 2, oc_app: 1, mc_soa: 1, supp_card: 1 };
+  var RANK = { oc_plans: 3, mc_app: 3, supp_app: 3, oc_elig: 2, pay: 2, oc_app: 1, oc_docs: 1, mc_soa: 1, supp_card: 1 };
 
   function applyExtraction(res) {
     var lineBefore = S.line, carrierBefore = S.f.compania;
@@ -1703,6 +1712,7 @@
       S.f[k] = v; S.auto[k] = true; S.rank[k] = rank; S.base[k] = v; applied++;
     });
     if (special.miembros && S.line !== "mc") { applied += mergePersonas(U.parseList(special.miembros)); }
+    var sent = [];
     if (S.line === "oc") {
       var tit = S.f.personas[0];
       /* el ingreso y la fecha de nacimiento del documento son del titular */
@@ -1713,11 +1723,13 @@
         if (!U.collapse(tit[x[0]])) { tit[x[0]] = x[1]; tit.orig[x[0]] = x[1]; tit.auto = true; applied++; }
       });
       if (special.hogar) { S.f.hogarDoc = special.hogar; }
-      if (special.docs) { applied += mergeDocs(special.docs); }
+      if (special.docs) { applied += mergeDocs(special.docs, sent); }
     }
     /* Medicare: un documento con prima prende el interruptor de la prima */
     if (S.line === "mc" && fields.prima && U.moneyNumber(fields.prima) > 0) { S.f.tienePrima = true; }
     if (special.agente || special.npn) { applied += mapAgent(special.agente, special.npn); }
+    /* Docs Submitted: el archivo va a la fila del documento que se envió */
+    if (res.net === "docsub" && sent.length) { res.net = N.docKey(sent[0]); }
     if (res.net) { S.f.net[res.net] = true; }
     if (S.line !== lineBefore || S.f.compania !== carrierBefore) { syncCarrierChoice(); }
     return applied;
@@ -1749,17 +1761,39 @@
     return added;
   }
 
-  function mergeDocs(list) {
-    var added = 0;
+  /* La persona del hogar con ese nombre; con solo el nombre de pila
+     ("YANET"), la única cuyo nombre empieza así. */
+  function findPersona(name) {
+    var ps = S.f.personas.filter(function (p) { return sameName(personLabel(p), name); });
+    if (!ps.length && U.collapse(name).indexOf(" ") < 0) {
+      ps = S.f.personas.filter(function (p) { return sameName(personLabel(p).split(" ")[0], name); });
+    }
+    return ps.length === 1 ? ps[0] : null;
+  }
+
+  /* Documentos pedidos o enviados (Docs Submitted). Uno enviado marca como
+     enviado al que ya estaba pedido; `sent` recibe los que se enviaron. */
+  function mergeDocs(list, sent) {
+    /* sin el nombre del titular la persona queda vacía (es del titular), no
+       "Sin nombre: escríbelo arriba" */
+    var added = 0, tit = S.f.personas[0], titName = U.collapse(S.f.nombres + S.f.apellidos) ? personLabel(tit) : "";
     list.forEach(function (x) {
       var persona = "";
-      if (x.persona) {
-        var match = S.f.personas.filter(function (p) { return sameName(personLabel(p), x.persona); })[0];
+      if (x.titular) { persona = titName; }
+      else if (x.persona) {
+        var match = findPersona(x.persona);
         persona = match ? personLabel(match) : U.collapse(x.persona).toUpperCase();
       }
-      var dup = S.f.docs.some(function (y) { return y.cat === x.cat && sameName(y.persona, persona); });
-      if (dup) { return; }
-      S.f.docs.push({ cat: x.cat, persona: persona || personLabel(S.f.personas[0]), fecha: x.fecha || "", enviado: false, doc: "", auto: true });
+      persona = persona || titName;
+      var dup = S.f.docs.filter(function (y) { return y.cat === x.cat && sameName(y.persona, persona); })[0];
+      if (dup) {
+        if (x.enviado && !dup.enviado) { dup.enviado = true; dup.doc = dup.doc || x.doc || ""; added++; }
+        if (x.enviado) { sent.push(dup); }
+        return;
+      }
+      var item = { cat: x.cat, persona: persona, fecha: x.fecha || "", enviado: !!x.enviado, doc: x.doc || "", auto: true };
+      S.f.docs.push(item);
+      if (x.enviado) { sent.push(item); }
       added++;
     });
     return added;

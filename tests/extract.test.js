@@ -340,6 +340,74 @@ for (const [name, exp] of Object.entries(SUPP_DOCS)) {
   });
 }
 
+/* -------------------------------------------- documentos de Obamacare */
+
+/* Documentos reales de Obamacare (texto de pdfToText o del OCR; nombres, IDs,
+   direcciones y montos ficticios). Se leen sin el nombre del archivo. */
+const OC_DOCS = {
+  /* el plan es "Clarity Silver", no "Communication" (el menú de la izquierda) */
+  "OC My Plans & Programs Ambetter": { type: "oc_plans", net: "plans", fields: {
+    plan: "Clarity Silver", prima: "$1.40", appId: "4412345678", miembros: "LAURA RAMOS\nDIEGO RAMOS",
+    nombres: "LAURA", apellidos: "RAMOS", efectiva: "01/01/2027", estado: "Active", compania: "AMBETTER", anio: "2027" } },
+  /* la guía que viene detrás de la carta habla de documentos: nadie los pidió */
+  "OC Eligibility Notice": { type: "oc_elig", net: "eligibility", fields: {
+    appId: "4412345678", anio: "2027", nombres: "LAURA", apellidos: "RAMOS", ingreso: "$31,200.00" } },
+  /* escaneo: texto del OCR. El ingreso es el anual, no el del mes; "2/17/41"
+     es una fecha de nacimiento, no puede ser de 2041 */
+  "OC App Summary OCR": { type: "oc_app", net: "appsummary", fields: {
+    nombres: "LAURA", apellidos: "RAMOS", anio: "2027", ingreso: "$31,200.00", dob: "02/17/1941",
+    direccion: "Fort Myers, FL 33901-", plataforma: "MKPL" } },
+  /* Docs Submitted: el punto abierto es de quien abrió la cuenta (el titular) */
+  "OC Docs Submitted Principal": { type: "oc_docs", net: "docsub", fields: {
+    appId: "4498765432", anio: "2027", nombres: "ROSA", apellidos: "PEREZ LIMA",
+    docs: [{ cat: "immigration", persona: "ROSA PEREZ LIMA", titular: true, enviado: true, doc: "Permanent Resident Card, Green Card (I-551)" }] } },
+  /* …o de otra persona del hogar: el nombre completo del titular no aparece */
+  "OC Docs Submitted Dependent": { type: "oc_docs", net: "docsub", fields: {
+    appId: "4498765432", anio: "2027",
+    docs: [{ cat: "immigration", persona: "YANET SOTO MESA", titular: false, enviado: true, doc: "Employment Authorization Card (I-766)" }] } }
+};
+
+for (const [name, exp] of Object.entries(OC_DOCS)) {
+  test(name + ": tipo y datos sin el nombre del archivo", () => {
+    const r = X.extract(fixture(name), "document.pdf", "oc");
+    assert.equal(r.type, exp.type);
+    assert.equal(r.line, "oc");
+    assert.equal(r.net, exp.net);
+    assert.deepEqual(r.fields, exp.fields);
+    assert.equal(X.extract(fixture(name), "scan0001.pdf", "mc").type, exp.type);
+  });
+}
+
+test("Docs Submitted: la etiqueta del tipo y el nombre del archivo como pista", () => {
+  assert.equal(X.TYPES.oc_docs.label, "Docs Submitted");
+  assert.equal(X.extract("", "Perez Lima, Rosa - OC_Docs Submitted_Immigration status 2026 NOV.png", "oc").type, "oc_docs");
+});
+
+test("Docs Submitted: sin un punto abierto no hay documento enviado", () => {
+  const text = fixture("OC Docs Submitted Principal").replace("Collapse -", "Expand +").replace(/^Rosa - You need.*$/m, "");
+  const r = X.extract(text, "document.pdf", "oc");
+  assert.equal(r.type, "oc_docs");
+  assert.equal(r.fields.docs, undefined);
+});
+
+test("los documentos de Obamacare de antes se siguen reconociendo sin el nombre del archivo", () => {
+  assert.equal(X.extract(fixture("My Plans and Programs"), "document.pdf", "oc").type, "oc_plans");
+  assert.equal(X.extract(fixture("Eligibility Letter"), "document.pdf", "oc").type, "oc_elig");
+  assert.equal(X.extract(fixture("App Summary"), "document.pdf", "oc").type, "oc_app");
+});
+
+/* Los Consent de la agencia (QAgency y ATH, inglés y español). El PDF pierde
+   la ligadura "ti": queda un carácter que no es letra ("consen?miento"). */
+for (const name of ["Consent QA English", "Consent ATH English", "Consent QA Spanish", "Consent ATH Spanish"]) {
+  test(name + ": es un Consent sin el nombre del archivo", () => {
+    const r = X.extract(fixture(name), "document.pdf", "oc");
+    assert.equal(r.type, "consent");
+    assert.equal(r.net, "consent");
+    assert.deepEqual(r.fields, {});
+    assert.equal(X.extract(fixture(name), "scan0001.pdf", "mc").type, "consent");
+  });
+}
+
 test("una firma de tutor (Parent/Legal Guardian) no es la compañía Guardian", () => {
   const text = "Application for Dental Insurance\nSignature of Parent/Legal Guardian\nGuardian’s Signature\n" +
     "Underwritten by Ameritas Life Insurance Corp.\nFirst Name: Rosa\nLast Name: Medina\nMonthly Premium: $30.10";

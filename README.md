@@ -186,6 +186,8 @@ The Network section lists the documents for the line of business, each with its 
 | My Plans & Programs (OC) | `Diaz, Beatriz - OC_My Plans & Programs Ambetter 2027 JAN` | coverage start |
 | Cancelled (OC) | `Diaz, Beatriz - OC_My Plans & Programs Ambetter 2027 JAN CANCELLED` | coverage start |
 | Terminated (OC) | `Diaz, Beatriz - OC_My Plans & Programs Ambetter 2027 JAN TERMINATED` | termination date |
+| Docs submitted (OC) | `Diaz, Beatriz - OC_Docs Submitted_Immigration status 2026 NOV` | note |
+| Docs submitted (OC, dependent or spouse) | `Diaz, Beatriz - OC_Docs Submitted_JUAN_Immigration status 2026 NOV` | note |
 | App (MC) | `Diaz, Beatriz - Medicare_Humana_App 2027 JAN` | coverage start |
 | SOA (MC, app or change) | `Diaz, Beatriz - Medicare_Humana_SOA 2026 NOV` | SOA signature |
 | SOA (MC, no change) | `Diaz, Beatriz - Medicare_SOA 2026 NOV` | SOA signature |
@@ -194,6 +196,8 @@ The Network section lists the documents for the line of business, each with its 
 | ID card (Supp) | `Diaz, Beatriz - Dental_FB - CARD 2026 JUL` | coverage start |
 
 The plan year is *Año del plan*, or the year of the coverage start when it is empty, or the year of the note.
+
+Docs submitted has one row per requested document ticked **Enviado** (*Docs Submitted: Estatus migratorio*, *Docs Submitted: Estatus migratorio (Juan)*). The titular's document has no name in the middle; another person's has their first name. The middle part is the kind of document: `Immigration status`, `Income`, `Citizenship`, `SSN` and so on (the `file` of each entry in `MKPL_DOCS`, `js/config.js`).
 
 ### Saving to the Network
 
@@ -210,8 +214,10 @@ In **Ajustes → Carpetas del Network**, choose your folder in the NETW once und
 | Document | Fills |
 | --- | --- |
 | My Plans & Programs (HealthCare.gov) | plan, monthly premium, status, people covered, coverage start |
-| Eligibility Letter | application ID, income, household size, documents requested with the person and due date |
-| App Summary (HealthCare.gov) | application ID, applicant, DOB, home address, income, household size |
+| Eligibility Letter | application ID, plan year, primary contact, income, household size, documents requested with the person and due date (not from the Eligibility Guide that follows the notice) |
+| App Summary (HealthCare.gov, also the printed copy, scanned) | application ID, plan year, applicant, DOB, home address, yearly income, household size |
+| Docs submitted (HealthCare.gov *Upload documents*, with the open item) | application ID, plan year, the document sent and for whom: it marks the requested document as **Enviado**, or adds it. The account holder's own document also fills the titular's full name from the uploaded file (`Diaz, Beatriz - …`) |
+| Consent (the agency's QAgency and ATH forms, Spanish or English) | ticks the Consent for the note |
 | Medicare application summary (carrier portal, Spanish or English) | MBI, Part A/B, plan (with its contract), election period, PCP, App ID, agent |
 | Scope of Appointment | beneficiary, signature date |
 | Payment receipt | amount, date, confirmation, last 4 digits, autopay |
