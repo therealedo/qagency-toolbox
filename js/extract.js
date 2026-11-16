@@ -1407,7 +1407,7 @@
   var QUOTE_ISSUER = /\b(inc\.?|llc|company|compa[nñ][ií]\w*|corp\w*|insurance)\b|(\.\.\.|…)$/i;
   var QUOTE_FAMILIES = [
     [/^(bronze|silver|gold|platinum)\s+(simple|classic|elite|basic|core)\b/i, "Oscar"],
-    [/^(fundamental|everyday|signature(\s+expanded)?|thrive|focused|complete|enhanced\s+diabetes\s+care)\s+(bronze|silver|gold|platinum)\b/i, "Ambetter"]
+    [/^(fundamental|everyday|signature(\s+expanded)?|thrive|focused|complete|enhanced\s+diabetes\s+care|clarity|balanced\s+care)\s+(bronze|silver|gold|platinum)\b/i, "Ambetter"]
   ];
 
   function median(a) {

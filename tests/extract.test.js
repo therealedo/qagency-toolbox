@@ -636,6 +636,16 @@ test("HealthSherpa: una tarjeta en español, con la etiqueta mal leída, se lee 
   ])), [{ compania: "AMBETTER", plan: "Signature Silver + Vision + Adult Dental", prima: "$120.55" }]);
 });
 
+test("HealthSherpa: la compañía solo en el logo sale del nombre del plan (Clarity Silver es de Ambetter)", () => {
+  assert.deepEqual(X.quotePlans(words([
+    [72, 44, "Clarity Silver"],
+    [72, 68, "HMO O SILVER + CSR"],
+    [72, 166, "$153.87", 16], [286, 166, "$800", 16],
+    [72, 191, "Monthly premium"], [286, 191, "Deductible"],
+    [72, 209, "$706"]
+  ])), [{ compania: "AMBETTER", plan: "Clarity Silver", prima: "$153.87" }]);
+});
+
 test("HealthSherpa: con las palabras del OCR, otros documentos se leen igual que sin ellas", () => {
   const text = fs.readFileSync(path.join(__dirname, "fixtures", "My Plans and Programs.txt"), "utf8");
   const plain = X.extract(text, "captura.png", "oc");
