@@ -89,7 +89,7 @@ In both, *Cliente* also has the client's phone and email, which only feed the SO
 
 Every value can be changed in the section; changed values stay until **Volver a los datos de la nota**. **Descargar PDF lleno** fills the consent in the browser and downloads it with the Network file name (`Diaz, Beatriz - OC_Consent Ambetter 2026 NOV.pdf`); the SOA downloads the same way (`Diaz, Beatriz - Medicare_Humana_SOA 2026 NOV.pdf`). Signature fields are left empty. **Para pedirlo en Cliq** has the line to copy: `Enviar CONSENT a Beatriz Diaz al bea@example.com y al (305) 555-0100 pls @Support QAgency` (or `Enviar SOA a …`), without the email or the phone when it is missing.
 
-**Signing link (SignWell test).** In **Ajustes → Enlaces de firma (SignWell)**, paste the Template Link of each SignWell template: Consent QAgency Español, Consent QAgency English, Consent ATH Español, Consent ATH English, SOA Español and SOA English. When the link for the current form, office and language is set, the section shows **Enviar enlace de firma**: the link with the values added as query parameters (empty ones are skipped), plus a short SMS and an email in the client's language, signed with the office name, each with **Copiar** and with **Abrir en el teléfono** / **Abrir en el correo** when the client's phone or email is valid. Without a link, the section says which one to add. The app only builds the link; it never contacts SignWell. The parameters use these field API IDs, which must match the SignWell templates:
+**Signing link (SignWell test).** In **Ajustes → Enlaces de firma (SignWell)**, paste the Template Link of each SignWell template: Consent QAgency Español, Consent QAgency English, Consent ATH Español, Consent ATH English, SOA Español and SOA English. When the link for the current form, office and language is set, the section shows **Enviar enlace de firma**: the link with the values added as query parameters (empty ones are skipped), plus a short SMS and an email in the client's language, signed with the office name, each with **Copiar** and with **Abrir en el teléfono** / **Abrir en el correo** when the client's phone or email is valid. Without a link, the section says which one to add. Above the link, a warning says to use it only with test data: the link carries the client's values in its address and goes through SignWell, so it is not for real clients until Q Agency signs a BAA with SignWell (until then, use the filled PDF). The app only builds the link; it never contacts SignWell. The parameters use these field API IDs, which must match the SignWell templates:
 
 | Form | Field API IDs |
 | --- | --- |
@@ -214,6 +214,12 @@ In **Ajustes → Carpetas del Network**, choose your folder in the NETW once und
 - **Abrir en el teléfono** and **Abrir en el correo** open the SMS or the email with the text ready, when the titular's phone or email is filled in.
 
 ## What it reads
+
+A document only fills what is empty or what a weaker document filled; what you type or correct is never overwritten. Three rules keep documents from mixing:
+
+- **Removing a document undoes it.** The ✕ clears everything that document filled and you did not touch (fields, payment, people, requested documents, the Network checkbox), then uses the remaining documents again in the same order. If that document had switched the line (a dental after an Obamacare case), the line goes back too.
+- **A document that is not from the case is held back.** Before using it, the app compares it with the case: the client's name always, and the company and the application number (App ID, application ID, policy) when it is from the same line; a payment receipt is compared with the case's company. If anything differs, the document is not used and the list says why (`No coincide con el caso: otra compañía (HUMANA, el caso es de UNITED HEALTHCARE); otro App ID (…)`). **Usar igual** uses it anyway. When the document that caused the difference is removed, the held one is checked again.
+- **A document from another line starts the product fresh.** When a document switches the line, the company, plan and payment fields of the previous product are cleared first, so a dental gets its own company and plan instead of the Obamacare ones.
 
 | Document | Fills |
 | --- | --- |

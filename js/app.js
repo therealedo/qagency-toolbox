@@ -1689,16 +1689,89 @@
 
   var RANK = { oc_plans: 3, mc_app: 3, supp_app: 3, oc_elig: 2, pay: 2, oc_app: 1, oc_docs: 1, mc_soa: 1, supp_card: 1 };
 
+  /* Campos del producto: la compañía, el plan y el pago son de una línea.
+     Cuando un documento cambia de línea (un dental después de un Obamacare)
+     se vacían para que no pasen al producto nuevo. */
+  var PRODUCT_KEYS = FIELDS.filter(function (F) { return F.g === "plan" || F.g === "pago"; }).map(key);
+
+  function switchLine(line) {
+    S.line = line; settings.line = line; saveSettings();
+    var same = L().outcomes.filter(function (o) { return o.id === S.outcome; })[0];
+    S.outcome = same ? same.id : L().outcomes[0].id;
+    S.f.gestion = ""; S.f.taskId = "";
+    var fresh = freshFields();
+    PRODUCT_KEYS.forEach(function (k) { resetField(k, fresh); delete S.base[k]; });
+    afterOutcomeChange();
+  }
+
+  /* Un campo vuelve a como empieza una nota nueva (la mayoría no existe hasta
+     que se llena). */
+  function resetField(k, fresh) {
+    if (k in fresh) { S.f[k] = fresh[k]; } else { delete S.f[k]; }
+    delete S.auto[k]; delete S.rank[k];
+  }
+
+  function caseIdentity() {
+    var f = S.f;
+    return { nombres: f.nombres, apellidos: f.apellidos, compania: f.compania, confirmacion: f.confirmacion, appId: f.appId, poliza: f.poliza };
+  }
+
+  /* Usa un documento leído: si no coincide con el caso (otro cliente, otra
+     compañía u otro número) se aparta con un aviso y no se usa, salvo que el
+     agente pida usarlo igual. */
+  function useFile(entry) {
+    delete entry.held; delete entry.lineFrom;
+    entry.applied = 0;
+    if (!entry.res) { return; }
+    var why = entry.force ? [] : N.docConflicts(caseIdentity(), S.line, entry.res);
+    if (why.length) { entry.held = why; return; }
+    var lineBefore = S.line;
+    entry.applied = applyExtraction(entry.res);
+    if (S.line !== lineBefore) { entry.lineFrom = lineBefore; }
+  }
+
+  /* Quitar un documento deshace lo que llenó: se vacía lo que vino de
+     documentos y el agente no tocó, y se vuelven a usar los que quedan, en
+     el mismo orden. Lo escrito o corregido a mano se queda. */
+  function removeFile(entry) {
+    var i = S.files.indexOf(entry);
+    if (i < 0) { return; }
+    S.files.splice(i, 1);
+    var fresh = freshFields();
+    Object.keys(S.auto).forEach(function (k) {
+      if (S.auto[k] !== true) { return; }
+      resetField(k, fresh);
+    });
+    if (S.f.npnAgente === "" || S.f.npnAgente === fresh.npnAgente) { S.f.agenteExtra = null; }
+    S.base = {};
+    S.f.personas = S.f.personas.filter(function (p) { return p.titular || !p.auto; });
+    S.f.personas.forEach(function (p) {
+      if (p.titular && p.auto) { p.ingreso = ""; p.dob = ""; delete p.auto; }
+      delete p.orig;
+    });
+    S.f.docs = S.f.docs.filter(function (x) { return !x.auto; });
+    S.f.hogarDoc = ""; S.f.hogarPdf = false;
+    /* las casillas del Network que marcó un documento se vuelven a marcar
+       solo si otro documento las marca */
+    [entry].concat(S.files).forEach(function (f) { if (f.res && f.res.net) { S.f.net[f.res.net] = false; } });
+    /* si ese documento había cambiado de línea y ningún otro es de esa línea,
+       se vuelve a la de antes */
+    if (entry.lineFrom && S.line === entry.res.line && !S.files.some(function (f) { return f.applied && f.res && f.res.line === S.line; })) {
+      switchLine(entry.lineFrom);
+    }
+    S.files.forEach(useFile);
+    syncCarrierChoice();
+  }
+
+  function afterFilesChanged() {
+    S.dirty = true;
+    defaultPeople(); renderLists(); renderFiles(); renderPicker(); syncInputs(); renderNetwork(); refresh();
+  }
+
   function applyExtraction(res) {
     var lineBefore = S.line, carrierBefore = S.f.compania;
     /* solo se cambia de línea si el documento realmente aportó datos */
-    if (res.line && res.line !== S.line && res.count > 0) {
-      S.line = res.line; settings.line = res.line; saveSettings();
-      var same = L().outcomes.filter(function (o) { return o.id === S.outcome; })[0];
-      S.outcome = same ? same.id : L().outcomes[0].id;
-      S.f.gestion = ""; S.f.taskId = "";
-      afterOutcomeChange();
-    }
+    if (res.line && res.line !== S.line && res.count > 0) { switchLine(res.line); }
     var rank = RANK[res.type] || 0, applied = 0;
     var fields = Object.assign({}, res.fields);
     /* el Writing ID ya no se usa (basta el NPN): si un documento lo trae, se ignora */
@@ -1733,7 +1806,7 @@
       if (special.docs) { applied += N.mergeDocs(S.f, special.docs, sent); }
     }
     /* Medicare: un documento con prima prende el interruptor de la prima */
-    if (S.line === "mc" && fields.prima && U.moneyNumber(fields.prima) > 0) { S.f.tienePrima = true; }
+    if (S.line === "mc" && fields.prima && U.moneyNumber(fields.prima) > 0 && !S.f.tienePrima) { S.f.tienePrima = true; S.auto.tienePrima = true; }
     if (special.agente || special.npn) { applied += mapAgent(special.agente, special.npn); }
     /* Docs Submitted: el archivo va a la fila del documento que se envió; una
        página sin documento abierto no tiene fila ni casilla */
@@ -1792,6 +1865,7 @@
     if (f.status === "scanned") { return "PDF escaneado: este navegador no tiene OCR, llena los datos a mano"; }
     /* lo leído con OCR puede traer errores: se pide revisarlo */
     var tail = !f.ocr ? "" : f.ocrTotal > f.ocrPages ? " · OCR de las primeras " + f.ocrPages + " de " + f.ocrTotal + " páginas, revísalo" : " · leído con OCR, revísalo";
+    if (f.held) { return "No coincide con el caso: " + f.held.join("; ") + ". No se usó."; }
     if (!f.applied) { return (f.res && f.res.type === "unknown" ? "No se reconoció el documento" : "Sin datos nuevos") + tail; }
     return f.applied + (f.applied === 1 ? " dato" : " datos") + tail;
   }
@@ -1800,10 +1874,16 @@
     var ul = $("files");
     ul.textContent = "";
     S.files.forEach(function (f, i) {
-      var li = el("li", "file " + f.status + (f.status === "ok" && !f.applied ? " none" : ""));
+      var li = el("li", "file " + f.status + (f.held ? " held" : f.status === "ok" && !f.applied ? " none" : ""));
       li.appendChild(el("span", "file-type", f.res ? f.res.label : "Documento"));
       li.appendChild(el("span", "file-name", f.name));
       li.appendChild(el("span", "file-meta", fileStatusText(f)));
+      if (f.held) {
+        var use = el("button", "link-btn", "Usar igual");
+        use.type = "button"; use.dataset.force = i;
+        use.setAttribute("aria-label", "Usar " + f.name + " aunque no coincida con el caso");
+        li.appendChild(use);
+      }
       if (f.text) {
         var v = el("button", "link-btn", "Ver texto");
         v.type = "button"; v.dataset.view = i;
@@ -1821,7 +1901,7 @@
     var readable = entry.text.replace(/\s/g, "").length >= 40;
     entry.res = X.extract(entry.text, entry.name, S.line);
     entry.status = status || (readable ? "ok" : "scanned");
-    entry.applied = applyExtraction(entry.res);
+    useFile(entry);
     renderFiles();
   }
 
@@ -1891,8 +1971,14 @@
         var added = S.files.slice(before);
         var total = added.reduce(function (s, f) { return s + (f.applied || 0); }, 0);
         var viaOcr = added.some(function (f) { return f.ocr && f.applied; });
+        var held = added.filter(function (f) { return f.held; });
         S.dirty = true;
         renderPicker(); syncInputs(); renderNetwork(); refresh();
+        if (held.length) {
+          toast((held.length === 1 ? held[0].name + " no coincide" : held.length + " documentos no coinciden") +
+                " con el caso y no se usaron. Revisa el aviso en la lista de documentos.");
+          return;
+        }
         toast(total ? "Se llenaron " + total + (total === 1 ? " campo" : " campos") + (viaOcr ? " con OCR. Revísalos con cuidado" : ". Revísalos") + " antes de copiar."
                     : "No se encontraron datos en " + (added.length === 1 ? "el documento" : "los documentos") + ".");
       });
@@ -2503,7 +2589,18 @@
     $("files").addEventListener("click", function (e) {
       var b = e.target.closest("button");
       if (!b) { return; }
-      if (b.dataset.remove != null) { S.files.splice(+b.dataset.remove, 1); renderFiles(); renderNetwork(); }
+      if (b.dataset.remove != null) {
+        var gone = S.files[+b.dataset.remove];
+        removeFile(gone);
+        afterFilesChanged();
+        toast("Se quitó " + gone.name + " y lo que había llenado.");
+      }
+      if (b.dataset.force != null) {
+        var f = S.files[+b.dataset.force];
+        f.force = true; useFile(f);
+        afterFilesChanged();
+        toast(f.applied ? "Se usó " + f.name + ": " + f.applied + (f.applied === 1 ? " dato" : " datos") + ". Revísalos." : "El documento no trajo datos nuevos.");
+      }
       if (b.dataset.view != null) { openPaste(S.files[+b.dataset.view]); }
     });
 
@@ -2513,7 +2610,8 @@
       var text = $("pasteText").value;
       if (text.replace(/\s/g, "").length < 40) { toast("Pega primero el texto del documento."); return; }
       var entry = { name: pasteSource ? pasteSource.name : "Texto pegado", status: "reading", applied: 0 };
-      if (pasteSource) { S.files.splice(S.files.indexOf(pasteSource), 1); }
+      /* el texto pegado reemplaza al archivo: primero se deshace lo que llenó */
+      if (pasteSource) { removeFile(pasteSource); }
       S.files.push(entry);
       finishFile(entry, text);
       $("dlgPaste").close();

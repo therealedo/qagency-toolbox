@@ -97,3 +97,11 @@ test("el actualizador: misma fuente que la página, revisa la versión del paque
   ["updateBar", "updateText", "btnUpdateClose"].forEach((id) => assert.match(html, new RegExp('id="' + id + '"')));
   assert.ok(fs.readFileSync(path.join(root, "js", "app.js"), "utf8").includes('fetch(C.UPDATE_URL, { cache: "no-store", credentials: "omit"'));
 });
+
+test("el enlace de firma avisa que es solo para datos de prueba hasta el BAA", () => {
+  const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
+  const box = html.match(/<div class="sign-block" id="signLinkBox"[\s\S]*?id="signUrl"/)[0];
+  assert.match(box, /id="signWarn"/);
+  assert.match(box, /Solo con datos de prueba/);
+  assert.match(box, /BAA/);
+});

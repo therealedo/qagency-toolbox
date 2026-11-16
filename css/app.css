@@ -403,6 +403,8 @@ kbd {
 .file-meta { flex: 1 0 auto; text-align: right; color: var(--ok); font-weight: 600; white-space: nowrap; }
 .file.none .file-meta, .file.reading .file-meta { color: var(--ink-3); font-weight: 400; }
 .file.scanned .file-meta, .file.image .file-meta, .file.error .file-meta { color: var(--warn); }
+.file.held { border-color: var(--warn); flex-wrap: wrap; }
+.file.held .file-meta { order: 5; flex-basis: 100%; white-space: normal; text-align: left; color: var(--warn); font-weight: 550; }
 .legend { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 12.5px; color: var(--ink-2); }
 .legend i { width: 3px; height: 16px; border-radius: 2px; background: var(--gold); flex: none; }
 .legend span { flex: 1; min-width: 0; }
@@ -597,6 +599,7 @@ kbd {
 /* Consent y SOA para firmar: valores, descarga, texto de Cliq y enlace de firma */
 .sign .group-head .seg-mini { margin-left: auto; }
 .sign-template { margin: -6px 0 12px; }
+.sign-warn { margin: 0 0 8px; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--warn); color: var(--warn); font-size: 12.5px; line-height: 1.45; }
 .sign-template.sign-office { padding: 8px 12px; border-radius: 8px; border: 1px solid var(--gold); background: var(--gold-soft); color: var(--gold-ink); }
 .sign-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 14px; }
 .sign-block { display: flex; flex-direction: column; gap: 6px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }

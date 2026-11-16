@@ -1071,7 +1071,50 @@
     return { key: "general", dir: (dirs && dirs.general) || null };
   }
 
+  /* ----------------------------------------- documento que no es del caso --
+     Antes de usar un documento se compara con lo que ya tiene el caso: el
+     cliente siempre; la compañía y los números de la aplicación solo si el
+     documento es de la misma línea (un comprobante de pago no tiene línea y
+     se compara con la compañía del caso). Devuelve los motivos, vacío si
+     coincide o si no hay con qué comparar. */
+  var NAME_SKIP = { DE: 1, DEL: 1, LA: 1, LAS: 1, LOS: 1, Y: 1 };
+  function nameWords(s) {
+    return U.stripAccents(val(s)).toUpperCase().split(/[^A-Z]+/).filter(function (w) { return w.length > 1 && !NAME_SKIP[w]; });
+  }
+  function disjoint(a, b) { return a.length && b.length && !a.some(function (w) { return b.indexOf(w) >= 0; }); }
+  function fullName(n, a) { return val([val(n), val(a)].join(" ")).toUpperCase(); }
+  function idKey(s) { return String(s == null ? "" : s).toUpperCase().replace(/[^A-Z0-9]/g, ""); }
+
+  function sameCarrier(line, a, b) {
+    var ea = carrierEntry(line, a), eb = carrierEntry(line, b);
+    if (ea && eb) { return ea.name === eb.name; }
+    var first = function (s) { return nameWords(s)[0] || ""; };
+    return first(a) === first(b);
+  }
+
+  var DOC_IDS = [["confirmacion", "otro App ID"], ["appId", "otro número de aplicación"], ["poliza", "otra póliza"]];
+
+  function docConflicts(f, line, res) {
+    var d = (res && res.fields) || {}, out = [];
+    f = f || {};
+    var apCase = nameWords(f.apellidos), apDoc = nameWords(d.apellidos);
+    var other = apCase.length && apDoc.length ? disjoint(apCase, apDoc) : disjoint(nameWords(f.nombres), nameWords(d.nombres));
+    if (other) { out.push("otro cliente (" + fullName(d.nombres, d.apellidos) + ", el caso es de " + fullName(f.nombres, f.apellidos) + ")"); }
+    var sameLine = !res.line || res.line === line;
+    if (sameLine && val(f.compania) && val(d.compania) && !sameCarrier(line, f.compania, d.compania)) {
+      out.push("otra compañía (" + val(d.compania) + ", el caso es de " + val(f.compania) + ")");
+    }
+    if (res.line && res.line === line) {
+      DOC_IDS.forEach(function (x) {
+        var a = idKey(f[x[0]]), b = idKey(d[x[0]]);
+        if (a && b && a !== b) { out.push(x[1] + " (" + val(d[x[0]]) + ", el caso tiene " + val(f[x[0]]) + ")"); }
+      });
+    }
+    return out;
+  }
+
   var api = {
+    docConflicts: docConflicts,
     copyOrder: copyOrder, smsLink: smsLink, mailtoLink: mailtoLink, safeFileName: safeFileName,
     buildNote: buildNote, buildTask: buildTask, formatTask: formatTask, buildReport: buildReport,
     buildSms: buildSms, buildEmail: buildEmail, smsInfo: smsInfo, buildFileNames: buildFileNames, warnings: warnings, cambios: cambios,

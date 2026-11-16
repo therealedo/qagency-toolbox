@@ -1009,3 +1009,25 @@ test("moveDocKey: cambiar la persona de un documento enviado conserva su casilla
   N.moveDocKey(f, files, "plans", "plans");
   assert.equal(f.net.plans, true);
 });
+
+test("documento que no coincide con el caso: otro cliente, otra compañía u otro número", () => {
+  const caso = { nombres: "BEATRIZ", apellidos: "DIAZ", compania: "UHC", confirmacion: "U1234567", appId: "", poliza: "" };
+  const humana = { line: "mc", type: "mc_app", fields: { nombres: "Beatriz", apellidos: "Diaz", compania: "Humana", confirmacion: "H7654321" } };
+  assert.deepEqual(N.docConflicts(caso, "mc", humana), ["otra compañía (Humana, el caso es de UHC)", "otro App ID (H7654321, el caso tiene U1234567)"]);
+  /* la misma compañía escrita de otra forma y el mismo número: coincide */
+  assert.deepEqual(N.docConflicts(caso, "mc", { line: "mc", type: "mc_app", fields: { compania: "UnitedHealthcare", confirmacion: "U1234567" } }), []);
+  /* otro cliente */
+  assert.deepEqual(N.docConflicts(caso, "mc", { line: "mc", type: "mc_soa", fields: { nombres: "Juan", apellidos: "Perez Gil" } }),
+    ["otro cliente (JUAN PEREZ GIL, el caso es de BEATRIZ DIAZ)"]);
+  /* un apellido de más no es otro cliente */
+  assert.deepEqual(N.docConflicts(caso, "mc", { line: "mc", type: "mc_soa", fields: { nombres: "Beatriz Maria", apellidos: "Diaz Lopez" } }), []);
+  /* caso vacío: nada que comparar */
+  assert.deepEqual(N.docConflicts({}, "mc", humana), []);
+  /* otra línea (un dental después de Obamacare): solo se compara el cliente */
+  const oc = { nombres: "BEATRIZ", apellidos: "DIAZ", compania: "Ambetter", appId: "1234567890" };
+  assert.deepEqual(N.docConflicts(oc, "oc", { line: "supp", type: "supp_app", fields: { nombres: "Beatriz", apellidos: "Diaz", compania: "Ameritas" } }), []);
+  /* Obamacare: otro número de aplicación */
+  assert.deepEqual(N.docConflicts(oc, "oc", { line: "oc", type: "oc_elig", fields: { appId: "9999999999" } }), ["otro número de aplicación (9999999999, el caso tiene 1234567890)"]);
+  /* un comprobante de pago no tiene línea: se compara con la compañía del caso */
+  assert.deepEqual(N.docConflicts(oc, "oc", { line: "", type: "pay", fields: { compania: "Oscar" } }), ["otra compañía (Oscar, el caso es de Ambetter)"]);
+});
