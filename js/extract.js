@@ -718,8 +718,11 @@
     var ps = householdPeople(doc, f);
     if (ps.length) {
       f.personas = ps;
-      /* el ingreso del titular es el de su sección */
-      if (ps[0].titular && ps[0].ingreso) { f.ingreso = ps[0].ingreso; }
+      /* con una sección por persona, el ingreso y el DOB del titular son los
+         de su sección: los primeros del documento pueden ser de otro */
+      var tp = ps.filter(function (p) { return p.titular; })[0] || {};
+      f.ingreso = tp.ingreso || "";
+      f.dob = tp.dob || "";
     }
     return f;
   }

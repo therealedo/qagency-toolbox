@@ -644,3 +644,15 @@ test("App Summary: el sexo del titular decide «el cliente» o «la cliente»", 
   const luis = fixture("OC App Summary Household").replace("Full name\nAna Torres", "Full name\nLuis Torres");
   assert.equal(X.extract(luis, "document.pdf", "oc").fields.genero, "o");
 });
+
+test("App Summary: el ingreso y el DOB del titular son los de su sección, aunque otra persona vaya primero", () => {
+  const t = fixture("OC App Summary Household");
+  const luisFirst = X.extract(t.replace("Full name\nAna Torres", "Full name\nLuis Torres"), "document.pdf", "oc").fields;
+  assert.equal(luisFirst.ingreso, "$22,500.00");
+  assert.equal(luisFirst.dob, "08/21/1978");
+  const noIncome = t.replace(/Income\nThis month's income[\s\S]*?\$42,000\.00\n/, "");
+  const r = X.extract(noIncome, "document.pdf", "oc").fields;
+  assert.equal(r.ingreso, undefined);
+  assert.equal(r.personas[0].ingreso, undefined);
+  assert.equal(r.personas[1].ingreso, "$22,500.00");
+});

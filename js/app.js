@@ -552,7 +552,8 @@
     var cancel = isOC("cancelada"), supp = S.line === "supp";
     var listEl = el("div", "people");
     S.f.personas.forEach(function (p, i) {
-      var row = listItem("person" + (p.open ? " open" : "") + (p.auto ? " is-auto" : ""), i);
+      var fromDoc = p.auto || Object.keys(p.filled || {}).length > 0;
+      var row = listItem("person" + (p.open ? " open" : "") + (fromDoc ? " is-auto" : ""), i);
       var head = el("div", "person-head");
       var t = actBtn("toggle", i, "", "person-toggle");
       t.setAttribute("aria-expanded", p.open ? "true" : "false");
@@ -1748,14 +1749,15 @@
     S.base = {};
     S.f.personas = S.f.personas.filter(function (p) { return p.titular || !p.auto; });
     S.f.personas.forEach(function (p) {
-      if (p.titular && p.auto) { p.ingreso = ""; p.dob = ""; delete p.auto; }
-      /* lo que llenó el App Summary se vacía, salvo que el agente lo haya cambiado */
+      /* lo que llenó un documento se vacía, salvo que el agente lo haya cambiado */
       Object.keys(p.filled || {}).forEach(function (k) { if (!p.orig || p[k] === p.orig[k]) { p[k] = ""; } });
       delete p.filled; delete p.orig;
     });
     S.f.docs = S.f.docs.filter(function (x) { return !x.auto; });
     S.f.planes = S.f.planes.filter(function (x) { return !x.auto; });
     S.f.hogarDoc = ""; S.f.hogarPdf = false;
+    /* sin documentos no queda nadie que se haya quitado de ellos */
+    if (!S.files.length) { S.f.quitados = []; }
     /* las casillas del Network que marcó un documento se vuelven a marcar
        solo si otro documento las marca */
     [entry].concat(S.files).forEach(function (f) { if (f.res && f.res.net) { S.f.net[f.res.net] = false; } });
@@ -1815,23 +1817,20 @@
       if (!empty && !replaceable) { return; }
       S.f[k] = v; S.auto[k] = true; S.rank[k] = rank; S.base[k] = v; applied++;
     });
-    if (special.miembros && S.line !== "mc") { applied += mergePersonas(U.parseList(special.miembros)); }
+    if (special.miembros && S.line !== "mc") { applied += N.mergeMembers(S.f, U.parseList(special.miembros)); }
     if (special.planes && special.planes.length && S.line === "oc") {
       if (S.outcome !== "pendiente") { S.outcome = "pendiente"; S.f.taskId = ""; afterOutcomeChange(); }
       applied += mergePlanes(special.planes);
     }
     var sent = [];
     if (S.line === "oc") {
-      var tit = S.f.personas[0];
-      /* el ingreso y la fecha de nacimiento del documento son del titular */
-      [["ingreso", U.parseMoney(special.ingreso)], ["dob", U.parseDate(special.dob)]].forEach(function (x) {
-        if (!tit || !x[1]) { return; }
-        tit.orig = tit.orig || {};
-        if (!(x[0] in tit.orig)) { tit.orig[x[0]] = x[1]; }
-        if (!U.collapse(tit[x[0]])) { tit[x[0]] = x[1]; tit.orig[x[0]] = x[1]; tit.auto = true; applied++; }
-      });
       /* las personas del App Summary: parentesco, estatus, ingreso anual y DOB */
-      if (special.personas) { applied += N.mergeHousehold(S.f, special.personas); }
+      if (special.personas) { applied += N.mergeHousehold(S.f, special.personas, rank); }
+      /* el DOB del documento es del titular; el ingreso, del hogar (la carta
+         de elegibilidad): va al titular solo si nadie dijo el suyo */
+      var dob = U.parseDate(special.dob), ing = U.parseMoney(special.ingreso);
+      if (dob) { applied += N.mergeHousehold(S.f, [{ titular: true, dob: dob }], rank); }
+      if (ing) { applied += N.mergeHousehold(S.f, [{ titular: true, ingreso: ing }], rank, true); }
       if (special.hogar) { S.f.hogarDoc = special.hogar; }
       if (special.docs) { applied += N.mergeDocs(S.f, special.docs, sent); }
     }
@@ -1848,29 +1847,6 @@
 
   function sameName(a, b) { return U.stripAccents(U.collapse(a)).toUpperCase() === U.stripAccents(U.collapse(b)).toUpperCase(); }
 
-  /* Personas leídas de un documento: el titular ya está; las demás se
-     agregan si no están, con taxes y cobertura marcados. */
-  function mergePersonas(names) {
-    var added = 0;
-    if (names.length) { S.f.hogarPdf = true; }
-    names.forEach(function (n, idx) {
-      var found = S.f.personas.filter(function (p) { return sameName(personLabel(p), n); })[0];
-      /* el documento confirma que esa persona está en el hogar con cobertura */
-      if (found) {
-        found.orig = found.orig || {};
-        if (!("taxes" in found.orig)) { found.orig.taxes = true; found.orig.cobertura = true; }
-        return;
-      }
-      if (idx === 0 && !U.collapse(S.f.nombres)) { return; }
-      /* a quien el agente ya quitó no se le vuelve a agregar */
-      if (S.f.quitados.some(function (q) { return sameName(q, n); })) { return; }
-      var nombre = U.collapse(n).toUpperCase();
-      S.f.personas.push({ nombre: nombre, parentesco: "", taxes: true, cobertura: true, ingreso: "", estatus: "", dob: "", auto: true,
-                          orig: { nombre: nombre, taxes: true, cobertura: true } });
-      added++;
-    });
-    return added;
-  }
 
   /* Planes de una cotización: se agregan a Planes cotizados en el orden de
      la pantalla, marcados como leídos. Un plan que ya está en la lista (el
