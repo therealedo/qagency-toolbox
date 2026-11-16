@@ -221,7 +221,7 @@ In **Ajustes → Carpetas del Network**, choose your folder in the NETW once und
 
 A document only fills what is empty or what a weaker document filled; what you type or correct is never overwritten. Three rules keep documents from mixing:
 
-- **Removing a document undoes it.** The ✕ clears everything that document filled and you did not touch (fields, payment, people, requested documents, the Network checkbox), then uses the remaining documents again in the same order. If that document had switched the line (a dental after an Obamacare case), the line goes back too.
+- **Removing a document undoes it.** The ✕ clears everything that document filled and you did not touch (fields, payment, people, requested documents, the Network checkbox), then uses the remaining documents again in the same order. If that document had switched the line (a dental after an Obamacare case), the line goes back too. The same goes for the quoted plans a HealthSherpa screenshot added, and for the outcome it switched to Pendiente.
 - **A document that is not from the case is held back.** Before using it, the app compares it with the case: the client's name always, and the company and the application number (App ID, application ID, policy) when it is from the same line; a payment receipt is compared with the case's company. If anything differs, the document is not used and the list says why (`No coincide con el caso: otra compañía (HUMANA, el caso es de UNITED HEALTHCARE); otro App ID (…)`). **Usar igual** uses it anyway. When the document that caused the difference is removed, the held one is checked again.
 - **A document from another line starts the product fresh.** When a document switches the line, the company, plan and payment fields of the previous product are cleared first, so a dental gets its own company and plan instead of the Obamacare ones.
 
@@ -230,6 +230,7 @@ A document only fills what is empty or what a weaker document filled; what you t
 | My Plans & Programs (HealthCare.gov) | plan, monthly premium, status, people covered, coverage start |
 | Eligibility Letter | application ID, plan year, primary contact, income, household size, and the documents Marketplace asks for: each ACTION row ("By February 20, 2027, submit documents to confirm citizenship") becomes a requested document in the docs list, for each person with a dot under their name, with its due date (not from the Eligibility Guide that follows the notice). Pasted text loses the columns, so a row that is not for everyone comes in without a person |
 | App Summary (HealthCare.gov, also the printed copy, scanned) | application ID, plan year, applicant, DOB, home address, phone and email (into *Teléfono* and *Email del titular*, so they only show under Cambios if they are changed; toll-free numbers and unreadable OCR values are skipped), yearly income, household size |
+| HealthSherpa quote (screenshot of the plan search, a plan's page or the plan comparison, in English or Spanish; also the page's copied text) | every plan on the screen into **Planes cotizados**: company, plan name and the monthly premium the client pays (after the subsidy). See *HealthSherpa quotes* below |
 | Docs submitted (HealthCare.gov *Upload documents*, with the open item) | application ID, plan year, the document sent and for whom: it marks the requested document as **Enviado**, or adds it. The account holder's own document also fills the titular's full name from the uploaded file (`Diaz, Beatriz - …`) |
 | Consent (the agency's QAgency and ATH forms, Spanish or English) | ticks the Consent for the note |
 | Medicare application summary (carrier portal, Spanish or English) | MBI, Part A/B, plan (with its contract), election period, PCP, App ID, agent |
@@ -242,6 +243,31 @@ A document only fills what is empty or what a weaker document filled; what you t
 Scanned PDFs (the first 6 pages), images (PNG, JPG, WebP, BMP, GIF) and screenshots pasted with Ctrl + V on the **Nota** tab are read with OCR, in Spanish and English, inside the browser and without internet. The text goes through the same reader as a PDF with text, so the same fields are filled. Each one takes a few seconds (the first one of the session a little longer), and the file shows *leído con OCR, revísalo*: OCR can misread a letter or a digit, so check those fields with care.
 
 OCR needs Chrome or Edge up to date. In a browser that cannot run it, scans and images are listed without data and the fields are typed by hand. **Pegar texto** is the fallback when a PDF will not open.
+
+### HealthSherpa quotes
+
+Take a screenshot of HealthSherpa while quoting (Win + Shift + S, then Ctrl + V on the **Nota** tab, or drop the image) and every plan on the screen goes into **Planes cotizados**, with its company, name and monthly premium:
+
+- **Plan search** (the cards, with the filters on the left): each card on the screen. The filters, the *Carriers* list and the bar of plans picked to compare are never read as plans.
+- **A plan's page** (*Details*): that plan.
+- **Plan comparison** (*Compare plans*): each column.
+
+How it reads them:
+
+- The premium is the one the client pays, after the subsidy. The struck-through price before the subsidy is skipped.
+- The company is usually a logo, so it comes from, in this order:
+  - the plan name (*myBlue*, *BlueCare*, *BlueSelect*, *BlueOptions*, *UHC*, *AvMed*, *Wellpoint*, *AmeriHealth*);
+  - the company name under each plan in the comparison;
+  - the logo's text (*oscar*, *United Healthcare*);
+  - the plan families of Oscar (*Bronze Simple*, *Silver Classic*…) and Ambetter (*Signature Silver*, *Everyday Gold*…).
+
+  When none applies, the company is left for you to choose.
+- A screenshot is read twice: once as text, to recognize HealthSherpa, then with the position of each word, to keep cards, columns and filters apart. That takes about 10 seconds.
+- Several screenshots add up: a plan already in the list is not added again. The note switches to **Pendiente**, the quote outcome.
+- With **App enviada** and the page of one plan, that plan fills the **Plan** section instead.
+- The names may carry an OCR slip (a letter or a digit in a plan code), so check them before copying.
+
+Use the browser at 100% zoom: with a smaller zoom the letters are too small to read well.
 
 The reader was built against the sample documents in `samples/` (all data fictitious). Real documents vary by carrier and portal, so expect to tune it: the **Ver texto** link next to each file shows exactly what was read, which is what is needed to adjust a rule in `js/extract.js`.
 
