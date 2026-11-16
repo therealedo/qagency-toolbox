@@ -584,11 +584,15 @@
      clave propia por tipo y persona. */
   function docKey(x) { return "docsub:" + x.cat + ":" + upper(x.persona).replace(/[^A-Z0-9ÁÉÍÓÚÑÜ]+/g, "-"); }
 
-  /* Un documento es del titular si no dice de quién es, si trae su nombre
-     completo o solo su nombre de pila ("ROSA"). */
+  /* Un documento es del titular si se marcó como suyo (titular: lo leyó así
+     o se eligió a él en Persona; sigue siéndolo aunque luego se corrija el
+     nombre), si no dice de quién es, o si trae su nombre completo o solo su
+     nombre de pila ("ROSA"), sin mirar acentos. */
   function docTitular(d, x) {
-    var p = upper(x.persona), no = upper(d.nombres);
-    return !p || p === upper(no + " " + val(d.apellidos)) || (p.indexOf(" ") < 0 && p === no.split(" ")[0]);
+    if (x.titular) { return true; }
+    var plain = function (v) { return U.stripAccents(upper(v)); };
+    var p = plain(x.persona), no = plain(d.nombres);
+    return !p || p === plain(val(d.nombres) + " " + val(d.apellidos)) || (p.indexOf(" ") < 0 && p === no.split(" ")[0]);
   }
 
   function networkDocs(d) {
