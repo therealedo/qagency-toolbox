@@ -267,7 +267,8 @@
     var s = parts.join(" ");
     if (G.suffix) { s += G.suffix; }
     if (d.recuperado) { s += "_Recovered"; }
-    if (O.cancelled) { s += "_Cancelled"; }
+    /* la cobertura que no empezó se cancela; la que termina en un mes, TERMINATED */
+    if (O.cancelled) { s += d.tipoCancel === "terminated" ? "_Terminated" : "_Cancelled"; }
     return s;
   }
 
