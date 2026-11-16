@@ -18,6 +18,7 @@
     oc_plans: { label: "My Plans & Programs", line: "oc", net: "plans" },
     oc_app: { label: "App Summary", line: "oc", net: "appsummary" },
     oc_docs: { label: "Docs Submitted", line: "oc", net: "docsub" },
+    oc_quote: { label: "Cotización de HealthSherpa", line: "oc", net: "" },
     pay: { label: "Comprobante de pago", line: "", net: "payment" },
     supp_app: { label: "Aplicación suplementaria", line: "supp", net: "appsummary" },
     supp_card: { label: "ID card", line: "supp", net: "card" },
@@ -1096,6 +1097,268 @@
     return f;
   }
 
+  /* ------------------------------------------ cotizaciones de HealthSherpa
+
+     La búsqueda de planes (tarjetas, con los filtros a la izquierda), la vista
+     de un plan y la comparación. Cada plan tiene su etiqueta "Monthly premium"
+     ("Prima mensual"): la prima va justo encima (tarjetas) o a su derecha
+     (vista del plan: una; comparación: una por columna). La prima es la que
+     paga el cliente; la de antes del subsidio va tachada ("was $555.10") o
+     sin centavos debajo, y no se usa.
+
+     En una captura el OCR da cada palabra con su posición (quotePlans): así
+     no se mezclan los filtros, el logo ni las columnas. Con el texto copiado
+     de la página se lee el texto (extractQuote). La compañía casi nunca va en
+     texto (es el logo): sale del nombre del plan, del nombre legal que la
+     comparación pone debajo de cada plan, del texto del logo o de las
+     familias de planes de Oscar y Ambetter. */
+  var QUOTE_LABEL = /^(month\w*\s+pr\w*m\w*|prima\s+mens\w*)$/i;
+  var QUOTE_MONEY = /(?:\$|\bS(?=\d))\s?(\d{1,3}(?:,\d{3})+|\d+)\.(\d{2})(?!\d)/;
+  /* la fila del tipo y el nivel va en mayúsculas: "HMO • BRONZE",
+     "EXPANDED BRONZE", "BRONCE AMPLIADO" (el nombre dice "Bronze") */
+  var QUOTE_METAL_ROW = /\b(BRONZE|SILVER|GOLD|PLATINUM|CATASTROPHIC|EXPANDED|BRONCE|PLATA|ORO|PLATINO|CATASTR[OÓ]FICO|AMPLIADO)\b|^\W{0,2}(HMO|PPO|EPO|POS)\b/;
+  /* botones y títulos de la página: nunca son el nombre de un plan */
+  var QUOTE_UI = /^\W*(compare|comparar|details|detalles|enroll|inscr[ií]b|most affordable|lowest premium|all plans|m[aá]s accesible|prima m[aá]s baja|todos los planes|show all plans|mostrar todos|go back|volver|overview|costos del plan|showing coverage|mostrar la cobertura|plan year|a[nñ]o del plan|\d+\s+plan|remove|eliminar|cancel|share|compartir|print|imprimir)/i;
+  /* el nombre legal de la compañía, debajo de cada plan en la comparación */
+  var QUOTE_ISSUER = /\b(inc\.?|llc|company|compa[nñ][ií]\w*|corp\w*|insurance)\b|(\.\.\.|…)$/i;
+  var QUOTE_FAMILIES = [
+    [/^(bronze|silver|gold|platinum)\s+(simple|classic|elite|basic|core)\b/i, "Oscar"],
+    [/^(fundamental|everyday|signature(\s+expanded)?|thrive|focused|complete|enhanced\s+diabetes\s+care)\s+(bronze|silver|gold|platinum)\b/i, "Ambetter"]
+  ];
+
+  function median(a) {
+    if (!a.length) { return 0; }
+    var s = a.slice().sort(function (x, y) { return x - y; });
+    return s[Math.floor(s.length / 2)];
+  }
+
+  function quoteMoney(t) {
+    var m = String(t || "").match(QUOTE_MONEY);
+    return m ? U.parseMoney(m[1].replace(/,/g, "") + "." + m[2]) : "";
+  }
+
+  function quoteCarrier(name, around) {
+    var c = carrierIn("oc", name) || carrierIn("oc", around || "");
+    for (var i = 0; !c && i < QUOTE_FAMILIES.length; i++) {
+      if (QUOTE_FAMILIES[i][0].test(name)) { c = carrierIn("oc", QUOTE_FAMILIES[i][1]); }
+    }
+    return c;
+  }
+
+  /* "UHC Sanitas Bronze Value (SO Virtual…": el OCR lee "$0" como "SO" y
+     "$5" como "S5"; las rayas sueltas son bordes de la página */
+  function quoteName(s) {
+    return U.collapse(String(s || "")
+      .replace(/(^|[\s(])[S$][O0](?=[\s,)]|$)/g, "$1$$0")
+      .replace(/(^|[\s(\/])S(?=\d)/g, "$1$$")
+      .replace(/(^|\s)[|®©¦]+(?=\s|$)/g, " ")
+      .replace(/^[^A-Za-z0-9$(¿¡]+/, "")
+      .replace(/[\s\-–—•·|]+$/, ""));
+  }
+
+  /* Palabras del OCR -> frases: palabras de la misma línea sin un hueco
+     ancho entre ellas (una columna o una etiqueta y su valor quedan aparte). */
+  function quotePhrases(words) {
+    var ws = (words || []).map(function (w) {
+      return { x: +w.x, y: +w.y, w: +w.w, h: +w.h, t: String(w.text == null ? "" : w.text).trim(), c: w.conf == null ? 100 : +w.conf };
+    }).filter(function (w) { return w.t && w.h > 0 && w.w > 0; });
+    var H = median(ws.map(function (w) { return w.h; })) || 10;
+    ws.sort(function (a, b) { return a.x - b.x; });
+    var out = [];
+    ws.forEach(function (w) {
+      var cy = w.y + w.h / 2, best = null;
+      out.forEach(function (p) {
+        var gap = w.x - p.x1, tall = Math.max(p.h, w.h);
+        if (cy < p.y0 - 0.2 * H || cy > p.y1 + 0.2 * H || gap > 1.6 * tall || gap < -0.5 * tall) { return; }
+        if (!best || Math.abs(p.cy - cy) < Math.abs(best.cy - cy)) { best = p; }
+      });
+      if (best) {
+        best.ws.push(w);
+        best.x1 = Math.max(best.x1, w.x + w.w);
+        best.y0 = Math.min(best.y0, w.y); best.y1 = Math.max(best.y1, w.y + w.h);
+      } else {
+        out.push({ ws: [w], x0: w.x, x1: w.x + w.w, y0: w.y, y1: w.y + w.h, cy: cy, h: w.h });
+      }
+    });
+    out.forEach(function (p) {
+      p.text = p.ws.map(function (w) { return w.t; }).join(" ");
+      p.h = median(p.ws.map(function (w) { return w.h; }));
+      p.cy = (p.y0 + p.y1) / 2;
+      p.conf = p.ws.reduce(function (s, w) { return s + w.c; }, 0) / p.ws.length;
+      p.letters = (p.text.match(/[A-Za-zÁÉÍÓÚÑáéíóúñü]/g) || []).length;
+    });
+    return { list: out, H: H };
+  }
+
+  /* Una línea que sirve como parte del nombre de un plan. */
+  function quoteText(p) {
+    return p.letters >= 3 && p.conf >= 55 && !QUOTE_UI.test(p.text) && !(QUOTE_MONEY.test(p.text) && p.letters < 4);
+  }
+
+  function quotePlans(words) {
+    var pp = quotePhrases(words), P = pp.list, H = pp.H;
+    var near = function (a, b) { return Math.abs(a - b) <= 2 * H; };
+    var isMoney = function (p) { return QUOTE_MONEY.test(p.text) && !/^\W*(was|antes)\b/i.test(p.text); };
+    /* líneas alineadas a la izquierda con x0, encima de y, la más cercana primero */
+    function stackAbove(x0, y, maxDist) {
+      return P.filter(function (p) { return near(p.x0, x0) && p.y1 <= y + 0.3 * H && y - p.y1 <= maxDist; })
+        .sort(function (a, b) { return b.y1 - a.y1; });
+    }
+    /* el nombre está encima de la fila del nivel ("HMO • BRONZE"); puede
+       ocupar dos o tres líneas seguidas */
+    function nameAbove(x0, y, maxDist) {
+      var stack = stackAbove(x0, y, maxDist);
+      var metal = stack.filter(function (p) { return QUOTE_METAL_ROW.test(p.text) && p.text.length < 50; })[0];
+      var from = metal ? stack.filter(function (p) { return p.y1 <= metal.y0 + 0.3 * H; }) : stack;
+      var lines = [];
+      for (var i = 0; i < from.length && lines.length < 3; i++) {
+        var p = from[i], prev = lines[0];
+        if (prev && prev.y0 - p.y1 > 0.9 * Math.max(prev.h, p.h)) { break; }
+        /* letra de otro tamaño: el logo encima del título */
+        if (prev && Math.min(prev.h, p.h) < 0.75 * Math.max(prev.h, p.h)) { break; }
+        if (!quoteText(p)) { if (lines.length) { break; } continue; }
+        lines.unshift(p);
+      }
+      return { lines: lines, metal: metal };
+    }
+
+    var plans = [];
+    function add(name, prima, around, order) {
+      name = quoteName(name);
+      if (!name || !prima) { return; }
+      plans.push({ compania: quoteCarrier(name, around), plan: name, prima: prima, order: order });
+    }
+    function textOf(list) { return list.map(function (p) { return p.text; }).join(" "); }
+
+    /* tarjeta de la búsqueda: el nombre encima de la fila del nivel y el logo
+       a la derecha del nombre */
+    var taken = [];
+    function cardPlan(x0, money) {
+      if (taken.indexOf(money) >= 0) { return; }
+      var card = nameAbove(x0, money.y0, 12 * H);
+      if (!card.lines.length) { return; }
+      taken.push(money);
+      var top = card.lines[0].y0, bottom = (card.metal || card.lines[card.lines.length - 1]).y1;
+      var right = Math.max.apply(null, card.lines.map(function (p) { return p.x1; }));
+      var logo = P.filter(function (p) { return p.x0 > right + 2 * H && p.cy >= top - 1.5 * H && p.cy <= bottom + 1.5 * H; });
+      add(textOf(card.lines), quoteMoney(money.text), textOf(logo), money.y0);
+    }
+
+    P.filter(function (p) { return QUOTE_LABEL.test(p.text); }).forEach(function (L) {
+      /* tarjeta: la prima justo encima de la etiqueta, alineada a la izquierda */
+      var up = P.filter(function (p) {
+        return isMoney(p) && near(p.x0, L.x0) && p.y1 <= L.y0 + 0.3 * L.h && L.y0 - p.y1 <= 2.5 * Math.max(L.h, p.h);
+      }).sort(function (a, b) { return b.y1 - a.y1; })[0];
+      if (up) { cardPlan(L.x0, up); return; }
+      /* a la derecha: una prima por columna (la de arriba; la tachada va debajo) */
+      var cols = [];
+      P.filter(function (p) {
+        return isMoney(p) && p.x0 > L.x1 && p.cy >= L.cy - 2.2 * L.h && p.cy <= L.cy + 1.2 * L.h;
+      }).sort(function (a, b) { return a.x0 - b.x0; }).forEach(function (p) {
+        var c = cols[cols.length - 1];
+        if (c && p.x0 - c.x0 <= 4 * H) { if (p.cy < c.cy) { cols[cols.length - 1] = p; } return; }
+        cols.push(p);
+      });
+      if (cols.length === 1) {
+        /* vista de un plan: el título está más arriba, con el logo encima */
+        var one = nameAbove(L.x0, L.y0, 30 * H);
+        if (!one.lines.length) { return; }
+        var logoUp = stackAbove(one.lines[0].x0, one.lines[0].y0, 4 * H);
+        add(textOf(one.lines), quoteMoney(cols[0].text), textOf(logoUp), cols[0].y0);
+        return;
+      }
+      if (cols.length > 1) { compareHeads(L, cols); }
+    });
+
+    /* una tarjeta cuya etiqueta el OCR no leyó: la prima es la primera cifra
+       con centavos debajo de la fila del nivel, alineada con ella */
+    P.filter(function (p) { return QUOTE_METAL_ROW.test(p.text) && p.text.length < 50; }).forEach(function (M) {
+      var money = P.filter(function (p) { return isMoney(p) && near(p.x0, M.x0) && p.y0 >= M.y1 && p.y0 - M.y1 <= 8 * H; })
+        .sort(function (a, b) { return a.y0 - b.y0; })[0];
+      if (money) { cardPlan(M.x0, money); }
+    });
+
+    /* Comparación: encima de cada columna, el logo, el nombre (una a tres
+       líneas) y el nombre legal de la compañía. */
+    function compareHeads(L, cols) {
+      var step = cols.length > 1 ? (cols[cols.length - 1].x0 - cols[0].x0) / (cols.length - 1) : 20 * H;
+      var limit = Math.min.apply(null, cols.map(function (c) { return c.y0; })) - 6 * H;
+      var per = cols.map(function (c, i) {
+        var x0 = c.x0 - 1.5 * H, x1 = (i + 1 < cols.length ? cols[i + 1].x0 : c.x0 + step) - 1.5 * H;
+        return P.filter(function (p) { return p.x0 >= x0 && p.x0 < x1 && p.y1 <= limit && quoteText(p); })
+          .sort(function (a, b) { return a.cy - b.cy; });
+      });
+      /* el primer renglón del nombre está a la misma altura en todas las
+         columnas; lo de arriba es el logo */
+      var firsts = per.map(function (lines) {
+        var f = lines.filter(function (p) { return p.ws.length >= 2; })[0];
+        return f ? f.cy : null;
+      }).filter(function (v) { return v != null; });
+      var startAt = null, votes = -1;
+      firsts.forEach(function (v) {
+        var n = firsts.filter(function (u) { return Math.abs(u - v) <= 0.8 * H; }).length;
+        if (n > votes || (n === votes && v > startAt)) { startAt = v; votes = n; }
+      });
+      if (startAt == null) { return; }
+      per.forEach(function (lines, i) {
+        var name = [], issuer = "", prev = null;
+        lines.filter(function (p) { return p.cy >= startAt - 0.8 * H; }).some(function (p) {
+          if (prev && p.y0 - prev.y1 > 2.2 * H) { return true; }
+          prev = p;
+          if (name.length && (carrierIn("oc", p.text) || QUOTE_ISSUER.test(p.text))) { issuer = p.text; return true; }
+          name.push(p);
+          return name.length >= 4;
+        });
+        add(textOf(name), quoteMoney(cols[i].text), issuer, cols[i].x0);
+      });
+    }
+
+    /* en orden de lectura; un plan repetido (dos etiquetas) va una vez */
+    var seen = {};
+    return plans.sort(function (a, b) { return a.order - b.order; }).filter(function (p) {
+      var k = p.plan.toUpperCase() + "|" + p.prima;
+      if (seen[k]) { return false; }
+      seen[k] = true;
+      delete p.order;
+      return true;
+    });
+  }
+
+  /* Texto copiado de la página (o leído sin posiciones): la etiqueta con la
+     prima en la misma línea (vista del plan) o en la de arriba (tarjeta); el
+     nombre es la línea de texto encima de la fila del nivel. */
+  function extractQuote(doc) {
+    var lines = doc.lines.map(function (l) { return U.collapse(l); });
+    var plans = [], seen = {};
+    function nameAbove(i) {
+      var k = -1;
+      for (var j = i - 1; j >= 0 && j >= i - 8; j--) {
+        if (QUOTE_METAL_ROW.test(lines[j]) && lines[j].length < 50) { k = j; break; }
+      }
+      for (var n = (k >= 0 ? k : i) - 1; n >= 0 && n >= (k >= 0 ? k : i) - 3; n--) {
+        var t = lines[n];
+        if (!t || QUOTE_METAL_ROW.test(t) || QUOTE_UI.test(t) || /^[\d$.,\s]+$/.test(t)) { continue; }
+        return k >= 0 || n === i - 1 ? t : "";
+      }
+      return "";
+    }
+    lines.forEach(function (l, i) {
+      var m = l.match(/^(monthly\s+premium|prima\s+mensual)\b\s*(.*)$/i);
+      if (!m) { return; }
+      var prima = quoteMoney(m[2]), at = i;
+      if (!prima) {
+        for (var j = i - 1; j >= 0 && !lines[j]; j--) { /* línea vacía */ }
+        if (j < 0 || !/^\$/.test(lines[j])) { return; }
+        prima = quoteMoney(lines[j]); at = j;
+      }
+      var name = quoteName(nameAbove(at));
+      if (!name || !prima || seen[name + prima]) { return; }
+      seen[name + prima] = true;
+      plans.push({ compania: quoteCarrier(name, lines.slice(Math.max(0, at - 6), at).join("\n")), plan: name, prima: prima });
+    });
+    return plans.length ? { planes: plans } : {};
+  }
+
   /* ------------------------------------------------------------ detección */
 
   /* Título de una aplicación suplementaria: "APPLICATION FOR HOSPITAL
@@ -1120,6 +1383,11 @@
       [/sign (and|&) submit|firm(e|ar) y env[ií](e|ar)/i, 2], [/tax (filer|household|return)|declaraci[oó]n de impuestos/i, 1],
       [/healthcare\.gov|cuidadodesalud\.gov|health insurance marketplace|mercado de seguros/i, 1],
       [/household (income|information|members)|ingresos del hogar/i, 1]],
+    /* búsqueda, vista de un plan o comparación de planes de HealthSherpa */
+    oc_quote: [[/\bmonth\w*\s+prem\w*|\bprima\s+mensual\b/i, 2],
+      [/\b(HMO|PPO|EPO|POS)\b[\s\S]{0,14}?\b(BRONZE|SILVER|GOLD|PLATINUM|CATASTROPHIC|EXPANDED|BRONCE|PLATA|ORO|PLATINO)\b/, 2],
+      [/\$\d[\d,]*\.\d{2}\s?\/\s?mo\b/, 2],
+      [/show all plans|mostrar todos los planes|compare plans|comparar planes|enroll now|inscribirse ahora|metal tier|nivel de metal|estimated all-in|c[aá]lculo total|most affordable|m[aá]s accesible|healthsherpa/i, 1]],
     /* la página "Upload documents" del Mercado con el documento subido */
     oc_docs: [[/select file to upload/i, 3], [/document name\s+document type/i, 3], [/you can upload more than one document/i, 2],
       [/\bconfirm\s+\S+['’]s\s+(immigration|income|citizenship|social security|american indian|job[\s-]based|medicaid|medicare|tricare|veterans|peace corps)/i, 2],
@@ -1193,17 +1461,23 @@
 
   var EXTRACTORS = {
     mc_soa: extractSoa, mc_app: extractMcApp, oc_elig: extractElig, oc_plans: extractPlans,
-    oc_app: extractOcApp, oc_docs: extractDocsSub, pay: extractPay, supp_app: extractSupp, supp_card: extractSupp
+    oc_app: extractOcApp, oc_docs: extractDocsSub, oc_quote: extractQuote, pay: extractPay, supp_app: extractSupp, supp_card: extractSupp
   };
   var FALLBACK = { mc: "mc_app", oc: "oc_plans", supp: "supp_app" };
 
   /* Lee un documento. `currentLine` solo se usa cuando no se reconoce el
-     tipo: entonces se intenta con el lector principal de esa línea. */
-  function extract(text, fileName, currentLine) {
+     tipo: entonces se intenta con el lector principal de esa línea.
+     `opts.words`: las palabras de una captura con su posición (OCR); una
+     cotización de HealthSherpa se lee con ellas. */
+  function extract(text, fileName, currentLine, opts) {
     var type = detect(text, fileName);
     var doc = makeDoc(text);
     var fields = {}, guessed = false;
-    if (EXTRACTORS[type]) {
+    var words = opts && opts.words;
+    if (type === "oc_quote" && words && words.length) {
+      var planes = quotePlans(words);
+      fields = planes.length ? { planes: planes } : extractQuote(doc);
+    } else if (EXTRACTORS[type]) {
       fields = EXTRACTORS[type](doc, currentLine);
     } else if (type === "unknown" && FALLBACK[currentLine] && doc.flat.replace(/\s/g, "").length > 40) {
       fields = EXTRACTORS[FALLBACK[currentLine]](doc, currentLine);
@@ -1328,7 +1602,7 @@
 
   var api = {
     extract: extract, detect: detect, fileHint: fileHint, pdfToText: pdfToText, itemsToText: itemsToText,
-    TYPES: TYPES, makeDoc: makeDoc
+    TYPES: TYPES, makeDoc: makeDoc, quotePlans: quotePlans
   };
   root.QA = root.QA || {};
   root.QA.extract = api;

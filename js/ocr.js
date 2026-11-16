@@ -75,6 +75,26 @@
         var text = layout(api.GetTSVText(0));
         api.Clear();
         return text;
+      },
+      /* Cada palabra con su posición, buscando texto suelto por toda la
+         imagen (11 = texto disperso): para páginas con columnas y tarjetas,
+         como las cotizaciones de HealthSherpa, donde el orden de las líneas
+         no sirve y sí dónde está cada cosa. */
+      words: function (image) {
+        if (!api) { throw new Error("OCR: languages not loaded"); }
+        mod.FS.writeFile("/input", image instanceof Uint8Array ? image : new Uint8Array(image));
+        if (api.SetImageFile(1, 0) === 1) { throw new Error("OCR: could not read the image"); }
+        api.SetVariable("tessedit_pageseg_mode", "11");
+        var tsv = "";
+        try { api.Recognize(null); tsv = api.GetTSVText(0); } finally { api.SetVariable("tessedit_pageseg_mode", "4"); api.Clear(); }
+        var out = [];
+        String(tsv || "").split("\n").forEach(function (row) {
+          var c = row.split("\t");
+          if (c[0] !== "5" || c.length < 12) { return; }
+          var text = c.slice(11).join("\t").trim();
+          if (text) { out.push({ x: +c[6], y: +c[7], w: +c[8], h: +c[9], conf: +c[10], text: text }); }
+        });
+        return out;
       }
     };
   }
@@ -101,7 +121,8 @@
           return gunzip(l.data).then(function (d) { return { code: l.code, data: d }; });
         })).then(function (langs) { engine.languages(langs); });
       }).then(function () {
-        self.postMessage({ id: m.id, text: engine.read(new Uint8Array(m.image)) });
+        var image = new Uint8Array(m.image);
+        self.postMessage(m.words ? { id: m.id, words: engine.words(image) } : { id: m.id, text: engine.read(image) });
       }).catch(function (err) {
         self.postMessage({ id: m.id, error: String((err && err.message) || err) });
       });
@@ -150,7 +171,7 @@
         p.reject(new Error(m.error));
         return;
       }
-      p.resolve(m.text || "");
+      p.resolve(m.words || m.text || "");
       if (!Object.keys(pending).length) { clearTimeout(idle); idle = setTimeout(function () { stopWorker(); }, IDLE_MS); }
     };
     worker.onerror = function (e) {
@@ -161,9 +182,10 @@
   }
 
   /* bytes: PNG o JPEG (ArrayBuffer). La primera vez van también el motor y
-     los modelos; se transfieren, no se copian. */
-  function recognize(bytes) {
-    var w = getWorker(), id = ++seq, msg = { id: id, image: bytes, langs: [], wasm: null }, moved = [bytes];
+     los modelos; se transfieren, no se copian. Con `words` devuelve las
+     palabras con su posición en vez del texto. */
+  function recognize(bytes, words) {
+    var w = getWorker(), id = ++seq, msg = { id: id, image: bytes, langs: [], wasm: null, words: !!words }, moved = [bytes];
     if (!primed) {
       msg.wasm = bytesOf(root.QA_OCR_WASM);
       msg.langs = LANGS.map(function (c) { return { code: c, data: bytesOf(root.QA_OCR_LANG[c]) }; });
@@ -185,8 +207,11 @@
   }
 
   /* Una imagen (archivo o captura pegada). Las capturas de pantalla tienen
-     letra pequeña: se agrandan hasta 2 veces, sin pasar de MAX_PIXELS. */
-  function readImage(blob) {
+     letra pequeña: se agrandan hasta 2 veces, sin pasar de MAX_PIXELS.
+     Con { words: true } da las palabras con su posición (en la imagen
+     agrandada) en vez del texto. */
+  function readImage(blob, opts) {
+    var words = !!(opts && opts.words);
     return root.createImageBitmap(blob).then(function (bmp) {
       var s = Math.min(2, Math.sqrt(MAX_PIXELS / (bmp.width * bmp.height)));
       var c = root.document.createElement("canvas");
@@ -197,7 +222,7 @@
       g.drawImage(bmp, 0, 0, c.width, c.height);
       if (bmp.close) { bmp.close(); }
       return pngOf(c);
-    }).then(recognize);
+    }).then(function (png) { return recognize(png, words); });
   }
 
   /* Un PDF escaneado: cada página se dibuja con PDF.js y se lee, hasta

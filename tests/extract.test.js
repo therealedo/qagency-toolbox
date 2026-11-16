@@ -551,3 +551,50 @@ test("App Summary: el número gratuito del Mercado no es el teléfono del client
     "Phone\n1-800-318-2596\n", "App Summary.pdf", "oc");
   assert.equal(r.fields.clienteTel, undefined);
 });
+
+test("HealthSherpa: el texto copiado de la búsqueda da cada plan con su compañía y prima; los filtros no son planes", () => {
+  const r = read("HealthSherpa Plans Copied");
+  assert.equal(r.type, "oc_quote");
+  assert.equal(r.line, "oc");
+  assert.equal(r.net, "");
+  assert.deepEqual(r.fields, { planes: [
+    { compania: "FLORIDA BLUE", plan: "myBlue Essentials Bronze (HSA) 27M07-30 (Rewards)", prima: "$36.10" },
+    { compania: "OSCAR", plan: "Bronze Simple Breathe Easy with Enhanced COPD Benefits", prima: "$40.94" },
+    { compania: "OSCAR", plan: "Bronze Classic 4700", prima: "$66.86" }
+  ] });
+});
+
+/* palabras como las da el OCR: { x, y, w, h, text, conf } */
+function words(rows) {
+  const out = [];
+  rows.forEach(([x, y, text, h]) => {
+    let at = x;
+    text.split(" ").forEach((t) => { out.push({ x: at, y, w: t.length * 7, h: h || 10, text: t, conf: 95 }); at += t.length * 7 + 5; });
+  });
+  return out;
+}
+
+test("HealthSherpa: la etiqueta del filtro de prima (sin centavos) no es un plan", () => {
+  assert.deepEqual(X.quotePlans(words([
+    [259, 313, "Monthly premium"], [424, 329, "$3477"],
+    [259, 398, "Deductible"], [420, 414, "$12000"],
+    [283, 367, "Ambetter Health"], [283, 397, "AmeriHealth Caritas Next"]
+  ])), []);
+});
+
+test("HealthSherpa: una tarjeta en español, con la etiqueta mal leída, se lee por la fila del nivel", () => {
+  assert.deepEqual(X.quotePlans(words([
+    [562, 250, "Signature Silver + Vision + Adult Dental"],
+    [562, 270, "HMO • PLATA"],
+    [1180, 258, "ambetter"],
+    [562, 350, "$120.55", 16], [740, 350, "$4,000", 16],
+    [562, 372, "Prma rnensual"], [562, 388, "$600"]
+  ])), [{ compania: "AMBETTER", plan: "Signature Silver + Vision + Adult Dental", prima: "$120.55" }]);
+});
+
+test("HealthSherpa: con las palabras del OCR, otros documentos se leen igual que sin ellas", () => {
+  const text = fs.readFileSync(path.join(__dirname, "fixtures", "My Plans and Programs.txt"), "utf8");
+  const plain = X.extract(text, "captura.png", "oc");
+  const withWords = X.extract(text, "captura.png", "oc", { words: words([[100, 100, "Monthly premium"]]) });
+  assert.deepEqual(withWords, plain);
+});
