@@ -763,7 +763,8 @@
       keys.forEach(function (k) {
         var had = p.filled[k], untouched = had != null && p.orig && sameValue(k, p[k], p.orig[k]);
         if (!val(p[k]) || (untouched && r >= had && (!weak || had === 0))) {
-          if (!sameValue(k, p[k], x[k])) { n++; }
+          /* un dato nuevo vuelve a pedir revisión */
+          if (!sameValue(k, p[k], x[k])) { n++; delete p.ok; }
           p[k] = x[k]; p.orig[k] = x[k]; p.filled[k] = r;
           return;
         }

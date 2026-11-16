@@ -938,3 +938,6 @@ kbd {
   body.printing-sheet > *:not(#printSheet) { display: none !important; }
   body.printing-sheet #printSheet { display: block; padding: 0; min-width: 0; }
 }
+
+/* confirmar lo leído de una sección sin cambiarlo */
+.group-head .review-ok { font-size: 12px; font-weight: 600; }

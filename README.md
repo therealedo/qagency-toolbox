@@ -43,7 +43,7 @@ If you host it, keep the host private or clear the roster first: `js/config.js` 
 
 1. Choose who you are at the top right (once; the browser remembers it).
 2. **Nota** tab: choose Obamacare / Medicare / Suplementario and the situation.
-3. Drop the PDFs or images anywhere on the window, or paste a screenshot with Ctrl + V. Fields filled from a document get a gold edge, and the list on the left shows how many are waiting to be reviewed in each section.
+3. Drop the PDFs or images anywhere on the window, or paste a screenshot with Ctrl + V. Fields filled from a document get a gold edge, and the list on the left shows how many are waiting to be reviewed in each section. When the values are right as they are, **Están bien** next to a section's count clears its gold (household rows included), and **Ya los revisé** clears it everywhere; a household member turns gold again only if a later document brings a new value.
 4. Complete what the documents don't carry.
 5. **Copiar nota** (or Ctrl + Enter), then copy the task and the report line.
 

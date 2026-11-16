@@ -558,8 +558,7 @@
     var cancel = isOC("cancelada"), supp = S.line === "supp";
     var listEl = el("div", "people");
     S.f.personas.forEach(function (p, i) {
-      var fromDoc = p.auto || Object.keys(p.filled || {}).length > 0;
-      var row = listItem("person" + (p.open ? " open" : "") + (fromDoc ? " is-auto" : ""), i);
+      var row = listItem("person" + (p.open ? " open" : "") + (toReview(p) ? " is-auto" : ""), i);
       var head = el("div", "person-head");
       var t = actBtn("toggle", i, "", "person-toggle");
       t.setAttribute("aria-expanded", p.open ? "true" : "false");
@@ -730,6 +729,26 @@
 
   function renderLists() { renderPersonas(); renderDocs(); renderPlanes(); }
 
+  /* Una persona del hogar que llenó un documento queda en dorado hasta que se
+     confirma (ok); si otro documento le trae un dato nuevo, vuelve a dorado. */
+  function toReview(x) {
+    return !!x && !x.ok && (!!x.auto || Object.keys(x.filled || {}).length > 0);
+  }
+
+  /* Confirma que lo leído de los documentos está bien, sin cambiarlo: en una
+     sección (group) o en todo el formulario. */
+  function confirmReviewed(group) {
+    FIELDS.forEach(function (F) {
+      if (group && F.g !== group) { return; }
+      if (S.auto[key(F)] === true) { delete S.auto[key(F)]; }
+      if (Array.isArray(S.f[F.k])) {
+        S.f[F.k].forEach(function (x) { if (x && typeof x === "object") { delete x.auto; if (F.k === "personas") { x.ok = true; } } });
+      }
+    });
+    renderLists();
+    refresh();
+  }
+
   /* Cambio en un campo de una lista. */
   function listInput(t, committed) {
     var list = S.f[t.dataset.list], item = list && list[+t.dataset.i], prop = t.dataset.prop;
@@ -843,6 +862,12 @@
       head.appendChild(h3);
       var badge = el("span", "review"); badge.hidden = true;
       head.appendChild(badge);
+      /* confirma lo dorado de esta sección aunque no haya que cambiar nada */
+      var ok = el("button", "link-btn review-ok", "Están bien");
+      ok.type = "button"; ok.hidden = true;
+      ok.title = "Quita el dorado de esta sección: los datos leídos están bien";
+      ok.addEventListener("click", function () { confirmReviewed(G.id); });
+      head.appendChild(ok);
       sec.appendChild(head);
       var grid = el("div", "grid");
       FIELDS.filter(function (F) { return F.g === G.id; }).forEach(function (F) { grid.appendChild(buildField(F)); });
@@ -1075,7 +1100,7 @@
       wrap.classList.toggle("is-auto", fromDoc);
       if (fromDoc && visible) { pending[F.g] = (pending[F.g] || 0) + 1; }
       if (visible && Array.isArray(S.f[F.k])) {
-        var n = S.f[F.k].filter(function (x) { return x && x.auto; }).length;
+        var n = S.f[F.k].filter(function (x) { return F.k === "personas" ? toReview(x) : x && x.auto; }).length;
         if (n) { pending[F.g] = (pending[F.g] || 0) + n; }
       }
     });
@@ -1088,6 +1113,7 @@
       var badge = g.querySelector(".review"), n = pending[id] || 0;
       badge.hidden = !n;
       badge.textContent = n + " por revisar";
+      g.querySelector(".review-ok").hidden = !n;
       g.dataset.pending = n;
     });
     var total = Object.keys(pending).reduce(function (s, k) { return s + pending[k]; }, 0);
@@ -2789,9 +2815,7 @@
 
     $("btnReviewed").addEventListener("click", function () {
       Object.keys(S.auto).forEach(function (k) { if (S.auto[k] === true) { delete S.auto[k]; } });
-      ["personas", "docs", "planes"].forEach(function (k) { S.f[k].forEach(function (x) { delete x.auto; }); });
-      renderLists();
-      refresh();
+      confirmReviewed("");
     });
 
     /* nueva nota */

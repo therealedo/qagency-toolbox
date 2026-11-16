@@ -1087,6 +1087,20 @@ test("mergeHousehold: lo que el agente ya escribió se queda, y la diferencia co
   ]);
 });
 
+test("mergeHousehold: una persona ya confirmada vuelve a revisión solo si el documento trae un dato nuevo", () => {
+  const f = casa([{ titular: true, taxes: true, cobertura: true, ingreso: "", estatus: "", dob: "" }]);
+  N.mergeHousehold(f, DOC_HOGAR);
+  f.personas.forEach((p) => { p.ok = true; });
+  /* el mismo documento otra vez: nada nuevo, sigue confirmada */
+  N.mergeHousehold(f, DOC_HOGAR);
+  assert.ok(f.personas.every((p) => p.ok));
+  /* otro documento con otro ingreso para el titular: vuelve a revisión */
+  N.mergeHousehold(f, DOC_HOGAR.map((x) => (x.titular ? Object.assign({}, x, { ingreso: "$50,000.00" }) : x)), 2);
+  assert.equal(f.personas[0].ingreso, "$50,000.00");
+  assert.equal(f.personas[0].ok, undefined);
+  assert.ok(f.personas.slice(1).every((p) => p.ok));
+});
+
 test("mergeHousehold: a quien el agente quitó no se le vuelve a agregar", () => {
   const f = casa([{ titular: true, taxes: true, cobertura: true }]);
   f.quitados = ["SOFIA TORRES"];
