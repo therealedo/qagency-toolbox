@@ -1749,6 +1749,13 @@ kbd {
   }
 
   /* Fechas con el mes en letras, en inglés o español. */
+  /* Fecha de nacimiento: con el año en dos cifras ("5/2/80") no puede
+     quedar en el futuro, así que es 1980 y no 2080 */
+  function parseBirth(input) {
+    var v = parseDate(input), y = v ? +v.slice(-4) : 0;
+    return y > new Date().getFullYear() ? v.slice(0, 6) + (y - 100) : v;
+  }
+
   function parseDateWords(t) {
     t = String(t || "");
     var m = t.match(/([A-Za-zÁÉÍÓÚáéíóú]{3,12})\.?\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(?:de\s+|del\s+)?(\d{4})/);
@@ -2018,7 +2025,7 @@ kbd {
   }
 
   var api = {
-    pad2: pad2, fmtDate: fmtDate, today: today, parseDate: parseDate, parseDateWords: parseDateWords,
+    pad2: pad2, fmtDate: fmtDate, today: today, parseDate: parseDate, parseBirth: parseBirth, parseDateWords: parseDateWords,
     findDate: findDate, toDateObj: toDateObj, addDays: addDays, addMonths: addMonths, taskDate: taskDate,
     parseTime: parseTime, parseSlot: parseSlot, to12h: to12h, timeLabel: timeLabel, halfHourSlots: halfHourSlots, yearMonth: yearMonth, defaultPlanYear: defaultPlanYear, moneyNumber: moneyNumber, parseMoney: parseMoney,
     stripAccents: stripAccents, collapse: collapse, titleCase: titleCase, initials: initials,
@@ -2433,10 +2440,12 @@ kbd {
   function same(a, b) { return U.stripAccents(val(a)).toUpperCase() === U.stripAccents(val(b)).toUpperCase(); }
   function dateOrText(v) { return U.parseDate(v) || val(v); }
 
-  /* el teléfono se compara por sus dígitos: (305) 555-0199 es 305-555-0199 */
+  /* el teléfono se compara por sus dígitos, sin el 1 del país:
+     (305) 555-0199 es 305-555-0199 y +1 305 555 0199 */
+  function phoneDigits(v) { return String(v || "").replace(/\D/g, "").replace(/^1(?=\d{10}$)/, ""); }
   var CONTACTO = [
     { k: "direccion", label: "Dirección", eq: same },
-    { k: "clienteTel", label: "Teléfono", eq: function (a, b) { return String(a || "").replace(/\D/g, "") === String(b || "").replace(/\D/g, ""); } },
+    { k: "clienteTel", label: "Teléfono", eq: function (a, b) { return phoneDigits(a) === phoneDigits(b); } },
     { k: "clienteEmail", label: "Email", eq: same }
   ];
 
@@ -2680,44 +2689,108 @@ kbd {
     return added;
   }
 
-  /* Personas del hogar de un App Summary: el titular y quien ya está en la
-     lista reciben lo que el documento dice de ellos (parentesco, estatus,
-     ingreso anual, DOB) donde el campo está vacío; quien falta se agrega,
-     salvo que el agente lo haya quitado. Lo del documento queda en `orig`,
-     así lo que difiera sale en Cambios; `filled` dice qué campos llenó, para
-     vaciarlos si se quita el documento. */
-  var HOGAR_KEYS = ["parentesco", "estatus", "ingreso", "dob"];
-  function householdMatch(f, x) {
-    if (x.titular) { return (f.personas || []).filter(function (p) { return p.titular; })[0] || null; }
-    var exact = findPersona(f, x.nombre);
-    if (exact && !exact.titular) { return exact; }
-    var firstOf = function (s) { return val(s).split(" ")[0]; };
-    var ps = (f.personas || []).filter(function (p) { return !p.titular && sameName(firstOf(p.nombre), firstOf(x.nombre)); });
+  /* La misma persona escrita de dos maneras: "BEATRIZ MARIA DIAZ" en Zoho y
+     "BEATRIZ DIAZ" en el documento (mismo primer nombre y mismo último
+     apellido), o solo el nombre de pila ("DIEGO"). */
+  function words(s) { return U.stripAccents(val(s)).toUpperCase().split(/\s+/).filter(Boolean); }
+  function samePerson(a, b) {
+    var x = words(a), y = words(b);
+    if (!x.length || !y.length || x[0] !== y[0]) { return false; }
+    return x.length === 1 || y.length === 1 || x[x.length - 1] === y[y.length - 1];
+  }
+  /* La persona del hogar que es la del documento: el titular si el nombre
+     es el suyo; si no, quien tiene ese nombre, o el único con ese primer
+     nombre (el agente pudo corregir el apellido). */
+  function findMember(f, name, titular) {
+    var list = f.personas || [], tit = list.filter(function (p) { return p.titular; })[0];
+    if (titular) { return tit || null; }
+    var titName = tit ? personaLabel(f, tit) : "";
+    if (titName && samePerson(titName, name)) { return tit; }
+    var others = list.filter(function (p) { return !p.titular; });
+    var ps = others.filter(function (p) { return sameName(p.nombre, name); });
+    if (!ps.length) { ps = others.filter(function (p) { return samePerson(p.nombre, name); }); }
+    if (!ps.length) { ps = others.filter(function (p) { return words(p.nombre)[0] === words(name)[0]; }); }
     return ps.length === 1 ? ps[0] : null;
   }
-  function mergeHousehold(f, list) {
-    var n = 0;
+  function removedByAgent(f, name) { return (f.quitados || []).some(function (q) { return sameName(q, name) || samePerson(q, name); }); }
+
+  /* Lo que el documento dice de quien ya está en la lista: su nombre (si
+     trae nombre y apellido) y que está en los taxes y pide cobertura. */
+  function confirmMember(p, name) {
+    p.orig = p.orig || {};
+    if (!p.titular && !("nombre" in p.orig) && words(name).length > 1 && words(p.nombre).length > 1) { p.orig.nombre = upper(name); }
+    if (!("taxes" in p.orig)) { p.orig.taxes = true; p.orig.cobertura = true; }
+  }
+
+  /* Nombres de los miembros de un documento (My Plans & Programs, una
+     aplicación): quien ya está se confirma; quien falta se agrega con taxes
+     y cobertura, salvo que el agente lo haya quitado. El primero es el
+     titular cuando todavía no hay nombre en Zoho. */
+  function mergeMembers(f, names) {
+    var added = 0;
     f.personas = f.personas || [];
+    if (names.length) { f.hogarPdf = true; }
+    names.forEach(function (n, idx) {
+      var found = findMember(f, n);
+      if (found) { confirmMember(found, n); return; }
+      if (idx === 0 && !val(f.nombres)) { return; }
+      if (removedByAgent(f, n)) { return; }
+      var nombre = upper(n);
+      f.personas.push({ nombre: nombre, parentesco: "", taxes: true, cobertura: true, ingreso: "", estatus: "", dob: "", auto: true,
+                        orig: { nombre: nombre, taxes: true, cobertura: true } });
+      added++;
+    });
+    return added;
+  }
+
+  /* Personas del hogar de un documento (App Summary, el ingreso y DOB del
+     titular de otros): cada una recibe lo que el documento dice de ella
+     (parentesco, estatus, ingreso anual, DOB); quien falta se agrega, salvo
+     que el agente lo haya quitado.
+     - Un campo vacío se llena. Uno que llenó un documento y nadie tocó se
+       reemplaza si este documento manda igual o más (`rank`): el último
+       soltado gana. Lo escrito a mano no se toca.
+     - Lo que dice el documento queda en `orig`, así lo que difiera sale en
+       Cambios; `filled` guarda qué campos llenó y con qué rango, para
+       vaciarlos si se quita el documento.
+     - `weak`: un dato que no es de la persona sino del hogar (el ingreso del
+       hogar de la carta de elegibilidad, puesto en el titular): solo llena
+       un campo vacío y cede ante cualquier dato de la persona. */
+  var HOGAR_KEYS = ["parentesco", "estatus", "ingreso", "dob"];
+  function sameValue(k, a, b) {
+    if (k === "ingreso") { return U.moneyNumber(a) === U.moneyNumber(b); }
+    if (k === "dob") { return same(dateOrText(a), dateOrText(b)); }
+    return same(a, b);
+  }
+  function mergeHousehold(f, list, rank, weak) {
+    var n = 0, r = weak ? 0 : (rank == null ? 1 : rank);
+    f.personas = f.personas || [];
+    /* una lista de personas con nombre es el hogar del documento */
+    if (!weak && (list || []).some(function (x) { return val(x.nombre); })) { f.hogarPdf = true; }
     (list || []).forEach(function (x) {
       var keys = HOGAR_KEYS.filter(function (k) { return val(x[k]) && !(k === "parentesco" && x.titular); });
-      var p = householdMatch(f, x);
+      var p = findMember(f, x.nombre, x.titular);
       if (!p) {
-        if (x.titular || !val(x.nombre) || (f.quitados || []).some(function (q) { return sameName(q, x.nombre); })) { return; }
+        if (x.titular || !val(x.nombre) || removedByAgent(f, x.nombre)) { return; }
         var nombre = upper(x.nombre), orig = { nombre: nombre, taxes: true, cobertura: true };
         p = { nombre: nombre, parentesco: "", taxes: true, cobertura: true, ingreso: "", estatus: "", dob: "", auto: true, orig: orig };
         keys.forEach(function (k) { p[k] = x[k]; orig[k] = x[k]; });
         f.personas.push(p);
-        f.hogarPdf = true;
         n++;
         return;
       }
+      if (!weak) { confirmMember(p, x.nombre); }
       p.orig = p.orig || {};
+      p.filled = p.filled || {};
       keys.forEach(function (k) {
-        if (!(k in p.orig)) { p.orig[k] = x[k]; }
-        if (val(p[k])) { return; }
-        p[k] = x[k]; p.orig[k] = x[k];
-        p.filled = p.filled || {}; p.filled[k] = true;
-        n++;
+        var had = p.filled[k], untouched = had != null && p.orig && sameValue(k, p[k], p.orig[k]);
+        if (!val(p[k]) || (untouched && r >= had && (!weak || had === 0))) {
+          if (!sameValue(k, p[k], x[k])) { n++; }
+          p[k] = x[k]; p.orig[k] = x[k]; p.filled[k] = r;
+          return;
+        }
+        /* lo escrito a mano se queda; lo que dice el documento es la base */
+        if (had == null && !weak) { p.orig[k] = x[k]; }
       });
     });
     return n;
@@ -3199,7 +3272,7 @@ kbd {
     productOf: productOf, carrierShort: carrierShort, carrierName: carrierName, carrierOptions: carrierOptions,
     carrierChoice: carrierChoice, carrierFromChoice: carrierFromChoice, CARRIER_OTHER: CARRIER_OTHER, memberDelta: memberDelta, zohoName: zohoName, clientInitials: clientInitials,
     personas: personas, docsOf: docsOf, pendingDocs: pendingDocs, planesOf: planesOf, networkOf: networkOf, docKey: docKey,
-    mergeDocs: mergeDocs, mergeHousehold: mergeHousehold, moveDocKey: moveDocKey,
+    mergeDocs: mergeDocs, mergeMembers: mergeMembers, mergeHousehold: mergeHousehold, samePerson: samePerson, moveDocKey: moveDocKey,
     enTaxes: enTaxes, conCobertura: conCobertura, ingresoHogar: ingresoHogar, moneyShort: moneyShort,
     NET_DIRS: NET_DIRS, netDirFor: netDirFor
   };
@@ -3701,6 +3774,15 @@ kbd {
     return y > new Date().getFullYear() ? v.slice(0, 6) + (y - 100) : v;
   }
 
+  /* Sexo del cliente: decide "el cliente" o "la cliente" en la nota */
+  function vSex(t) {
+    var c = firstCell(t).toLowerCase();
+    if (/^(f|female|femenino|mujer)$/.test(c)) { return "a"; }
+    if (/^(m|male|masculino|hombre)$/.test(c)) { return "o"; }
+    return "";
+  }
+  var SEX_LABEL = /^\s*(Sex|Gender|Sexo|G[eé]nero)\b/i;
+
   /* el "$" tiene que estar al principio (40 caracteres); el número se lee
      entero aunque pase de ahí */
   function vMoney(t) {
@@ -3980,6 +4062,9 @@ kbd {
       if (pm) { f.prima = U.parseMoney(pm); }
     }
 
+    var sex = after(doc, [SEX_LABEL], vSex, 1);
+    if (sex) { f.genero = sex; }
+    contactInfo(doc, f);
     agentInfo(doc, f);
     if (!f.agente) {
       var ag = mcAgent(doc);
@@ -4287,8 +4372,7 @@ kbd {
     f.direccion = after(doc, [/\bHome\s*address\b/i, /Direcci[oó]n\s*(de\s*(la\s*)?casa|del\s*hogar|residencial)/i], vAddress, 1);
     /* teléfono y email del contacto del hogar: van a Teléfono y Email del
        titular, y quedan como base para Cambios */
-    f.clienteEmail = after(doc, [/\bE-?mail(\s*address)?\b/i, /Correo\s*electr[oó]nico/i], vEmail, 1);
-    f.clienteTel = after(doc, [/\bPhone\s*numbers?(\s*\(s\))?/i, /\bPhone\b/i, /Tel[eé]fonos?(\s*\(s\))?/i], vPhone, 1);
+    contactInfo(doc, f);
     if (/healthsherpa/i.test(doc.flat)) { f.plataforma = "HealthSherpa"; }
     else if (/healthcare\.gov|cuidadodesalud\.gov/i.test(doc.flat)) { f.plataforma = "MKPL"; }
     /* el agente o broker que envió la aplicación, con su NPN */
@@ -4300,15 +4384,42 @@ kbd {
     var ps = householdPeople(doc, f);
     if (ps.length) {
       f.personas = ps;
-      /* el ingreso del titular es el de su sección */
-      if (ps[0].titular && ps[0].ingreso) { f.ingreso = ps[0].ingreso; }
+      /* con una sección por persona, el ingreso y el DOB del titular son los
+         de su sección: los primeros del documento pueden ser de otro */
+      var tp = ps.filter(function (p) { return p.titular; })[0] || {};
+      f.ingreso = tp.ingreso || "";
+      f.dob = tp.dob || "";
     }
     return f;
   }
 
   /* El ingreso anual: el estimado para el año que viene manda; nunca el del
      mes ("This month's total income (November 2026)  $2,600.00"). */
-  var MONTHLY = /\bmonth|\bmes\b|\bmensual/i;
+  /* "month" también como lo lee mal el OCR ("rnonth") */
+  var MONTHLY = /\b(m|rn)onth|\bmes\b|\bmensual/i;
+
+  /* Teléfono, email y dirección del cliente: se buscan antes del bloque del
+     agente, que trae los suyos. */
+  var AGENT_BLOCK = /^\s*(Agent|Broker|Agente|Producer)\b|agent\s*or\s*broker|Informaci[oó]n del agente|agente\s*o\s*corredor/i;
+  function contactInfo(doc, f) {
+    var stop = -1;
+    for (var i = 0; i < doc.lines.length; i++) { if (AGENT_BLOCK.test(doc.lines[i])) { stop = i; break; } }
+    var d = stop > 0 ? makeDoc(doc.lines.slice(0, stop).join("\n")) : doc;
+    var email = after(d, [/\bE-?mail(\s*address)?\b/i, /Correo\s*electr[oó]nico/i], vEmail, 1);
+    var tel = after(d, [/\bPhone\s*numbers?,?(\s*\(s\))?(\s*including\s*area\s*code)?/i, /\b(Primary\s*)?Phone\b/i, /Tel[eé]fonos?(\s*\(s\))?/i], vPhone, 1);
+    if (email) { f.clienteEmail = email; }
+    if (tel) { f.clienteTel = tel; }
+  }
+
+  /* "4. Resident Address: 700 Palmetto Rd     Venice     FL     34285" */
+  function vAddressRow(t) {
+    var cells = String(t || "").trim().split(/\s{2,}|\t/);
+    var n = cells.length;
+    if (n >= 4 && /^[A-Z]{2}$/.test(cells[n - 2]) && /^\d{5}(-\d{4})?$/.test(cells[n - 1]) && vAddress(cells[0])) {
+      return cells[0] + ", " + cells[n - 3] + ", " + cells[n - 2] + " " + cells[n - 1];
+    }
+    return vAddress(t);
+  }
   function annualIncome(doc) {
     var v = afterFirst(doc, [/\bEstimated\s*income\s*next\s*year\b/i, /\bIngresos?\s*estimados?\s*(para\s*)?el\s*pr[oó]ximo\s*a[nñ]o\b/i], vMoney, 1);
     if (v) { return v; }
@@ -4373,11 +4484,13 @@ kbd {
       var sec = makeDoc(lines.join("\n"));
       var name = vName(cleanLead(lines[1] || "")) || "";
       var dob = after(sec, [/\bDate\s*of\s*birth\b/i, /Fecha\s*de\s*nacimiento/i], vBirth, 1);
-      return { name: name, first: U.stripAccents(name.split(" ")[0]), rel: relations(lines), estatus: usStatus(sec), ingreso: annualIncome(sec), dob: dob };
+      return { name: name, first: U.stripAccents(name.split(" ")[0]), rel: relations(lines), estatus: usStatus(sec), ingreso: annualIncome(sec), dob: dob,
+               sex: after(sec, [SEX_LABEL], vSex, 1) };
     });
     var t = 0;
     for (var i = 0; i < people.length; i++) { if (titFirst && people[i].first.toUpperCase() === titFirst.toUpperCase()) { t = i; break; } }
     var tit = people[t];
+    if (tit && tit.sex) { f.genero = tit.sex; }
     return people.map(function (p, i) {
       var o = {};
       if (i === t) {
@@ -4527,14 +4640,17 @@ kbd {
 
   function extractPay(doc, line) {
     var f = { pagoEstado: "PAYMENT" };
+    /* lo pagado; un "Amount" o "Total" suelto solo si no hay rótulo de pago,
+       y nunca lo que se debe ("Amount due", "Total premium due") */
     f.pagoMonto = after(doc, [/\bAmount\s*charged\b/i, /\b(Payment\s*amount|Amount\s*paid|Total\s*paid|Total\s*payment)\b/i, /Monto\s*(pagado|del pago)/i,
-      /Importe\s*(pagado|del pago)?/i, /^\s*(Amount|Monto|Total)\b/i], vMoney, 1);
+      /Importe\s*(pagado|del pago)?/i], vMoney, 1) ||
+      after(doc, [/^\s*(Amount|Monto|Total)\b(?![^\n]*\b(due|pendiente|a\s*pagar|adeudado)\b)/i], vMoney, 1);
     /* Oscar: "Payment #<código> has been submitted for processing" */
     f.pagoConf = after(doc, [/\b(Confirmation|Reference|Transaction|Receipt)\s*(number|#|no\.?|ID|code)/i,
       /N[uú]mero de (confirmaci[oó]n|referencia|transacci[oó]n)/i, /^\s*Confirmation\s*:/i], vCode(5, 24), 1) ||
       find(doc, /\bPayment\s*#\s?([A-Za-z0-9]{6,64})\s+has been submitted/i);
     f.pagoFecha = afterFirst(doc, [/\bPayment\s*date\b/i, /\bDate\s*(paid|of payment)\b/i, /Fecha\s*(del|de)\s*pago/i,
-      /\bPayment\s*Details\b/i, /^\s*(Date|Fecha)\b/i], vDate, 1) || printDate(doc);
+      /\bPayment\s*Details\b/i, /^\s*(Date|Fecha)\b(?!\s*(of\s*birth|de\s*nacimiento))/i], vDate, 1) || printDate(doc);
     f.pagoMetodo = after(doc, [/\bPayment\s*method\b/i, /M[eé]todo de pago/i], vPayMethod, 1);
     if (!f.pagoMetodo && CARD_PAY.test(doc.flat)) { f.pagoMetodo = "Tarjeta CC"; }
     else if (!f.pagoMetodo && BANK_PAY.test(doc.flat)) { f.pagoMetodo = "Cuenta de banco"; }
@@ -4782,6 +4898,9 @@ kbd {
     if (f.poliza && f.poliza === app) { delete f.poliza; }
     var ben = suppBeneficiary(doc);
     if (ben) { f.beneficiario = ben; }
+    contactInfo(doc, f);
+    var home = after(doc, [/\bResident(ial)?\s*Address\b/i, /\bHome\s*address\b/i], vAddressRow, 0);
+    if (home) { f.direccion = home; }
     var ag = suppAgent(doc);
     agentInfo(doc, f);
     if (ag) { f.agente = ag.toUpperCase(); }
@@ -6196,7 +6315,8 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
     var cancel = isOC("cancelada"), supp = S.line === "supp";
     var listEl = el("div", "people");
     S.f.personas.forEach(function (p, i) {
-      var row = listItem("person" + (p.open ? " open" : "") + (p.auto ? " is-auto" : ""), i);
+      var fromDoc = p.auto || Object.keys(p.filled || {}).length > 0;
+      var row = listItem("person" + (p.open ? " open" : "") + (fromDoc ? " is-auto" : ""), i);
       var head = el("div", "person-head");
       var t = actBtn("toggle", i, "", "person-toggle");
       t.setAttribute("aria-expanded", p.open ? "true" : "false");
@@ -6375,7 +6495,7 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
     if (committed && prop === "ingreso") { v = U.parseMoney(v) || ""; t.value = v; }
     if (committed && prop === "prima") { v = U.parseMoney(v) || ""; t.value = v; }
     if (committed && (prop === "fecha" || prop === "dob")) {
-      var dd = U.parseDate(v);
+      var dd = prop === "dob" ? U.parseBirth(v) : U.parseDate(v);
       t.closest(".mini").classList.toggle("bad", !!U.collapse(v) && !dd);
       if (dd || !U.collapse(v)) { v = dd; t.value = dd; }
     }
@@ -7331,6 +7451,7 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
 
   /* ---------------------------------------------------------- documentos */
 
+  var DEFAULTABLE = ["anio", "producto", "plataforma", "periodo", "periodoMC", "genero"];
   var RANK = { oc_plans: 3, mc_app: 3, supp_app: 3, oc_elig: 2, pay: 2, oc_app: 1, oc_docs: 1, oc_quote: 1, mc_soa: 1, supp_card: 1 };
 
   /* Campos del producto: la compañía, el plan y el pago son de una línea.
@@ -7345,6 +7466,15 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
     S.f.gestion = ""; S.f.taskId = "";
     var fresh = freshFields();
     PRODUCT_KEYS.forEach(function (k) { resetField(k, fresh); delete S.base[k]; });
+    /* lo que los documentos marcaron o agregaron era de la otra línea: las
+       casillas del Network y las personas del hogar que trajo un documento */
+    S.f.net = {};
+    S.f.personas = S.f.personas.filter(function (p) { return p.titular || !p.auto; });
+    S.f.personas.forEach(function (p) {
+      Object.keys(p.filled || {}).forEach(function (k) { if (!p.orig || p[k] === p.orig[k]) { p[k] = ""; } });
+      delete p.filled; delete p.orig;
+    });
+    S.f.hogarPdf = false;
     afterOutcomeChange();
   }
 
@@ -7364,15 +7494,32 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
      compañía u otro número) se aparta con un aviso y no se usa, salvo que el
      agente pida usarlo igual. */
   function useFile(entry) {
+    /* al volver a usarlo (después de quitar otro documento) la línea ya no
+       cambia: se guarda a cuál volver */
+    var hadLine = entry.lineFrom, hadOutcome = entry.outcomeFrom;
     delete entry.held; delete entry.lineFrom; delete entry.outcomeFrom;
     entry.applied = 0;
     if (!entry.res) { return; }
+    /* un documento sin línea propia (un recibo de pago) se lee para la
+       línea en la que está la nota */
+    if (!entry.res.line && entry.text != null && entry.readFor !== S.line) { readEntry(entry); }
     var why = entry.force ? [] : N.docConflicts(caseIdentity(), S.line, entry.res);
     if (why.length) { entry.held = why; return; }
     var lineBefore = S.line, outcomeBefore = S.outcome;
     entry.applied = applyExtraction(entry.res);
-    if (S.line !== lineBefore) { entry.lineFrom = lineBefore; }
-    else if (S.outcome !== outcomeBefore) { entry.outcomeFrom = outcomeBefore; }
+    if (S.line !== lineBefore) {
+      entry.lineFrom = lineBefore;
+      /* los otros documentos sin línea propia se vuelven a leer y usar para
+         la línea nueva: un recibo soltado antes que su aplicación */
+      S.files.forEach(function (f) { if (f !== entry && f.res && !f.res.line) { useFile(f); } });
+    } else if (S.outcome !== outcomeBefore) { entry.outcomeFrom = outcomeBefore; }
+    else if (hadLine && S.line === entry.res.line) { entry.lineFrom = hadLine; }
+    else if (hadOutcome && S.outcome !== hadOutcome) { entry.outcomeFrom = hadOutcome; }
+  }
+
+  function readEntry(entry) {
+    entry.res = X.extract(entry.text, entry.name, S.line, entry.words ? { words: entry.words } : null);
+    entry.readFor = S.line;
   }
 
   /* Quitar un documento deshace lo que llenó: se vacía lo que vino de
@@ -7391,14 +7538,15 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
     S.base = {};
     S.f.personas = S.f.personas.filter(function (p) { return p.titular || !p.auto; });
     S.f.personas.forEach(function (p) {
-      if (p.titular && p.auto) { p.ingreso = ""; p.dob = ""; delete p.auto; }
-      /* lo que llenó el App Summary se vacía, salvo que el agente lo haya cambiado */
+      /* lo que llenó un documento se vacía, salvo que el agente lo haya cambiado */
       Object.keys(p.filled || {}).forEach(function (k) { if (!p.orig || p[k] === p.orig[k]) { p[k] = ""; } });
       delete p.filled; delete p.orig;
     });
     S.f.docs = S.f.docs.filter(function (x) { return !x.auto; });
     S.f.planes = S.f.planes.filter(function (x) { return !x.auto; });
     S.f.hogarDoc = ""; S.f.hogarPdf = false;
+    /* sin documentos no queda nadie que se haya quitado de ellos */
+    if (!S.files.length) { S.f.quitados = []; }
     /* las casillas del Network que marcó un documento se vuelven a marcar
        solo si otro documento las marca */
     [entry].concat(S.files).forEach(function (f) { if (f.res && f.res.net) { S.f.net[f.res.net] = false; } });
@@ -7450,27 +7598,28 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
       /* lo que trae el documento queda como base para la lista de Cambios */
       if (!(k in S.base)) { S.base[k] = v; }
       var empty = S.f[k] == null || S.f[k] === "" || S.f[k] === false;
-      var replaceable = S.auto[k] && (S.auto[k] === "calc" || rank > (S.rank[k] || 0));
+      /* lo que vino de otro documento se reemplaza si este manda igual o más
+         (el último documento soltado gana); un campo que sigue en su valor de
+         una nota nueva (año, producto, plataforma, periodo, género) también */
+      var replaceable = S.auto[k] ? (S.auto[k] === "calc" || rank >= (S.rank[k] || 0))
+        : DEFAULTABLE.indexOf(k) >= 0 && S.f[k] === freshFields()[k];
       if (!empty && !replaceable) { return; }
       S.f[k] = v; S.auto[k] = true; S.rank[k] = rank; S.base[k] = v; applied++;
     });
-    if (special.miembros && S.line !== "mc") { applied += mergePersonas(U.parseList(special.miembros)); }
+    if (special.miembros && S.line !== "mc") { applied += N.mergeMembers(S.f, U.parseList(special.miembros)); }
     if (special.planes && special.planes.length && S.line === "oc") {
       if (S.outcome !== "pendiente") { S.outcome = "pendiente"; S.f.taskId = ""; afterOutcomeChange(); }
       applied += mergePlanes(special.planes);
     }
     var sent = [];
     if (S.line === "oc") {
-      var tit = S.f.personas[0];
-      /* el ingreso y la fecha de nacimiento del documento son del titular */
-      [["ingreso", U.parseMoney(special.ingreso)], ["dob", U.parseDate(special.dob)]].forEach(function (x) {
-        if (!tit || !x[1]) { return; }
-        tit.orig = tit.orig || {};
-        if (!(x[0] in tit.orig)) { tit.orig[x[0]] = x[1]; }
-        if (!U.collapse(tit[x[0]])) { tit[x[0]] = x[1]; tit.orig[x[0]] = x[1]; tit.auto = true; applied++; }
-      });
       /* las personas del App Summary: parentesco, estatus, ingreso anual y DOB */
-      if (special.personas) { applied += N.mergeHousehold(S.f, special.personas); }
+      if (special.personas) { applied += N.mergeHousehold(S.f, special.personas, rank); }
+      /* el DOB del documento es del titular; el ingreso, del hogar (la carta
+         de elegibilidad): va al titular solo si nadie dijo el suyo */
+      var dob = U.parseDate(special.dob), ing = U.parseMoney(special.ingreso);
+      if (dob) { applied += N.mergeHousehold(S.f, [{ titular: true, dob: dob }], rank); }
+      if (ing) { applied += N.mergeHousehold(S.f, [{ titular: true, ingreso: ing }], rank, true); }
       if (special.hogar) { S.f.hogarDoc = special.hogar; }
       if (special.docs) { applied += N.mergeDocs(S.f, special.docs, sent); }
     }
@@ -7487,29 +7636,6 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
 
   function sameName(a, b) { return U.stripAccents(U.collapse(a)).toUpperCase() === U.stripAccents(U.collapse(b)).toUpperCase(); }
 
-  /* Personas leídas de un documento: el titular ya está; las demás se
-     agregan si no están, con taxes y cobertura marcados. */
-  function mergePersonas(names) {
-    var added = 0;
-    if (names.length) { S.f.hogarPdf = true; }
-    names.forEach(function (n, idx) {
-      var found = S.f.personas.filter(function (p) { return sameName(personLabel(p), n); })[0];
-      /* el documento confirma que esa persona está en el hogar con cobertura */
-      if (found) {
-        found.orig = found.orig || {};
-        if (!("taxes" in found.orig)) { found.orig.taxes = true; found.orig.cobertura = true; }
-        return;
-      }
-      if (idx === 0 && !U.collapse(S.f.nombres)) { return; }
-      /* a quien el agente ya quitó no se le vuelve a agregar */
-      if (S.f.quitados.some(function (q) { return sameName(q, n); })) { return; }
-      var nombre = U.collapse(n).toUpperCase();
-      S.f.personas.push({ nombre: nombre, parentesco: "", taxes: true, cobertura: true, ingreso: "", estatus: "", dob: "", auto: true,
-                          orig: { nombre: nombre, taxes: true, cobertura: true } });
-      added++;
-    });
-    return added;
-  }
 
   /* Planes de una cotización: se agregan a Planes cotizados en el orden de
      la pantalla, marcados como leídos. Un plan que ya está en la lista (el
@@ -7583,7 +7709,8 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
   function finishFile(entry, text, status, words) {
     entry.text = text || "";
     var readable = entry.text.replace(/\s/g, "").length >= 40;
-    entry.res = X.extract(entry.text, entry.name, S.line, words ? { words: words } : null);
+    if (words) { entry.words = words; }
+    readEntry(entry);
     entry.status = status || (readable ? "ok" : "scanned");
     useFile(entry);
     renderFiles();
