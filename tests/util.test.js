@@ -47,8 +47,8 @@ test("nombres", () => {
   assert.deepEqual(U.splitName("Juan de la Cruz"), { nombres: "Juan", apellidos: "de la Cruz" });
   assert.equal(U.titleCase("VARONA DE LA PENA"), "Varona De La Pena");
   assert.equal(U.titleCase("o'neil-perez"), "O'Neil-Perez");
-  assert.equal(U.initials("Rosa Mendez"), "FV");
-  assert.equal(U.initials("Marta Gil Romero"), "LE");
+  assert.equal(U.initials("Rosa Mendez"), "RM");
+  assert.equal(U.initials("Marta Gil Romero"), "MG");
 });
 
 test("hora de la llamada y año-mes de los archivos", () => {
@@ -71,4 +71,43 @@ test("hora de la llamada y año-mes de los archivos", () => {
 test("año de plan: desde octubre se vende el siguiente", () => {
   assert.equal(U.defaultPlanYear(new Date(2026, 10, 14)), "2027");
   assert.equal(U.defaultPlanYear(new Date(2027, 1, 1)), "2027");
+});
+
+test("archivo del equipo: se lee, se limpia y vuelve a escribirse igual", () => {
+  const text = JSON.stringify({ app: "qagency-toolbox-team", version: 1, team: [
+    { name: "  Ana   Torres ", ini: "di", agentIni: "li", npn: "1000-0001", tel: "(305) 555-0101", extra: "x" },
+    { name: "Rosa Mendez" },
+    { name: "rosa mendez", ini: "ZZ" },
+    { name: "", ini: "XX" }
+  ] });
+  const r = U.parseTeam(text);
+  assert.equal(r.error, undefined);
+  assert.deepEqual(r.team, [
+    { name: "Ana Torres", ini: "DI", agentIni: "LI", npn: "10000001", tel: "(305) 555-0101" },
+    { name: "Rosa Mendez", ini: "RM", npn: "" }
+  ]);
+  assert.deepEqual(U.parseTeam(U.teamFile(r.team)).team, r.team);
+  assert.equal(JSON.parse(U.teamFile(r.team)).app, "qagency-toolbox-team");
+  /* también una lista sola, sin el sobre */
+  assert.deepEqual(U.parseTeam('[{"name":"Rosa Mendez","ini":"RM"}]').team, [{ name: "Rosa Mendez", ini: "RM", npn: "" }]);
+  /* agentIni igual a ini no se guarda */
+  assert.deepEqual(U.parseTeam('[{"name":"Rosa Mendez","ini":"RM","agentIni":"RM"}]').team, [{ name: "Rosa Mendez", ini: "RM", npn: "" }]);
+});
+
+test("archivo del equipo: un archivo que no sirve da un mensaje y ninguna lista", () => {
+  ["no es json", "{}", "[]", '{"team":[{"ini":"AB"}]}', '{"team":"Ana"}', "null", "42", '[{"name":5}]'].forEach((t) => {
+    const r = U.parseTeam(t);
+    assert.equal(r.team, undefined, t);
+    assert.match(r.error, /archivo del equipo/, t);
+  });
+});
+
+test("versiones: solo una más nueva cuenta como actualización", () => {
+  assert.equal(U.newerVersion("1.10.0", "1.9.0"), true);
+  assert.equal(U.newerVersion("2.0", "1.9.9"), true);
+  assert.equal(U.newerVersion("1.9.1", "1.9"), true);
+  assert.equal(U.newerVersion("1.9.0", "1.9.0"), false);
+  assert.equal(U.newerVersion("1.9", "1.9.0"), false);
+  assert.equal(U.newerVersion("1.8.9", "1.9.0"), false);
+  ["", null, "v1.10", "1.10.0-beta", "abc", "1..2"].forEach((v) => assert.equal(U.newerVersion(v, "1.9.0"), false, String(v)));
 });

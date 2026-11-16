@@ -114,7 +114,9 @@ The note, the report and the file names use the short form: `FB` for Florida Blu
 
 ### People
 
-Each person in **Ajustes → Equipo** has the initials they sign notes and tasks with, and, if different, the initials they appear with as agent in the Cliq report (Ana signs notes as DI and is agent LI), plus an optional direct phone that goes under their signature in the SMS of a sent app. Phones are typed in Ajustes and stay in that browser; they are not in the code.
+Each person in **Ajustes → Equipo** has the initials they sign notes and tasks with, and, if different, the initials they appear with as agent in the Cliq report (someone can sign notes as DI and be agent LI), plus an optional direct phone that goes under their signature in the SMS of a sent app.
+
+The team is not in the code: the repository is public, so names and NPNs stay out of it. The office keeps a team file, `QAgency-Equipo.json`, and shares it privately (for example on the Network). Each person loads it once with **Importar equipo**; the list then lives in that browser, and a browser that already had a team keeps it. **Exportar equipo** writes the current list to that file to pass it on. A file that is not a team file shows a message and changes nothing; importing over an existing list asks first. People without a name are skipped, a repeated name keeps its first entry, and initials, NPN and phone are cleaned up on the way in.
 
 *Agente y colaborador* has three roles: **Habló con el cliente**, **Agente (NPN)** (a list of the agents with their NPN) and **Colaborador** (who processed the application). They default to whoever writes the note. Medicare and Suplementario have no **Colaborador**: whoever writes the note processed the app. The note says `NPN: LI` (the NPN is enough, so there is no Writing ID), and names who talked to the client and who processed the app only when it was someone else. When the person who talked to the client is not the one who processed the app, the report line starts with their initials (`FV: Q1234 - … (LI)`); a checkbox under the report switches that on or off.
 

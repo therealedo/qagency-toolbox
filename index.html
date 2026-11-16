@@ -324,8 +324,15 @@
 
     <h3>Equipo</h3>
     <p class="muted">Las iniciales de notas encabezan la nota y el task. Las de agente son las que salen entre paréntesis en el reporte, si son distintas. El NPN solo hace falta para quien figura como agente escritor. El teléfono directo sale en el SMS de Obamacare, debajo de la firma de quien habló con el cliente.</p>
+    <p class="muted team-empty" id="teamEmpty" hidden>El equipo está vacío. Importa el archivo del equipo (QAgency-Equipo.json) que comparte la oficina, o agrega a las personas una por una.</p>
     <div class="team" id="teamRows"></div>
-    <button type="button" class="btn small" id="teamAdd">Agregar persona</button>
+    <div class="team-actions">
+      <button type="button" class="btn small" id="teamAdd">Agregar persona</button>
+      <button type="button" class="btn small" id="teamImport">Importar equipo</button>
+      <button type="button" class="btn small" id="teamExport">Exportar equipo</button>
+      <input type="file" id="teamFile" accept=".json,application/json" hidden>
+    </div>
+    <p class="muted">Los nombres y los NPN del equipo no vienen en la herramienta: se guardan solo en este navegador. «Exportar equipo» crea el archivo para pasárselo a otra persona de la oficina.</p>
 
     <h3>Carpetas del Network</h3>
     <div class="netdirs" id="netDirBox"></div>
@@ -344,7 +351,6 @@
     <p class="muted" id="installHelp"></p>
 
     <div class="dlg-foot">
-      <button type="button" class="link-btn" id="teamReset">Restaurar el equipo original</button>
       <span class="muted" id="versionTag"></span>
       <button type="submit" class="btn primary">Listo</button>
     </div>

@@ -36,8 +36,8 @@
       var saved = JSON.parse(localStorage.getItem(STORE) || "null");
       if (saved && typeof saved === "object") {
         Object.keys(def).forEach(function (k) { if (k !== "v" && saved[k] !== undefined) { def[k] = saved[k]; } });
+        /* un equipo ya guardado en este navegador se conserva tal cual */
         if (!Array.isArray(def.team) || !def.team.length) { def.team = clone(C.TEAM); }
-        if (!saved.v || saved.v < 2) { migrateTeam(def.team); }
       }
     } catch (e) { /* almacenamiento bloqueado: se sigue con los valores por defecto */ }
     if (!C.LINES[def.line]) { def.line = "oc"; }
@@ -45,18 +45,6 @@
     if (!def.telefonos || typeof def.telefonos !== "object") { def.telefonos = {}; }
     if (!def.signLinks || typeof def.signLinks !== "object") { def.signLinks = {}; }
     return def;
-  }
-
-  /* Equipos guardados con la primera versión: Ana pasa a firmar como DI
-     (agente LI) y se agregan las personas nuevas de la lista por defecto. */
-  function migrateTeam(team) {
-    function same(a, b) { return U.collapse(a).toLowerCase() === U.collapse(b).toLowerCase(); }
-    team.forEach(function (t) {
-      if (same(t.name, "Ana Torres") && t.ini === "LI" && !t.agentIni) { t.ini = "DI"; t.agentIni = "LI"; }
-    });
-    C.TEAM.forEach(function (d) {
-      if (!team.some(function (t) { return same(t.name, d.name); })) { team.push(clone(d)); }
-    });
   }
 
   function saveSettings() {
@@ -2150,6 +2138,8 @@
   function renderTeam() {
     var box = $("teamRows");
     box.textContent = "";
+    $("teamEmpty").hidden = settings.team.length > 0;
+    box.hidden = !settings.team.length;
     var head = el("div", "team-row team-head");
     TEAM_COLS.forEach(function (c) { head.appendChild(el("span", null, c[2])); });
     head.appendChild(el("span"));
@@ -2561,10 +2551,31 @@
       var rows = $("teamRows").querySelectorAll(".team-row");
       rows[rows.length - 1].querySelector("input").focus();
     });
-    $("teamReset").addEventListener("click", function () {
-      if (!window.confirm("¿Restaurar la lista original del equipo? Se pierden los cambios hechos aquí.")) { return; }
-      settings.team = clone(C.TEAM);
-      saveSettings(); renderTeam();
+    /* El equipo no viene en el código (es público): se importa del archivo que
+       comparte la oficina y se puede exportar para pasárselo a otra persona. */
+    $("teamImport").addEventListener("click", function () { $("teamFile").click(); });
+    $("teamFile").addEventListener("change", function () {
+      var file = this.files && this.files[0], input = this;
+      if (!file) { return; }
+      file.text().then(function (text) {
+        input.value = "";
+        var r = U.parseTeam(text);
+        if (r.error) { toast(r.error); return; }
+        var current = settings.team.filter(function (t) { return t.name; });
+        if (current.length && !window.confirm("¿Reemplazar el equipo de este navegador por el del archivo (" + r.team.length + " personas)?")) { return; }
+        settings.team = r.team;
+        saveSettings(); renderTeam();
+        toast("Equipo importado: " + r.team.length + (r.team.length === 1 ? " persona." : " personas."));
+      }, function () { input.value = ""; toast("No se pudo leer el archivo."); });
+    });
+    $("teamExport").addEventListener("click", function () {
+      if (!settings.team.some(function (t) { return t.name; })) { toast("No hay nadie en el equipo para exportar."); return; }
+      var a = el("a");
+      a.href = URL.createObjectURL(new Blob([U.teamFile(settings.team)], { type: "application/json" }));
+      a.download = "QAgency-Equipo.json";
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(function () { URL.revokeObjectURL(a.href); }, 60000);
+      toast("Archivo del equipo listo: QAgency-Equipo.json. Compártelo solo dentro de la oficina.");
     });
     ["optRojo", "optAcentos"].forEach(function (id) {
       $(id).addEventListener("change", function () {

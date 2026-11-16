@@ -49,13 +49,13 @@ test("el manifiesto apunta a íconos que existen", () => {
   m.icons.forEach((i) => assert.ok(exists(i.src), "falta " + i.src));
 });
 
-test("el equipo por defecto: iniciales de notas y de agente", () => {
-  const liseth = C.TEAM.find((t) => t.name === "Ana Torres");
-  assert.equal(liseth.ini, "DI");
-  assert.equal(liseth.agentIni, "LI");
-  assert.ok(C.TEAM.some((t) => t.ini === "MA" && !t.npn));
-  assert.ok(!C.TEAM.some((t) => t.ini === "JI"));
+test("el equipo no viene en el código: se importa del archivo de la oficina", () => {
+  assert.deepEqual(C.TEAM, []);
   assert.deepEqual(C.OFFICES, ["QAgency", "ATH Insurance"]);
+  /* ningún NPN de 8 dígitos en la configuración */
+  assert.doesNotMatch(fs.readFileSync(path.join(root, "js", "config.js"), "utf8"), /npn\s*:\s*"\d{6,}"/i);
+  const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
+  ["teamImport", "teamExport", "teamFile", "teamEmpty"].forEach((id) => assert.match(html, new RegExp('id="' + id + '"')));
 });
 
 test("el instalador prefiere Chrome, luego Edge, y Brave al final (Brave no deja elegir carpetas)", () => {

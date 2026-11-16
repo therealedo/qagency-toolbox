@@ -749,7 +749,8 @@ kbd {
 .dlg-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 10px; }
 #pasteText { min-height: 300px; line-height: 1.5; white-space: pre; overflow: auto; }
 
-#teamAdd { align-self: flex-start; }
+.team-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.team[hidden] { display: none; }
 .team { display: flex; flex-direction: column; gap: 6px; }
 .team-row { display: grid; grid-template-columns: minmax(0, 1fr) 60px 60px 104px 124px 26px; gap: 8px; align-items: center; }
 .team-head span { font-size: 12px; color: var(--ink-3); font-weight: 550; }

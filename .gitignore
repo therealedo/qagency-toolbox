@@ -1,3 +1,6 @@
 node_modules/
 .DS_Store
 .atl/
+
+# Team file with real names and NPNs: share it privately, never commit it
+private/

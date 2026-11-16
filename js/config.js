@@ -6,21 +6,17 @@
 
   var VERSION = "1.9.0";
 
-  /* Equipo por defecto. Cada persona puede editarlo en Ajustes; los cambios
-     se guardan en su navegador.
+  /* Equipo por defecto: vacío. El código es público, así que los nombres y
+     los NPN del equipo no van aquí: cada persona importa en Ajustes el archivo
+     del equipo (QAgency-Equipo.json) que comparte la oficina, y la lista se
+     guarda en su navegador. Cada persona tiene:
+       name      nombre como sale en Zoho
        ini       iniciales que encabezan la nota y el task
        agentIni  iniciales con las que figura como agente en el reporte de
-                 Cliq, si son distintas (Ana firma las notas como DI y
-                 aparece como agente LI)
-       npn       solo para quien figura como agente escritor */
-  var TEAM = [
-    { name: "Daniel Rivas", ini: "ER", npn: "10000004" },
-    { name: "Rosa Mendez", ini: "FV", npn: "10000002" },
-    { name: "Marta Gil Romero", ini: "LE", npn: "10000003" },
-    { name: "Ana Torres", ini: "DI", agentIni: "LI", npn: "10000001" },
-    { name: "My Access", ini: "MA", npn: "" },
-    { name: "Pablo Ruiz", ini: "PD", npn: "" }
-  ];
+                 Cliq, si son distintas de las de la nota
+       npn       solo para quien figura como agente escritor
+       tel       teléfono directo (opcional), para el SMS de Obamacare */
+  var TEAM = [];
 
   var OFFICES = ["QAgency", "ATH Insurance"];
   /* Cómo se presenta cada oficina en el SMS: "Somos QAgency Insurance." */

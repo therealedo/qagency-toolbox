@@ -268,12 +268,76 @@
     });
   }
 
+  /* Archivo del equipo (QAgency-Equipo.json). Los nombres y los NPN no van en
+     el código, que es público: la oficina comparte este archivo y cada quien
+     lo importa en Ajustes. parseTeam devuelve { team } o { error }; las
+     personas sin nombre se descartan y un nombre repetido se queda con la
+     primera vez que aparece. */
+  var TEAM_APP = "qagency-toolbox-team";
+  var TEAM_BAD = "Este no es un archivo del equipo válido (QAgency-Equipo.json).";
+
+  function letters(s) { return String(s == null ? "" : s).toUpperCase().replace(/[^A-Z]/g, "").slice(0, 3); }
+
+  function cleanMember(m) {
+    if (!m || typeof m !== "object" || typeof m.name !== "string") { return null; }
+    var name = collapse(m.name).slice(0, 80);
+    if (!name) { return null; }
+    var out = { name: name, ini: letters(m.ini) || initials(name) };
+    var agent = letters(m.agentIni);
+    if (agent && agent !== out.ini) { out.agentIni = agent; }
+    out.npn = String(m.npn == null ? "" : m.npn).replace(/\D/g, "").slice(0, 10);
+    var tel = collapse(m.tel).slice(0, 30);
+    if (tel) { out.tel = tel; }
+    return out;
+  }
+
+  function cleanTeam(list) {
+    var seen = {}, team = [];
+    list.forEach(function (m) {
+      var c = cleanMember(m);
+      if (!c) { return; }
+      var key = c.name.toLowerCase();
+      if (seen[key]) { return; }
+      seen[key] = true;
+      team.push(c);
+    });
+    return team;
+  }
+
+  function parseTeam(text) {
+    var data;
+    try { data = JSON.parse(text); } catch (e) { return { error: TEAM_BAD }; }
+    var list = Array.isArray(data) ? data : (data && typeof data === "object" && Array.isArray(data.team) ? data.team : null);
+    if (!list) { return { error: TEAM_BAD }; }
+    var team = cleanTeam(list);
+    if (!team.length) { return { error: "El archivo del equipo no tiene ninguna persona con nombre." }; }
+    return { team: team };
+  }
+
+  function teamFile(team) {
+    return JSON.stringify({ app: TEAM_APP, version: 1, team: cleanTeam(team || []) }, null, 2) + "\n";
+  }
+
+  /* ¿La versión publicada (remote) es más nueva que la instalada (local)?
+     Solo números separados por puntos; cualquier otra cosa no cuenta. */
+  function newerVersion(remote, local) {
+    var re = /^\d+(\.\d+)*$/;
+    if (!re.test(String(remote || "")) || !re.test(String(local || ""))) { return false; }
+    var a = String(remote).split(".").map(Number), b = String(local).split(".").map(Number);
+    for (var i = 0; i < Math.max(a.length, b.length); i++) {
+      var x = a[i] || 0, y = b[i] || 0;
+      if (x !== y) { return x > y; }
+    }
+    return false;
+  }
+
   var api = {
     pad2: pad2, fmtDate: fmtDate, today: today, parseDate: parseDate, parseDateWords: parseDateWords,
     findDate: findDate, toDateObj: toDateObj, addDays: addDays, addMonths: addMonths, taskDate: taskDate,
     parseTime: parseTime, parseSlot: parseSlot, to12h: to12h, timeLabel: timeLabel, halfHourSlots: halfHourSlots, yearMonth: yearMonth, defaultPlanYear: defaultPlanYear, moneyNumber: moneyNumber, parseMoney: parseMoney,
     stripAccents: stripAccents, collapse: collapse, titleCase: titleCase, initials: initials,
-    splitName: splitName, parseList: parseList, escapeHtml: escapeHtml, MONTHS: MONTHS
+    splitName: splitName, parseList: parseList, escapeHtml: escapeHtml, MONTHS: MONTHS,
+    parseTeam: parseTeam, teamFile: teamFile, newerVersion: newerVersion
   };
   root.QA = root.QA || {};
   root.QA.util = api;
