@@ -345,6 +345,17 @@ test("itemsToText: los puntos de una tabla y los nombres de arriba quedan en su 
   assert.equal(lines[5], "• Bring your ID");
 });
 
+test("itemsToText: la primera fila con puntos en la segunda línea de la página no rompe la lectura", () => {
+  /* la fila de arriba (nombres al principio de una página) es la única que hay encima */
+  const text = X.itemsToText([
+    textItem("Laura Ramos", 455, 700),
+    textItem("Applied for coverage.", 40, 680), textItem("•", 470, 680)
+  ]);
+  const lines = text.split("\n");
+  assert.equal(lines[0].indexOf("Laura Ramos"), 114);
+  assert.equal(lines[1].indexOf("•"), 118);
+});
+
 test("pdfToText: un PDF sin formulario da solo el texto de sus páginas", async () => {
   const lib = fakePdf([{ items: [textItem("Payment receipt", 10, 700)] }, { items: [textItem("Total: $27.65", 10, 700)] }]);
   assert.equal(await X.pdfToText(lib, new Uint8Array()), "Payment receipt\n\nTotal: $27.65");

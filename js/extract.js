@@ -1223,7 +1223,7 @@
         if (firstRow < 0) { firstRow = ri; }
       });
     });
-    for (var h = firstRow - 1; firstRow > 0 && h >= firstRow - 2; h--) {
+    for (var h = firstRow - 1; h >= 0 && h >= firstRow - 2; h--) {
       var its = rows[h].items;
       if (its[0].x < maxX * 0.5 || its.some(function (it) { return /[\d$:\/]/.test(it.str); })) { break; }
       its.forEach(function (it, ii) {
