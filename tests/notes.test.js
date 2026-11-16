@@ -257,10 +257,14 @@ test("nota: pendiente como el template de cotización, con varios planes", () =>
   assert.match(note, /desea aplicar con los siguientes datos:/);
   assert.match(note, /Compañía_Plan: Ambetter_Everyday Bronze - \$0 \(SELECCIONADO\)/);
   assert.match(note, /\nSe firmó la carta de consentimiento en línea\.$/);
-  /* en la oficina: se entrega la cotización y se firma en la oficina */
+  /* revisará los planes: la cotización cierra la nota; el consent todavía no se envía ni se firma */
   const ofi = N.buildNote(Object.assign({}, sel, { canal: "Walk In", revisaPlanes: true }));
   assert.match(ofi, /desea cotizar/);
-  assert.match(ofi, /\nSe le entrega la cotización para que revise los planes\.\nSe firmó la carta de consentimiento en la oficina\.$/);
+  assert.match(ofi, /\nSe le entrega la cotización para que revise los planes\.$/);
+  assert.doesNotMatch(ofi, /consentimiento/);
+  const envia = N.buildNote(Object.assign({}, d, { revisaPlanes: true }));
+  assert.match(envia, /\nInicia cobertura: 01\/01\/2027\nSe le envía la cotización para que revise los planes\.$/);
+  assert.doesNotMatch(envia, /consentimiento/);
   assert.equal(N.buildSms(sel), "", "Pendiente no lleva SMS");
 });
 
