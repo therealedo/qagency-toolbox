@@ -88,7 +88,7 @@ There are two situations:
 - **App enviada.** Whoever writes the note talked to the client and processed the app, so there is no collaborator. *Fecha del SOA* is the date of the note unless it is changed, and the SOA is ticked in Network like any other document. The contract (H-PBP) is part of the plan name; when the application shows it apart, the reader appends it. **Tiene prima mensual** shows the premium; off, the note says `Premium: $0.00`. The note says `App ID: …` and `Medicaid ID: 12345678`, and Network has the SOA and the App. The SMS is the agency's official Medicare SMS (see *SMS, email and file names*), and there is no email.
 - **Sin cambios.** The client reviews their plan and keeps it, so it only asks for the client, the plan name and the SOA: `ER_11/14/2026: Se atiende al cliente en cita telefónica (09:00), se revisan los beneficios de su plan para 2027 y decide mantenerse en su plan actual - Humana Gold Plus H1036-077 (HMO)`. The report line is for the NO CHANGE channel in Cliq: `Diaz, Beatriz se quedara en su mismo plan Humana Gold Plus H1036-077 (HMO)`. The task is `MC MANTENIMIENTO`, or `FOLLOW UP LEAD_INACTIVE CLIENT MC` when **Es cliente** is off. No SMS.
 
-In both, *Cliente* also has the client's phone and email, which only feed the SOA's Cliq line and signing link, and below the form **SOA para firmar** downloads the Scope of Appointment (see *Consent and SOA*).
+In both, *Cliente* also has the client's phone and email, which only feed the SOA's Cliq line and signing link, and the **Dirección**, which is only there to confirm it with the client: it goes in no note, task, report, message or form, and the Medicare application fills it in when it has one. Below the form **SOA para firmar** downloads the Scope of Appointment (see *Consent and SOA*).
 
 ### Consent and SOA
 
@@ -240,7 +240,7 @@ A document only fills what is empty or what a weaker document filled; what you t
 | HealthSherpa quote (screenshot of the plan search, a plan's page or the plan comparison, in English or Spanish; also the page's copied text) | every plan on the screen into **Planes cotizados**: company, plan name and the monthly premium the client pays (after the subsidy). See *HealthSherpa quotes* below |
 | Docs submitted (HealthCare.gov *Upload documents*, with the open item) | application ID, plan year, the document sent and for whom: it marks the requested document as **Enviado**, or adds it. The account holder's own document also fills the titular's full name from the uploaded file (`Diaz, Beatriz - …`) |
 | Consent (the agency's QAgency and ATH forms, Spanish or English) | ticks the Consent for the note |
-| Medicare application summary (carrier portal, Spanish or English) | MBI, Part A/B, plan (with its contract), election period, PCP, App ID, agent and NPN (into *Agente (NPN)*; an NPN not in the team file shows with the agent name read) |
+| Medicare application summary (carrier portal, Spanish or English) | MBI, Part A/B, plan (with its contract), election period, PCP, App ID, address, agent and NPN (into *Agente (NPN)*; an NPN not in the team file shows with the agent name read) |
 | Scope of Appointment | beneficiary, signature date |
 | Payment receipt | amount, date, confirmation, last 4 digits, autopay |
 | Supplemental application (dental, vision, hospital, accident, cancer, short term, life, international, discount) | product, carrier, plan, premium, effective date, policy number, beneficiary |

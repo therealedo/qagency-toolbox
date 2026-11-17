@@ -175,13 +175,15 @@ const MC_APPS = {
     nombres: "ELENA", apellidos: "NAVARRO", mbi: "5EF6GH7JK89", parteA: "11/01/2003", parteB: "11/01/2003",
     efectiva: "01/01/2027", plan: "IND - UHC Dual Complete FL-Y5 (HMO-POS D-SNP) (MAPD) H1045-073-000",
     medicaid: "1234509876", periodoMC: "AEP", pcp: "Hector Villalba", pcpId: "001234567890", prima: "$0.00",
-    agente: "MARTA QUINTERO LUGO", npn: "19876543", compania: mcCarrier("UnitedHealthcare")
+    agente: "MARTA QUINTERO LUGO", npn: "19876543", compania: mcCarrier("UnitedHealthcare"),
+    direccion: "1200 Sample Blvd, Naples, FL 34100"
   },
   Aetna: { clienteEmail: "client@example.com", clienteTel: "(555) 010-4477", genero: "a",
     nombres: "GLORIA", apellidos: "PAREDES", mbi: "6GH7JK8MN90", parteA: "08/01/2016", parteB: "08/01/2016",
     efectiva: "01/01/2027", plan: "Aetna Medicare Select (HMO) H1609-027", periodoMC: "AEP",
     pcp: "Benitez, Ramon, MD", pcpId: "506070", confirmacion: "T9876543210987A", prima: "$0.00",
-    agente: "MARTA QUINTERO", compania: mcCarrier("Aetna")
+    agente: "MARTA QUINTERO", compania: mcCarrier("Aetna"),
+    direccion: "99 SE 1st PL, Cape Coral, FL 33900"
   },
   /* Freedom solo muestra "PQ22" como MBI, no trae fechas de Parte A/B y
      marca el período con casillas dibujadas: esos campos quedan vacíos */
@@ -194,7 +196,8 @@ const MC_APPS = {
   Devoted: { clienteEmail: "client727@example.com", clienteTel: "(555) 010-9684", genero: "o",
     nombres: "PABLO", apellidos: "ANDRES RUIZ", mbi: "7JK8MN9PQ01", efectiva: "01/01/2027",
     plan: "DEVOTED CHOICE GIVEBACK 016 FL (PPO) (H9884-016)", periodoMC: "AEP", confirmacion: "KZPTRWM5N2Q",
-    agente: "LUCIA FERRER CAMPOS", npn: "18765432", compania: mcCarrier("Devoted Health")
+    agente: "LUCIA FERRER CAMPOS", npn: "18765432", compania: mcCarrier("Devoted Health"),
+    direccion: "1000 Sample St Apt B, Lehigh Acres, FL 33900"
   }
 };
 
