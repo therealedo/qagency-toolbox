@@ -304,3 +304,8 @@ test("PDF lleno: sin campos con varios lugares, el PDF sale como lo guarda PDF.j
   assert.equal(objs["Full Name"][0].value, consent.clientName);
   assert.equal(objs["Health Plan"][0].value, consent.plan);
 });
+
+test("SOA: la dirección de Medicare no va al formulario", () => {
+  const d = Object.assign({}, base, { line: "mc", direccion: "1200 Sample Blvd, Naples, FL 34100" });
+  assert.doesNotMatch(JSON.stringify(F.soaValues(d)), /Sample Blvd/);
+});

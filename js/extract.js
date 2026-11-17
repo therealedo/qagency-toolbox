@@ -399,6 +399,8 @@
     var sex = after(doc, [SEX_LABEL], vSex, 1);
     if (sex) { f.genero = sex; }
     contactInfo(doc, f);
+    var dir = mcAddress(doc);
+    if (dir) { f.direccion = dir; }
     agentInfo(doc, f);
     if (!f.agente) {
       var ag = mcAgent(doc);
@@ -783,6 +785,31 @@
       return m ? street + ", " + m[1] + ", " + m[2] + " " + m[3] : street;
     }
     return street;
+  }
+
+  /* Dirección de la aplicación de Medicare. La calle va con su rótulo; la
+     ciudad, el estado y el ZIP vienen con sus propios rótulos ("City * : Cape
+     Coral", o "City:" y el valor debajo) o en la línea de abajo
+     ("Lehigh Acres, FL 33900"). */
+  var MC_STREET = [/\bAddress\s*\(?Line\s*1\)?/i, /\bPermanent,?\s*Home\s*Address\b/i, /\bPrimary\s*Address\s*:/i,
+    /\b(Home|Residential|Permanent)\s*address\b/i, /\bDirecci[oó]n\s*(residencial|permanente|de\s*residencia)\b/i];
+  function vCity(t) { var c = firstCell(t); return /^[A-Za-zÁÉÍÓÚÑáéíóúñ .'-]{2,40}$/.test(c) && !LABELISH.test(c) ? c : ""; }
+  function vState(t) { var c = firstCell(t); return /^[A-Z]{2}$/.test(c) ? c : ""; }
+  function vZip(t) { var c = firstCell(t); return /^\d{5}(-\d{4})?$/.test(c) ? c : ""; }
+  function mcAddress(doc) {
+    for (var k = 0; k < MC_STREET.length; k++) {
+      for (var i = 0; i < doc.lines.length; i++) {
+        if (!MC_STREET[k].test(doc.lines[i])) { continue; }
+        var street = after({ lines: doc.lines.slice(i) }, [MC_STREET[k]], vAddress, 1);
+        if (!street) { continue; }
+        var near = { lines: doc.lines.slice(i, i + 20) };
+        var city = after(near, [/^\s*City\b/i], vCity, 1);
+        var state = after(near, [/^\s*State\b/i], vState, 1);
+        var zip = after(near, [/^\s*Zip(\s*Code)?\b/i], vZip, 1);
+        return city && state && zip ? street + ", " + city + ", " + state + " " + zip : withCity(doc, street);
+      }
+    }
+    return "";
   }
 
   /* "4. Resident Address: 700 Palmetto Rd     Venice     FL     34285" */

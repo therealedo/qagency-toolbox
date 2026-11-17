@@ -1468,3 +1468,12 @@ test("agencia: la del agente cuyo NPN se usa; si no tiene, la elegida arriba", (
   const sms = (oficina) => N.buildSms({ line: "oc", outcome: "enviada", nombres: "Ana", apellidos: "Ruiz", oficina: oficina, net: {}, docs: [] });
   assert.notEqual(sms(N.officeFor(ath, "QAgency")), sms("QAgency"));
 });
+
+test("Medicare: la dirección es solo para confirmar, no sale en la nota, el task, el reporte ni los mensajes", () => {
+  const dir = "1200 SAMPLE BLVD, NAPLES, FL 34100";
+  ["enviada", "pendiente", "sin"].forEach((outcome) => {
+    const d = make({ line: "mc", outcome: outcome, gestion: "nueva", compania: "Aetna", direccion: dir });
+    const out = [N.buildNote(d), N.buildTask(d), N.buildReport(d), N.buildSms(d), N.buildEmail(d, 1), N.buildEmail(d, 2)];
+    out.forEach((t) => assert.doesNotMatch(String(t || ""), /SAMPLE BLVD/i, outcome));
+  });
+});
