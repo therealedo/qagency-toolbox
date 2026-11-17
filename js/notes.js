@@ -72,9 +72,31 @@
     var list = conCobertura(d).map(function (p) { return p.titular ? cliente(d) : p.first; });
     return list.length > 1 ? list.slice(0, -1).join(", ") + " y " + list[list.length - 1] : (list[0] || "");
   }
-  /* Ingreso del hogar: la suma de lo que gana cada persona en los taxes. */
+  /* El ingreso de un dependiente (hijo, padre, hermano u otro en los taxes)
+     solo cuenta en el MAGI del hogar si tiene que declarar impuestos: "Count
+     their income only if they need to file a federal tax return"
+     (healthcare.gov). Con un solo ingreso anual por persona se toma como
+     ingreso de trabajo, cuyo límite es la deducción estándar de una persona
+     sola en el año del plan (IRS). El titular, el cónyuge y quien no tiene
+     parentesco elegido siempre cuentan. */
+  var DEDUCCION_ESTANDAR = { 2025: 15750, 2026: 16100, 2027: 16600 };
+  var DEPENDIENTES = ["Hijo/a", "Padre/Madre", "Hermano/a", "Otro"];
+  function limiteDeclarar(d) {
+    var years = Object.keys(DEDUCCION_ESTANDAR).map(Number).sort();
+    var y = +val(d.anio) || years[years.length - 1];
+    y = Math.max(years[0], Math.min(years[years.length - 1], y));
+    return DEDUCCION_ESTANDAR[y];
+  }
+  function esDependiente(p) { return !p.titular && DEPENDIENTES.indexOf(p.parentesco) >= 0; }
+  function cuentaIngreso(d, p) { return !esDependiente(p) || p.ingreso > limiteDeclarar(d); }
+  /* Dependientes con ingreso que no llega al límite: no suman al hogar. */
+  function ingresoSinContar(d) {
+    return enTaxes(d).filter(function (p) { return p.ingreso && !cuentaIngreso(d, p); });
+  }
+  /* Ingreso del hogar: la suma de lo que gana cada persona en los taxes,
+     menos los dependientes que no tienen que declarar. */
   function ingresoHogar(d) {
-    return enTaxes(d).reduce(function (sum, p) { return p.ingreso ? (sum || 0) + p.ingreso : sum; }, null);
+    return enTaxes(d).reduce(function (sum, p) { return p.ingreso && cuentaIngreso(d, p) ? (sum || 0) + p.ingreso : sum; }, null);
   }
 
   /* Documentos que pide el Mercado y si ya se enviaron. */
@@ -487,7 +509,7 @@
     if (inc !== null || tax.length || cov.length) {
       var s = "";
       if (inc !== null) {
-        var earners = tax.filter(function (p) { return p.ingreso; });
+        var earners = tax.filter(function (p) { return p.ingreso && cuentaIngreso(d, p); });
         s += "Sus ingresos anuales son " + moneyShort(inc) +
              (earners.length > 1 ? " (" + earners.map(function (p) { return p.first + " " + moneyShort(p.ingreso); }).join(", ") + ")" : "") + ". ";
       }
@@ -1132,7 +1154,13 @@
     var O = outcomeOf(d), w = [];
     if (!val(d.ini)) { w.push("Elige quién hace la nota (arriba a la derecha)."); }
     if (!val(d.nombres) && !val(d.apellidos)) { w.push("Falta el nombre del cliente."); }
-    if (Array.isArray(d.porElegir) && d.porElegir.length) { w.push("Elige o confirma: " + d.porElegir.join(", ") + "."); }
+    if (d.line === "oc") {
+      ingresoSinContar(d).forEach(function (p) {
+        w.push("El ingreso de " + p.first + " (" + moneyShort(p.ingreso) + ") no suma al hogar: un dependiente solo cuenta si tiene que declarar impuestos (más de " +
+               moneyShort(limiteDeclarar(d)) + " de trabajo; con ingresos de inversiones o trabajo propio el límite es menor).");
+      });
+    }
+        if (Array.isArray(d.porElegir) && d.porElegir.length) { w.push("Elige o confirma: " + d.porElegir.join(", ") + "."); }
     var noChange = d.line === "mc" && O.id === "sincambio";
     if (noChange && !val(d.plan)) { w.push("Reporte: falta el nombre del plan."); }
     if (O.report && !noChange) {
@@ -1314,7 +1342,7 @@
     carrierChoice: carrierChoice, carrierFromChoice: carrierFromChoice, CARRIER_OTHER: CARRIER_OTHER, memberDelta: memberDelta, zohoName: zohoName, clientInitials: clientInitials,
     personas: personas, docsOf: docsOf, pendingDocs: pendingDocs, planesOf: planesOf, networkOf: networkOf, docKey: docKey,
     mergeDocs: mergeDocs, rowSource: rowSource, discarded: discarded, discardRow: discardRow, mergeMembers: mergeMembers, mergeHousehold: mergeHousehold, samePerson: samePerson, moveDocKey: moveDocKey,
-    enTaxes: enTaxes, conCobertura: conCobertura, ingresoHogar: ingresoHogar, moneyShort: moneyShort,
+    enTaxes: enTaxes, conCobertura: conCobertura, ingresoHogar: ingresoHogar, ingresoSinContar: ingresoSinContar, limiteDeclarar: limiteDeclarar, moneyShort: moneyShort,
     NET_DIRS: NET_DIRS, netDirFor: netDirFor
   };
   root.QA = root.QA || {};
