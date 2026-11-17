@@ -60,7 +60,8 @@
         name: name, first: p.titular ? (first(d.nombres) || "Titular") : first(p.nombre),
         titular: !!p.titular, taxes: !!p.taxes, cobertura: !!p.cobertura,
         ingreso: U.moneyNumber(p.ingreso), parentesco: val(p.parentesco),
-        dependiente: typeof p.dependiente === "boolean" ? p.dependiente : null
+        dependiente: typeof p.dependiente === "boolean" ? p.dependiente : null,
+        estatus: val(p.estatus), estatusOtro: val(p.estatusOtro)
       };
     }).filter(function (p) { return p.titular || p.name; });
   }
@@ -1224,6 +1225,18 @@
 
   var SSN_RE = /\b\d{3}-\d{2}-\d{4}\b/;
 
+  /* Desde el plan 2027 (ley H.R. 1, sección 71301) el subsidio del Mercado
+     solo es para ciudadanos, residentes permanentes, Cuban/Haitian entrants
+     y migrantes de COFA. Quien pide cobertura con otro estatus (permiso de
+     trabajo u otro) se revisa: puede ser un Cuban/Haitian entrant. Sin año
+     del plan todavía, se avisa igual. */
+  function subsidioPorRevisar(d) {
+    if (d.line !== "oc" || outcomeOf(d).id === "cancelada") { return []; }
+    var y = /^\d{4}$/.test(val(d.anio)) ? +val(d.anio) : 0;
+    if (y && y < 2027) { return []; }
+    return personas(d).filter(function (p) { return p.cobertura && (p.estatus === "permiso" || p.estatus === "otro"); });
+  }
+
   /* Cosas que conviene revisar antes de copiar. No bloquean nada. */
   function warnings(d, noteText) {
     var O = outcomeOf(d), w = [];
@@ -1234,6 +1247,12 @@
         w.push("El ingreso de " + p.first + " (" + moneyShort(p.ingreso) + ") no suma al hogar: un dependiente solo cuenta si tiene que declarar impuestos (más de " +
                moneyShort(limiteDeclarar(d)) + " de trabajo; con ingresos de inversiones o trabajo propio el límite es menor).");
       });
+      var revisar = subsidioPorRevisar(d);
+      if (revisar.length) {
+        var quien = revisar.map(function (p) { return p.first + " (" + estatusLabel(p.estatus, p.estatusOtro) + ")"; });
+        w.push("Revisa el subsidio de " + (quien.length > 1 ? quien.slice(0, -1).join(", ") + " y " + quien[quien.length - 1] : quien[0]) +
+               ": desde 2027 solo lo tienen los ciudadanos, los residentes permanentes, los Cuban/Haitian entrants y los migrantes de COFA.");
+      }
     }
         if (Array.isArray(d.porElegir) && d.porElegir.length) { w.push("Elige o confirma: " + d.porElegir.join(", ") + "."); }
     var noChange = d.line === "mc" && O.id === "sincambio";

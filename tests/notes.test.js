@@ -1430,3 +1430,27 @@ test("Network: si revisará los planes no hay carta de consentimiento que guarda
   /* las demás situaciones siguen igual */
   assert.ok(N.networkOf({ line: "oc", outcome: "enviada", docs: [], net: {}, revisaPlanes: true }).length > 0);
 });
+
+test("2027: aviso para revisar el subsidio de quien pide cobertura sin ser ciudadano ni residente", () => {
+  const d = { line: "oc", outcome: "pendiente", anio: "2027", nombres: "Ana", apellidos: "Ruiz", ini: "TA", net: {}, docs: [], planes: [],
+    personas: [
+      { titular: true, taxes: true, cobertura: true, estatus: "permiso" },
+      { nombre: "LUIS RUIZ", taxes: true, cobertura: true, estatus: "otro", estatusOtro: "TPS" },
+      { nombre: "ROSA RUIZ", taxes: true, cobertura: true, estatus: "residente" },
+      { nombre: "PEDRO RUIZ", taxes: true, cobertura: false, estatus: "permiso" },
+      { nombre: "EVA RUIZ", taxes: true, cobertura: true, estatus: "ciudadano" },
+      { nombre: "JUAN RUIZ", taxes: true, cobertura: true, estatus: "" }
+    ] };
+  const alert = (x) => N.warnings(x, "").filter((t) => /2027/.test(t));
+  assert.deepEqual(alert(d), [
+    "Revisa el subsidio de Ana (Permiso de trabajo) y Luis (TPS): desde 2027 solo lo tienen los ciudadanos, los residentes permanentes, los Cuban/Haitian entrants y los migrantes de COFA."
+  ]);
+  /* un año antes de 2027, otra línea o una cancelación no llevan el aviso */
+  assert.deepEqual(alert(Object.assign({}, d, { anio: "2026" })), []);
+  assert.deepEqual(alert(Object.assign({}, d, { outcome: "cancelada" })), []);
+  assert.deepEqual(alert(Object.assign({}, d, { line: "mc" })), []);
+  /* sin año todavía, se avisa igual */
+  assert.equal(alert(Object.assign({}, d, { anio: "" })).length, 1);
+  /* una sola persona */
+  assert.match(alert(Object.assign({}, d, { personas: [d.personas[0]] }))[0], /^Revisa el subsidio de Ana \(Permiso de trabajo\): /);
+});
