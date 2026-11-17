@@ -68,7 +68,7 @@ test("el instalador prefiere Chrome, luego Edge, y Brave al final (Brave no deja
 
 test("al actualizar, el instalador mantiene el navegador del acceso directo que ya existe (ahí están los ajustes)", () => {
   const ps = fs.readFileSync(path.join(root, "tools", "windows", "instalar.ps1"), "utf8");
-  const keep = ps.indexOf("CreateShortcut($a).TargetPath");
+  const keep = ps.indexOf("$previo = $lnk.TargetPath");
   assert.ok(keep > ps.indexOf("$navegador = $navegadores"), "se lee después de elegir el primero que exista");
   assert.ok(keep < ps.indexOf("$s.TargetPath = $navegador"), "y antes de escribir los accesos directos");
   assert.ok(ps.includes("(chrome|msedge|brave)\\.exe$"), "solo si sigue siendo uno de los navegadores conocidos");
@@ -153,4 +153,17 @@ test("íconos: el .ico lleva una imagen por tamaño, dibujadas desde mark.svg (n
   assert.ok(fs.existsSync(path.join(root, "assets", "mark.svg")));
   const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
   assert.match(html, /<link rel="icon" href="assets\/icon-32.png" sizes="32x32">/);
+});
+
+test("los accesos directos abren siempre el mismo perfil del navegador, propio de la herramienta", () => {
+  const ps = fs.readFileSync(path.join(root, "tools", "windows", "instalar.ps1"), "utf8");
+  /* sin perfil fijo, Chrome la abre en el último perfil usado y los ajustes "desaparecen" */
+  assert.match(ps, /\$perfil = Join-Path \$destino "Navegador"/);
+  const args = ps.match(/\$s\.Arguments = "(--user-data-dir[^\n]*--app=[^\n]*)"/);
+  assert.ok(args, "el acceso directo de la herramienta lleva --user-data-dir antes de --app");
+  assert.match(args[1], /--user-data-dir=`"\$perfil`"/);
+  assert.match(args[1], /--no-first-run/);
+  /* quien venía del perfil compartido recibe el aviso de qué volver a configurar */
+  assert.match(ps, /\$propioAntes/);
+  assert.match(ps, /Importar equipo/);
 });
