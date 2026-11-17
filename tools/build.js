@@ -44,7 +44,9 @@ html = html.replace(/<script src="([^"]+)"><\/script>/g, (_, src) => {
 
 /* el manifiesto solo sirve cuando la herramienta está publicada */
 html = html.replace(/<link rel="manifest"[^>]*>\n?/, "");
-html = html.split('href="assets/icon-192.png"').join('href="' + dataUri("assets/icon-192.png", "image/png") + '"');
+["icon-16", "icon-32", "icon-192"].forEach((n) => {
+  html = html.split('href="assets/' + n + '.png"').join('href="' + dataUri("assets/" + n + ".png", "image/png") + '"');
+});
 html = html.split('src="assets/mark.png"').join('src="' + dataUri("assets/mark.png", "image/png") + '"');
 
 const leftovers = html.match(/(?:src|href)="(?!data:|#)[^"]+"/g);
@@ -60,19 +62,28 @@ console.log("dist/QAgency-Toolbox.html          " + kb(Buffer.byteLength(html)) 
 
 /* ---------------------------------------------------- paquete de Windows */
 
-/* Ícono .ico con una sola imagen PNG de 256 px (válido desde Windows Vista). */
-function ico(png) {
-  const head = Buffer.alloc(22);
+/* Ícono .ico con una imagen PNG por tamaño (válido desde Windows Vista):
+   Windows toma la del tamaño que necesita (16 px en la barra de tareas,
+   32 o 48 en el escritorio) en vez de achicar una de 256 px, que se ve
+   borrosa. Las imágenes las dibuja tools/make-icons.js desde mark.svg. */
+const ICO_SIZES = [16, 24, 32, 48, 64, 128, 256];
+function ico(pngs) {
+  const head = Buffer.alloc(6 + 16 * pngs.length);
   head.writeUInt16LE(0, 0);            /* reservado */
   head.writeUInt16LE(1, 2);            /* tipo: ícono */
-  head.writeUInt16LE(1, 4);            /* una imagen */
-  head.writeUInt8(0, 6);               /* ancho 256 se escribe como 0 */
-  head.writeUInt8(0, 7);               /* alto 256 */
-  head.writeUInt16LE(1, 10);           /* planos */
-  head.writeUInt16LE(32, 12);          /* bits por píxel */
-  head.writeUInt32LE(png.length, 14);
-  head.writeUInt32LE(22, 18);          /* dónde empieza la imagen */
-  return Buffer.concat([head, png]);
+  head.writeUInt16LE(pngs.length, 4);  /* cuántas imágenes */
+  let offset = head.length;
+  pngs.forEach((p, i) => {
+    const e = 6 + 16 * i, size = p.readUInt32BE(16);
+    head.writeUInt8(size >= 256 ? 0 : size, e);      /* ancho (256 se escribe 0) */
+    head.writeUInt8(size >= 256 ? 0 : size, e + 1);  /* alto */
+    head.writeUInt16LE(1, e + 4);                    /* planos */
+    head.writeUInt16LE(32, e + 6);                   /* bits por píxel */
+    head.writeUInt32LE(p.length, e + 8);
+    head.writeUInt32LE(offset, e + 12);              /* dónde empieza la imagen */
+    offset += p.length;
+  });
+  return Buffer.concat([head].concat(pngs));
 }
 
 const CRC_TABLE = (() => {
@@ -145,7 +156,7 @@ const crlf = (p) => read(p).replace(/\r?\n/g, "\r\n");
 const folder = "QAgency-Toolbox/";
 const pack = zip([
   { name: folder + "QAgency-Toolbox.html", data: Buffer.from(html, "utf8") },
-  { name: folder + "toolbox.ico", data: ico(bytes("assets/icon-256.png")) },
+  { name: folder + "toolbox.ico", data: ico(ICO_SIZES.map((n) => bytes("assets/icon-" + n + ".png"))) },
   { name: folder + "Instalar.bat", data: Buffer.from(crlf("tools/windows/Instalar.bat"), "latin1") },
   { name: folder + "Desinstalar.bat", data: Buffer.from(crlf("tools/windows/Desinstalar.bat"), "latin1") },
   { name: folder + "Actualizar.bat", data: Buffer.from(crlf("tools/windows/Actualizar.bat"), "latin1") },

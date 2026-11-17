@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 140">
+  <!-- Q Agency shield: drawn as vector so every icon size is sharp.
+       Rendered to PNG by tools/make-icons.js. -->
+  <defs>
+    <linearGradient id="rim" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1A5BD6"/>
+      <stop offset="1" stop-color="#0A2D7C"/>
+    </linearGradient>
+    <linearGradient id="field" x1="0.05" y1="0.05" x2="0.95" y2="0.95">
+      <stop offset="0" stop-color="#0B3A9E"/>
+      <stop offset="0.38" stop-color="#1655C9"/>
+      <stop offset="0.5" stop-color="#3D8BF2"/>
+      <stop offset="0.62" stop-color="#1655C9"/>
+      <stop offset="1" stop-color="#0A2F86"/>
+    </linearGradient>
+  </defs>
+  <path d="M64 2 L125 15 L123 68 C121 100 97 124 64 138 C31 124 7 100 5 68 L3 15 Z" fill="url(#rim)"/>
+  <path d="M64 11 L116 22 L114.5 68 C113 95 92 116 64 128.5 C36 116 15 95 13.5 68 L12 22 Z" fill="#FFFFFF"/>
+  <path d="M64 15 L112 25.2 L110.6 68 C109.2 93 89.6 112.6 64 124.2 C38.4 112.6 18.8 93 17.4 68 L16 25.2 Z" fill="url(#field)"/>
+  <text x="64" y="99" text-anchor="middle" font-family="'Times New Roman', Times, serif" font-weight="700" font-size="92" fill="#FFFFFF">Q</text>
+</svg>

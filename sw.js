@@ -35,6 +35,8 @@ const SHELL = [
   "vendor/fonts/inter-latin-wght-normal.woff2",
   "vendor/fonts/jetbrains-mono-latin-wght-normal.woff2",
   "assets/mark.png",
+  "assets/icon-16.png",
+  "assets/icon-32.png",
   "assets/icon-192.png",
   "assets/icon-256.png",
   "assets/icon-512.png",

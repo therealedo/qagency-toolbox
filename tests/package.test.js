@@ -142,3 +142,15 @@ test("firma: lo firmado con una llave solo lo acepta esa llave", () => {
   assert.equal(S.verify(Buffer.from("otro"), sig, a.publicKey), false);
   assert.equal(S.verify(data, "no es base64 válido!!", a.publicKey), false);
 });
+
+test("íconos: el .ico lleva una imagen por tamaño, dibujadas desde mark.svg (no una de 256 px achicada)", () => {
+  const build = fs.readFileSync(path.join(root, "tools", "build.js"), "utf8");
+  assert.match(build, /const ICO_SIZES = \[16, 24, 32, 48, 64, 128, 256\];/);
+  [16, 24, 32, 48, 64, 128, 256].forEach((n) => {
+    const b = fs.readFileSync(path.join(root, "assets", "icon-" + n + ".png"));
+    assert.equal(b.readUInt32BE(16), n, "icon-" + n + ".png mide " + n + " px");
+  });
+  assert.ok(fs.existsSync(path.join(root, "assets", "mark.svg")));
+  const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
+  assert.match(html, /<link rel="icon" href="assets\/icon-32.png" sizes="32x32">/);
+});
