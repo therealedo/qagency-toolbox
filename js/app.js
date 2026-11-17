@@ -51,8 +51,16 @@
     return def;
   }
 
+  /* Si el navegador no deja guardar, se avisa una vez: los ajustes duran
+     solo mientras la ventana esté abierta. */
+  var saveWarned = false;
   function saveSettings() {
-    try { localStorage.setItem(STORE, JSON.stringify(settings)); } catch (e) { /* sin almacenamiento */ }
+    try { localStorage.setItem(STORE, JSON.stringify(settings)); }
+    catch (e) {
+      if (saveWarned || typeof toast !== "function") { return; }
+      saveWarned = true;
+      toast("El navegador no dejó guardar los ajustes (" + ((e && e.name) || "error") + "): se perderán al cerrar la herramienta.");
+    }
   }
 
   var settings = loadSettings();
@@ -2677,6 +2685,10 @@
   }
 
   function openSettings() {
+    fillSettings();
+    $("dlgSettings").showModal();
+  }
+  function fillSettings() {
     renderTeam();
     var seg = $("officeSeg");
     fillSeg(seg, C.OFFICES.map(function (o) { return { v: o, l: o }; }));
@@ -2687,7 +2699,18 @@
     renderSignLinks();
     $("installHelp").textContent = installHelp();
     $("versionTag").textContent = "Versión " + C.VERSION;
-    $("dlgSettings").showModal();
+  }
+
+  /* Otra ventana de la herramienta (abierta dos veces, o una vieja que
+     quedó abierta al actualizar) guardó ajustes: esta los toma, para no
+     volver a escribir encima los suyos, que ya son viejos. */
+  function syncSettingsFrom(e) {
+    if (e.key !== STORE || e.storageArea !== localStorage) { return; }
+    settings = loadSettings();
+    applyTheme(); renderOffice(); renderAuthor();
+    if ($("dlgSettings").open) { fillSettings(); }
+    defaultPeople(); syncInputs(); refresh();
+    if (currentView === "tasks") { renderTasks(); }
   }
 
   function applyTheme() {
@@ -3150,6 +3173,7 @@
       try { history.replaceState(null, "", "#" + a.dataset.view); } catch (err) { location.hash = a.dataset.view; }
     });
     window.addEventListener("hashchange", function () { setView(viewFromHash()); });
+    window.addEventListener("storage", syncSettingsFrom);
     window.addEventListener("beforeunload", function (e) {
       if (hasClientData() && S.dirty) { e.preventDefault(); e.returnValue = ""; }
     });
