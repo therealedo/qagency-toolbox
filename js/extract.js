@@ -724,8 +724,11 @@
       var ag = nameBeforeNpn(doc);
       if (ag) { f.agente = ag.toUpperCase(); }
     }
-    /* "Agent or Broker" con el nombre y el NPN debajo, sin rótulos */
-    var AOB = [/^\s*Agent\s*or\s*Broker\s*$/i, /^\s*Agente\s*o\s*corredor\s*$/i];
+    /* "Agent or Broker" (o "Certified application counselor" en las de
+       2024) con el nombre y el NPN debajo, sin rótulos */
+    var AOB = [/^\s*Agent\s*or\s*Broker\s*$/i, /^\s*Agente\s*o\s*corredor\s*$/i,
+               /^\s*Certified\s+application\s+counselor\s*$/i,
+               /^\s*Consejer[oa]\s+(?:certificad[oa]\s+)?de\s+solicitud(?:es)?(?:\s+certificad[oa])?\s*$/i];
     if (!f.agente) { var aob = after(doc, AOB, vPerson, 1); if (aob) { f.agente = aob.toUpperCase(); } }
     if (!f.npn) { var aobNpn = after(doc, AOB, vDigits(5, 12), 2); if (aobNpn) { f.npn = aobNpn; } }
     var lang = after(doc, [/\bPreferred\s*spoken\s*language\b/i, /\bPreferred\s*(written\s*)?language\b/i, /\bIdioma\s*(preferido|hablado)\b/i], vLang, 1);

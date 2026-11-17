@@ -266,6 +266,11 @@ test("nota: pendiente como el template de cotización, con varios planes", () =>
   const envia = N.buildNote(Object.assign({}, d, { revisaPlanes: true }));
   assert.match(envia, /\nInicia cobertura: 01\/01\/2027\nSe le envía la cotización para que revise los planes\.$/);
   assert.doesNotMatch(envia, /consentimiento/);
+  /* con un solo plan cotizado, la cotización es para que revise el plan */
+  const uno = N.buildNote(Object.assign({}, d, { planes: [d.planes[0]], revisaPlanes: true }));
+  assert.match(uno, /\nSe le envía la cotización para que revise el plan\.$/);
+  const unoOfi = N.buildNote(Object.assign({}, d, { planes: [d.planes[0], { compania: "", plan: "" }], canal: "Walk In", revisaPlanes: true }));
+  assert.match(unoOfi, /\nSe le entrega la cotización para que revise el plan\.$/);
   assert.equal(N.buildSms(sel), "", "Pendiente no lleva SMS");
 });
 
@@ -639,6 +644,97 @@ test("email Obamacare: parte 1 con la póliza y parte 2 con lo que pide el Merca
   assert.equal(N.buildEmail(make({ line: "oc", outcome: "pendiente" }), 1), "", "solo para una app enviada");
   assert.equal(N.buildEmail(make({ line: "mc", outcome: "enviada" }), 2), "");
   assert.ok(C.MKPL_DOCS.every((c) => /^Pruebas de /.test(c.es) && /^Proof of /.test(c.en)), "las 11 en los dos idiomas");
+});
+
+test("email de cotización: Obamacare pendiente que revisará los planes", () => {
+  const blue = { compania: "Florida Blue", plan: "Blue Care Silver 1477C", prima: "0" };
+  const d = make({ line: "oc", outcome: "pendiente", revisaPlanes: true, efectiva: "01/01/2027", planes: [blue] });
+  assert.equal(N.buildEmail(d, 1), [
+    "Estimado Cliente",
+    "Adjunto cotizaciones para su plan médico a través de la compañía: FLORIDA BLUE",
+    "NOMBRE DEL PLAN: BLUE CARE SILVER 1477C",
+    "Prima Mensual: $0.00",
+    "Cobertura a partir del 01/01/2027"
+  ].join("\n"));
+  assert.equal(N.buildEmail(d, 2), "", "una sola parte");
+  assert.equal(N.buildEmail(Object.assign({}, d, { idioma: "en" }), 1), [
+    "Dear Client",
+    "Attached is a quote for an Insurance Health Plan",
+    "with the following company: FLORIDA BLUE",
+    "Name of the plan: BLUE CARE SILVER 1477C",
+    "Monthly Premium Payment: $0.00",
+    "Effective Date: 01/01/2027"
+  ].join("\n"));
+  assert.match(N.buildEmail(Object.assign({}, d, { genero: "a" }), 1), /^Estimada Cliente\n/);
+  /* varios planes de la misma compañía: la compañía una vez y cada plan con su prima */
+  const otro = { compania: "Florida Blue", plan: "myBlue Essentials Silver", prima: "45" };
+  const dos = Object.assign({}, d, { planes: [blue, otro, { compania: "", plan: "" }] });
+  assert.equal(N.buildEmail(dos, 1), [
+    "Estimado Cliente",
+    "Adjunto cotizaciones para su plan médico a través de la compañía: FLORIDA BLUE",
+    "",
+    "NOMBRE DEL PLAN: BLUE CARE SILVER 1477C",
+    "Prima Mensual: $0.00",
+    "",
+    "NOMBRE DEL PLAN: MYBLUE ESSENTIALS SILVER",
+    "Prima Mensual: $45.00",
+    "",
+    "Cobertura a partir del 01/01/2027"
+  ].join("\n"));
+  assert.equal(N.buildEmail(Object.assign({}, dos, { idioma: "en" }), 1), [
+    "Dear Client",
+    "Attached are quotes for Insurance Health Plans",
+    "with the following company: FLORIDA BLUE",
+    "",
+    "Name of the plan: BLUE CARE SILVER 1477C",
+    "Monthly Premium Payment: $0.00",
+    "",
+    "Name of the plan: MYBLUE ESSENTIALS SILVER",
+    "Monthly Premium Payment: $45.00",
+    "",
+    "Effective Date: 01/01/2027"
+  ].join("\n"));
+  /* varias compañías: cada una con sus planes */
+  const amb = { compania: "Ambetter", plan: "Everyday Bronze", prima: "12.5" };
+  const tres = Object.assign({}, d, { planes: [blue, amb, otro] });
+  assert.equal(N.buildEmail(tres, 1), [
+    "Estimado Cliente",
+    "Adjunto cotizaciones para su plan médico a través de las compañías:",
+    "",
+    "Compañía: FLORIDA BLUE",
+    "NOMBRE DEL PLAN: BLUE CARE SILVER 1477C",
+    "Prima Mensual: $0.00",
+    "NOMBRE DEL PLAN: MYBLUE ESSENTIALS SILVER",
+    "Prima Mensual: $45.00",
+    "",
+    "Compañía: AMBETTER",
+    "NOMBRE DEL PLAN: EVERYDAY BRONZE",
+    "Prima Mensual: $12.50",
+    "",
+    "Cobertura a partir del 01/01/2027"
+  ].join("\n"));
+  assert.equal(N.buildEmail(Object.assign({}, tres, { idioma: "en" }), 1), [
+    "Dear Client",
+    "Attached are quotes for Insurance Health Plans",
+    "with the following companies:",
+    "",
+    "Company: FLORIDA BLUE",
+    "Name of the plan: BLUE CARE SILVER 1477C",
+    "Monthly Premium Payment: $0.00",
+    "Name of the plan: MYBLUE ESSENTIALS SILVER",
+    "Monthly Premium Payment: $45.00",
+    "",
+    "Company: AMBETTER",
+    "Name of the plan: EVERYDAY BRONZE",
+    "Monthly Premium Payment: $12.50",
+    "",
+    "Effective Date: 01/01/2027"
+  ].join("\n"));
+  /* sin marcar «Revisará los planes» o sin planes no hay email; entra en Copiar siguiente */
+  assert.equal(N.buildEmail(Object.assign({}, d, { revisaPlanes: false }), 1), "");
+  assert.equal(N.buildEmail(Object.assign({}, d, { planes: [] }), 1), "");
+  assert.deepEqual(N.copyOrder(d).slice(-1), ["email1"]);
+  assert.ok(!N.copyOrder(Object.assign({}, d, { revisaPlanes: false })).includes("email1"));
 });
 
 test("email Suplementario: aplicación enviada en español e inglés", () => {
