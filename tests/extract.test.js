@@ -755,3 +755,17 @@ test("App Summary: quien no pide cobertura queda sin cobertura, y quién declara
   const note = N.buildNote(Object.assign({ line: "oc", outcome: "pendiente", fecha: "01/16/2026", ini: "LI", hora: "09:00", canal: "Call", planes: [], net: {} }, f));
   assert.match(note, /Solicitan cobertura: 1 \(Kara\)\./);
 });
+
+/* App Summary de 2024: el agente sale como "Certified application counselor",
+   con el nombre y el NPN debajo, sin rótulos. */
+test("App Summary 2024: el agente y su NPN bajo Certified application counselor", () => {
+  const r = X.extract(fixture("OC App Summary 2024 Counselor"), "document.pdf", "oc");
+  assert.equal(r.type, "oc_app");
+  assert.equal(r.fields.agente, "MARIA LOPEZ");
+  assert.equal(r.fields.npn, "87654321");
+  assert.deepEqual(r.fields.personas.map((p) => [p.nombre, p.cobertura]), [["ANA RUIZ PRADO", true]]);
+  /* el rótulo en español de la misma sección */
+  const es = X.extract(fixture("OC App Summary 2024 Counselor").replace("Certified application counselor", "Consejero certificado de solicitudes"), "document.pdf", "oc");
+  assert.equal(es.fields.agente, "MARIA LOPEZ");
+  assert.equal(es.fields.npn, "87654321");
+});
