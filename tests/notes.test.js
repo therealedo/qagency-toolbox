@@ -266,6 +266,11 @@ test("nota: pendiente como el template de cotización, con varios planes", () =>
   const envia = N.buildNote(Object.assign({}, d, { revisaPlanes: true }));
   assert.match(envia, /\nInicia cobertura: 01\/01\/2027\nSe le envía la cotización para que revise los planes\.$/);
   assert.doesNotMatch(envia, /consentimiento/);
+  /* con un solo plan cotizado, la cotización es para que revise el plan */
+  const uno = N.buildNote(Object.assign({}, d, { planes: [d.planes[0]], revisaPlanes: true }));
+  assert.match(uno, /\nSe le envía la cotización para que revise el plan\.$/);
+  const unoOfi = N.buildNote(Object.assign({}, d, { planes: [d.planes[0], { compania: "", plan: "" }], canal: "Walk In", revisaPlanes: true }));
+  assert.match(unoOfi, /\nSe le entrega la cotización para que revise el plan\.$/);
   assert.equal(N.buildSms(sel), "", "Pendiente no lleva SMS");
 });
 
