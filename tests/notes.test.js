@@ -1454,3 +1454,17 @@ test("2027: aviso para revisar el subsidio de quien pide cobertura sin ser ciuda
   /* una sola persona */
   assert.match(alert(Object.assign({}, d, { personas: [d.personas[0]] }))[0], /^Revisa el subsidio de Ana \(Permiso de trabajo\): /);
 });
+
+test("agencia: la del agente cuyo NPN se usa; si no tiene, la elegida arriba", () => {
+  const ath = { name: "Laura Gomez", npn: "12345678", oficina: "ATH Insurance" };
+  assert.equal(N.officeFor(ath, "QAgency"), "ATH Insurance");
+  assert.equal(N.officeFor({ name: "Rosa Mendez", npn: "87654321" }, "ATH Insurance"), "ATH Insurance");
+  assert.equal(N.officeFor(null, "ATH Insurance"), "ATH Insurance");
+  /* sin NPN o con una agencia que no existe, manda la de arriba */
+  assert.equal(N.officeFor({ name: "X", npn: "", oficina: "ATH Insurance" }, "QAgency"), "QAgency");
+  assert.equal(N.officeFor({ name: "X", npn: "1", oficina: "Otra" }, "QAgency"), "QAgency");
+  assert.equal(N.officeFor(null, ""), C.OFFICES[0]);
+  /* el SMS se presenta con esa agencia */
+  const sms = (oficina) => N.buildSms({ line: "oc", outcome: "enviada", nombres: "Ana", apellidos: "Ruiz", oficina: oficina, net: {}, docs: [] });
+  assert.notEqual(sms(N.officeFor(ath, "QAgency")), sms("QAgency"));
+});
