@@ -411,9 +411,15 @@ const SUPP_DOCS = {
     prima: "$11.99", efectiva: "08/01/2026", agente: "MARTA QUINTERO", npn: "19876543" } }),
   "Supp App Dental Allstate": Object.assign({}, SUPP_APP, { fields: {
     nombres: "ANDRES", apellidos: "FERRO LIMA", compania: carrierOf("supp", "National Health Insurance Company"), producto: "Dental",
-    plan: "Copay Plan 2", efectiva: "07/03/2026", agente: "LUCIA FERRER CAMPOS" } }),
+    plan: "Copay Plan 2", efectiva: "07/03/2026", agente: "LUCIA FERRER CAMPOS", genero: "o",
+    direccion: "1100 Garden Club Blvd, Cape Coral, FL 33901", clienteEmail: "andres.ferro@example.com", clienteTel: "(555) 010-9031" } }),
   /* la tarjeta es un escaneo: este es el texto que da el OCR */
   "Supp ID Card Allstate Dental OCR": { type: "supp_card", line: "supp", net: "card", read: "supp", fields: {
+    nombres: "ANDRES", apellidos: "FERRO LIMA", compania: carrierOf("supp", "Allstate"), producto: "Dental", plan: "Select Dental PPO Plan",
+    poliza: "2011223344", efectiva: "07/03/2026" } },
+  /* la misma tarjeta en PDF: el logo de Allstate es una imagen y el texto
+     solo nombra la red (Aetna Dental Administrators) y la aseguradora */
+  "Supp ID Card Allstate Dental": { type: "supp_card", line: "supp", net: "card", read: "supp", fields: {
     nombres: "ANDRES", apellidos: "FERRO LIMA", compania: carrierOf("supp", "Allstate"), producto: "Dental", plan: "Select Dental PPO Plan",
     poliza: "2011223344", efectiva: "07/03/2026" } },
   "Payment Oscar": Object.assign({}, PAY, { read: "oc", fields: {
@@ -771,4 +777,20 @@ test("App Summary 2024: el agente y su NPN bajo Certified application counselor"
   const es = X.extract(fixture("OC App Summary 2024 Counselor").replace("Certified application counselor", "Consejero certificado de solicitudes"), "document.pdf", "oc");
   assert.equal(es.fields.agente, "MARIA LOPEZ");
   assert.equal(es.fields.npn, "87654321");
+});
+
+test("Suplementario: el sexo sale de la casilla marcada (□n F o n□ F)", () => {
+  const text = fs.readFileSync(path.join(__dirname, "fixtures", "Supp App Dental Allstate.txt"), "utf8");
+  const read = (t) => X.extract(t, "document.pdf", "supp").fields.genero;
+  assert.equal(read(text), "o");
+  assert.equal(read(text.replace("□n M □ F", "□ M □n F")), "a");
+  assert.equal(read(text.replace("□n M □ F", "□ M n□ F")), "a");
+  assert.equal(read(text.replace("□n M □ F", "□ M □ F")), undefined, "sin marca no se adivina");
+});
+
+test("Suplementario: la aseguradora solo reemplaza a la compañía cuando esa es la red dental", () => {
+  const card = (body) => X.extract("Dental ID card\nMember   Ana Rios\nPolicy number   2011223344\n" + body +
+    "\nThis card is not a guarantee of payment.", "document.pdf", "supp").fields.compania;
+  assert.equal(card("Aetna Dental Administrators\nUnderwritten by Integon National Insurance Company"), carrierOf("supp", "Allstate"));
+  assert.equal(card("UnitedHealthcare Dental\nUnderwritten by Golden Rule Insurance Company"), carrierOf("supp", "UHC"));
 });

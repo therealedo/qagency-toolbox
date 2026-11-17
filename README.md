@@ -243,7 +243,8 @@ A document only fills what is empty or what a weaker document filled; what you t
 | Medicare application summary (carrier portal, Spanish or English) | MBI, Part A/B, plan (with its contract), election period, PCP, App ID, address, agent and NPN (into *Agente (NPN)*; an NPN not in the team file shows with the agent name read) |
 | Scope of Appointment | beneficiary, signature date |
 | Payment receipt | amount, date, confirmation, last 4 digits, autopay |
-| Supplemental application (dental, vision, hospital, accident, cancer, short term, life, international, discount) | product, carrier, plan, premium, effective date, policy number, beneficiary |
+| Supplemental application (dental, vision, hospital, accident, cancer, short term, life, international, discount) | product, carrier, plan, premium, effective date, policy number, beneficiary, sex (from the ticked M / F box) |
+| Supplemental ID card | carrier, plan, policy number, effective date. When a dental card names its network first (Allstate cards say *Aetna Dental Administrators*), the carrier is the one in *Underwritten by …* |
 
 ### Scans and screenshots
 

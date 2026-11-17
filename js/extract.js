@@ -54,7 +54,8 @@
   }
 
   function firstCell(t) { return String(t || "").trim().split(/\s{2,}|\t/)[0].trim(); }
-  function cleanLead(t) { return String(t || "").replace(/^[\s:#*\-–—.)\]]+/, "").trim(); }
+  /* también la raya de un espacio para llenar: "Email Address: ____ana@…" */
+  function cleanLead(t) { return String(t || "").replace(/^[\s:#*\-–—.)\]_]+/, "").trim(); }
 
   /* Busca un rótulo y devuelve el primer valor válido que encuentre después:
      en la misma línea o en las líneas siguientes. `validate` recibe el texto
@@ -769,7 +770,8 @@
     var d = stop > 0 ? makeDoc(doc.lines.slice(0, stop).join("\n"))
       : stop === 0 && SHERPA_AGENT.test(doc.lines[0]) ? makeDoc(doc.lines.slice(2).join("\n")) : doc;
     var email = after(d, [/\bE-?mail(\s*address)?\b/i, /Correo\s*electr[oó]nico/i], vEmail, 1);
-    var tel = after(d, [/\bPhone\s*numbers?,?(\s*\(s\))?(\s*including\s*area\s*code)?/i, /\b(Primary\s*)?Phone\b/i, /Tel[eé]fonos?(\s*\(s\))?/i], vPhone, 1);
+    var tel = after(d, [/\bPhone\s*number\s*you\s*can\s*be\s*reached\s*at,?(\s*including\s*area\s*code)?\s*:?/i,
+      /\bPhone\s*numbers?,?(\s*\(s\))?(\s*including\s*area\s*code)?/i, /\b(Primary\s*)?Phone\b/i, /Tel[eé]fonos?(\s*\(s\))?/i], vPhone, 1);
     if (email) { f.clienteEmail = email; }
     if (tel) { f.clienteTel = tel; }
   }
@@ -1448,9 +1450,34 @@
     if (/^\d{5,12}$/.test(npn)) { f.npn = npn; }
   }
 
+  /* "□ M □n F": la marca de la casilla elegida es una letra de Dingbats ("n")
+     pegada a su casilla, antes o después, o la casilla rellena (■ ☒ ☑) */
+  var BOX_SEX = /(?:[□☐]\s?[nx✓✔]|[nx✓✔]\s?[□☐]|[■☒☑])\s*([MF])\b/;
+  function boxSex(doc) {
+    for (var i = 0; i < doc.lines.length; i++) {
+      var l = doc.lines[i];
+      if (!/[□☐■☒☑]\s?\S?\s*M\b.*[□☐■☒☑]\s?\S?\s*F\b|[□☐■☒☑]\s?\S?\s*F\b.*[□☐■☒☑]\s?\S?\s*M\b/.test(l)) { continue; }
+      var m = l.match(BOX_SEX);
+      return m ? (m[1] === "F" ? "a" : "o") : "";
+    }
+    return "";
+  }
+
+  /* Una tarjeta dental puede nombrar primero la red que usa (Allstate usa la
+     de Aetna: "Aetna Dental Administrators"). Entonces la compañía es la
+     aseguradora de "Underwritten by …". Sin red, manda la primera que se
+     nombra: UnitedHealthcare sigue siendo UHC aunque la asegure Golden Rule. */
+  var DENTAL_NETWORK = /\bDental\s*Administrators\b|\bparticipating\s*dentists\b/i;
+  function suppCarrier(doc) {
+    var first = carrierIn("supp", doc.flat);
+    if (!DENTAL_NETWORK.test(doc.flat)) { return first; }
+    var uw = find(doc, /\bUnder\s*wr?itten\s+by\b([^\n]{0,160})/i);
+    return (uw && carrierIn("supp", uw)) || first;
+  }
+
   function extractSupp(doc) {
     var f = {};
-    f.compania = carrierIn("supp", doc.flat);
+    f.compania = suppCarrier(doc);
     f.producto = suppProduct(doc);
     if (/golden\s*rule/i.test(doc.flat) && doc.form.Last1) {
       goldenRule(doc, f);
@@ -1458,6 +1485,8 @@
     }
     personName(doc, f);
     if (!f.nombres) { suppHolder(doc, f); }
+    var sex = boxSex(doc);
+    if (sex) { f.genero = sex; }
     f.plan = suppPlan(doc);
     f.prima = suppPremium(doc);
     f.efectiva = suppDate(doc);
@@ -1470,7 +1499,10 @@
     var ben = suppBeneficiary(doc);
     if (ben) { f.beneficiario = ben; }
     contactInfo(doc, f);
-    var home = after(doc, [/\bResident(ial)?\s*Address\b/i, /\bHome\s*address\b/i], vAddressRow, 0);
+    /* Allstate pone el rótulo solo ("Primary's Resident Address:") y la
+       dirección en la línea de abajo */
+    var home = after(doc, [/\bPrimary[’']s\s*Resident\s*Address\s*:/i], vAddressRow, 1) ||
+      after(doc, [/\bResident(ial)?\s*Address\b/i, /\bHome\s*address\b/i], vAddressRow, 0);
     if (home) { f.direccion = withCity(doc, home); }
     var ag = suppAgent(doc);
     agentInfo(doc, f);
