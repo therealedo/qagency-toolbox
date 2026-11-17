@@ -936,6 +936,19 @@ test("carpeta del Network: cada línea usa la suya y, si no tiene, la general", 
   assert.deepEqual(N.netDirFor({}, "mc"), { key: "general", dir: null });
 });
 
+test("carpeta por documento: la de su clase, si no la de la línea, si no la general", () => {
+  assert.deepEqual(N.docKinds("oc").map((k) => k.k), ["appsummary", "eligibility", "plans", "payment", "consent", "docsub", "hoja"]);
+  assert.equal(N.docKinds("oc").find((k) => k.k === "hoja").label, "Hoja de cambios");
+  assert.deepEqual(N.docKinds("mc").map((k) => k.k), ["soa", "appsummary"]);
+  const general = { name: "NETW" }, oc = { name: "OC" }, hoja = { name: "OEP - Hoja de Cambios" }, docs = { name: "Docs" };
+  const dirs = { general, oc, "oc:hoja": hoja, "oc:docsub": docs };
+  assert.deepEqual(N.netDirFor(dirs, "oc", "hoja"), { key: "oc:hoja", dir: hoja });
+  assert.deepEqual(N.netDirFor(dirs, "oc", "docsub:income:ANA-DIAZ"), { key: "oc:docsub", dir: docs }, "un Docs Submitted usa la de su clase");
+  assert.deepEqual(N.netDirFor(dirs, "oc", "eligibility"), { key: "oc", dir: oc }, "sin carpeta propia, la de OC");
+  assert.deepEqual(N.netDirFor(dirs, "mc", "soa"), { key: "general", dir: general });
+  assert.deepEqual(N.netDirFor({ general }, "oc", "hoja"), { key: "general", dir: general });
+});
+
 test("ventana flotante: iniciales del cliente, nombre y apellido", () => {
   assert.equal(N.clientInitials({ nombres: "beatriz elena", apellidos: "diaz lopez" }), "BD");
   assert.equal(N.clientInitials({ nombres: "  ángel ", apellidos: "ortiz" }), "ÁO");

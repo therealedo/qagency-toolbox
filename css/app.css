@@ -575,7 +575,13 @@ kbd {
 .netdir-row { display: grid; grid-template-columns: 160px minmax(0, 1fr) auto minmax(52px, auto); align-items: center; gap: 10px; }
 .netdir-row strong { overflow-wrap: anywhere; }
 .netdir-line { color: var(--ink-2); }
+/* las carpetas por documento de una línea, plegadas debajo de ella */
+.netdir-kinds { margin: -2px 0 4px; }
+.netdir-kinds > summary { cursor: pointer; color: var(--brand); font-size: 12.5px; font-weight: 600; padding: 2px 0 4px 170px; }
+.netdir-kinds[open] { display: grid; gap: 6px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
+.netdir-kind .netdir-line { padding-left: 14px; font-size: 13px; }
 @media (max-width: 560px) {
+  .netdir-kinds > summary { padding-left: 0; }
   .netdir-row { grid-template-columns: minmax(0, 1fr) auto minmax(52px, auto); }
   .netdir-line { grid-column: 1 / -1; }
 }

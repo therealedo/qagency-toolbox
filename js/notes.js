@@ -1241,7 +1241,25 @@
      línea (por ejemplo una para OC y otra para MA). Una línea sin carpeta
      propia guarda en la general. */
   var NET_DIRS = ["general"].concat(Object.keys(C.LINES));
-  function netDirFor(dirs, line) {
+  /* Clases de archivo de una línea, cada una con su carpeta opcional: los
+     documentos de su Network (los Docs Submitted son una sola clase) y, en
+     OC, la Hoja de cambios. */
+  function docKinds(line) {
+    var L = C.LINES[line];
+    if (!L) { return []; }
+    var seen = {}, out = [];
+    function push(k, label) { if (!seen[k]) { seen[k] = true; out.push({ k: k, label: label }); } }
+    L.network.forEach(function (n) { push(n.k, n.label); });
+    L.outcomes.forEach(function (o) { (o.network || []).forEach(function (n) { push(n.k, n.label.replace(/\s*\(.*\)$/, "")); }); });
+    if (line === "oc") { push("hoja", "Hoja de cambios"); }
+    return out;
+  }
+  /* "docsub:income:ANA" es de la clase "docsub" */
+  function kindOf(k) { return String(k || "").split(":")[0]; }
+  /* La carpeta de un archivo: la de su clase, la de su línea o la general */
+  function netDirFor(dirs, line, kind) {
+    var byKind = kind && dirs && line !== "general" && dirs[line + ":" + kindOf(kind)];
+    if (byKind) { return { key: line + ":" + kindOf(kind), dir: byKind }; }
     var own = dirs && line !== "general" && dirs[line];
     if (own) { return { key: line, dir: own }; }
     return { key: "general", dir: (dirs && dirs.general) || null };
@@ -1360,7 +1378,7 @@
     personas: personas, docsOf: docsOf, pendingDocs: pendingDocs, planesOf: planesOf, networkOf: networkOf, docKey: docKey,
     mergeDocs: mergeDocs, rowSource: rowSource, discarded: discarded, discardRow: discardRow, mergeMembers: mergeMembers, mergeHousehold: mergeHousehold, samePerson: samePerson, moveDocKey: moveDocKey,
     enTaxes: enTaxes, conCobertura: conCobertura, ingresoHogar: ingresoHogar, ingresoSinContar: ingresoSinContar, limiteDeclarar: limiteDeclarar, moneyShort: moneyShort,
-    NET_DIRS: NET_DIRS, netDirFor: netDirFor
+    NET_DIRS: NET_DIRS, netDirFor: netDirFor, docKinds: docKinds, kindOf: kindOf
   };
   root.QA = root.QA || {};
   root.QA.notes = api;
