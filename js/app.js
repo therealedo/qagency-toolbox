@@ -30,7 +30,10 @@
       v: SETTINGS_VERSION, autor: "", team: clone(C.TEAM), oficina: C.OFFICES[0], telefonos: {},
       botonRojo: true, sinAcentos: false, theme: "", line: "oc",
       /* enlace de la plantilla de SignWell de cada formulario (FM.TEMPLATES) */
-      signLinks: {}
+      signLinks: {},
+      /* nombre de cada carpeta del Network elegida, para avisar cuál falta
+         si el navegador deja de tenerla */
+      netDirNames: {}
     };
     try {
       var saved = JSON.parse(localStorage.getItem(STORE) || "null");
@@ -44,6 +47,7 @@
     if (C.OFFICES.indexOf(def.oficina) < 0) { def.oficina = C.OFFICES[0]; }
     if (!def.telefonos || typeof def.telefonos !== "object") { def.telefonos = {}; }
     if (!def.signLinks || typeof def.signLinks !== "object") { def.signLinks = {}; }
+    if (!def.netDirNames || typeof def.netDirNames !== "object") { def.netDirNames = {}; }
     return def;
   }
 
@@ -991,23 +995,58 @@
   function loadNetDirs() {
     renderNetDirs();
     if (!canSave) { return; }
+    var errs = {};
     handleStore("readonly", function (st) {
       var reqs = {};
-      allDirKeys().forEach(function (k) { reqs[k] = st.get(netDirKey(k)); });
+      allDirKeys().forEach(function (k) {
+        var r = st.get(netDirKey(k));
+        /* una carpeta que no se puede leer no se lleva a las demás */
+        r.onerror = function (e) { errs[k] = (r.error && r.error.name) || "Error"; e.preventDefault(); e.stopPropagation(); };
+        reqs[k] = r;
+      });
       return reqs;
     }).then(function (reqs) {
-      allDirKeys().forEach(function (k) { if (reqs[k].result) { netDirs[k] = reqs[k].result; } });
-      renderNetDirs(); renderNetwork(); renderSheetWhere();
-    }).catch(function () { netDirs = {}; });
+      var names = settings.netDirNames, named = false;
+      allDirKeys().forEach(function (k) {
+        var h = !errs[k] && reqs[k].result;
+        if (!h) { return; }
+        netDirs[k] = h;
+        /* las carpetas elegidas antes de guardar su nombre */
+        if (h.name && names[k] !== h.name) { names[k] = h.name; named = true; }
+      });
+      if (named) { saveSettings(); }
+    }).catch(function (e) { netDirs = {}; errs.all = (e && e.name) || "Error"; }).then(function () {
+      renderNetDirs(); renderNetwork(); renderSheetWhere(); renderLostDirs(errs);
+    });
+  }
+  /* Carpetas que se eligieron y el navegador ya no tiene: se dice cuáles
+     eran y, si lo hubo, el error al leerlas, para elegirlas otra vez */
+  function renderLostDirs(errs) {
+    var names = settings.netDirNames, box = $("netDirLost");
+    var lost = allDirKeys().filter(function (k) { return names[k] && !netDirs[k]; });
+    box.hidden = !lost.length;
+    if (!lost.length) { return; }
+    var why = [];
+    Object.keys(errs || {}).forEach(function (k) { if (why.indexOf(errs[k]) < 0) { why.push(errs[k]); } });
+    box.textContent = "El navegador ya no tiene estas carpetas que habías elegido: " +
+      lost.map(function (k) { return netDirLabel(k) + " («" + names[k] + "»)"; }).join(", ") +
+      ". Elígelas otra vez." + (why.length ? " Detalle: " + why.join(", ") + "." : "");
   }
   function pickNetDir(k) {
     return window.showDirectoryPicker({ id: "qa-network", mode: "readwrite" }).then(function (h) {
-      netDirs[k] = h; renderNetDirs(); renderNetwork(); renderSheetWhere();
-      return handleStore("readwrite", function (st) { return st.put(h, netDirKey(k)); }).then(function () { return h; }, function () { return h; });
+      netDirs[k] = h;
+      settings.netDirNames[k] = h.name; saveSettings();
+      renderNetDirs(); renderNetwork(); renderSheetWhere(); renderLostDirs();
+      return handleStore("readwrite", function (st) { return st.put(h, netDirKey(k)); }).then(function () { return h; }, function (e) {
+        toast("La carpeta «" + h.name + "» se usará ahora, pero el navegador no la pudo recordar (" + ((e && e.name) || "error") + ").");
+        return h;
+      });
     });
   }
   function clearNetDir(k) {
-    delete netDirs[k]; renderNetDirs(); renderNetwork(); renderSheetWhere();
+    delete netDirs[k];
+    delete settings.netDirNames[k]; saveSettings();
+    renderNetDirs(); renderNetwork(); renderSheetWhere(); renderLostDirs();
     handleStore("readwrite", function (st) { return st.delete(netDirKey(k)); }).catch(function () {});
   }
   function netDirRow(k, label, cls) {
