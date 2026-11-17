@@ -310,6 +310,9 @@
     out.npn = String(m.npn == null ? "" : m.npn).replace(/\D/g, "").slice(0, 10);
     var tel = collapse(m.tel).slice(0, 30);
     if (tel) { out.tel = tel; }
+    /* la agencia con la que trabaja el agente (su Consent y sus mensajes) */
+    var oficina = collapse(m.oficina).slice(0, 40);
+    if (oficina) { out.oficina = oficina; }
     return out;
   }
 

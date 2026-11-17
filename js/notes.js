@@ -138,6 +138,13 @@
     return "";
   }
 
+  /* La agencia del Consent, el SMS y el email: la del agente cuyo NPN se usa
+     (si tiene NPN y una agencia elegida en Equipo); si no, la de arriba. */
+  function officeFor(agent, fallback) {
+    if (agent && val(agent.npn) && C.OFFICES.indexOf(agent.oficina) >= 0) { return agent.oficina; }
+    return C.OFFICES.indexOf(fallback) >= 0 ? fallback : C.OFFICES[0];
+  }
+
   /* "Diaz, Beatriz": como se escriben los nombres en el reporte y los archivos */
   function zohoName(d) {
     var ap = U.titleCase(d.apellidos), no = U.titleCase(d.nombres);
@@ -1461,7 +1468,7 @@
     personas: personas, docsOf: docsOf, pendingDocs: pendingDocs, planesOf: planesOf, networkOf: networkOf, docKey: docKey,
     mergeDocs: mergeDocs, rowSource: rowSource, discarded: discarded, discardRow: discardRow, mergeMembers: mergeMembers, mergeHousehold: mergeHousehold, samePerson: samePerson, moveDocKey: moveDocKey,
     enTaxes: enTaxes, conCobertura: conCobertura, ingresoHogar: ingresoHogar, ingresoSinContar: ingresoSinContar, limiteDeclarar: limiteDeclarar, moneyShort: moneyShort,
-    NET_DIRS: NET_DIRS, netDirFor: netDirFor, docKinds: docKinds, kindOf: kindOf, oepStart: oepStart, needsSheet: needsSheet
+    NET_DIRS: NET_DIRS, netDirFor: netDirFor, docKinds: docKinds, kindOf: kindOf, oepStart: oepStart, needsSheet: needsSheet, officeFor: officeFor
   };
   root.QA = root.QA || {};
   root.QA.notes = api;

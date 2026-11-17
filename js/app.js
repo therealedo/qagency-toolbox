@@ -51,8 +51,16 @@
     return def;
   }
 
+  /* Si el navegador no deja guardar, se avisa una vez: los ajustes duran
+     solo mientras la ventana esté abierta. */
+  var saveWarned = false;
   function saveSettings() {
-    try { localStorage.setItem(STORE, JSON.stringify(settings)); } catch (e) { /* sin almacenamiento */ }
+    try { localStorage.setItem(STORE, JSON.stringify(settings)); }
+    catch (e) {
+      if (saveWarned || typeof toast !== "function") { return; }
+      saveWarned = true;
+      toast("El navegador no dejó guardar los ajustes (" + ((e && e.name) || "error") + "): se perderán al cerrar la herramienta.");
+    }
   }
 
   var settings = loadSettings();
@@ -1423,8 +1431,9 @@
        iniciales van delante (DI: Q1234 - … (LI)). */
     var usePrefix = S.f.prefijo === "si" ? true : (S.f.prefijo === "no" ? false : !!(p.talker && p.collab && p.talker !== p.collab));
     d.reportPrefix = usePrefix && p.talker ? p.talker.ini : "";
-    d.oficina = settings.oficina;
-    d.telefono = settings.telefonos[settings.oficina] || "";
+    /* la agencia del agente cuyo NPN se usa, o la elegida arriba */
+    d.oficina = N.officeFor(p.agent, settings.oficina);
+    d.telefono = settings.telefonos[d.oficina] || "";
     d.botonRojo = settings.botonRojo;
     d.base = S.base;
     /* Medicare sin el interruptor de prima: el plan no cuesta nada */
@@ -1765,18 +1774,22 @@
     var sec = $("sec-firma"), kind = FM.formKind(d);
     sec.hidden = !kind;
     if (!kind) { return; }
-    var key = FM.templateKey(kind, settings.oficina, S.f.idioma), T = FM.TEMPLATES[key];
+    var key = FM.templateKey(kind, d.oficina, S.f.idioma), T = FM.TEMPLATES[key];
     var title = kind === "soa" ? "SOA" : "Consent";
     sec.dataset.rail = title;
     $("signTitle").textContent = title + " para firmar";
-    /* el Consent es de la oficina elegida arriba: se confirma cuál se usará */
+    /* el Consent es de la agencia del agente del NPN, o de la oficina elegida
+       arriba: se confirma cuál se usará y por qué */
     var tpl = $("signTemplate");
     tpl.textContent = "";
     tpl.classList.toggle("sign-office", kind === "consent");
     if (kind === "consent") {
+      var ag = people().agent, byAgent = !!(ag && ag.oficina && ag.oficina === d.oficina && U.collapse(ag.npn));
       tpl.appendChild(document.createTextNode("Se usará el Consent de "));
-      tpl.appendChild(el("strong", null, settings.oficina));
-      tpl.appendChild(document.createTextNode(" (" + T.label + "). Revisa que sea la oficina correcta; si no, cámbiala arriba, debajo de Q Agency Toolbox."));
+      tpl.appendChild(el("strong", null, d.oficina));
+      tpl.appendChild(document.createTextNode(" (" + T.label + "). " + (byAgent
+        ? "Es la agencia de " + ag.name + ", el NPN de la app; se cambia en Ajustes > Equipo."
+        : "Revisa que sea la oficina correcta; si no, cámbiala arriba, debajo de Q Agency Toolbox, o elige la agencia del agente en Ajustes > Equipo.")));
     } else {
       tpl.textContent = "Plantilla: " + T.label + ". Se descarga sin llenar: la sección del agente se completa y se firma después de que firme el cliente.";
     }
@@ -1815,7 +1828,7 @@
   function downloadSign(btn) {
     var d = data(), kind = FM.formKind(d);
     if (!kind) { return; }
-    var key = FM.templateKey(kind, settings.oficina, S.f.idioma), bytes = FM.templateBytes(key);
+    var key = FM.templateKey(kind, d.oficina, S.f.idioma), bytes = FM.templateBytes(key);
     if (!bytes || !window.pdfjsLib) { toast("Esta copia de la herramienta no trae la plantilla de " + FM.TEMPLATES[key].label + "."); return; }
     var name = FM.downloadName(d, kind);
     btn.disabled = true;
@@ -2632,6 +2645,7 @@
     box.hidden = !settings.team.length;
     var head = el("div", "team-row team-head");
     TEAM_COLS.forEach(function (c) { head.appendChild(el("span", null, c[2])); });
+    head.appendChild(el("span", null, "Agencia"));
     head.appendChild(el("span"));
     box.appendChild(head);
     settings.team.forEach(function (t, i) {
@@ -2644,6 +2658,15 @@
         inp.setAttribute("aria-label", c[2] + " de " + (t.name || "la persona nueva"));
         row.appendChild(inp);
       });
+      /* la agencia del agente: cuando su NPN se usa, el Consent y los
+         mensajes salen de esa agencia */
+      var ag = el("select");
+      fillSelect(ag, [{ v: "", l: "La de arriba" }].concat(C.OFFICES.map(function (o) { return { v: o, l: o }; })));
+      ag.value = C.OFFICES.indexOf(t.oficina) >= 0 ? t.oficina : "";
+      ag.dataset.team = i; ag.dataset.col = "oficina";
+      ag.title = "Cuando se usa el NPN de esta persona, el Consent, el SMS y el email son de esta agencia";
+      ag.setAttribute("aria-label", "Agencia de " + (t.name || "la persona nueva"));
+      row.appendChild(ag);
       var x = el("button", "icon-btn tiny", "✕");
       x.type = "button"; x.dataset.teamRemove = i; x.setAttribute("aria-label", "Quitar a " + (t.name || "esta persona"));
       row.appendChild(x);
@@ -2662,6 +2685,10 @@
   }
 
   function openSettings() {
+    fillSettings();
+    $("dlgSettings").showModal();
+  }
+  function fillSettings() {
     renderTeam();
     var seg = $("officeSeg");
     fillSeg(seg, C.OFFICES.map(function (o) { return { v: o, l: o }; }));
@@ -2672,7 +2699,18 @@
     renderSignLinks();
     $("installHelp").textContent = installHelp();
     $("versionTag").textContent = "Versión " + C.VERSION;
-    $("dlgSettings").showModal();
+  }
+
+  /* Otra ventana de la herramienta (abierta dos veces, o una vieja que
+     quedó abierta al actualizar) guardó ajustes: esta los toma, para no
+     volver a escribir encima los suyos, que ya son viejos. */
+  function syncSettingsFrom(e) {
+    if (e.key !== STORE || e.storageArea !== localStorage) { return; }
+    settings = loadSettings();
+    applyTheme(); renderOffice(); renderAuthor();
+    if ($("dlgSettings").open) { fillSettings(); }
+    defaultPeople(); syncInputs(); refresh();
+    if (currentView === "tasks") { renderTasks(); }
   }
 
   function applyTheme() {
@@ -3069,6 +3107,7 @@
       var was = row.name;
       row[col] = (col === "ini" || col === "agentIni") ? t.value.toUpperCase().replace(/[^A-Z]/g, "") : U.collapse(t.value);
       if (col === "agentIni" && !row.agentIni) { delete row.agentIni; }
+      if (col === "oficina" && !row.oficina) { delete row.oficina; }
       if (col === "name" && settings.autor && U.collapse(settings.autor).toLowerCase() === U.collapse(was).toLowerCase()) { settings.autor = row.name; }
       saveSettings();
     });
@@ -3134,6 +3173,7 @@
       try { history.replaceState(null, "", "#" + a.dataset.view); } catch (err) { location.hash = a.dataset.view; }
     });
     window.addEventListener("hashchange", function () { setView(viewFromHash()); });
+    window.addEventListener("storage", syncSettingsFrom);
     window.addEventListener("beforeunload", function (e) {
       if (hasClientData() && S.dirty) { e.preventDefault(); e.returnValue = ""; }
     });

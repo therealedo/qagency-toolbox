@@ -128,3 +128,15 @@ test("parseBirth: una fecha de nacimiento con el año en dos cifras no queda en 
   assert.equal(U.parseBirth("05/02/1980"), "05/02/1980");
   assert.equal(U.parseBirth("hola"), "");
 });
+
+test("archivo del equipo: la agencia de cada agente se guarda y se lee", () => {
+  const r = U.parseTeam(JSON.stringify([
+    { name: "Laura Gomez", ini: "LG", npn: "12345678", oficina: " ATH  Insurance " },
+    { name: "Rosa Mendez", ini: "RM", npn: "87654321", oficina: "" }
+  ]));
+  assert.deepEqual(r.team, [
+    { name: "Laura Gomez", ini: "LG", npn: "12345678", oficina: "ATH Insurance" },
+    { name: "Rosa Mendez", ini: "RM", npn: "87654321" }
+  ]);
+  assert.deepEqual(U.parseTeam(U.teamFile(r.team)).team, r.team);
+});

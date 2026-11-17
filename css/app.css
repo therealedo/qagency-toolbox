@@ -764,7 +764,8 @@ kbd {
 .team-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .team[hidden] { display: none; }
 .team { display: flex; flex-direction: column; gap: 6px; }
-.team-row { display: grid; grid-template-columns: minmax(0, 1fr) 60px 60px 104px 124px 26px; gap: 8px; align-items: center; }
+.team-row { display: grid; grid-template-columns: minmax(0, 1fr) 54px 54px 96px 116px 118px 26px; gap: 8px; align-items: center; }
+.team-row select { min-width: 0; }
 .team-head span { font-size: 12px; color: var(--ink-3); font-weight: 550; }
 
 .toast {
@@ -833,11 +834,13 @@ kbd {
   .task-opts .mini:first-child { grid-column: 1 / -1; }
   .file { flex-wrap: wrap; }
   .file-meta { text-align: left; flex-basis: 100%; }
-  /* en el teléfono, NPN y directo van en una segunda línea */
+  /* en el teléfono, NPN y directo van en una segunda línea, y la agencia en una tercera */
   .team-row { grid-template-columns: minmax(0, 1fr) 46px 46px 26px; gap: 5px; }
   .team-row > :nth-child(4) { grid-column: 1; grid-row: 2; }
   .team-row > :nth-child(5) { grid-column: 2 / 5; grid-row: 2; }
-  .team-row > :nth-child(6) { grid-column: 4; grid-row: 1; }
+  .team-row > :nth-child(6) { grid-column: 1 / -1; grid-row: 3; }
+  .team-row > :nth-child(7) { grid-column: 4; grid-row: 1; }
+  .team-head > :nth-child(6) { display: none; }
   .team-row:not(.team-head) { padding-bottom: 6px; border-bottom: 1px solid var(--line); }
   .net-row { grid-template-columns: minmax(0, 1fr) auto; gap: 6px 10px; }
   .net-file { grid-column: 1 / -1; grid-row: 2; }
