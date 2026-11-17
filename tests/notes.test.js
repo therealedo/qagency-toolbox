@@ -936,6 +936,19 @@ test("carpeta del Network: cada línea usa la suya y, si no tiene, la general", 
   assert.deepEqual(N.netDirFor({}, "mc"), { key: "general", dir: null });
 });
 
+test("carpeta por documento: la de su clase, si no la de la línea, si no la general", () => {
+  assert.deepEqual(N.docKinds("oc").map((k) => k.k), ["appsummary", "eligibility", "plans", "payment", "consent", "docsub", "hoja"]);
+  assert.equal(N.docKinds("oc").find((k) => k.k === "hoja").label, "Hoja de cambios");
+  assert.deepEqual(N.docKinds("mc").map((k) => k.k), ["soa", "appsummary"]);
+  const general = { name: "NETW" }, oc = { name: "OC" }, hoja = { name: "OEP - Hoja de Cambios" }, docs = { name: "Docs" };
+  const dirs = { general, oc, "oc:hoja": hoja, "oc:docsub": docs };
+  assert.deepEqual(N.netDirFor(dirs, "oc", "hoja"), { key: "oc:hoja", dir: hoja });
+  assert.deepEqual(N.netDirFor(dirs, "oc", "docsub:income:ANA-DIAZ"), { key: "oc:docsub", dir: docs }, "un Docs Submitted usa la de su clase");
+  assert.deepEqual(N.netDirFor(dirs, "oc", "eligibility"), { key: "oc", dir: oc }, "sin carpeta propia, la de OC");
+  assert.deepEqual(N.netDirFor(dirs, "mc", "soa"), { key: "general", dir: general });
+  assert.deepEqual(N.netDirFor({ general }, "oc", "hoja"), { key: "general", dir: general });
+});
+
 test("ventana flotante: iniciales del cliente, nombre y apellido", () => {
   assert.equal(N.clientInitials({ nombres: "beatriz elena", apellidos: "diaz lopez" }), "BD");
   assert.equal(N.clientInitials({ nombres: "  ángel ", apellidos: "ortiz" }), "ÁO");
@@ -1269,3 +1282,27 @@ test("avisos: lo que el agente todavía no eligió ni confirmó (Canal, Código 
   assert.ok(w.includes("Elige o confirma: Canal, Enrollment Period."));
   assert.ok(!N.warnings(make({ line: "oc", outcome: "pendiente", porElegir: [] }), "").some((x) => /Elige o confirma/.test(x)));
 });
+
+/* El ingreso de un dependiente solo cuenta si tiene que declarar impuestos
+   (healthcare.gov): más que la deducción estándar del año del plan (IRS:
+   $16,100 en 2026, $16,600 en 2027). */
+test("ingreso del hogar: un dependiente que no tiene que declarar no suma; el cónyuge siempre", () => {
+  const casa = (hijo, anio) => make({ line: "oc", outcome: "pendiente", anio, personas: [
+    { titular: true, taxes: true, cobertura: true, ingreso: "30000" },
+    { nombre: "LUIS PEREZ", parentesco: "Cónyuge", taxes: true, cobertura: true, ingreso: "9000" },
+    { nombre: "SOFIA PEREZ", parentesco: "Hijo/a", taxes: true, cobertura: true, ingreso: hijo }] });
+  assert.equal(N.ingresoHogar(casa("12000", "2027")), 39000, "hija con $12,000: no declara");
+  assert.equal(N.ingresoHogar(casa("16600", "2027")), 39000, "justo en el límite: no declara");
+  assert.equal(N.ingresoHogar(casa("16601", "2027")), 55601, "más del límite: declara y suma");
+  assert.equal(N.ingresoHogar(casa("16500", "2026")), 55500, "en 2026 el límite es $16,100");
+  assert.equal(N.limiteDeclarar({ anio: "2030" }), 16600, "un año sin dato usa el último conocido");
+  const d = casa("12000", "2027");
+  assert.match(N.buildNote(d), /\nIncome: \$39,000\.\n/);
+  assert.ok(N.warnings(d, "").some((x) => /El ingreso de Sofia \(\$12,000\) no suma al hogar/.test(x)));
+  assert.ok(!N.warnings(casa("20000", "2027"), "").some((x) => /no suma al hogar/.test(x)));
+  /* en la nota de app enviada, el desglose solo lleva lo que suma */
+  const env = N.buildNote(Object.assign({}, d, { outcome: "enviada" }));
+  assert.match(env, /Sus ingresos anuales son \$39,000 \([^)]*Luis \$9,000\)\./);
+  assert.doesNotMatch(env, /Sofia \$12,000/);
+});
+

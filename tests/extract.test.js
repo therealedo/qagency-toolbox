@@ -468,8 +468,8 @@ const OC_DOCS = {
   "OC App Summary OCR": { type: "oc_app", net: "appsummary", fields: {
     nombres: "LAURA", apellidos: "RAMOS", anio: "2027", ingreso: "$31,200.00", dob: "02/17/1941",
     direccion: "Fort Myers, FL 33901-", plataforma: "MKPL", genero: "a", idioma: "en", estadoCivil: "soltero",
-    personas: [{ nombre: "LAURA RAMOS", titular: true, dob: "02/17/1941", estatus: "ciudadano", ingreso: "$31,200.00" },
-      { nombre: "DIEGO", parentesco: "Hijo/a", ingreso: "$0.00" }] } },
+    personas: [{ nombre: "LAURA RAMOS", titular: true, dob: "02/17/1941", estatus: "ciudadano", ingreso: "$31,200.00", dependiente: false },
+      { nombre: "DIEGO", parentesco: "Hijo/a", ingreso: "$0.00", dependiente: true }] } },
   /* el resumen impreso de HealthSherpa: el agente arriba en una tabla (su
      email no es el del cliente), el hogar y el ingreso anual en tablas, y el
      SEP por el evento que sí pasó ("moved on or after") */
@@ -488,10 +488,10 @@ const OC_DOCS = {
     appId: "4400000001", anio: "2026", nombres: "CARMEN", apellidos: "RIVAS SOTO", ingreso: "$36,384.00", dob: "06/27/1985",
     direccion: "55 Coral Way Apt 2, Cape Coral, FL 33990-1111", clienteEmail: "carmen.rivas@example.com", clienteTel: "(239) 555-0147",
     agente: "LAURA GOMEZ", npn: "12345678", idioma: "es", genero: "a", estadoCivil: "casado",
-    personas: [{ nombre: "CARMEN RIVAS SOTO", titular: true, dob: "06/27/1985", estatus: "residente", ingreso: "$36,384.00" },
-      { nombre: "LUCIA NAVARRO", parentesco: "Hijo/a", dob: "09/25/2009", estatus: "residente", ingreso: "$0.00", sexo: "a" },
-      { nombre: "PAULA NAVARRO", parentesco: "Hijo/a", dob: "10/01/2014", estatus: "residente", ingreso: "$0.00", sexo: "a" },
-      { nombre: "JORGE NAVARRO SOTO", parentesco: "Cónyuge", dob: "01/06/1983", estatus: "residente", ingreso: "$33,600.00", sexo: "o" }] } },
+    personas: [{ nombre: "CARMEN RIVAS SOTO", titular: true, dob: "06/27/1985", estatus: "residente", ingreso: "$36,384.00", cobertura: true, dependiente: false },
+      { nombre: "LUCIA NAVARRO", parentesco: "Hijo/a", dob: "09/25/2009", estatus: "residente", ingreso: "$0.00", sexo: "a", cobertura: true, dependiente: true },
+      { nombre: "PAULA NAVARRO", parentesco: "Hijo/a", dob: "10/01/2014", estatus: "residente", ingreso: "$0.00", sexo: "a", cobertura: true, dependiente: true },
+      { nombre: "JORGE NAVARRO SOTO", parentesco: "Cónyuge", dob: "01/06/1983", estatus: "residente", ingreso: "$33,600.00", sexo: "o", cobertura: true, dependiente: false }] } },
   /* Docs Submitted: el punto abierto es de quien abrió la cuenta (el titular) */
   "OC Docs Submitted Principal": { type: "oc_docs", net: "docsub", fields: {
     appId: "4498765432", anio: "2027", nombres: "ROSA", apellidos: "PEREZ LIMA",
@@ -661,9 +661,9 @@ test("App Summary: cada persona del hogar con su parentesco, estatus e ingreso a
   assert.equal(r.type, "oc_app");
   assert.equal(r.fields.ingreso, "$42,000.00");
   assert.deepEqual(r.fields.personas, [
-    { nombre: "ANA TORRES", titular: true, dob: "05/02/1980", estatus: "ciudadano", ingreso: "$42,000.00" },
-    { nombre: "LUIS TORRES", dob: "08/21/1978", parentesco: "Cónyuge", estatus: "residente", ingreso: "$22,500.00", sexo: "o" },
-    { nombre: "SOFIA TORRES", dob: "03/09/2012", parentesco: "Hijo/a", estatus: "ciudadano", ingreso: "$0.00" }
+    { nombre: "ANA TORRES", titular: true, dob: "05/02/1980", estatus: "ciudadano", ingreso: "$42,000.00", cobertura: true, dependiente: false },
+    { nombre: "LUIS TORRES", dob: "08/21/1978", parentesco: "Cónyuge", estatus: "residente", ingreso: "$22,500.00", sexo: "o", cobertura: true },
+    { nombre: "SOFIA TORRES", dob: "03/09/2012", parentesco: "Hijo/a", estatus: "ciudadano", ingreso: "$0.00", cobertura: true, dependiente: true }
   ]);
   assert.equal(r.fields.estadoCivil, "casado");
   assert.equal(r.fields.agente, "LAURA GOMEZ");
@@ -732,4 +732,26 @@ test("comprobante de pago: lo pagado, no lo que se debe, ni la fecha de nacimien
 test("App Summary: «month» mal leído por el OCR («rnonth») tampoco da el ingreso del mes", () => {
   const t = fixture("OC App Summary Household").replace(/This month's/g, "This rnonth's").replace(/Estimated income next year/g, "Estimated incone next yeer");
   assert.equal(X.extract(t, "document.pdf", "oc").fields.ingreso, "$42,000.00");
+});
+
+/* App Summary donde la titular es dependiente de su madre, que no pide
+   cobertura: "Not applying for health coverage" y "Tax filing status". */
+test("App Summary: quien no pide cobertura queda sin cobertura, y quién declara o es dependiente", () => {
+  const r = X.extract(fixture("OC App Summary Not Applying"), "document.pdf", "oc");
+  assert.equal(r.type, "oc_app");
+  assert.deepEqual(r.fields.personas.map((p) => [p.nombre, p.cobertura, p.dependiente]), [
+    ["KARA BENTON", true, true],
+    ["LINDA M BENTON", false, false]
+  ]);
+  /* "Agent or Broker Edit" al pie de una página y el agente arriba de la siguiente */
+  assert.equal(r.fields.agente, "LAURA GOMEZ");
+  assert.equal(r.fields.npn, "12345678");
+  const N = require("../js/notes.js");
+  const f = { nombres: r.fields.nombres, apellidos: r.fields.apellidos, personas: [{ titular: true, taxes: true, cobertura: true }], quitados: [] };
+  N.mergeHousehold(f, r.fields.personas);
+  assert.deepEqual(f.personas.map((p) => p.cobertura), [true, false]);
+  /* la madre declara: su ingreso cuenta aunque sea menor que el límite de un dependiente */
+  assert.equal(N.ingresoHogar(Object.assign({ line: "oc", anio: "2026" }, f)), 21200.04);
+  const note = N.buildNote(Object.assign({ line: "oc", outcome: "pendiente", fecha: "01/16/2026", ini: "LI", hora: "09:00", canal: "Call", planes: [], net: {} }, f));
+  assert.match(note, /Solicitan cobertura: 1 \(Kara\)\./);
 });

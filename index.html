@@ -7,10 +7,12 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' data: blob: file: 'wasm-unsafe-eval'; connect-src https://raw.githubusercontent.com/therealedo/qagency-toolbox/main/package.json; object-src 'none'; base-uri 'self'; form-action 'none'">
 <meta name="color-scheme" content="light dark">
 <meta name="theme-color" content="#F4F6FA" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#0B111C" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#0B1730" media="(prefers-color-scheme: dark)">
 <meta name="description" content="Nota para Zoho, task y reporte de Cliq en un solo paso.">
 <title>Q Agency Toolbox</title>
-<link rel="icon" href="assets/icon-192.png">
+<link rel="icon" href="assets/icon-32.png" sizes="32x32">
+<link rel="icon" href="assets/icon-16.png" sizes="16x16">
+<link rel="icon" href="assets/icon-192.png" sizes="192x192">
 <link rel="apple-touch-icon" href="assets/icon-192.png">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="stylesheet" href="css/app.css">
@@ -157,8 +159,10 @@
           <p class="muted sheet-intro">Para el colaborador que completa la aplicación, impresa o en PDF. Lo resaltado cambió respecto a los documentos del proceso anterior.</p>
           <div class="sign-actions">
             <button type="button" class="btn primary" id="sheetPrint">Imprimir o guardar PDF</button>
+            <button type="button" class="btn" id="sheetSave" hidden>Guardar en la carpeta</button>
             <span class="muted" id="sheetFile"></span>
           </div>
+          <p class="muted" id="sheetWhere" hidden></p>
           <div class="sheet-frame"><div class="sheet" id="sheetPreview"></div></div>
         </section>
 
@@ -351,7 +355,7 @@
 
     <h3>Carpetas del Network</h3>
     <div class="netdirs" id="netDirBox"></div>
-    <p class="muted" id="netDirHelp">Elige tu folder del NETW en General. Si una línea guarda sus documentos en otra carpeta (por ejemplo una para OC y otra para MA), elígela en su fila; las líneas sin carpeta propia usan la general. Los PDF que sueltes se guardan con su nombre de archivo desde la sección Network, en la carpeta de la línea en que estás. Si ya existe un archivo con ese nombre, se pregunta antes de reemplazarlo.</p>
+    <p class="muted" id="netDirHelp">Elige tu folder del NETW en General. Si una línea guarda sus documentos en otra carpeta (por ejemplo una para OC y otra para MA), elígela en su fila; las líneas sin carpeta propia usan la general. Dentro de cada línea, «Carpeta por documento» deja mandar un tipo de archivo a otra carpeta (por ejemplo la Hoja de cambios a «OC/OEP - Hoja de Cambios»); los que no tienen una propia usan la de su línea. Los PDF que sueltes se guardan con su nombre de archivo desde la sección Network, y la Hoja de cambios con «Guardar en la carpeta». Si ya existe un archivo con ese nombre, se pregunta antes de reemplazarlo.</p>
     <p class="muted" id="netDirNA" hidden>Este navegador no permite guardar en carpetas. Usa Chrome o Edge.</p>
 
     <h3>Enlaces de firma (SignWell)</h3>
@@ -398,6 +402,7 @@
 <script src="js/util.js"></script>
 <script src="js/notes.js"></script>
 <script src="js/forms.js"></script>
+<script src="js/sheetpdf.js"></script>
 <script src="js/extract.js"></script>
 <script src="vendor/tesseract/ocr-loader.js"></script>
 <script src="vendor/tesseract/ocr-wasm.js"></script>

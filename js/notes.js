@@ -59,7 +59,8 @@
       return {
         name: name, first: p.titular ? (first(d.nombres) || "Titular") : first(p.nombre),
         titular: !!p.titular, taxes: !!p.taxes, cobertura: !!p.cobertura,
-        ingreso: U.moneyNumber(p.ingreso), parentesco: val(p.parentesco)
+        ingreso: U.moneyNumber(p.ingreso), parentesco: val(p.parentesco),
+        dependiente: typeof p.dependiente === "boolean" ? p.dependiente : null
       };
     }).filter(function (p) { return p.titular || p.name; });
   }
@@ -72,9 +73,36 @@
     var list = conCobertura(d).map(function (p) { return p.titular ? cliente(d) : p.first; });
     return list.length > 1 ? list.slice(0, -1).join(", ") + " y " + list[list.length - 1] : (list[0] || "");
   }
-  /* Ingreso del hogar: la suma de lo que gana cada persona en los taxes. */
+  /* El ingreso de un dependiente (hijo, padre, hermano u otro en los taxes)
+     solo cuenta en el MAGI del hogar si tiene que declarar impuestos: "Count
+     their income only if they need to file a federal tax return"
+     (healthcare.gov). Con un solo ingreso anual por persona se toma como
+     ingreso de trabajo, cuyo límite es la deducción estándar de una persona
+     sola en el año del plan (IRS). Si el App Summary dice quién es
+     dependiente ("Will be claimed as a tax dependent") se usa eso; si no, el
+     parentesco. El titular, el cónyuge y quien no tiene parentesco elegido
+     siempre cuentan. */
+  var DEDUCCION_ESTANDAR = { 2025: 15750, 2026: 16100, 2027: 16600 };
+  var DEPENDIENTES = ["Hijo/a", "Padre/Madre", "Hermano/a", "Otro"];
+  function limiteDeclarar(d) {
+    var years = Object.keys(DEDUCCION_ESTANDAR).map(Number).sort();
+    var y = +val(d.anio) || years[years.length - 1];
+    y = Math.max(years[0], Math.min(years[years.length - 1], y));
+    return DEDUCCION_ESTANDAR[y];
+  }
+  function esDependiente(p) {
+    if (p.titular) { return false; }
+    return p.dependiente != null ? p.dependiente : DEPENDIENTES.indexOf(p.parentesco) >= 0;
+  }
+  function cuentaIngreso(d, p) { return !esDependiente(p) || p.ingreso > limiteDeclarar(d); }
+  /* Dependientes con ingreso que no llega al límite: no suman al hogar. */
+  function ingresoSinContar(d) {
+    return enTaxes(d).filter(function (p) { return p.ingreso && !cuentaIngreso(d, p); });
+  }
+  /* Ingreso del hogar: la suma de lo que gana cada persona en los taxes,
+     menos los dependientes que no tienen que declarar. */
   function ingresoHogar(d) {
-    return enTaxes(d).reduce(function (sum, p) { return p.ingreso ? (sum || 0) + p.ingreso : sum; }, null);
+    return enTaxes(d).reduce(function (sum, p) { return p.ingreso && cuentaIngreso(d, p) ? (sum || 0) + p.ingreso : sum; }, null);
   }
 
   /* Documentos que pide el Mercado y si ya se enviaron. */
@@ -487,7 +515,7 @@
     if (inc !== null || tax.length || cov.length) {
       var s = "";
       if (inc !== null) {
-        var earners = tax.filter(function (p) { return p.ingreso; });
+        var earners = tax.filter(function (p) { return p.ingreso && cuentaIngreso(d, p); });
         s += "Sus ingresos anuales son " + moneyShort(inc) +
              (earners.length > 1 ? " (" + earners.map(function (p) { return p.first + " " + moneyShort(p.ingreso); }).join(", ") + ")" : "") + ". ";
       }
@@ -735,6 +763,7 @@
        un campo vacío y cede ante cualquier dato de la persona. */
   /* `sexo` ("a" / "o") no tiene campo en el hogar: sale en la hoja de cambios */
   var HOGAR_KEYS = ["parentesco", "estatus", "ingreso", "dob", "sexo"];
+  var FLAG_KEYS = ["cobertura", "dependiente"];
   function sameValue(k, a, b) {
     if (k === "ingreso") { return U.moneyNumber(a) === U.moneyNumber(b); }
     if (k === "dob") { return same(dateOrText(a), dateOrText(b)); }
@@ -753,6 +782,7 @@
         var nombre = upper(x.nombre), orig = { nombre: nombre, taxes: true, cobertura: true };
         p = { nombre: nombre, parentesco: "", taxes: true, cobertura: true, ingreso: "", estatus: "", dob: "", auto: true, orig: orig };
         keys.forEach(function (k) { p[k] = x[k]; orig[k] = x[k]; });
+        FLAG_KEYS.forEach(function (k) { if (typeof x[k] === "boolean") { p[k] = x[k]; orig[k] = x[k]; } });
         f.personas.push(p);
         n++;
         return;
@@ -770,6 +800,15 @@
         }
         /* lo escrito a mano se queda; lo que dice el documento es la base */
         if (had == null && !weak) { p.orig[k] = x[k]; }
+      });
+      /* sí/no del documento (pide cobertura, es dependiente en los taxes):
+         se aplica salvo que el agente ya lo haya cambiado a mano */
+      FLAG_KEYS.forEach(function (k) {
+        if (typeof x[k] !== "boolean" || weak) { return; }
+        var had = p.filled[k];
+        if (had != null && (p[k] !== p.orig[k] || r < had)) { return; }
+        if (p[k] !== x[k]) { n++; delete p.ok; }
+        p[k] = x[k]; p.orig[k] = x[k]; p.filled[k] = r;
       });
     });
     return n;
@@ -1132,7 +1171,13 @@
     var O = outcomeOf(d), w = [];
     if (!val(d.ini)) { w.push("Elige quién hace la nota (arriba a la derecha)."); }
     if (!val(d.nombres) && !val(d.apellidos)) { w.push("Falta el nombre del cliente."); }
-    if (Array.isArray(d.porElegir) && d.porElegir.length) { w.push("Elige o confirma: " + d.porElegir.join(", ") + "."); }
+    if (d.line === "oc") {
+      ingresoSinContar(d).forEach(function (p) {
+        w.push("El ingreso de " + p.first + " (" + moneyShort(p.ingreso) + ") no suma al hogar: un dependiente solo cuenta si tiene que declarar impuestos (más de " +
+               moneyShort(limiteDeclarar(d)) + " de trabajo; con ingresos de inversiones o trabajo propio el límite es menor).");
+      });
+    }
+        if (Array.isArray(d.porElegir) && d.porElegir.length) { w.push("Elige o confirma: " + d.porElegir.join(", ") + "."); }
     var noChange = d.line === "mc" && O.id === "sincambio";
     if (noChange && !val(d.plan)) { w.push("Reporte: falta el nombre del plan."); }
     if (O.report && !noChange) {
@@ -1196,7 +1241,25 @@
      línea (por ejemplo una para OC y otra para MA). Una línea sin carpeta
      propia guarda en la general. */
   var NET_DIRS = ["general"].concat(Object.keys(C.LINES));
-  function netDirFor(dirs, line) {
+  /* Clases de archivo de una línea, cada una con su carpeta opcional: los
+     documentos de su Network (los Docs Submitted son una sola clase) y, en
+     OC, la Hoja de cambios. */
+  function docKinds(line) {
+    var L = C.LINES[line];
+    if (!L) { return []; }
+    var seen = {}, out = [];
+    function push(k, label) { if (!seen[k]) { seen[k] = true; out.push({ k: k, label: label }); } }
+    L.network.forEach(function (n) { push(n.k, n.label); });
+    L.outcomes.forEach(function (o) { (o.network || []).forEach(function (n) { push(n.k, n.label.replace(/\s*\(.*\)$/, "")); }); });
+    if (line === "oc") { push("hoja", "Hoja de cambios"); }
+    return out;
+  }
+  /* "docsub:income:ANA" es de la clase "docsub" */
+  function kindOf(k) { return String(k || "").split(":")[0]; }
+  /* La carpeta de un archivo: la de su clase, la de su línea o la general */
+  function netDirFor(dirs, line, kind) {
+    var byKind = kind && dirs && line !== "general" && dirs[line + ":" + kindOf(kind)];
+    if (byKind) { return { key: line + ":" + kindOf(kind), dir: byKind }; }
     var own = dirs && line !== "general" && dirs[line];
     if (own) { return { key: line, dir: own }; }
     return { key: "general", dir: (dirs && dirs.general) || null };
@@ -1314,8 +1377,8 @@
     carrierChoice: carrierChoice, carrierFromChoice: carrierFromChoice, CARRIER_OTHER: CARRIER_OTHER, memberDelta: memberDelta, zohoName: zohoName, clientInitials: clientInitials,
     personas: personas, docsOf: docsOf, pendingDocs: pendingDocs, planesOf: planesOf, networkOf: networkOf, docKey: docKey,
     mergeDocs: mergeDocs, rowSource: rowSource, discarded: discarded, discardRow: discardRow, mergeMembers: mergeMembers, mergeHousehold: mergeHousehold, samePerson: samePerson, moveDocKey: moveDocKey,
-    enTaxes: enTaxes, conCobertura: conCobertura, ingresoHogar: ingresoHogar, moneyShort: moneyShort,
-    NET_DIRS: NET_DIRS, netDirFor: netDirFor
+    enTaxes: enTaxes, conCobertura: conCobertura, ingresoHogar: ingresoHogar, ingresoSinContar: ingresoSinContar, limiteDeclarar: limiteDeclarar, moneyShort: moneyShort,
+    NET_DIRS: NET_DIRS, netDirFor: netDirFor, docKinds: docKinds, kindOf: kindOf
   };
   root.QA = root.QA || {};
   root.QA.notes = api;

@@ -689,8 +689,12 @@
   function extractOcApp(doc) {
     var f = {};
     /* la página "Review your application" impresa desde el navegador pone
-       el botón "Edit" al final de cada rótulo: "Name     Edit" */
-    doc = makeDoc(doc.lines.map(function (l) { return l.replace(/\s{2,}(Edit|Editar)$/, ""); }).join("\n"));
+       el botón "Edit" al final de cada rótulo ("Name     Edit", o con un
+       solo espacio: "Agent or Broker Edit"), y en cada página el encabezado
+       y el pie del navegador ("1/16/26, 12:38 PM Review your application" y
+       la dirección con "5/7"), que pueden caer entre un rótulo y su dato */
+    doc = makeDoc(doc.lines.filter(function (l) { return !PRINT_FURNITURE.test(l); })
+      .map(function (l) { return l.replace(/(\S)\s+(Edit|Editar)$/, "$1"); }).join("\n"));
     f.appId = appId(doc);
     /* el resumen impreso de HealthCare.gov dice el año en el ingreso o en
        los taxes: "Estimated income next year (2027)", "Filing a 2027 tax return" */
@@ -852,8 +856,9 @@
       var name = vName(cleanLead(lines[1] || "")) || "";
       var dob = after(sec, [/\bDate\s*of\s*birth\b/i, /Fecha\s*de\s*nacimiento/i], vBirth, 1);
       return { name: name, first: U.stripAccents(name.split(" ")[0]), rel: relations(lines), estatus: usStatus(sec), ingreso: annualIncome(sec), dob: dob,
-               sex: after(sec, [SEX_LABEL], vSex, 1) };
+               sex: after(sec, [SEX_LABEL], vSex, 1), dependiente: after(sec, [TAX_FILING], vTaxFiling, 1) };
     });
+    var applying = coverageList(doc, APPLYING), notApplying = coverageList(doc, NOT_APPLYING);
     var t = 0;
     for (var i = 0; i < people.length; i++) { if (titFirst && people[i].first.toUpperCase() === titFirst.toUpperCase()) { t = i; break; } }
     var tit = people[t];
@@ -876,8 +881,46 @@
       if (p.ingreso) { o.ingreso = p.ingreso; }
       /* el sexo del titular va en «el cliente / la cliente»; el de los demás, a la hoja de cambios */
       if (!o.titular && p.sex) { o.sexo = p.sex; }
+      /* "Applying / Not applying for health coverage" del hogar */
+      var key = personKey(p.name);
+      if (notApplying.indexOf(key) >= 0) { o.cobertura = false; }
+      else if (applying.indexOf(key) >= 0) { o.cobertura = true; }
+      /* "Will be claimed as a tax dependent" o "Filing a tax return" */
+      if (p.dependiente) { o.dependiente = p.dependiente === "si"; }
       return o;
     }).filter(Boolean);
+  }
+
+  var PRINT_FURNITURE = /^\s*(\d{1,2}\/\d{1,2}\/\d{2,4},?\s+\d{1,2}:\d{2}\s*[AP]M\s+(Review your application|Revise su solicitud)\s*$|https?:\/\/\S+\s+\d+\/\d+\s*$)/i;
+
+  /* Quién pide cobertura: los nombres debajo de "Applying for health
+     coverage" y de "Not applying for health coverage", hasta el título de la
+     primera persona (la línea antes de "Name"). */
+  var APPLYING = /^\s*(Applying for (health )?coverage|Solicita\w*\s+cobertura(\s+m[eé]dica|\s+de salud)?)\s*$/i;
+  var NOT_APPLYING = /^\s*(Not applying for (health )?coverage|No\s+(est[aá]n?\s+)?solicita\w*\s+cobertura(\s+m[eé]dica|\s+de salud)?)\s*$/i;
+  function coverageList(doc, label) {
+    var out = [];
+    for (var i = 0; i < doc.lines.length; i++) {
+      if (!label.test(doc.lines[i])) { continue; }
+      for (var j = i + 1; j < doc.lines.length; j++) {
+        var l = doc.lines[j].trim();
+        if (/^(Edit|Editar)$/i.test(l) || !l) { continue; }
+        if (APPLYING.test(l) || NOT_APPLYING.test(l) || /^\s*(Name|Nombre)\s*$/i.test(doc.lines[j + 1] || "")) { break; }
+        var name = vName(cleanLead(l));
+        if (!name) { break; }
+        out.push(personKey(name));
+      }
+      break;
+    }
+    return out;
+  }
+  /* "Tax filing status": "si" si lo reclaman como dependiente, "no" si declara */
+  var TAX_FILING = /^\s*(Tax\s*filing\s*status|Estado\s*(de\s*)?(la\s*)?declaraci[oó]n)\b/i;
+  function vTaxFiling(t) {
+    var c = String(t || "").trim();
+    if (/claimed as a (tax )?dependent|reclamad[oa] como dependiente|dependiente (de impuestos|tributario)/i.test(c)) { return "si"; }
+    if (/^(filing|will file|presentar[aá]|declarar[aá])\b/i.test(c)) { return "no"; }
+    return "";
   }
 
   /* Las líneas entre un título y el siguiente */

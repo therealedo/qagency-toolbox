@@ -931,7 +931,9 @@
       if (canSave && savableFiles(n.k).length) {
         var sv = el("button", "btn small", "Guardar");
         sv.type = "button"; sv.dataset.saveFile = n.k; sv.dataset.label = "Guardar";
-        sv.setAttribute("aria-label", "Guardar " + n.label + " en la carpeta del Network");
+        var to = N.netDirFor(netDirs, S.line, n.k);
+        sv.title = to.dir ? "Se guarda en: " + (to.dir.name || "la carpeta elegida") : "Elige la carpeta en Ajustes o al guardar";
+        sv.setAttribute("aria-label", "Guardar " + n.label + (to.dir ? " en " + (to.dir.name || "la carpeta elegida") : " en la carpeta del Network"));
         acts.appendChild(sv);
       }
       row.appendChild(acts);
@@ -940,22 +942,40 @@
     var keys = savableKeys();
     $("netFoot").hidden = !keys.length;
     var dir = N.netDirFor(netDirs, S.line);
-    $("netWhere").textContent = !dir.dir ? "Elige la carpeta en Ajustes o al guardar."
-      : (dir.key === "general" ? "Carpeta: " : "Carpeta de " + netDirLabel(dir.key) + ": ") + (dir.dir.name || "elegida");
+    var own = keys.filter(function (k) { return N.netDirFor(netDirs, S.line, k).key !== dir.key; }).length;
+    $("netWhere").textContent = (!dir.dir ? "Elige la carpeta en Ajustes o al guardar."
+      : (dir.key === "general" ? "Carpeta: " : "Carpeta de " + netDirLabel(dir.key) + ": ") + (dir.dir.name || "elegida")) +
+      (own ? " Algunos documentos van a su propia carpeta (pasa el ratón sobre Guardar)." : "");
     updateFileNames();
   }
 
   /* -------------------------------------------- carpetas del Network --
-     Una general y, si hace falta, una propia por línea (N.netDirFor). Se
-     eligen en Ajustes y el navegador las recuerda (IndexedDB guarda el
-     permiso, no una ruta; la general sigue en la clave "network" de
-     siempre). Solo Chrome y Edge pueden escribir en una carpeta. Un archivo
-     con el mismo nombre se reemplaza solo si se confirma. */
+     Una general, una propia por línea si hace falta y, dentro de cada línea,
+     una por clase de archivo (N.docKinds, N.netDirFor): por ejemplo OC/ para
+     los documentos y "OC/OEP - Hoja de Cambios" para la hoja. Se eligen en
+     Ajustes y el navegador las recuerda (IndexedDB guarda el permiso, no una
+     ruta; la general sigue en la clave "network" de siempre). Solo Chrome y
+     Edge pueden escribir en una carpeta. Un archivo con el mismo nombre se
+     reemplaza solo si se confirma. */
   var canSave = typeof window.showDirectoryPicker === "function" && !!window.indexedDB;
   var netDirs = {};
 
+  function lineKeys() { return Object.keys(C.LINES); }
+  function allDirKeys() {
+    return N.NET_DIRS.concat(lineKeys().reduce(function (all, l) {
+      return all.concat(N.docKinds(l).map(function (k) { return l + ":" + k.k; }));
+    }, []));
+  }
   function netDirKey(k) { return k === "general" ? "network" : "network-" + k; }
-  function netDirLabel(k) { return k === "general" ? "General" : C.LINES[k].label; }
+  function kindLabel(line, kind) {
+    var k = N.docKinds(line).filter(function (x) { return x.k === kind; })[0];
+    return k ? k.label : kind;
+  }
+  function netDirLabel(k) {
+    if (k === "general") { return "General"; }
+    var parts = k.split(":");
+    return parts[1] ? C.LINES[parts[0]].label + " · " + kindLabel(parts[0], parts[1]) : C.LINES[k].label;
+  }
   function handleStore(mode, fn) {
     return new Promise(function (resolve, reject) {
       var req = indexedDB.open("qa-toolbox", 1);
@@ -973,50 +993,66 @@
     if (!canSave) { return; }
     handleStore("readonly", function (st) {
       var reqs = {};
-      N.NET_DIRS.forEach(function (k) { reqs[k] = st.get(netDirKey(k)); });
+      allDirKeys().forEach(function (k) { reqs[k] = st.get(netDirKey(k)); });
       return reqs;
     }).then(function (reqs) {
-      N.NET_DIRS.forEach(function (k) { if (reqs[k].result) { netDirs[k] = reqs[k].result; } });
-      renderNetDirs(); renderNetwork();
+      allDirKeys().forEach(function (k) { if (reqs[k].result) { netDirs[k] = reqs[k].result; } });
+      renderNetDirs(); renderNetwork(); renderSheetWhere();
     }).catch(function () { netDirs = {}; });
   }
   function pickNetDir(k) {
     return window.showDirectoryPicker({ id: "qa-network", mode: "readwrite" }).then(function (h) {
-      netDirs[k] = h; renderNetDirs(); renderNetwork();
+      netDirs[k] = h; renderNetDirs(); renderNetwork(); renderSheetWhere();
       return handleStore("readwrite", function (st) { return st.put(h, netDirKey(k)); }).then(function () { return h; }, function () { return h; });
     });
   }
   function clearNetDir(k) {
-    delete netDirs[k]; renderNetDirs(); renderNetwork();
+    delete netDirs[k]; renderNetDirs(); renderNetwork(); renderSheetWhere();
     handleStore("readwrite", function (st) { return st.delete(netDirKey(k)); }).catch(function () {});
+  }
+  function netDirRow(k, label, cls) {
+    var row = el("div", "netdir-row" + (cls ? " " + cls : ""));
+    row.appendChild(el("span", "netdir-line", label));
+    var name = el("strong"); name.dataset.netDirName = k;
+    row.appendChild(name);
+    var pick = el("button", "btn small", "Elegir carpeta"); pick.type = "button"; pick.dataset.netDirPick = k;
+    pick.setAttribute("aria-label", "Elegir la carpeta de " + netDirLabel(k));
+    row.appendChild(pick);
+    var clear = el("button", "link-btn", "Quitar"); clear.type = "button"; clear.dataset.netDirClear = k;
+    clear.setAttribute("aria-label", "Quitar la carpeta de " + netDirLabel(k));
+    row.appendChild(clear);
+    return row;
   }
   function renderNetDirs() {
     var box = $("netDirBox");
     box.hidden = !canSave; $("netDirHelp").hidden = !canSave; $("netDirNA").hidden = canSave;
     if (!box.children.length) {
       N.NET_DIRS.forEach(function (k) {
-        var row = el("div", "netdir-row");
-        row.appendChild(el("span", "netdir-line", netDirLabel(k)));
-        var name = el("strong"); name.dataset.netDirName = k;
-        row.appendChild(name);
-        var pick = el("button", "btn small", "Elegir carpeta"); pick.type = "button"; pick.dataset.netDirPick = k;
-        pick.setAttribute("aria-label", "Elegir la carpeta " + (k === "general" ? "general" : "de " + netDirLabel(k)));
-        row.appendChild(pick);
-        var clear = el("button", "link-btn", "Quitar"); clear.type = "button"; clear.dataset.netDirClear = k;
-        clear.setAttribute("aria-label", "Quitar la carpeta " + (k === "general" ? "general" : "de " + netDirLabel(k)));
-        row.appendChild(clear);
-        box.appendChild(row);
+        box.appendChild(netDirRow(k, netDirLabel(k)));
+        if (k === "general") { return; }
+        /* cada clase de archivo de la línea puede ir a otra carpeta */
+        var more = el("details", "netdir-kinds");
+        more.dataset.netDirLine = k;
+        more.appendChild(el("summary", null, "Carpeta por documento de " + C.LINES[k].label));
+        N.docKinds(k).forEach(function (x) { more.appendChild(netDirRow(k + ":" + x.k, x.label, "netdir-kind")); });
+        box.appendChild(more);
       });
     }
-    N.NET_DIRS.forEach(function (k) {
-      var h = netDirs[k];
-      box.querySelector('[data-net-dir-name="' + k + '"]').textContent = h ? (h.name || "Elegida") : (k === "general" ? "Sin elegir" : "Usa la general");
+    allDirKeys().forEach(function (k) {
+      var h = netDirs[k], line = k.split(":")[0];
+      box.querySelector('[data-net-dir-name="' + k + '"]').textContent = h ? (h.name || "Elegida")
+        : k === "general" ? "Sin elegir" : k.indexOf(":") < 0 ? "Usa la general" : "Usa la de " + C.LINES[line].label;
       box.querySelector('[data-net-dir-clear="' + k + '"]').hidden = !h;
     });
+    /* una línea con carpetas por documento se muestra abierta */
+    each(box.querySelectorAll("[data-net-dir-line]"), function (d) {
+      if (N.docKinds(d.dataset.netDirLine).some(function (x) { return netDirs[d.dataset.netDirLine + ":" + x.k]; })) { d.open = true; }
+    });
   }
-  /* la carpeta donde se guarda la línea de ahora; si no hay ninguna, se pide la general */
-  function ensureNetDir() {
-    var t = N.netDirFor(netDirs, S.line), dir = t.dir;
+  /* la carpeta de un archivo de la línea de ahora (su clase, la línea o la
+     general); si no hay ninguna, se pide la general */
+  function ensureNetDir(kind) {
+    var t = N.netDirFor(netDirs, S.line, kind), dir = t.dir;
     if (!dir) { return pickNetDir("general"); }
     return dir.queryPermission({ mode: "readwrite" }).then(function (p) {
       if (p === "granted") { return dir; }
@@ -1054,13 +1090,13 @@
       });
     });
     if (!jobs.length) { return; }
-    ensureNetDir().then(function (dir) {
-      return jobs.reduce(function (p, job) {
-        return p.then(function (saved) {
-          return writeOne(dir, job).then(function (ok) { if (ok) { S.f.net[job.k] = true; saved.push(job.name); } return saved; });
-        });
-      }, Promise.resolve([]));
-    }).then(function (saved) {
+    /* cada archivo va a la carpeta de su clase (o de la línea, o la general) */
+    jobs.reduce(function (p, job) {
+      return p.then(function (saved) {
+        return ensureNetDir(job.k).then(function (dir) { return writeOne(dir, job); })
+          .then(function (ok) { if (ok) { S.f.net[job.k] = true; saved.push(job.name); } return saved; });
+      });
+    }, Promise.resolve([])).then(function (saved) {
       if (!saved || !saved.length) { return; }
       S.dirty = true;
       renderNetwork(); refresh();
@@ -1517,6 +1553,33 @@
     $("sheetFile").textContent = s.archivo + ".pdf";
     drawSheet($("sheetPreview"), s);
     fitSheet();
+    renderSheetWhere();
+  }
+
+  /* Guardar la hoja como PDF en su carpeta (la de "Hoja de cambios" en
+     Ajustes, si no la de OC, si no la general) */
+  function renderSheetWhere() {
+    var can = canSave && !!window.QA.sheetpdf;
+    $("sheetSave").hidden = !can;
+    $("sheetWhere").hidden = !can;
+    if (!can) { return; }
+    var t = N.netDirFor(netDirs, "oc", "hoja");
+    $("sheetWhere").textContent = t.dir ? "«Guardar en la carpeta» la deja en: " + (t.dir.name || "la carpeta elegida") +
+      (t.key === "oc:hoja" ? "." : ". Para usar otra, elígela en Ajustes > Carpetas del Network, en «Hoja de cambios».")
+      : "Elige su carpeta en Ajustes > Carpetas del Network («Hoja de cambios»), o se pedirá al guardar.";
+  }
+  function saveSheet() {
+    var s = N.changeSheet(data()), btn = $("sheetSave");
+    var file = new Blob([window.QA.sheetpdf.sheetPdf(s)], { type: "application/pdf" });
+    var job = { k: "hoja", file: file, name: N.safeFileName(s.archivo) + ".pdf" };
+    ensureNetDir("hoja").then(function (dir) { return writeOne(dir, job); }).then(function (ok) {
+      if (!ok) { return; }
+      flashButton(btn);
+      toast("Hoja de cambios guardada: " + job.name);
+    }).catch(function (e) {
+      if (e && e.name === "AbortError") { return; }
+      toast("No se pudo guardar la hoja. Revisa el permiso o elige la carpeta otra vez en Ajustes.");
+    });
   }
 
   /* la vista previa es la página entera, achicada al ancho de la tarjeta */
@@ -2793,6 +2856,7 @@
     $("signReset").addEventListener("click", function () { delete S.signEdits[signKind]; renderSign(data()); });
     $("signDownload").addEventListener("click", function () { downloadSign(this); });
     $("sheetPrint").addEventListener("click", printSheet);
+    $("sheetSave").addEventListener("click", saveSheet);
     window.addEventListener("resize", fitSheet);
     [["copySignCliq", "signCliq"], ["copySignUrl", "signUrl"], ["copySignSms", "signSms"], ["copySignEmail", "signEmail"]].forEach(function (p) {
       $(p[0]).addEventListener("click", function () {
