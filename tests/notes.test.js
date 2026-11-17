@@ -1402,3 +1402,15 @@ test("ingreso del hogar: un dependiente que no tiene que declarar no suma; el cÃ
   assert.doesNotMatch(env, /Sofia \$12,000/);
 });
 
+
+test("OEP: la cobertura empieza el 01/01 si se procesa hasta el 15 de diciembre, y el 02/01 hasta el 15 de enero", () => {
+  assert.equal(N.oepStart("11/01/2026"), "01/01/2027");
+  assert.equal(N.oepStart("12/15/2026"), "01/01/2027");
+  assert.equal(N.oepStart("12/16/2026"), "02/01/2027");
+  assert.equal(N.oepStart("01/10/2027"), "02/01/2027");
+  assert.equal(N.oepStart("01/15/2027"), "02/01/2027");
+  /* fuera del Open Enrollment no hay fecha que poner */
+  assert.equal(N.oepStart("01/16/2027"), "");
+  assert.equal(N.oepStart("10/31/2026"), "");
+  assert.equal(N.oepStart(""), "");
+});

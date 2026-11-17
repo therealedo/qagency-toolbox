@@ -123,6 +123,20 @@
     return (Array.isArray(d.planes) ? d.planes : []).filter(function (p) { return val(p.compania) || val(p.plan); });
   }
 
+  /* Inicio de la cobertura de una app de Obamacare hecha en el Open
+     Enrollment (1 de noviembre al 15 de enero): hasta el 15 de diciembre
+     empieza el 01/01 del año siguiente; del 16 de diciembre al 15 de enero,
+     el 02/01. Fuera del Open Enrollment no hay fecha. */
+  function oepStart(fecha) {
+    var m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(U.parseDate(fecha) || "");
+    if (!m) { return ""; }
+    var mo = +m[1], day = +m[2], y = +m[3];
+    if (mo === 11 || (mo === 12 && day <= 15)) { return "01/01/" + (y + 1); }
+    if (mo === 12) { return "02/01/" + (y + 1); }
+    if (mo === 1 && day <= 15) { return "02/01/" + y; }
+    return "";
+  }
+
   /* "Diaz, Beatriz": como se escriben los nombres en el reporte y los archivos */
   function zohoName(d) {
     var ap = U.titleCase(d.apellidos), no = U.titleCase(d.nombres);
@@ -1420,7 +1434,7 @@
     personas: personas, docsOf: docsOf, pendingDocs: pendingDocs, planesOf: planesOf, networkOf: networkOf, docKey: docKey,
     mergeDocs: mergeDocs, rowSource: rowSource, discarded: discarded, discardRow: discardRow, mergeMembers: mergeMembers, mergeHousehold: mergeHousehold, samePerson: samePerson, moveDocKey: moveDocKey,
     enTaxes: enTaxes, conCobertura: conCobertura, ingresoHogar: ingresoHogar, ingresoSinContar: ingresoSinContar, limiteDeclarar: limiteDeclarar, moneyShort: moneyShort,
-    NET_DIRS: NET_DIRS, netDirFor: netDirFor, docKinds: docKinds, kindOf: kindOf
+    NET_DIRS: NET_DIRS, netDirFor: netDirFor, docKinds: docKinds, kindOf: kindOf, oepStart: oepStart
   };
   root.QA = root.QA || {};
   root.QA.notes = api;

@@ -1344,6 +1344,15 @@
       var soa = $("f_soaFecha");
       if (soa && document.activeElement !== soa) { soa.value = f.soaFecha; }
     }
+    /* Obamacare en OEP: Cobertura desde sale de la fecha de la nota (01/01
+       o 02/01) mientras nadie la escriba ni la traiga un documento; sin OEP,
+       la que se puso sola se quita */
+    var oep = isOC() && !isOC("cancelada") && f.periodo === "OEP" ?N.oepStart(U.collapse(f.fecha) ? f.fecha : U.today()) : "";
+    var ef = null;
+    if (oep && (!U.collapse(f.efectiva) || S.auto.efectiva === "calc")) { f.efectiva = oep; S.auto.efectiva = "calc"; ef = oep; }
+    else if (!oep && S.auto.efectiva === "calc") { f.efectiva = ""; delete S.auto.efectiva; ef = ""; }
+    var efIn = ef === null ? null : $("f_efectiva");
+    if (efIn && document.activeElement !== efIn) { efIn.value = ef; }
   }
 
   /* Quién escribe la nota, quién habló con el cliente, con qué NPN se hizo
