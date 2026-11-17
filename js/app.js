@@ -1480,8 +1480,10 @@
     $("smsCount").title = info.unicode ? "Con acentos o emojis cada mensaje admite 70 caracteres; si no, 160." : "";
 
     /* SMS de una app enviada (Obamacare, Medicare o Suplementario) y email
-       de una app de Obamacare o de Suplementario: en español o en inglés */
-    var smsLang = O().id === "enviada", email = isOC("enviada") || isSupp("enviada");
+       de una app de Obamacare o de Suplementario, o con la cotización de
+       Obamacare si revisará los planes: en español o en inglés */
+    var quote = isOC("pendiente") && !!S.f.revisaPlanes && !!N.buildEmail(d, 1);
+    var smsLang = O().id === "enviada", email = isOC("enviada") || isSupp("enviada") || quote;
     each(document.querySelectorAll("[data-lang-seg]"), function (seg) {
       /* el Consent y el SOA siempre: su plantilla sale del idioma */
       seg.hidden = !(seg.closest("#sec-firma") || (seg.closest("#emailCard") ? email : smsLang));
@@ -1489,9 +1491,9 @@
     });
     $("emailCard").hidden = !email;
     if (email) {
-      var one = isSupp();
+      var one = isSupp() || quote;
       $("emailPart2").hidden = one;
-      $("emailHead1").textContent = one ? "Aplicación y póliza" : "1 · Documentos y plan";
+      $("emailHead1").textContent = quote ? "Cotización" : one ? "Aplicación y póliza" : "1 · Documentos y plan";
       setOut("email1", N.buildEmail(d, 1));
       if (!one) { setOut("email2", N.buildEmail(d, 2)); }
       fitHeight($("email1")); if (!one) { fitHeight($("email2")); }

@@ -1059,6 +1059,7 @@
      (todo lo pedido, enviado o no) y la firma de quien habló con el cliente. */
   function buildEmail(d, part) {
     var O = outcomeOf(d);
+    if (d.line === "oc" && O.id === "pendiente" && d.revisaPlanes) { return part === 1 ? emailCotizacion(d) : ""; }
     if (O.id !== "enviada") { return ""; }
     if (d.line === "supp") { return part === 1 ? emailSupp(d) : ""; }
     if (d.line !== "oc") { return ""; }
@@ -1100,6 +1101,47 @@
     lines.push("");
     lines.push(en ? "Best Regards," : "Saludos");
     if (val(d.firmaNombre)) { lines.push(U.titleCase(d.firmaNombre)); }
+    return lines.join("\n");
+  }
+
+  /* Email con la cotización de Obamacare cuando el cliente revisará los
+     planes: un plan, varios de una compañía o varias compañías, cada una
+     con sus planes y la prima de cada uno. */
+  function emailCotizacion(d) {
+    var plans = planesOf(d);
+    if (!plans.length) { return ""; }
+    var en = d.idioma === "en", groups = [], byCarrier = {};
+    plans.forEach(function (p) {
+      var c = upper(carrierName("oc", p.compania));
+      if (!byCarrier[c]) { byCarrier[c] = { carrier: c, plans: [] }; groups.push(byCarrier[c]); }
+      byCarrier[c].plans.push(p);
+    });
+    var many = plans.length > 1, carriers = groups.length > 1, lines = [];
+    var only = carriers ? "" : groups[0].carrier;
+    if (en) {
+      lines.push("Dear Client");
+      lines.push(many ? "Attached are quotes for Insurance Health Plans" : "Attached is a quote for an Insurance Health Plan");
+      lines.push(carriers ? "with the following companies:" : "with the following company:" + (only ? " " + only : ""));
+    } else {
+      lines.push((d.genero === "a" ? "Estimada" : "Estimado") + " Cliente");
+      lines.push("Adjunto cotizaciones para su plan médico a través de " +
+        (carriers ? "las compañías:" : "la compañía:" + (only ? " " + only : "")));
+    }
+    groups.forEach(function (g, gi) {
+      if (carriers || (many && gi === 0)) { lines.push(""); }
+      if (carriers && g.carrier) { lines.push((en ? "Company: " : "Compañía: ") + g.carrier); }
+      g.plans.forEach(function (p, pi) {
+        if (many && !carriers && pi > 0) { lines.push(""); }
+        if (val(p.plan)) { lines.push((en ? "Name of the plan: " : "NOMBRE DEL PLAN: ") + upper(p.plan)); }
+        var pay = U.parseMoney(p.prima);
+        if (pay) { lines.push((en ? "Monthly Premium Payment: " : "Prima Mensual: ") + pay); }
+      });
+    });
+    var ef = U.parseDate(d.efectiva);
+    if (ef) {
+      if (many) { lines.push(""); }
+      lines.push(en ? "Effective Date: " + ef : "Cobertura a partir del " + ef);
+    }
     return lines.join("\n");
   }
 
