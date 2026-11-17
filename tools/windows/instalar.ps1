@@ -44,9 +44,15 @@ $navegador = $navegadores | Where-Object { $_ -and (Test-Path $_) } | Select-Obj
 # ajustes (tu nombre, el equipo, el tema) viven en ese navegador, y abrir la
 # herramienta con otro los dejaria vacios.
 $shellPrevio = New-Object -ComObject WScript.Shell
+# Si ya se abria con su propio perfil (ver $perfil abajo), no hay que avisar
+$propioAntes = $false
+$habiaAcceso = $false
 foreach ($a in $accesos) {
   if (Test-Path $a) {
-    $previo = $shellPrevio.CreateShortcut($a).TargetPath
+    $habiaAcceso = $true
+    $lnk = $shellPrevio.CreateShortcut($a)
+    if ($lnk.Arguments -match '--user-data-dir') { $propioAntes = $true }
+    $previo = $lnk.TargetPath
     if ($previo -and ($previo -match '\\(chrome|msedge|brave)\.exe$') -and (Test-Path $previo)) { $navegador = $previo; break }
   }
 }
@@ -67,11 +73,16 @@ Copy-Item -Force $html $destino
 Copy-Item -Force (Join-Path $origen "toolbox.ico") $destino
 
 $pagina = ([System.Uri](Join-Path $destino "QAgency-Toolbox.html")).AbsoluteUri
+# La herramienta abre siempre con su propio perfil del navegador. Sin un perfil
+# fijo, Chrome la abre en el ultimo perfil que se uso, y con varios perfiles los
+# ajustes (equipo, oficina, carpetas) parecen perderse al cerrarla y abrirla.
+$perfil = Join-Path $destino "Navegador"
+New-Item -ItemType Directory -Force -Path $perfil | Out-Null
 $shell = New-Object -ComObject WScript.Shell
 foreach ($a in $accesos) {
   $s = $shell.CreateShortcut($a)
   $s.TargetPath = $navegador
-  $s.Arguments = "--app=`"$pagina`""
+  $s.Arguments = "--user-data-dir=`"$perfil`" --no-first-run --no-default-browser-check --app=`"$pagina`""
   $s.IconLocation = (Join-Path $destino "toolbox.ico")
   $s.WorkingDirectory = $destino
   $s.Description = "Nota, task y reporte en un solo paso"
@@ -103,3 +114,11 @@ Write-Host "Para dejarlo en la barra de tareas: abrelo, haz clic derecho en su"
 Write-Host "icono de la barra y elige 'Anclar a la barra de tareas'."
 Write-Host "Para actualizarlo: abre 'Actualizar $nombre' en el Escritorio o el"
 Write-Host "menu Inicio. Solo instala algo cuando hay una version nueva."
+if ($habiaAcceso -and -not $propioAntes) {
+  Write-Host ""
+  Write-Host "IMPORTANTE: desde esta version la herramienta abre siempre con su propio"
+  Write-Host "perfil del navegador, para que los ajustes no se pierdan al cerrarla."
+  Write-Host "La primera vez que la abras configurala de nuevo: Ajustes > Importar equipo"
+  Write-Host "(QAgency-Equipo.json), tu nombre, la oficina y las carpetas del Network."
+  Write-Host "Si la tenias anclada en la barra de tareas, quitala y vuelve a anclarla."
+}
