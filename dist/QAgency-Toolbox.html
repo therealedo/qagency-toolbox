@@ -1405,7 +1405,7 @@ kbd {
 (function (root) {
   "use strict";
 
-  var VERSION = "1.12.0";
+  var VERSION = "1.13.0";
   /* De aquí la herramienta instalada lee el número de la última versión (y
      nada más). La política de seguridad de index.html solo permite esta
      dirección, y el actualizador de Windows usa el mismo repositorio. */
@@ -3036,7 +3036,7 @@ kbd {
          consent firmado queda la app pendiente */
       if (d.revisaPlanes) {
         var entrega = (d.canal === "Walk In" || (d.canal === "Appointment" && (d.modalidad === "presencial" || d.modalidad === "en casa"))) ? "entrega" : "envía";
-        out.push("Se le " + entrega + " la cotización para que revise los planes.");
+        out.push("Se le " + entrega + " la cotización para que revise " + (planesOf(d).length === 1 ? "el plan." : "los planes."));
       } else {
         out.push(d.net && d.net.consent
           ? "Se firmó la carta de consentimiento" + (d.canal === "Appointment" ? (CONSENT_CITA[d.modalidad] || "") : (CONSENT_DONDE[d.canal] || "")) + ", app pendiente."
@@ -3233,6 +3233,7 @@ kbd {
      (todo lo pedido, enviado o no) y la firma de quien habló con el cliente. */
   function buildEmail(d, part) {
     var O = outcomeOf(d);
+    if (d.line === "oc" && O.id === "pendiente" && d.revisaPlanes) { return part === 1 ? emailCotizacion(d) : ""; }
     if (O.id !== "enviada") { return ""; }
     if (d.line === "supp") { return part === 1 ? emailSupp(d) : ""; }
     if (d.line !== "oc") { return ""; }
@@ -3274,6 +3275,47 @@ kbd {
     lines.push("");
     lines.push(en ? "Best Regards," : "Saludos");
     if (val(d.firmaNombre)) { lines.push(U.titleCase(d.firmaNombre)); }
+    return lines.join("\n");
+  }
+
+  /* Email con la cotización de Obamacare cuando el cliente revisará los
+     planes: un plan, varios de una compañía o varias compañías, cada una
+     con sus planes y la prima de cada uno. */
+  function emailCotizacion(d) {
+    var plans = planesOf(d);
+    if (!plans.length) { return ""; }
+    var en = d.idioma === "en", groups = [], byCarrier = {};
+    plans.forEach(function (p) {
+      var c = upper(carrierName("oc", p.compania));
+      if (!byCarrier[c]) { byCarrier[c] = { carrier: c, plans: [] }; groups.push(byCarrier[c]); }
+      byCarrier[c].plans.push(p);
+    });
+    var many = plans.length > 1, carriers = groups.length > 1, lines = [];
+    var only = carriers ? "" : groups[0].carrier;
+    if (en) {
+      lines.push("Dear Client");
+      lines.push(many ? "Attached are quotes for Insurance Health Plans" : "Attached is a quote for an Insurance Health Plan");
+      lines.push(carriers ? "with the following companies:" : "with the following company:" + (only ? " " + only : ""));
+    } else {
+      lines.push((d.genero === "a" ? "Estimada" : "Estimado") + " Cliente");
+      lines.push("Adjunto cotizaciones para su plan médico a través de " +
+        (carriers ? "las compañías:" : "la compañía:" + (only ? " " + only : "")));
+    }
+    groups.forEach(function (g, gi) {
+      if (carriers || (many && gi === 0)) { lines.push(""); }
+      if (carriers && g.carrier) { lines.push((en ? "Company: " : "Compañía: ") + g.carrier); }
+      g.plans.forEach(function (p, pi) {
+        if (many && !carriers && pi > 0) { lines.push(""); }
+        if (val(p.plan)) { lines.push((en ? "Name of the plan: " : "NOMBRE DEL PLAN: ") + upper(p.plan)); }
+        var pay = U.parseMoney(p.prima);
+        if (pay) { lines.push((en ? "Monthly Premium Payment: " : "Prima Mensual: ") + pay); }
+      });
+    });
+    var ef = U.parseDate(d.efectiva);
+    if (ef) {
+      if (many) { lines.push(""); }
+      lines.push(en ? "Effective Date: " + ef : "Cobertura a partir del " + ef);
+    }
     return lines.join("\n");
   }
 
@@ -4985,8 +5027,11 @@ kbd {
       var ag = nameBeforeNpn(doc);
       if (ag) { f.agente = ag.toUpperCase(); }
     }
-    /* "Agent or Broker" con el nombre y el NPN debajo, sin rótulos */
-    var AOB = [/^\s*Agent\s*or\s*Broker\s*$/i, /^\s*Agente\s*o\s*corredor\s*$/i];
+    /* "Agent or Broker" (o "Certified application counselor" en las de
+       2024) con el nombre y el NPN debajo, sin rótulos */
+    var AOB = [/^\s*Agent\s*or\s*Broker\s*$/i, /^\s*Agente\s*o\s*corredor\s*$/i,
+               /^\s*Certified\s+application\s+counselor\s*$/i,
+               /^\s*Consejer[oa]\s+(?:certificad[oa]\s+)?de\s+solicitud(?:es)?(?:\s+certificad[oa])?\s*$/i];
     if (!f.agente) { var aob = after(doc, AOB, vPerson, 1); if (aob) { f.agente = aob.toUpperCase(); } }
     if (!f.npn) { var aobNpn = after(doc, AOB, vDigits(5, 12), 2); if (aobNpn) { f.npn = aobNpn; } }
     var lang = after(doc, [/\bPreferred\s*spoken\s*language\b/i, /\bPreferred\s*(written\s*)?language\b/i, /\bIdioma\s*(preferido|hablado)\b/i], vLang, 1);
@@ -8047,8 +8092,10 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
     $("smsCount").title = info.unicode ? "Con acentos o emojis cada mensaje admite 70 caracteres; si no, 160." : "";
 
     /* SMS de una app enviada (Obamacare, Medicare o Suplementario) y email
-       de una app de Obamacare o de Suplementario: en español o en inglés */
-    var smsLang = O().id === "enviada", email = isOC("enviada") || isSupp("enviada");
+       de una app de Obamacare o de Suplementario, o con la cotización de
+       Obamacare si revisará los planes: en español o en inglés */
+    var quote = isOC("pendiente") && !!S.f.revisaPlanes && !!N.buildEmail(d, 1);
+    var smsLang = O().id === "enviada", email = isOC("enviada") || isSupp("enviada") || quote;
     each(document.querySelectorAll("[data-lang-seg]"), function (seg) {
       /* el Consent y el SOA siempre: su plantilla sale del idioma */
       seg.hidden = !(seg.closest("#sec-firma") || (seg.closest("#emailCard") ? email : smsLang));
@@ -8056,9 +8103,9 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
     });
     $("emailCard").hidden = !email;
     if (email) {
-      var one = isSupp();
+      var one = isSupp() || quote;
       $("emailPart2").hidden = one;
-      $("emailHead1").textContent = one ? "Aplicación y póliza" : "1 · Documentos y plan";
+      $("emailHead1").textContent = quote ? "Cotización" : one ? "Aplicación y póliza" : "1 · Documentos y plan";
       setOut("email1", N.buildEmail(d, 1));
       if (!one) { setOut("email2", N.buildEmail(d, 2)); }
       fitHeight($("email1")); if (!one) { fitHeight($("email2")); }
