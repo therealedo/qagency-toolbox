@@ -1402,3 +1402,31 @@ test("ingreso del hogar: un dependiente que no tiene que declarar no suma; el c�
   assert.doesNotMatch(env, /Sofia \$12,000/);
 });
 
+
+test("OEP: la cobertura empieza el 01/01 si se procesa hasta el 15 de diciembre, y el 02/01 hasta el 15 de enero", () => {
+  assert.equal(N.oepStart("11/01/2026"), "01/01/2027");
+  assert.equal(N.oepStart("12/15/2026"), "01/01/2027");
+  assert.equal(N.oepStart("12/16/2026"), "02/01/2027");
+  assert.equal(N.oepStart("01/10/2027"), "02/01/2027");
+  assert.equal(N.oepStart("01/15/2027"), "02/01/2027");
+  /* fuera del Open Enrollment no hay fecha que poner */
+  assert.equal(N.oepStart("01/16/2027"), "");
+  assert.equal(N.oepStart("10/31/2026"), "");
+  assert.equal(N.oepStart(""), "");
+});
+
+test("Hoja de cambios: solo en Obamacare Pendiente, y no si revisará los planes", () => {
+  assert.equal(N.needsSheet({ line: "oc", outcome: "pendiente" }), true);
+  assert.equal(N.needsSheet({ line: "oc", outcome: "pendiente", revisaPlanes: true }), false);
+  assert.equal(N.needsSheet({ line: "oc", outcome: "enviada" }), false);
+  assert.equal(N.needsSheet({ line: "mc", outcome: "enviada" }), false);
+});
+
+test("Network: si revisará los planes no hay carta de consentimiento que guardar", () => {
+  const d = { line: "oc", outcome: "pendiente", docs: [], net: {} };
+  assert.deepEqual(N.networkOf(d).map((n) => n.k), ["consent"]);
+  assert.deepEqual(N.networkOf(Object.assign({}, d, { revisaPlanes: true })), []);
+  assert.deepEqual(N.buildFileNames(Object.assign({}, d, { revisaPlanes: true })), []);
+  /* las demás situaciones siguen igual */
+  assert.ok(N.networkOf({ line: "oc", outcome: "enviada", docs: [], net: {}, revisaPlanes: true }).length > 0);
+});

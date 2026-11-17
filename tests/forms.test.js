@@ -56,6 +56,7 @@ test("plantilla: Consent en Obamacare Pendiente y SOA en las situaciones de Medi
   assert.equal(F.formKind({ line: "oc", outcome: "pendiente" }), "consent");
   assert.equal(F.formKind({ line: "oc", outcome: "pendiente", net: { consent: true } }), "", "consent ya recibido");
   assert.equal(F.formKind({ line: "oc", outcome: "pendiente", net: { consent: false } }), "consent");
+  assert.equal(F.formKind({ line: "oc", outcome: "pendiente", revisaPlanes: true }), "", "revisará los planes: el consent no se envía");
   assert.equal(F.formKind({ line: "oc", outcome: "enviada" }), "");
   assert.equal(F.formKind({ line: "oc", outcome: "cancelada" }), "");
   assert.equal(F.formKind({ line: "mc", outcome: "enviada" }), "soa");

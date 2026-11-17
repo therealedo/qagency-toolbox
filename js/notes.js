@@ -123,6 +123,20 @@
     return (Array.isArray(d.planes) ? d.planes : []).filter(function (p) { return val(p.compania) || val(p.plan); });
   }
 
+  /* Inicio de la cobertura de una app de Obamacare hecha en el Open
+     Enrollment (1 de noviembre al 15 de enero): hasta el 15 de diciembre
+     empieza el 01/01 del año siguiente; del 16 de diciembre al 15 de enero,
+     el 02/01. Fuera del Open Enrollment no hay fecha. */
+  function oepStart(fecha) {
+    var m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(U.parseDate(fecha) || "");
+    if (!m) { return ""; }
+    var mo = +m[1], day = +m[2], y = +m[3];
+    if (mo === 11 || (mo === 12 && day <= 15)) { return "01/01/" + (y + 1); }
+    if (mo === 12) { return "02/01/" + (y + 1); }
+    if (mo === 1 && day <= 15) { return "02/01/" + y; }
+    return "";
+  }
+
   /* "Diaz, Beatriz": como se escriben los nombres en el reporte y los archivos */
   function zohoName(d) {
     var ap = U.titleCase(d.apellidos), no = U.titleCase(d.nombres);
@@ -602,6 +616,8 @@
      como TERMINATED, según lo que se eligió (CANCELLED si no se eligió). */
   function networkOf(d) {
     var O = outcomeOf(d), tipo = d.tipoCancel || "cancelled", out = [];
+    /* si revisará los planes el consent no se envía: no hay nada que guardar */
+    if (d.line === "oc" && O.id === "pendiente" && d.revisaPlanes) { return out; }
     (O.network || lineOf(d).network).forEach(function (n) {
       if (n.tipoCancel && n.tipoCancel !== tipo) { return; }
       if (!n.perDoc) { out.push(n); return; }
@@ -1357,6 +1373,12 @@
   var SEXO = { a: "Femenino", o: "Masculino" };
   var PORTAL = { "HealthSherpa": "HEALTHSHERPA", "Portal de la compañía": "PORTAL DE LA COMPAÑÍA" };
 
+  /* La hoja es para quien completa la aplicación: si el cliente revisará los
+     planes todavía no hay aplicación que completar */
+  function needsSheet(d) {
+    return d.line === "oc" && outcomeOf(d).id === "pendiente" && !d.revisaPlanes;
+  }
+
   function changeSheet(d) {
     var base = d.base || {}, list = Array.isArray(d.personas) && d.personas.length ? d.personas : [{ titular: true, taxes: true, cobertura: true }];
     var anio = /^\d{4}$/.test(val(d.anio)) ? val(d.anio) : "";
@@ -1420,7 +1442,7 @@
     personas: personas, docsOf: docsOf, pendingDocs: pendingDocs, planesOf: planesOf, networkOf: networkOf, docKey: docKey,
     mergeDocs: mergeDocs, rowSource: rowSource, discarded: discarded, discardRow: discardRow, mergeMembers: mergeMembers, mergeHousehold: mergeHousehold, samePerson: samePerson, moveDocKey: moveDocKey,
     enTaxes: enTaxes, conCobertura: conCobertura, ingresoHogar: ingresoHogar, ingresoSinContar: ingresoSinContar, limiteDeclarar: limiteDeclarar, moneyShort: moneyShort,
-    NET_DIRS: NET_DIRS, netDirFor: netDirFor, docKinds: docKinds, kindOf: kindOf
+    NET_DIRS: NET_DIRS, netDirFor: netDirFor, docKinds: docKinds, kindOf: kindOf, oepStart: oepStart, needsSheet: needsSheet
   };
   root.QA = root.QA || {};
   root.QA.notes = api;
