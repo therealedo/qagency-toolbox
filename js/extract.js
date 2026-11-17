@@ -1448,9 +1448,34 @@
     if (/^\d{5,12}$/.test(npn)) { f.npn = npn; }
   }
 
+  /* "□ M □n F": la marca de la casilla elegida es una letra de Dingbats ("n")
+     pegada a su casilla, antes o después, o la casilla rellena (■ ☒ ☑) */
+  var BOX_SEX = /(?:[□☐]\s?[nx✓✔]|[nx✓✔]\s?[□☐]|[■☒☑])\s*([MF])\b/;
+  function boxSex(doc) {
+    for (var i = 0; i < doc.lines.length; i++) {
+      var l = doc.lines[i];
+      if (!/[□☐■☒☑]\s?\S?\s*M\b.*[□☐■☒☑]\s?\S?\s*F\b|[□☐■☒☑]\s?\S?\s*F\b.*[□☐■☒☑]\s?\S?\s*M\b/.test(l)) { continue; }
+      var m = l.match(BOX_SEX);
+      return m ? (m[1] === "F" ? "a" : "o") : "";
+    }
+    return "";
+  }
+
+  /* Una tarjeta dental puede nombrar primero la red que usa (Allstate usa la
+     de Aetna: "Aetna Dental Administrators"). Entonces la compañía es la
+     aseguradora de "Underwritten by …". Sin red, manda la primera que se
+     nombra: UnitedHealthcare sigue siendo UHC aunque la asegure Golden Rule. */
+  var DENTAL_NETWORK = /\bDental\s*Administrators\b|\bparticipating\s*dentists\b/i;
+  function suppCarrier(doc) {
+    var first = carrierIn("supp", doc.flat);
+    if (!DENTAL_NETWORK.test(doc.flat)) { return first; }
+    var uw = find(doc, /\bUnder\s*wr?itten\s+by\b([^\n]{0,160})/i);
+    return (uw && carrierIn("supp", uw)) || first;
+  }
+
   function extractSupp(doc) {
     var f = {};
-    f.compania = carrierIn("supp", doc.flat);
+    f.compania = suppCarrier(doc);
     f.producto = suppProduct(doc);
     if (/golden\s*rule/i.test(doc.flat) && doc.form.Last1) {
       goldenRule(doc, f);
@@ -1458,6 +1483,8 @@
     }
     personName(doc, f);
     if (!f.nombres) { suppHolder(doc, f); }
+    var sex = boxSex(doc);
+    if (sex) { f.genero = sex; }
     f.plan = suppPlan(doc);
     f.prima = suppPremium(doc);
     f.efectiva = suppDate(doc);
