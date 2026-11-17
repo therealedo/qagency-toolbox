@@ -1414,3 +1414,19 @@ test("OEP: la cobertura empieza el 01/01 si se procesa hasta el 15 de diciembre,
   assert.equal(N.oepStart("10/31/2026"), "");
   assert.equal(N.oepStart(""), "");
 });
+
+test("Hoja de cambios: solo en Obamacare Pendiente, y no si revisará los planes", () => {
+  assert.equal(N.needsSheet({ line: "oc", outcome: "pendiente" }), true);
+  assert.equal(N.needsSheet({ line: "oc", outcome: "pendiente", revisaPlanes: true }), false);
+  assert.equal(N.needsSheet({ line: "oc", outcome: "enviada" }), false);
+  assert.equal(N.needsSheet({ line: "mc", outcome: "enviada" }), false);
+});
+
+test("Network: si revisará los planes no hay carta de consentimiento que guardar", () => {
+  const d = { line: "oc", outcome: "pendiente", docs: [], net: {} };
+  assert.deepEqual(N.networkOf(d).map((n) => n.k), ["consent"]);
+  assert.deepEqual(N.networkOf(Object.assign({}, d, { revisaPlanes: true })), []);
+  assert.deepEqual(N.buildFileNames(Object.assign({}, d, { revisaPlanes: true })), []);
+  /* las demás situaciones siguen igual */
+  assert.ok(N.networkOf({ line: "oc", outcome: "enviada", docs: [], net: {}, revisaPlanes: true }).length > 0);
+});

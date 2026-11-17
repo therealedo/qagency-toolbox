@@ -97,8 +97,9 @@
   /* Consent en Obamacare Pendiente (cotización); SOA en las situaciones de
      Medicare que guardan un SOA en el Network. */
   function formKind(d) {
-    /* con la carta de consentimiento ya recibida no hay nada que firmar */
-    if (d.line === "oc") { return N.outcomeOf(d).id === "pendiente" && !(d.net && d.net.consent) ? "consent" : ""; }
+    /* con la carta de consentimiento ya recibida no hay nada que firmar, y si
+       revisará los planes el consent todavía no se envía */
+    if (d.line === "oc") { return N.outcomeOf(d).id === "pendiente" && !(d.net && d.net.consent) && !d.revisaPlanes ? "consent" : ""; }
     if (d.line === "mc") { return N.networkOf(d).some(function (n) { return n.k === "soa"; }) ? "soa" : ""; }
     return "";
   }

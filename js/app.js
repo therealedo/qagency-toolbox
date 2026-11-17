@@ -1159,7 +1159,7 @@
     updateGroupTitles();
     each(form.querySelectorAll(".group"), function (g) {
       var id = g.dataset.group;
-      g.hidden = id === "network" ? O().sections.indexOf("network") < 0 : !g.querySelector(".fld:not([hidden])");
+      g.hidden = id === "network" ? (O().sections.indexOf("network") < 0 || !N.networkOf(data()).length) : !g.querySelector(".fld:not([hidden])");
       var badge = g.querySelector(".review"), n = pending[id] || 0;
       badge.hidden = !n;
       badge.textContent = n + " por revisar";
@@ -1556,7 +1556,7 @@
      de la nota; al imprimir, solo ella sale en el papel o en el PDF. */
   var sheetName = "";
   function renderSheet(d) {
-    var on = isOC("pendiente");
+    var on = N.needsSheet(d);
     $("sec-hoja").hidden = !on;
     if (!on) { return; }
     var s = N.changeSheet(d);
