@@ -59,7 +59,8 @@
       return {
         name: name, first: p.titular ? (first(d.nombres) || "Titular") : first(p.nombre),
         titular: !!p.titular, taxes: !!p.taxes, cobertura: !!p.cobertura,
-        ingreso: U.moneyNumber(p.ingreso), parentesco: val(p.parentesco)
+        ingreso: U.moneyNumber(p.ingreso), parentesco: val(p.parentesco),
+        dependiente: typeof p.dependiente === "boolean" ? p.dependiente : null
       };
     }).filter(function (p) { return p.titular || p.name; });
   }
@@ -77,8 +78,10 @@
      their income only if they need to file a federal tax return"
      (healthcare.gov). Con un solo ingreso anual por persona se toma como
      ingreso de trabajo, cuyo límite es la deducción estándar de una persona
-     sola en el año del plan (IRS). El titular, el cónyuge y quien no tiene
-     parentesco elegido siempre cuentan. */
+     sola en el año del plan (IRS). Si el App Summary dice quién es
+     dependiente ("Will be claimed as a tax dependent") se usa eso; si no, el
+     parentesco. El titular, el cónyuge y quien no tiene parentesco elegido
+     siempre cuentan. */
   var DEDUCCION_ESTANDAR = { 2025: 15750, 2026: 16100, 2027: 16600 };
   var DEPENDIENTES = ["Hijo/a", "Padre/Madre", "Hermano/a", "Otro"];
   function limiteDeclarar(d) {
@@ -87,7 +90,10 @@
     y = Math.max(years[0], Math.min(years[years.length - 1], y));
     return DEDUCCION_ESTANDAR[y];
   }
-  function esDependiente(p) { return !p.titular && DEPENDIENTES.indexOf(p.parentesco) >= 0; }
+  function esDependiente(p) {
+    if (p.titular) { return false; }
+    return p.dependiente != null ? p.dependiente : DEPENDIENTES.indexOf(p.parentesco) >= 0;
+  }
   function cuentaIngreso(d, p) { return !esDependiente(p) || p.ingreso > limiteDeclarar(d); }
   /* Dependientes con ingreso que no llega al límite: no suman al hogar. */
   function ingresoSinContar(d) {
@@ -757,6 +763,7 @@
        un campo vacío y cede ante cualquier dato de la persona. */
   /* `sexo` ("a" / "o") no tiene campo en el hogar: sale en la hoja de cambios */
   var HOGAR_KEYS = ["parentesco", "estatus", "ingreso", "dob", "sexo"];
+  var FLAG_KEYS = ["cobertura", "dependiente"];
   function sameValue(k, a, b) {
     if (k === "ingreso") { return U.moneyNumber(a) === U.moneyNumber(b); }
     if (k === "dob") { return same(dateOrText(a), dateOrText(b)); }
@@ -775,6 +782,7 @@
         var nombre = upper(x.nombre), orig = { nombre: nombre, taxes: true, cobertura: true };
         p = { nombre: nombre, parentesco: "", taxes: true, cobertura: true, ingreso: "", estatus: "", dob: "", auto: true, orig: orig };
         keys.forEach(function (k) { p[k] = x[k]; orig[k] = x[k]; });
+        FLAG_KEYS.forEach(function (k) { if (typeof x[k] === "boolean") { p[k] = x[k]; orig[k] = x[k]; } });
         f.personas.push(p);
         n++;
         return;
@@ -792,6 +800,15 @@
         }
         /* lo escrito a mano se queda; lo que dice el documento es la base */
         if (had == null && !weak) { p.orig[k] = x[k]; }
+      });
+      /* sí/no del documento (pide cobertura, es dependiente en los taxes):
+         se aplica salvo que el agente ya lo haya cambiado a mano */
+      FLAG_KEYS.forEach(function (k) {
+        if (typeof x[k] !== "boolean" || weak) { return; }
+        var had = p.filled[k];
+        if (had != null && (p[k] !== p.orig[k] || r < had)) { return; }
+        if (p[k] !== x[k]) { n++; delete p.ok; }
+        p[k] = x[k]; p.orig[k] = x[k]; p.filled[k] = r;
       });
     });
     return n;
