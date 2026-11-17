@@ -411,7 +411,8 @@ const SUPP_DOCS = {
     prima: "$11.99", efectiva: "08/01/2026", agente: "MARTA QUINTERO", npn: "19876543" } }),
   "Supp App Dental Allstate": Object.assign({}, SUPP_APP, { fields: {
     nombres: "ANDRES", apellidos: "FERRO LIMA", compania: carrierOf("supp", "National Health Insurance Company"), producto: "Dental",
-    plan: "Copay Plan 2", efectiva: "07/03/2026", agente: "LUCIA FERRER CAMPOS", genero: "o" } }),
+    plan: "Copay Plan 2", efectiva: "07/03/2026", agente: "LUCIA FERRER CAMPOS", genero: "o",
+    direccion: "1100 Garden Club Blvd, Cape Coral, FL 33901", clienteEmail: "andres.ferro@example.com", clienteTel: "(555) 010-9031" } }),
   /* la tarjeta es un escaneo: este es el texto que da el OCR */
   "Supp ID Card Allstate Dental OCR": { type: "supp_card", line: "supp", net: "card", read: "supp", fields: {
     nombres: "ANDRES", apellidos: "FERRO LIMA", compania: carrierOf("supp", "Allstate"), producto: "Dental", plan: "Select Dental PPO Plan",

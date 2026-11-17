@@ -54,7 +54,8 @@
   }
 
   function firstCell(t) { return String(t || "").trim().split(/\s{2,}|\t/)[0].trim(); }
-  function cleanLead(t) { return String(t || "").replace(/^[\s:#*\-–—.)\]]+/, "").trim(); }
+  /* también la raya de un espacio para llenar: "Email Address: ____ana@…" */
+  function cleanLead(t) { return String(t || "").replace(/^[\s:#*\-–—.)\]_]+/, "").trim(); }
 
   /* Busca un rótulo y devuelve el primer valor válido que encuentre después:
      en la misma línea o en las líneas siguientes. `validate` recibe el texto
@@ -769,7 +770,8 @@
     var d = stop > 0 ? makeDoc(doc.lines.slice(0, stop).join("\n"))
       : stop === 0 && SHERPA_AGENT.test(doc.lines[0]) ? makeDoc(doc.lines.slice(2).join("\n")) : doc;
     var email = after(d, [/\bE-?mail(\s*address)?\b/i, /Correo\s*electr[oó]nico/i], vEmail, 1);
-    var tel = after(d, [/\bPhone\s*numbers?,?(\s*\(s\))?(\s*including\s*area\s*code)?/i, /\b(Primary\s*)?Phone\b/i, /Tel[eé]fonos?(\s*\(s\))?/i], vPhone, 1);
+    var tel = after(d, [/\bPhone\s*number\s*you\s*can\s*be\s*reached\s*at,?(\s*including\s*area\s*code)?\s*:?/i,
+      /\bPhone\s*numbers?,?(\s*\(s\))?(\s*including\s*area\s*code)?/i, /\b(Primary\s*)?Phone\b/i, /Tel[eé]fonos?(\s*\(s\))?/i], vPhone, 1);
     if (email) { f.clienteEmail = email; }
     if (tel) { f.clienteTel = tel; }
   }
@@ -1497,7 +1499,10 @@
     var ben = suppBeneficiary(doc);
     if (ben) { f.beneficiario = ben; }
     contactInfo(doc, f);
-    var home = after(doc, [/\bResident(ial)?\s*Address\b/i, /\bHome\s*address\b/i], vAddressRow, 0);
+    /* Allstate pone el rótulo solo ("Primary's Resident Address:") y la
+       dirección en la línea de abajo */
+    var home = after(doc, [/\bPrimary[’']s\s*Resident\s*Address\s*:/i], vAddressRow, 1) ||
+      after(doc, [/\bResident(ial)?\s*Address\b/i, /\bHome\s*address\b/i], vAddressRow, 0);
     if (home) { f.direccion = withCity(doc, home); }
     var ag = suppAgent(doc);
     agentInfo(doc, f);
