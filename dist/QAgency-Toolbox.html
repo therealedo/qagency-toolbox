@@ -1308,7 +1308,7 @@ kbd {
       <button type="button" class="btn small" id="teamExport">Exportar equipo</button>
       <input type="file" id="teamFile" accept=".json,application/json" hidden>
     </div>
-    <p class="muted">Los nombres y los NPN del equipo no vienen en la herramienta: se guardan solo en este navegador. «Exportar equipo» crea el archivo para pasárselo a otra persona de la oficina.</p>
+    <p class="muted">Los nombres y los NPN del equipo no vienen en la herramienta: se guardan solo en este navegador. «Exportar equipo» crea el archivo para pasárselo a otra persona de la oficina; lleva también los enlaces de SignWell.</p>
 
     <h3>Carpetas del Network</h3>
     <div class="netdirs" id="netDirBox"></div>
@@ -1409,7 +1409,7 @@ kbd {
 (function (root) {
   "use strict";
 
-  var VERSION = "1.16.3";
+  var VERSION = "1.17.0";
   /* De aquí la herramienta instalada lee el número de la última versión (y
      nada más). La política de seguridad de index.html solo permite esta
      dirección, y el actualizador de Windows usa el mismo repositorio. */
@@ -2144,11 +2144,27 @@ kbd {
     if (!list) { return { error: TEAM_BAD }; }
     var team = cleanTeam(list);
     if (!team.length) { return { error: "El archivo del equipo no tiene ninguna persona con nombre." }; }
-    return { team: team };
+    return { team: team, signLinks: Array.isArray(data) ? {} : cleanLinks(data.signLinks) };
   }
 
-  function teamFile(team) {
-    return JSON.stringify({ app: TEAM_APP, version: 1, team: cleanTeam(team || []) }, null, 2) + "\n";
+  /* Los enlaces de las plantillas de SignWell van en el mismo archivo: son de
+     la oficina, no de cada persona. Solo se guardan enlaces https. */
+  function cleanLinks(links) {
+    var out = {};
+    if (!links || typeof links !== "object" || Array.isArray(links)) { return out; }
+    Object.keys(links).forEach(function (k) {
+      if (!/^[a-z0-9_-]{1,40}$/i.test(k) || typeof links[k] !== "string") { return; }
+      var url = collapse(links[k]).slice(0, 500);
+      if (/^https:\/\/\S+$/i.test(url)) { out[k] = url; }
+    });
+    return out;
+  }
+
+  function teamFile(team, signLinks) {
+    var file = { app: TEAM_APP, version: 1, team: cleanTeam(team || []) };
+    var links = cleanLinks(signLinks);
+    if (Object.keys(links).length) { file.signLinks = links; }
+    return JSON.stringify(file, null, 2) + "\n";
   }
 
   /* ¿La versión publicada (remote) es más nueva que la instalada (local)?
@@ -4789,7 +4805,7 @@ kbd {
   /* ---------------------------------------------------------- Marketplace */
 
   function appId(doc) {
-    return find(doc, /(?:Application\s*(?:ID|number|#|no\.?)|ID de (?:la )?solicitud|N[uú]mero de (?:la )?solicitud)\s*[:#]?\s*(\d{8,12})\b/i);
+    return find(doc, /(?:Application\s*(?:ID|number|#|no\.?)|ID de (?:la )?solicitud|N[uú]mero de (?:Identificaci[oó]n de )?(?:la )?solicitud)\s*[:#]?\s*(\d{8,12})\b/i);
   }
 
   /* Los espacios se buscan dentro de la misma línea: "…, 2026" seguido de
@@ -4909,7 +4925,7 @@ kbd {
      se buscan antes de la guía. */
   function noticePart(doc) {
     for (var i = 0; i < doc.lines.length; i++) {
-      if (/^\s*MARKETPLACE ELIGIBILITY GUIDE\s*$/.test(doc.lines[i])) { return makeDoc(doc.lines.slice(0, i).join("\n")); }
+      if (/^\s*(MARKETPLACE ELIGIBILITY GUIDE|GU[IÍ]A DE ELEGIBILIDAD DEL MERCADO)\s*$/i.test(doc.lines[i])) { return makeDoc(doc.lines.slice(0, i).join("\n")); }
     }
     return doc;
   }
@@ -4919,20 +4935,23 @@ kbd {
     f.appId = appId(doc);
     doc = noticePart(doc);
     /* "Estimated 2027 income used to determine eligibility" */
-    f.anio = planYear(doc) || find(doc, /\bEstimated[ \t]+(20[2-4]\d)[ \t]+income\b/i);
+    f.anio = planYear(doc) || find(doc, /\bEstimated[ \t]+(20[2-4]\d)[ \t]+income\b/i) ||
+      find(doc, /\bIngresos[ \t]+estimados[ \t]+(?:del?[ \t]+|para[ \t]+el[ \t]+)?(20[2-4]\d)\b/i);
 
     var dear = find(doc, /(?:^|\n)\s*(?:Dear|Estimad[oa](?:\(a\))?)\s+([^\n:,]{3,60})[:,]/i);
     if (dear && vFullName(dear)) { setName(f, dear); }
     else {
       /* "Primary contact" con el nombre en la línea de abajo */
-      var pc = after(doc, [/^\s*(Primary contact|Contacto principal)\b/i], vPerson, 1);
+      var pc = after(doc, [/^\s*(Primary contact|Contacto (principal|primario))\b/i], vPerson, 1);
       if (pc) { setName(f, pc); }
     }
 
     var inc = doc.flat.match(/(?:yearly|annual)\s*(?:household\s*)?income\s*(?:of|is|:)?\s*\$\s?([\d,]+(?:\.\d{2})?)/i) ||
               doc.flat.match(/ingresos?\s*anual(?:es)?(?:\s*del\s*hogar)?\s*(?:de|es|:)?\s*\$\s?([\d,]+(?:\.\d{2})?)/i) ||
               /* el ingreso estimado va unas líneas abajo, como "$31,200/year" */
-              doc.flat.match(/\bEstimated[^\n]{0,12}income used to determine[^\n]*(?:\n[^\n]*){0,3}?\n\$\s?([\d,]+(?:\.\d{2})?)\s*\/\s*year\b/i);
+              doc.flat.match(/\bEstimated[^\n]{0,12}income used to determine[^\n]*(?:\n[^\n]*){0,3}?\n\$\s?([\d,]+(?:\.\d{2})?)\s*\/\s*year\b/i) ||
+              /* en español va junto al crédito del mes: "para ayuda financiera: $21,000/año" */
+              doc.flat.match(/\bIngresos estimados[^\n]{0,12}utilizados para determinar[^\n]*(?:\n[^\n]*){0,3}?\n[^\n$]*\$\s?([\d,]+(?:\.\d{2})?)\s*\/\s*a[nñ]o\b/i);
     if (inc) { f.ingreso = U.parseMoney(inc[1]); }
     var size = find(doc, /household size (?:of|is|:)?\s*(\d{1,2})\b/i) || find(doc, /tama[nñ]o del hogar (?:de|es|:)?\s*(\d{1,2})\b/i);
     if (size) { f.hogar = size; }
@@ -4970,7 +4989,7 @@ kbd {
   /* Enlaces y menú de la cuenta del Mercado que quedan entre el nombre del
      plan y su ID ("Go to my plan benefits", "Communication preferences" a la
      izquierda): se saltan, no son el plan. */
-  var PLAN_SKIP = /^(go to my plan benefits|communication|preferences|communication preferences|exemptions|mailing address|tax forms|report a life change|eligibility & appeals|applications? details|my plan profile|marketplace plans)$/i;
+  var PLAN_SKIP = /^(go to my plan benefits|communication|preferences|communication preferences|exemptions|mailing address|tax forms|report a life( change)?|coverage record|eligibility & appeals|applications? details|my plan profile|marketplace plans)$/i;
 
   /* El nombre del plan está justo encima de su ID; puede ocupar dos líneas
      cuando trae la descripción de beneficios entre paréntesis. */
@@ -5003,6 +5022,23 @@ kbd {
     return null;
   }
 
+  /* Con la ventana angosta, la fila del miembro se parte en dos: arriba el
+     nombre y "Jan 1,  Dec 31,", y una o dos líneas abajo el apellido y los
+     años ("Vidal   2027   2027"). Se juntan en una sola fila. */
+  var ROW_NO_YEAR = /^(.*?\S)\s{2,}([A-Za-z]{3,9}\.?\s+\d{1,2},)\s{2,}([A-Za-z]{3,9}\.?\s+\d{1,2},)(\s.*)?$/;
+  var ROW_YEARS = /^\s*(.*?)\s*\b(20[2-4]\d)\s{2,}(20[2-4]\d)\s*$/;
+  function memberRows(lines) {
+    var out = [];
+    for (var i = 0; i < lines.length; i++) {
+      var m = lines[i].match(ROW_NO_YEAR), y = null, j;
+      for (j = i + 1; m && !y && j < lines.length && j <= i + 2; j++) { y = lines[j].match(ROW_YEARS); }
+      if (!y) { out.push(lines[i]); continue; }
+      out.push(m[1] + (y[1] ? " " + y[1] : "") + "   " + m[2] + " " + y[2] + "   " + m[3] + " " + y[3]);
+      i = j - 1;
+    }
+    return out;
+  }
+
   function extractPlans(doc) {
     var f = {};
     var p = planAboveId(doc);
@@ -5021,7 +5057,7 @@ kbd {
 
     /* Tabla de miembros: nombre seguido de las fechas de cobertura */
     var names = [], all = [];
-    doc.lines.forEach(function (l) {
+    memberRows(doc.lines).forEach(function (l) {
       var ds = datesIn(l);
       if (!ds.length) { return; }
       var name = vFullName(l.slice(0, ds[0].index));
@@ -8569,6 +8605,13 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
     }, function () { toast("No se pudo llenar el PDF."); }).then(function () { btn.disabled = false; });
   }
 
+  /* los enlaces de los formularios que existen, para el archivo del equipo */
+  function formLinks() {
+    var out = {};
+    Object.keys(FM.TEMPLATES).forEach(function (k) { if (settings.signLinks[k]) { out[k] = settings.signLinks[k]; } });
+    return out;
+  }
+
   /* Ajustes: un enlace de plantilla de SignWell por formulario */
   function renderSignLinks() {
     var box = $("signLinkRows");
@@ -9863,14 +9906,19 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
         var current = settings.team.filter(function (t) { return t.name; });
         if (current.length && !window.confirm("¿Reemplazar el equipo de este navegador por el del archivo (" + r.team.length + " personas)?")) { return; }
         settings.team = r.team;
-        saveSettings(); renderTeam();
-        toast("Equipo importado: " + r.team.length + (r.team.length === 1 ? " persona." : " personas."));
+        /* los enlaces del archivo reemplazan los mismos formularios; los
+           que el archivo no trae se quedan como estaban */
+        var links = Object.keys(r.signLinks).filter(function (k) { return FM.TEMPLATES[k]; });
+        links.forEach(function (k) { settings.signLinks[k] = r.signLinks[k]; });
+        saveSettings(); renderTeam(); renderSignLinks();
+        toast("Equipo importado: " + r.team.length + (r.team.length === 1 ? " persona" : " personas") +
+          (links.length ? " y " + links.length + (links.length === 1 ? " enlace" : " enlaces") + " de SignWell." : "."));
       }, function () { input.value = ""; toast("No se pudo leer el archivo."); });
     });
     $("teamExport").addEventListener("click", function () {
       if (!settings.team.some(function (t) { return t.name; })) { toast("No hay nadie en el equipo para exportar."); return; }
       var a = el("a");
-      a.href = URL.createObjectURL(new Blob([U.teamFile(settings.team)], { type: "application/json" }));
+      a.href = URL.createObjectURL(new Blob([U.teamFile(settings.team, formLinks())], { type: "application/json" }));
       a.download = "QAgency-Equipo.json";
       document.body.appendChild(a); a.click(); a.remove();
       setTimeout(function () { URL.revokeObjectURL(a.href); }, 60000);
