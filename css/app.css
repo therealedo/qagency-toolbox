@@ -473,9 +473,18 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
 .group-chev { flex: none; margin-left: auto; display: flex; color: var(--ink-3); transition: transform .15s; }
 .group:not(.is-closed) .group-sum { display: none; }
 .group:not(.is-closed) .group-chev { transform: rotate(180deg); }
-.group.is-closed .group-body { display: none; }
+/* abrir y cerrar con suavidad: la altura va de 0fr a 1fr; cerrada queda fuera del tabulador */
+.group { transition: padding .24s ease; }
+.group-head { transition: margin-bottom .24s ease; }
+.group-body { display: grid; grid-template-rows: 1fr; transition: grid-template-rows .24s ease, opacity .2s ease, visibility 0s; }
+.group-inner { min-height: 0; overflow: hidden; }
+.group:not(.is-closed) .group-inner { overflow: visible; animation: group-clip .24s; }
+@keyframes group-clip { from, to { overflow: hidden; } }
+.group.is-closed .group-body { grid-template-rows: 0fr; opacity: 0; visibility: hidden; transition: grid-template-rows .24s ease, opacity .2s ease, visibility 0s linear .24s; }
 .group.is-closed .group-head { margin-bottom: 0; }
 .group.is-closed { padding-top: 12px; padding-bottom: 12px; }
+.no-anim .group, .no-anim .group-head, .no-anim .group-body, .no-anim .group-chev { transition: none !important; }
+.no-anim .group-inner { animation: none !important; }
 .group.is-closed .group-toggle:hover .group-name { color: var(--brand-ink); }
 .review {
   padding: 1px 9px; border-radius: 999px;
@@ -688,6 +697,10 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
 .status-more summary::-webkit-details-marker { display: none; }
 .status-more summary::after { content: "Ver"; margin-left: auto; font-size: 12px; font-weight: 600; text-decoration: underline; }
 .status-more[open] summary::after { content: "Ocultar"; }
+/* la lista se despliega con suavidad donde el navegador lo permite (Chrome 131+) */
+.status-more { interpolate-size: allow-keywords; }
+.status-more::details-content { block-size: 0; overflow: hidden; opacity: 0; transition: block-size .22s ease, opacity .2s ease, content-visibility .22s allow-discrete; }
+.status-more[open]::details-content { block-size: auto; opacity: 1; }
 .status-more summary:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; border-radius: 6px; }
 
 /* pestañas de salida: un texto a la vez */
@@ -927,6 +940,8 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
 
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; scroll-behavior: auto !important; }
+  .group-inner { animation: none !important; }
+  .status-more::details-content { transition: none !important; }
 }
 
 /* ------------------------------------------------------ hoja de cambios --
