@@ -134,6 +134,20 @@ test("perfil: la copia instalada sabe si la abrió su ícono, con el perfil prop
   assert.equal(U.launchCheck(null), "");
 });
 
+test("inicio: el saludo usa la hora y el primer nombre de quien escribe", () => {
+  assert.equal(U.greeting(9, "Laura Gomez"), "Buenos días, Laura.");
+  assert.equal(U.greeting(14, "laura gomez"), "Buenas tardes, Laura.");
+  assert.equal(U.greeting(20, "Laura Gomez"), "Buenas noches, Laura.");
+  assert.equal(U.greeting(3, "Laura Gomez"), "Buenas noches, Laura.");
+  assert.equal(U.greeting(12, ""), "Buenas tardes.");
+  assert.equal(U.greeting(6, null), "Buenos días.");
+  /* la lista de situaciones de cada línea, como se dice */
+  assert.equal(U.joinOr(["App enviada", "Pendiente", "Cancelación"]), "App enviada, pendiente o cancelación");
+  assert.equal(U.joinOr(["App enviada", "Sin cambios"]), "App enviada o sin cambios");
+  assert.equal(U.joinOr(["Cotización"]), "Cotización");
+  assert.equal(U.joinOr([]), "");
+});
+
 test("parseBirth: una fecha de nacimiento con el año en dos cifras no queda en el futuro", () => {
   assert.equal(U.parseBirth("5/2/80"), "05/02/1980");
   assert.equal(U.parseBirth("5/2/12"), "05/02/2012");
