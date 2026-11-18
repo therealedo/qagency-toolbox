@@ -42,10 +42,10 @@ If you host it, keep the host private or clear the roster first: `js/config.js` 
 ## Using it
 
 1. Choose who you are at the top right (once; the browser remembers it).
-2. **Nota** tab: choose Obamacare / Medicare / Suplementario and the situation.
-3. Drop the PDFs or images anywhere on the window, or paste a screenshot with Ctrl + V. Fields filled from a document get a gold edge, and the list on the left shows how many are waiting to be reviewed in each section. When the values are right as they are, **Están bien** next to a section's count clears its gold (household rows included), and **Ya los revisé** clears it everywhere; a household member turns gold again only if a later document brings a new value. **Canal**, **Código en Zoho** and **Enrollment Period** (or *Período de elección* in Medicare) almost never come in a document, so they show in red with *elígelo* until you pick an option (even the one already on) or confirm the section; until then they also appear under *Antes de copiar*.
+2. **Nota** tab: every new note (the app just opened, or **Nueva nota**) starts on a start screen with a greeting, three big cards (Obamacare, Medicare Advantage, Suplementario) and a drop zone. Choose a card, or drop the case's documents there: a document picks its line by itself. Then choose the situation.
+3. Drop the PDFs or images anywhere on the window, or paste a screenshot with Ctrl + V. The form's sections close to a one-line summary of their values; one is open at a time, chosen by itself at a new note, after a document is read and after a line or situation change (the first one with something to review or choose), never while you type. Click a section's header, or its name in the list on the left, to open it. Fields filled from a document get a gold edge, and the list on the left shows how many are waiting to be reviewed in each section. When the values are right as they are, **Están bien** next to a section's count clears its gold (household rows included), and **Ya los revisé** clears it everywhere; a household member turns gold again only if a later document brings a new value. **Canal**, **Código en Zoho** and **Enrollment Period** (or *Período de elección* in Medicare) almost never come in a document, so they show in red with *elígelo* until you pick an option (even the one already on) or confirm the section; until then they also appear under *Antes de copiar*.
 4. Complete what the documents don't carry.
-5. **Copiar nota** (or Ctrl + Enter), then copy the task and the report line.
+5. **Copiar nota** (or Ctrl + Enter), then copy the task and the report line. The right column shows one text at a time, in tabs (Nota, Task, Reporte, SMS, Email: only those the situation has); what is still missing shows as one line, *Faltan N datos antes de copiar*, that opens the list.
 
 The note, task and report can be edited by hand before copying. If you edit the note and then change a field, the note is left alone until you press **Regenerar**.
 
@@ -221,7 +221,7 @@ In **Ajustes → Carpetas del Network**, choose your folder in the NETW once und
 
 ### Copying faster
 
-- **Copiar siguiente** (at the top of the right column, or Ctrl + Shift + Enter) copies the note, then the task, the report, the SMS and the email, skipping what the situation does not show. It starts over with the note when a field changes.
+- **Copiar siguiente** (at the top of the right column, or Ctrl + Shift + Enter) copies the note, then the task, the report, the SMS and the email, skipping what the situation does not show, and moves to the tab of what it copied. It starts over with the note when a field changes.
 - **Ventana flotante** opens a small window that stays on top of Zoho, with the client's name and the same copy buttons (Chrome and Edge).
 - **Abrir en el teléfono** and **Abrir en el correo** open the SMS or the email with the text ready, when the titular's phone or email is filled in.
 

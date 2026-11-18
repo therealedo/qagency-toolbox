@@ -111,7 +111,7 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--ink);
-  font: 14px/1.5 var(--ui);
+  font: 16px/1.5 var(--ui);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
@@ -244,7 +244,7 @@ body[data-view="tasks"] #btnNew { display: none; }
 
 .field-label {
   display: block;
-  font-size: 12.5px; font-weight: 550; color: var(--ink-2);
+  font-size: 14px; font-weight: 550; color: var(--ink-2);
   margin-bottom: 6px;
 }
 
@@ -254,7 +254,7 @@ input[type="text"], input[type="search"], select, textarea {
   border: 1px solid var(--line-strong);
   border-radius: 8px;
   padding: 0 11px;
-  min-height: 36px;
+  min-height: 42px;
   transition: border-color .12s ease, box-shadow .12s ease, background .12s ease;
 }
 textarea { padding: 8px 11px; line-height: 1.5; resize: vertical; display: block; }
@@ -315,7 +315,7 @@ input[type="text"]:focus, input[type="search"]:focus, select:focus, textarea:foc
 .seg-fit { display: inline-flex; align-self: flex-start; }
 .seg button {
   flex: 1 1 auto;
-  min-height: 28px; padding: 2px 11px;
+  min-height: 34px; padding: 2px 12px;
   background: transparent; color: var(--ink-2);
   border: 1px solid transparent; border-radius: 7px;
   font-size: 13px; font-weight: 500; white-space: nowrap;
@@ -332,8 +332,8 @@ input[type="text"]:focus, input[type="search"]:focus, select:focus, textarea:foc
 .check input { width: 16px; height: 16px; margin: 2.5px 0 0; flex: none; accent-color: var(--btn); cursor: pointer; }
 .check span { color: var(--ink); }
 
-.hint { display: block; margin-top: 5px; font-size: 12px; color: var(--ink-3); }
-.muted { color: var(--ink-3); font-size: 12.5px; }
+.hint { display: block; margin-top: 5px; font-size: 13.5px; color: var(--ink-3); }
+.muted { color: var(--ink-3); font-size: 13.5px; }
 
 kbd {
   display: inline-block; padding: 0 5px;
@@ -488,7 +488,7 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
 .fld.w2 { grid-column: span 2; }
 .fld.w3 { grid-column: span 3; }
 .fld.full { grid-column: 1 / -1; }
-.fld > .check { padding-top: 26px; padding-bottom: 0; }
+.fld > .check { padding-top: 30px; padding-bottom: 0; }
 .fld.full > .check, .fld.w2 > .check { padding-top: 2px; }
 
 /* dato leído de un documento: pendiente de revisar */
@@ -500,8 +500,8 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
   box-shadow: inset 3px 0 0 var(--gold), 0 0 0 3px var(--brand-soft);
 }
 /* dato que casi nunca viene en un documento: pendiente de elegir */
-.fld.is-choose .seg, .fld.is-choose select { border-color: var(--danger); box-shadow: inset 3px 0 0 var(--danger); }
-.fld.is-choose .field-label::after { content: " · elígelo"; color: var(--danger); font-weight: 600; }
+.fld.is-choose .seg, .fld.is-choose select { border-color: var(--warn); box-shadow: inset 3px 0 0 var(--warn); }
+.fld.is-choose .field-label::after { content: " · elígelo"; color: var(--warn); font-weight: 600; }
 .fld.bad input, .mini.bad input { border-color: var(--danger); }
 .fld.bad::after { content: "Revisa el formato"; display: block; margin-top: 5px; font-size: 12px; color: var(--danger); }
 
