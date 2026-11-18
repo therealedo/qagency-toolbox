@@ -207,6 +207,8 @@
 
         <!-- un texto a la vez: solo las pestañas de lo que aplica al caso -->
         <div class="out-tabs" id="outTabs" role="tablist" aria-label="Textos para copiar"></div>
+        <!-- lo que falta antes de copiar vale para todos los textos: queda a la vista en cada pestaña -->
+        <div class="status" id="status" aria-live="polite"></div>
 
         <div class="card out-card note-card" id="noteCard" data-tab="note" role="tabpanel" aria-labelledby="tab-note">
           <div class="out-head">
@@ -214,7 +216,6 @@
             <button type="button" class="link-btn" id="noteRegen" hidden>Regenerar</button>
             <button type="button" class="btn primary" id="copyNote" data-label="Copiar nota">Copiar nota</button>
           </div>
-          <div class="status" id="status" aria-live="polite"></div>
           <textarea id="note" spellcheck="false" aria-label="Nota para Zoho"></textarea>
           <div class="out-foot">
             <span id="noteCount"></span>

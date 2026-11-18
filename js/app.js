@@ -967,6 +967,8 @@
   function fieldSummary(F) {
     if (F.sum === false) { return ""; }
     var k = key(F), v = S.f[k], wrap = $("form").querySelector('.fld[data-k="' + F.k + '"]'), ctl = $("f_" + F.k);
+    /* lo que falta elegir o tiene mal el formato no se resume como si estuviera bien */
+    if (wrap && (wrap.classList.contains("is-choose") || wrap.classList.contains("bad") || wrap.querySelector(".bad"))) { return ""; }
     if (F.type === "check") { return v ? resolve(F.label) : ""; }
     if (F.type === "seg") { var on = wrap && wrap.querySelector(".seg .on"); return on ? on.textContent : ""; }
     if (F.type === "select") { return ctl && ctl.value && ctl.selectedIndex >= 0 ? ctl.options[ctl.selectedIndex].text : ""; }
@@ -988,6 +990,7 @@
         text = list.length ? done + " de " + list.length + " guardados" : U.summaryLine([]);
       } else {
         text = U.summaryLine(FIELDS.filter(function (F) { return F.g === G.id && fieldVisible(F); }).map(fieldSummary));
+        if ($("sec-" + G.id).classList.contains("has-bad")) { text = "Revisa el formato · " + text; }
       }
       box.textContent = text;
       box.title = text;
@@ -1280,10 +1283,16 @@
     each(form.querySelectorAll(".group"), function (g) {
       var id = g.dataset.group;
       g.hidden = id === "network" ? (O().sections.indexOf("network") < 0 || !N.networkOf(data()).length) : !g.querySelector(".fld:not([hidden])");
-      var badge = g.querySelector(".review"), n = pending[id] || 0;
+      /* un dato con formato que no sirve (fecha, monto, hora) también cuenta:
+         con la sección cerrada no se vería */
+      var bad = Array.prototype.filter.call(g.querySelectorAll(".bad"), function (x) {
+        var f = x.closest(".fld"); return !f || !f.hidden;
+      }).length;
+      var badge = g.querySelector(".review"), n = (pending[id] || 0) + bad;
       badge.hidden = !n;
       badge.textContent = n + " por revisar";
-      g.querySelector(".review-ok").hidden = !n;
+      g.querySelector(".review-ok").hidden = !pending[id];
+      g.classList.toggle("has-bad", !!bad);
       g.dataset.pending = n;
     });
     var total = Object.keys(pending).reduce(function (s, k) { return s + pending[k]; }, 0);
