@@ -129,7 +129,7 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--ink);
-  font: 14px/1.5 var(--ui);
+  font: 16px/1.5 var(--ui);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
@@ -262,7 +262,7 @@ body[data-view="tasks"] #btnNew { display: none; }
 
 .field-label {
   display: block;
-  font-size: 12.5px; font-weight: 550; color: var(--ink-2);
+  font-size: 14px; font-weight: 550; color: var(--ink-2);
   margin-bottom: 6px;
 }
 
@@ -272,7 +272,7 @@ input[type="text"], input[type="search"], select, textarea {
   border: 1px solid var(--line-strong);
   border-radius: 8px;
   padding: 0 11px;
-  min-height: 36px;
+  min-height: 42px;
   transition: border-color .12s ease, box-shadow .12s ease, background .12s ease;
 }
 textarea { padding: 8px 11px; line-height: 1.5; resize: vertical; display: block; }
@@ -333,7 +333,7 @@ input[type="text"]:focus, input[type="search"]:focus, select:focus, textarea:foc
 .seg-fit { display: inline-flex; align-self: flex-start; }
 .seg button {
   flex: 1 1 auto;
-  min-height: 28px; padding: 2px 11px;
+  min-height: 34px; padding: 2px 12px;
   background: transparent; color: var(--ink-2);
   border: 1px solid transparent; border-radius: 7px;
   font-size: 13px; font-weight: 500; white-space: nowrap;
@@ -350,8 +350,8 @@ input[type="text"]:focus, input[type="search"]:focus, select:focus, textarea:foc
 .check input { width: 16px; height: 16px; margin: 2.5px 0 0; flex: none; accent-color: var(--btn); cursor: pointer; }
 .check span { color: var(--ink); }
 
-.hint { display: block; margin-top: 5px; font-size: 12px; color: var(--ink-3); }
-.muted { color: var(--ink-3); font-size: 12.5px; }
+.hint { display: block; margin-top: 5px; font-size: 13.5px; color: var(--ink-3); }
+.muted { color: var(--ink-3); font-size: 13.5px; }
 
 kbd {
   display: inline-block; padding: 0 5px;
@@ -411,6 +411,35 @@ kbd {
 .drop-text span { font-size: 12.5px; color: var(--ink-3); }
 .drop-actions { display: flex; gap: 4px; flex: none; }
 
+/* ------------------------------------------------------- pantalla de inicio */
+body.starting #view-nota .layout, body.starting .dock { display: none !important; }
+.start { max-width: 1040px; margin: 0 auto; padding: 48px 24px 64px; display: flex; flex-direction: column; gap: 28px; }
+.start-head h1 { margin: 0 0 6px; font-size: 32px; line-height: 1.2; font-weight: 700; letter-spacing: -.01em; }
+.start-head p { margin: 0; font-size: 17px; color: var(--ink-2); }
+.start-lines { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.start-line {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 10px; text-align: left;
+  min-height: 168px; padding: 22px; border-radius: 16px; cursor: pointer;
+  background: var(--surface); color: var(--ink); border: 1px solid var(--line); box-shadow: var(--shadow);
+  font: inherit; transition: border-color .12s, transform .12s;
+}
+.start-line:hover { border-color: var(--brand); }
+.start-line:focus-visible { outline: 3px solid var(--brand); outline-offset: 2px; }
+.start-line.on { border: 2px solid var(--brand); }
+.start-line .tag { font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 6px; background: var(--brand-soft); color: var(--brand-ink); }
+.start-line strong { font-size: 21px; font-weight: 700; }
+.start-line span:last-child { color: var(--ink-2); }
+.start-drop {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 16px; padding: 26px;
+  border-radius: 16px; border: 2px dashed var(--line-strong); background: var(--surface);
+}
+.start-drop .drop-icon { width: 52px; height: 52px; }
+.start-drop-text { flex: 1 1 320px; display: flex; flex-direction: column; gap: 2px; }
+.start-drop-text strong { font-size: 18px; font-weight: 650; }
+.start-drop-text span { color: var(--ink-2); }
+.start-hint { margin: 0; padding: 12px 16px; border-radius: 12px; background: var(--warn-soft); color: var(--warn); font-weight: 550; }
+@media (max-width: 760px) { .start-lines { grid-template-columns: minmax(0, 1fr); } .start-line { min-height: 0; } }
+
 .files { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
 .files:not(:empty) { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
 .file { display: flex; align-items: center; gap: 8px; font-size: 12.5px; min-width: 0; }
@@ -450,6 +479,22 @@ kbd {
 
 .group-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
 .group-head h3 { font-size: 15px; font-weight: 650; letter-spacing: -.005em; }
+/* secciones que se cierran: la cabecera es el botón; cerrada muestra su resumen */
+.group-head h3.group-title { flex: 1; min-width: 0; margin: 0; }
+.group-toggle {
+  display: flex; align-items: center; gap: 12px; width: 100%; min-height: 40px; padding: 2px 0;
+  background: none; border: 0; color: inherit; font: inherit; text-align: left; cursor: pointer;
+}
+.group-toggle:focus-visible { outline: 2px solid var(--brand); outline-offset: 3px; border-radius: 8px; }
+.group-name { flex: none; }
+.group-sum { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 400; color: var(--ink-3); }
+.group-chev { flex: none; margin-left: auto; display: flex; color: var(--ink-3); transition: transform .15s; }
+.group:not(.is-closed) .group-sum { display: none; }
+.group:not(.is-closed) .group-chev { transform: rotate(180deg); }
+.group.is-closed .group-body { display: none; }
+.group.is-closed .group-head { margin-bottom: 0; }
+.group.is-closed { padding-top: 12px; padding-bottom: 12px; }
+.group.is-closed .group-toggle:hover .group-name { color: var(--brand-ink); }
 .review {
   padding: 1px 9px; border-radius: 999px;
   background: var(--gold-soft); color: var(--gold-ink);
@@ -461,7 +506,7 @@ kbd {
 .fld.w2 { grid-column: span 2; }
 .fld.w3 { grid-column: span 3; }
 .fld.full { grid-column: 1 / -1; }
-.fld > .check { padding-top: 26px; padding-bottom: 0; }
+.fld > .check { padding-top: 30px; padding-bottom: 0; }
 .fld.full > .check, .fld.w2 > .check { padding-top: 2px; }
 
 /* dato leído de un documento: pendiente de revisar */
@@ -473,8 +518,8 @@ kbd {
   box-shadow: inset 3px 0 0 var(--gold), 0 0 0 3px var(--brand-soft);
 }
 /* dato que casi nunca viene en un documento: pendiente de elegir */
-.fld.is-choose .seg, .fld.is-choose select { border-color: var(--danger); box-shadow: inset 3px 0 0 var(--danger); }
-.fld.is-choose .field-label::after { content: " · elígelo"; color: var(--danger); font-weight: 600; }
+.fld.is-choose .seg, .fld.is-choose select { border-color: var(--warn); box-shadow: inset 3px 0 0 var(--warn); }
+.fld.is-choose .field-label::after { content: " · elígelo"; color: var(--warn); font-weight: 600; }
 .fld.bad input, .mini.bad input { border-color: var(--danger); }
 .fld.bad::after { content: "Revisa el formato"; display: block; margin-top: 5px; font-size: 12px; color: var(--danger); }
 
@@ -656,6 +701,24 @@ kbd {
 .status.warn { padding: 9px 12px; border-radius: 10px; background: var(--warn-soft); color: var(--warn); }
 .status.warn .status-dot { background: currentColor; }
 .status ul { margin: 5px 0 0; padding-left: 16px; display: flex; flex-direction: column; gap: 2px; }
+/* el aviso es una línea que abre la lista */
+.status-more summary { cursor: pointer; list-style: none; }
+.status-more summary::-webkit-details-marker { display: none; }
+.status-more summary::after { content: "Ver"; margin-left: auto; font-size: 12px; font-weight: 600; text-decoration: underline; }
+.status-more[open] summary::after { content: "Ocultar"; }
+.status-more summary:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; border-radius: 6px; }
+
+/* pestañas de salida: un texto a la vez */
+.out-tabs { display: flex; gap: 4px; padding: 4px; border-radius: 12px; background: var(--inset); border: 1px solid var(--line); }
+.out-tabs:empty { display: none; }
+.out-tab {
+  flex: 1; min-height: 40px; border-radius: 9px; border: 0; background: transparent;
+  color: var(--ink-2); font: inherit; font-weight: 550; cursor: pointer;
+}
+.out-tab:hover { color: var(--ink); }
+.out-tab.on { background: var(--surface); color: var(--brand-ink); font-weight: 650; box-shadow: var(--shadow); }
+.out-tab:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
+.out .tab-off { display: none !important; }
 .status li::marker { content: "–  "; }
 
 #note {
@@ -1033,6 +1096,28 @@ kbd {
 
   <!-- ============================================================ NOTA -->
   <section class="view" id="view-nota" aria-label="Nota">
+    <!-- Pantalla de inicio: cada nota nueva empieza eligiendo la línea o soltando sus documentos -->
+    <section class="start" id="startScreen" aria-labelledby="startHello" hidden>
+      <div class="start-head">
+        <h1 id="startHello">¿Qué vas a anotar?</h1>
+        <p>Elige la línea. Después te pedimos solo lo que falta.</p>
+      </div>
+      <div class="start-lines" id="startLines"></div>
+      <div class="start-drop">
+        <span class="drop-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="26" height="26"><path d="M12 15V4m0 0L8 8m4-4 4 4M5 14v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </span>
+        <div class="start-drop-text">
+          <strong>¿Ya tienes los PDF del caso? Suéltalos aquí</strong>
+          <span>Reconocemos la línea y llenamos los datos por ti. También sirven las capturas (Ctrl + V).</span>
+        </div>
+        <div class="drop-actions">
+          <button type="button" class="btn" id="startBrowse">Buscar archivos</button>
+          <button type="button" class="btn ghost" id="startPaste">Pegar texto</button>
+        </div>
+      </div>
+      <p class="start-hint" id="startAuthorHint" hidden>Antes de empezar, elige tu nombre arriba a la derecha: va en la nota y en el task.</p>
+    </section>
     <div class="layout">
 
       <nav class="rail" id="rail" aria-label="Partes del formulario"></nav>
@@ -1141,13 +1226,17 @@ kbd {
           <button type="button" class="btn" id="btnFloat" hidden title="Una ventana pequeña con los botones de copiar, siempre encima de Zoho">Ventana flotante</button>
         </div>
 
-        <div class="card out-card note-card">
+        <!-- un texto a la vez: solo las pestañas de lo que aplica al caso -->
+        <div class="out-tabs" id="outTabs" role="tablist" aria-label="Textos para copiar"></div>
+        <!-- lo que falta antes de copiar vale para todos los textos: queda a la vista en cada pestaña -->
+        <div class="status" id="status" aria-live="polite"></div>
+
+        <div class="card out-card note-card" id="noteCard" data-tab="note" role="tabpanel" aria-labelledby="tab-note">
           <div class="out-head">
             <h2>Nota para Zoho</h2>
             <button type="button" class="link-btn" id="noteRegen" hidden>Regenerar</button>
             <button type="button" class="btn primary" id="copyNote" data-label="Copiar nota">Copiar nota</button>
           </div>
-          <div class="status" id="status" aria-live="polite"></div>
           <textarea id="note" spellcheck="false" aria-label="Nota para Zoho"></textarea>
           <div class="out-foot">
             <span id="noteCount"></span>
@@ -1156,7 +1245,7 @@ kbd {
           </div>
         </div>
 
-        <div class="card out-card">
+        <div class="card out-card" id="taskCard" data-tab="task" role="tabpanel" aria-labelledby="tab-task">
           <div class="out-head">
             <h2>Task</h2>
             <button type="button" class="link-btn" id="taskRegen" hidden>Regenerar</button>
@@ -1172,7 +1261,7 @@ kbd {
           </div>
         </div>
 
-        <div class="card out-card" id="reportCard">
+        <div class="card out-card" id="reportCard" data-tab="report" role="tabpanel" aria-labelledby="tab-report">
           <div class="out-head">
             <h2>Reporte para Cliq</h2>
             <button type="button" class="link-btn" id="reportRegen" hidden>Regenerar</button>
@@ -1184,7 +1273,7 @@ kbd {
           <p class="muted" id="reportNA" hidden>Esta situación no se reporta en Cliq.</p>
         </div>
 
-        <div class="card out-card" id="smsCard">
+        <div class="card out-card" id="smsCard" data-tab="sms" role="tabpanel" aria-labelledby="tab-sms">
           <div class="out-head">
             <h2>SMS para el cliente</h2>
             <div class="seg seg-mini" data-lang-seg role="radiogroup" aria-label="Idioma del SMS y el email" hidden></div>
@@ -1198,7 +1287,7 @@ kbd {
           </div>
         </div>
 
-        <div class="card out-card" id="emailCard" hidden>
+        <div class="card out-card" id="emailCard" data-tab="email" role="tabpanel" aria-labelledby="tab-email" hidden>
           <div class="out-head">
             <h2>Email para el cliente</h2>
             <div class="seg seg-mini" data-lang-seg role="radiogroup" aria-label="Idioma del SMS y el email" hidden></div>
@@ -1415,7 +1504,7 @@ kbd {
 (function (root) {
   "use strict";
 
-  var VERSION = "1.19.0";
+  var VERSION = "1.20.0";
   /* De aquí la herramienta instalada lee el número de la última versión (y
      nada más). La política de seguridad de index.html solo permite esta
      dirección, y el actualizador de Windows usa el mismo repositorio. */
@@ -2199,13 +2288,47 @@ kbd {
     return /\/QAgencyToolbox\/QAgency-Toolbox\.html$/i.test(path) ? "otro" : "";
   }
 
+  /* Saludo de la pantalla de inicio: por la hora, con el primer nombre. */
+  function greeting(hour, fullName) {
+    var h = Number(hour), when = h >= 5 && h < 12 ? "Buenos días" : (h >= 12 && h < 19 ? "Buenas tardes" : "Buenas noches");
+    var first = titleCase(collapse(fullName).split(" ")[0] || "");
+    return when + (first ? ", " + first : "") + ".";
+  }
+
+  /* "App enviada, pendiente o cancelación": la primera como viene, las demás
+     en minúscula, como se dice. */
+  function joinOr(list) {
+    var xs = (list || []).map(collapse).filter(Boolean).map(function (x, i) {
+      return i ? x.charAt(0).toLowerCase() + x.slice(1) : x;
+    });
+    return xs.length < 2 ? (xs[0] || "") : xs.slice(0, -1).join(", ") + " o " + xs[xs.length - 1];
+  }
+
+  /* Resumen de una sección cerrada: sus valores en una línea, sin repetidos. */
+  function summaryLine(values) {
+    var seen = {}, out = [];
+    (values || []).forEach(function (v) {
+      var s = collapse(v), k = s.toLowerCase();
+      if (s && !seen[k]) { seen[k] = true; out.push(s); }
+    });
+    return out.length ? out.join(" · ") : "Sin datos todavía";
+  }
+
+  /* El aviso de la nota en una línea: cuántos datos faltan. */
+  function pendingLabel(n) {
+    n = Number(n) || 0;
+    if (!n) { return "Lista para copiar"; }
+    return (n === 1 ? "Falta 1 dato" : "Faltan " + n + " datos") + " antes de copiar";
+  }
+
   var api = {
     pad2: pad2, fmtDate: fmtDate, today: today, parseDate: parseDate, parseBirth: parseBirth, parseDateWords: parseDateWords,
     findDate: findDate, toDateObj: toDateObj, addDays: addDays, addMonths: addMonths, taskDate: taskDate,
     parseTime: parseTime, parseSlot: parseSlot, parseClock: parseClock, floorSlot: floorSlot, to12h: to12h, timeLabel: timeLabel, halfHourSlots: halfHourSlots, yearMonth: yearMonth, defaultPlanYear: defaultPlanYear, moneyNumber: moneyNumber, parseMoney: parseMoney,
     stripAccents: stripAccents, collapse: collapse, titleCase: titleCase, initials: initials,
     splitName: splitName, parseList: parseList, escapeHtml: escapeHtml, MONTHS: MONTHS,
-    parseTeam: parseTeam, teamFile: teamFile, newerVersion: newerVersion, launchCheck: launchCheck
+    parseTeam: parseTeam, teamFile: teamFile, newerVersion: newerVersion, launchCheck: launchCheck,
+    greeting: greeting, joinOr: joinOr, summaryLine: summaryLine, pendingLabel: pendingLabel
   };
   root.QA = root.QA || {};
   root.QA.util = api;
@@ -6980,7 +7103,8 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
      when     condición adicional sobre los datos
      w        ancho en la rejilla: w2, w3, full
      type     text, date, int, money, area, select, seg, check, slot (hora
-              de media hora) o una lista: personas, docslist, planeslist */
+              de media hora) o una lista: personas, docslist, planeslist
+     sum      false: no va en el resumen de la sección cerrada */
   var FIELDS = [
     { k: "fecha", g: "contacto", type: "date", label: "Fecha de la nota" },
     { k: "anio", g: "contacto", type: "int", label: "Año del plan", max: 4 },
@@ -6993,7 +7117,7 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
     { k: "nombres", g: "cliente", sec: "cliente", type: "text", label: function () { return S.line !== "mc" ? "Nombre(s) del titular" : "Nombre(s)"; },
       w: "w2", upper: true, hint: "Como aparece en Zoho" },
     { k: "apellidos", g: "cliente", sec: "cliente", type: "text", label: "Apellido(s)", w: "w2", upper: true },
-    { k: "genero", g: "cliente", sec: "cliente", type: "seg", label: "En la nota", w: "w2",
+    { k: "genero", g: "cliente", sec: "cliente", type: "seg", label: "En la nota", w: "w2", sum: false,
       options: [{ v: "o", l: "el cliente" }, { v: "a", l: "la cliente" }] },
     { k: "codigoTipo", g: "cliente", sec: "cliente", type: "seg", label: "Código en Zoho", w: "w2",
       options: [{ v: "Q", l: "Código Q" }, { v: "New", l: "New" }, { v: "Sin Code", l: "Sin Code" }] },
@@ -7668,7 +7792,18 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
       sec.id = "sec-" + G.id;
       sec.dataset.group = G.id;
       var head = el("div", "group-head");
-      var h3 = el("h3"); h3.dataset.title = G.id;
+      /* la cabecera abre y cierra la sección; cerrada, muestra su resumen */
+      var h3 = el("h3", "group-title");
+      var tog = el("button", "group-toggle");
+      tog.type = "button"; tog.dataset.toggle = G.id;
+      tog.setAttribute("aria-expanded", "true"); tog.setAttribute("aria-controls", "body-" + G.id);
+      var t = el("span", "group-name"); t.dataset.title = G.id;
+      tog.appendChild(t);
+      tog.appendChild(el("span", "group-sum")).dataset.sum = G.id;
+      var chev = el("span", "group-chev"); chev.setAttribute("aria-hidden", "true");
+      chev.innerHTML = '<svg viewBox="0 0 20 20" width="18" height="18"><path d="m5 8 5 5 5-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+      tog.appendChild(chev);
+      h3.appendChild(tog);
       head.appendChild(h3);
       var badge = el("span", "review"); badge.hidden = true;
       head.appendChild(badge);
@@ -7679,21 +7814,23 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
       ok.addEventListener("click", function () { confirmReviewed(G.id); });
       head.appendChild(ok);
       sec.appendChild(head);
+      var body = el("div", "group-body"); body.id = "body-" + G.id;
       var grid = el("div", "grid");
       FIELDS.filter(function (F) { return F.g === G.id; }).forEach(function (F) { grid.appendChild(buildField(F)); });
       if (G.id === "network") {
         grid.id = "netGrid"; grid.className = "net";
-        sec.appendChild(el("p", "hint net-hint", "Marca lo que guardaste: sale en la nota. El nombre ya viene en el formato de NOMBRE DE ARCHIVOS."));
+        body.appendChild(el("p", "hint net-hint", "Marca lo que guardaste: sale en la nota. El nombre ya viene en el formato de NOMBRE DE ARCHIVOS."));
       }
-      sec.appendChild(grid);
+      body.appendChild(grid);
       if (G.id === "network") {
         var foot = el("div", "net-foot"); foot.id = "netFoot"; foot.hidden = true;
         var all = el("button", "btn small", "Guardar todo en el Network"); all.type = "button"; all.id = "netSaveAll";
         foot.appendChild(all);
         var where = el("span", "muted"); where.id = "netWhere";
         foot.appendChild(where);
-        sec.appendChild(foot);
+        body.appendChild(foot);
       }
+      sec.appendChild(body);
       form.appendChild(sec);
     });
     updateGroupTitles();
@@ -7704,6 +7841,66 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
       var sec = $("sec-" + G.id), t = resolve(G.title);
       sec.querySelector("[data-title]").textContent = t;
       sec.dataset.rail = G.short || t;
+    });
+  }
+
+  /* --------------------------------------------- secciones que se cierran --
+     Una sola abierta a la vez. Cuál, se elige sola solo en momentos
+     tranquilos (nota nueva, documento leído, cambio de línea o situación):
+     la primera que tiene algo por revisar o elegir. Nunca mientras se escribe. */
+  var openGroup = "", autoOpenNext = true;
+  function applyOpen() {
+    each($("form").querySelectorAll(".group"), function (g) {
+      var open = g.dataset.group === openGroup;
+      g.classList.toggle("is-closed", !open);
+      g.querySelector(".group-toggle").setAttribute("aria-expanded", open ? "true" : "false");
+    });
+  }
+  function openSection(id, keepInView) {
+    openGroup = id;
+    applyOpen();
+    var sec = id && $("sec-" + id);
+    if (keepInView && sec) {
+      var top = sec.getBoundingClientRect().top;
+      if (top < 64 || top > window.innerHeight - 80) { sec.scrollIntoView({ block: "start" }); window.scrollBy(0, -72); }
+    }
+  }
+  function autoOpen() {
+    var shown = Array.prototype.filter.call($("form").querySelectorAll(".group"), function (g) { return !g.hidden; });
+    var pick = shown.filter(function (g) { return +g.dataset.pending > 0; })[0] || shown[0];
+    openSection(pick ? pick.dataset.group : "");
+  }
+  /* lo que dice una sección cerrada: sus valores visibles, en una línea */
+  function fieldSummary(F) {
+    if (F.sum === false) { return ""; }
+    var k = key(F), v = S.f[k], wrap = $("form").querySelector('.fld[data-k="' + F.k + '"]'), ctl = $("f_" + F.k);
+    /* lo que falta elegir o tiene mal el formato no se resume como si estuviera bien */
+    if (wrap && (wrap.classList.contains("is-choose") || wrap.classList.contains("bad") || wrap.querySelector(".bad"))) { return ""; }
+    if (F.type === "check") { return v ? resolve(F.label) : ""; }
+    if (F.type === "seg") { var on = wrap && wrap.querySelector(".seg .on"); return on ? on.textContent : ""; }
+    if (F.type === "select") { return ctl && ctl.value && ctl.selectedIndex >= 0 ? ctl.options[ctl.selectedIndex].text : ""; }
+    if (F.type === "personas") { var ps = $("peopleSum"); return ps ? ps.textContent : ""; }
+    if (F.type === "docslist" || F.type === "planeslist") {
+      var n = Array.isArray(v) ? v.length : 0;
+      if (!n) { return ""; }
+      return F.type === "docslist" ? n + (n === 1 ? " documento pedido" : " documentos pedidos") : n + (n === 1 ? " plan cotizado" : " planes cotizados");
+    }
+    return ctl && "value" in ctl ? ctl.value : U.collapse(v);
+  }
+  function updateSummaries() {
+    GROUPS.forEach(function (G) {
+      var box = $("form").querySelector('[data-sum="' + G.id + '"]');
+      if (!box) { return; }
+      var text;
+      if (G.id === "network") {
+        var list = N.networkOf(data()), done = list.filter(function (n) { return S.f.net && S.f.net[n.k]; }).length;
+        text = list.length ? done + " de " + list.length + " guardados" : U.summaryLine([]);
+      } else {
+        text = U.summaryLine(FIELDS.filter(function (F) { return F.g === G.id && fieldVisible(F); }).map(fieldSummary));
+        if ($("sec-" + G.id).classList.contains("has-bad")) { text = "Revisa el formato · " + text; }
+      }
+      box.textContent = text;
+      box.title = text;
     });
   }
 
@@ -7993,10 +8190,16 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
     each(form.querySelectorAll(".group"), function (g) {
       var id = g.dataset.group;
       g.hidden = id === "network" ? (O().sections.indexOf("network") < 0 || !N.networkOf(data()).length) : !g.querySelector(".fld:not([hidden])");
-      var badge = g.querySelector(".review"), n = pending[id] || 0;
+      /* un dato con formato que no sirve (fecha, monto, hora) también cuenta:
+         con la sección cerrada no se vería */
+      var bad = Array.prototype.filter.call(g.querySelectorAll(".bad"), function (x) {
+        var f = x.closest(".fld"); return !f || !f.hidden;
+      }).length;
+      var badge = g.querySelector(".review"), n = (pending[id] || 0) + bad;
       badge.hidden = !n;
       badge.textContent = n + " por revisar";
-      g.querySelector(".review-ok").hidden = !n;
+      g.querySelector(".review-ok").hidden = !pending[id];
+      g.classList.toggle("has-bad", !!bad);
       g.dataset.pending = n;
     });
     var total = Object.keys(pending).reduce(function (s, k) { return s + pending[k]; }, 0);
@@ -8083,6 +8286,32 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
     $("dropHint").textContent = hints[S.line] + (ocrReady() ? " Los escaneos y las capturas (también pegadas con Ctrl + V) se leen con OCR." : "");
   }
 
+  /* --------------------------------------------------- pantalla de inicio --
+     Cada nota nueva empieza aquí: se elige la línea o se sueltan los
+     documentos del caso (el documento ya dice de qué línea es). */
+  var starting = false;
+  function renderStart() {
+    $("startHello").textContent = U.greeting(new Date().getHours(), settings.autor) + " ¿Qué vas a anotar?";
+    $("startAuthorHint").hidden = !!settings.autor;
+    var box = $("startLines");
+    box.textContent = "";
+    Object.keys(C.LINES).forEach(function (k) {
+      var b = el("button", "start-line" + (k === S.line ? " on" : ""));
+      b.type = "button"; b.dataset.startLine = k;
+      b.appendChild(el("span", "tag", C.LINES[k].code));
+      b.appendChild(el("strong", null, C.LINES[k].label));
+      b.appendChild(el("span", null, U.joinOr(C.LINES[k].outcomes.map(function (o) { return o.label; }))));
+      box.appendChild(b);
+    });
+  }
+  function showStart(on) {
+    starting = !!on;
+    document.body.classList.toggle("starting", starting);
+    $("startScreen").hidden = !starting;
+    if (starting) { renderStart(); }
+    window.scrollTo(0, 0);
+  }
+
   function setLine(line) {
     if (!C.LINES[line] || line === S.line) { return; }
     var keep = S.outcome;
@@ -8095,6 +8324,7 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
     /* cada línea tiene su lista oficial de compañías */
     syncCarrierChoice();
     afterOutcomeChange();
+    autoOpenNext = true;
     renderPicker(); syncInputs(); refresh();
   }
 
@@ -8103,6 +8333,7 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
     S.outcome = id;
     S.f.taskId = "";
     afterOutcomeChange();
+    autoOpenNext = true;
     renderPicker(); syncInputs(); refresh();
   }
 
@@ -8274,19 +8505,62 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
     }
   }
 
+  /* El aviso es una sola línea ("Faltan 3 datos antes de copiar") que abre
+     la lista; queda abierta mientras se escribe si se abrió. */
+  var statusOpen = false;
   function renderStatus(warns) {
     var box = $("status");
     box.textContent = "";
     box.className = "status " + (warns.length ? "warn" : "ok");
-    var head = el("div", "status-head");
+    var head = el(warns.length ? "summary" : "div", "status-head");
     head.appendChild(el("span", "status-dot"));
-    head.appendChild(el("strong", null, warns.length ? "Antes de copiar" : "Lista para copiar"));
-    box.appendChild(head);
-    if (warns.length) {
-      var ul = el("ul");
-      warns.forEach(function (w) { ul.appendChild(el("li", null, w)); });
-      box.appendChild(ul);
-    }
+    head.appendChild(el("strong", null, U.pendingLabel(warns.length)));
+    if (!warns.length) { box.appendChild(head); return; }
+    var det = el("details", "status-more");
+    det.open = statusOpen;
+    det.addEventListener("toggle", function () { statusOpen = det.open; });
+    det.appendChild(head);
+    var ul = el("ul");
+    warns.forEach(function (w) { ul.appendChild(el("li", null, w)); });
+    det.appendChild(ul);
+    box.appendChild(det);
+  }
+
+  /* ---------------------------------------------------- pestañas de salida --
+     Un texto a la vez. Hay pestaña para lo que aplica al caso: la nota y el
+     task siempre; el reporte si se reporta; el SMS y el email si los hay. */
+  var outTab = "note";
+  var TAB_LABEL = { note: "Nota", task: "Task", report: "Reporte", sms: "SMS", email: "Email" };
+  var TAB_OF = { note: "note", task: "task", report: "report", sms: "sms", email1: "email", email2: "email" };
+  function tabCards() { return Array.prototype.slice.call(document.querySelectorAll(".out [data-tab]")); }
+  function tabApplies(card) { return !card.hidden && (card.dataset.tab !== "report" || $("reportNA").hidden); }
+  function renderOutTabs() {
+    var shown = tabCards().filter(tabApplies), keys = shown.map(function (c) { return c.dataset.tab; });
+    if (keys.indexOf(outTab) < 0) { outTab = "note"; }
+    var bar = $("outTabs");
+    bar.textContent = "";
+    keys.forEach(function (k) {
+      var b = el("button", "out-tab" + (k === outTab ? " on" : ""), TAB_LABEL[k]);
+      b.type = "button"; b.id = "tab-" + k; b.dataset.outTab = k;
+      b.setAttribute("role", "tab");
+      b.setAttribute("aria-selected", k === outTab ? "true" : "false");
+      b.setAttribute("aria-controls", tabCards().filter(function (c) { return c.dataset.tab === k; })[0].id);
+      b.tabIndex = k === outTab ? 0 : -1;
+      bar.appendChild(b);
+    });
+    tabCards().forEach(function (c) {
+      var off = c.dataset.tab !== outTab;
+      var was = c.classList.contains("tab-off");
+      c.classList.toggle("tab-off", off);
+      /* un texto que estaba oculto no tenía alto: se ajusta al mostrarse */
+      if (was && !off) { each(c.querySelectorAll("textarea"), fitHeight); }
+    });
+  }
+  function showTab(k, focus) {
+    if (!TAB_LABEL[k]) { return; }
+    outTab = k;
+    renderOutTabs();
+    if (focus) { var b = $("tab-" + outTab); if (b) { b.focus(); } }
   }
 
   function refresh() {
@@ -8358,6 +8632,10 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
     $("outcomeDesc").textContent = O().desc + ".";
     renderSign(d);
     renderSheet(d);
+    renderOutTabs();
+    updateSummaries();
+    var openSec = openGroup && $("sec-" + openGroup);
+    if (autoOpenNext || (openSec && openSec.hidden)) { autoOpenNext = false; autoOpen(); }
     renderRail();
   }
 
@@ -8751,6 +9029,7 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
     var i = (S.copyPos || 0) % list.length;
     S.copyPos = i + 1;
     if (btn) { btn.dataset.label = nextLabel(); }
+    showTab(TAB_OF[list[i]]);
     copyOut(list[i], btn, win);
     if (!pip) { toast("Copiado: " + copyLabel(list[i], list)); }
     syncNext();
@@ -9175,6 +9454,7 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
     var files = Array.prototype.slice.call(list || []);
     if (!files.length) { return; }
     if (currentView !== "nota") { setView("nota"); }
+    if (starting) { showStart(false); }
     var before = S.files.length;
     files.reduce(function (p, f) { return p.then(function () { return readFile(f); }); }, Promise.resolve())
       .then(function () {
@@ -9183,6 +9463,7 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
         var viaOcr = added.some(function (f) { return f.ocr && f.applied; });
         var held = added.filter(function (f) { return f.held; });
         S.dirty = true;
+        autoOpenNext = true;
         renderPicker(); syncInputs(); renderNetwork(); refresh();
         if (held.length) {
           toast((held.length === 1 ? held[0].name + " no coincide" : held.length + " documentos no coinciden") +
@@ -9680,7 +9961,27 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
     /* carril de secciones */
     $("rail").addEventListener("click", function (e) {
       var b = e.target.closest("[data-target]");
-      if (b) { $(b.dataset.target).scrollIntoView({ behavior: "smooth", block: "start" }); }
+      if (!b) { return; }
+      var sec = $(b.dataset.target);
+      if (sec.dataset.group) { openSection(sec.dataset.group); }
+      sec.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+    /* pestañas de salida: clic, y flechas para moverse entre ellas */
+    $("outTabs").addEventListener("click", function (e) {
+      var b = e.target.closest("[data-out-tab]");
+      if (b) { showTab(b.dataset.outTab); }
+    });
+    $("outTabs").addEventListener("keydown", function (e) {
+      if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") { return; }
+      var keys = Array.prototype.map.call(this.querySelectorAll("[data-out-tab]"), function (b) { return b.dataset.outTab; });
+      var i = keys.indexOf(outTab) + (e.key === "ArrowRight" ? 1 : -1);
+      e.preventDefault();
+      showTab(keys[(i + keys.length) % keys.length], true);
+    });
+    /* abrir o cerrar una sección con su cabecera */
+    $("form").addEventListener("click", function (e) {
+      var b = e.target.closest("[data-toggle]");
+      if (b) { openSection(openGroup === b.dataset.toggle ? "" : b.dataset.toggle, true); }
     });
     var ticking = false;
     window.addEventListener("scroll", function () {
@@ -9754,7 +10055,7 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
     $("signEmailOpen").addEventListener("click", function () { this.href = N.mailtoLink(S.f.clienteEmail, $("signEmail").value); });
     document.addEventListener("keydown", function (e) {
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === "Enter" && currentView === "nota") { e.preventDefault(); copyNext($("copyNext")); return; }
-      if ((e.ctrlKey || e.metaKey) && e.key === "Enter" && currentView === "nota") { e.preventDefault(); copyOut("note", $("copyNote")); }
+      if ((e.ctrlKey || e.metaKey) && e.key === "Enter" && currentView === "nota") { e.preventDefault(); showTab("note"); copyOut("note", $("copyNote")); }
     });
 
     /* opciones del task y del reporte */
@@ -9792,9 +10093,20 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
       S.outcome = L().outcomes[0].id;
       afterOutcomeChange(); defaultPeople();
       each(form.querySelectorAll(".bad"), function (x) { x.classList.remove("bad"); });
+      autoOpenNext = true;
       renderFiles(); renderPicker(); syncInputs(); refresh();
-      window.scrollTo(0, 0);
+      showStart(true);
     });
+
+    /* pantalla de inicio: la línea elegida o los documentos abren la nota */
+    $("startLines").addEventListener("click", function (e) {
+      var b = e.target.closest("[data-start-line]");
+      if (!b) { return; }
+      setLine(b.dataset.startLine);
+      showStart(false);
+    });
+    $("startBrowse").addEventListener("click", function () { $("fileInput").click(); });
+    $("startPaste").addEventListener("click", function () { openPaste(); });
 
     /* archivos */
     var input = $("fileInput"), depth = 0, veil = $("dropveil");
@@ -9855,6 +10167,7 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
     $("pasteGo").addEventListener("click", function () {
       var text = $("pasteText").value;
       if (text.replace(/\s/g, "").length < 40) { toast("Pega primero el texto del documento."); return; }
+      if (starting) { showStart(false); }
       var entry = { name: pasteSource ? pasteSource.name : "Texto pegado", status: "reading", applied: 0 };
       /* el texto pegado reemplaza al archivo: primero se deshace lo que llenó */
       if (pasteSource) { removeFile(pasteSource); }
@@ -9863,6 +10176,7 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
       finishFile(entry, text);
       $("dlgPaste").close();
       S.dirty = true;
+      autoOpenNext = true;
       renderPicker(); syncInputs(); refresh();
       toast(entry.applied ? "Se llenaron " + entry.applied + " campos. Revísalos antes de copiar." : "No se encontraron datos en el texto.");
     });
@@ -9872,6 +10186,7 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
       if (this.value === "__edit") { renderAuthor(); openSettings(); return; }
       settings.autor = this.value; saveSettings();
       defaultPeople(); syncInputs(); refresh();
+      if (starting) { renderStart(); }
       if (currentView === "tasks") { renderTasks(); }
     });
     $("btnSettings").addEventListener("click", openSettings);
@@ -10017,6 +10332,7 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
     });
     refresh();
     setView(viewFromHash());
+    showStart(true);
   }
 
   init();
