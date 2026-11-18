@@ -401,6 +401,16 @@
     return xs.length < 2 ? (xs[0] || "") : xs.slice(0, -1).join(", ") + " o " + xs[xs.length - 1];
   }
 
+  /* Resumen de una sección cerrada: sus valores en una línea, sin repetidos. */
+  function summaryLine(values) {
+    var seen = {}, out = [];
+    (values || []).forEach(function (v) {
+      var s = collapse(v), k = s.toLowerCase();
+      if (s && !seen[k]) { seen[k] = true; out.push(s); }
+    });
+    return out.length ? out.join(" · ") : "Sin datos todavía";
+  }
+
   var api = {
     pad2: pad2, fmtDate: fmtDate, today: today, parseDate: parseDate, parseBirth: parseBirth, parseDateWords: parseDateWords,
     findDate: findDate, toDateObj: toDateObj, addDays: addDays, addMonths: addMonths, taskDate: taskDate,
@@ -408,7 +418,7 @@
     stripAccents: stripAccents, collapse: collapse, titleCase: titleCase, initials: initials,
     splitName: splitName, parseList: parseList, escapeHtml: escapeHtml, MONTHS: MONTHS,
     parseTeam: parseTeam, teamFile: teamFile, newerVersion: newerVersion, launchCheck: launchCheck,
-    greeting: greeting, joinOr: joinOr
+    greeting: greeting, joinOr: joinOr, summaryLine: summaryLine
   };
   root.QA = root.QA || {};
   root.QA.util = api;
