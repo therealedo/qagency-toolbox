@@ -378,6 +378,21 @@ test("nota: suplementario como el template ACCIDENTE", () => {
   assert.match(kids, /^LI_02\/01\/2026: Se renueva app de Dental de Cigna para Maria\.$/m);
 });
 
+test("nota: el HRA hecho agrega su línea en Medicare, con el cliente en español o en inglés", () => {
+  const extra = { gestion: "nueva", compania: "Humana", net: { soa: true }, botonRojo: false, hra: true };
+  ["enviada", "sincambio"].forEach((outcome) => {
+    ["es", "en"].forEach((idioma) => {
+      const note = N.buildNote(make(Object.assign({ line: "mc", outcome, idioma }, extra)));
+      assert.match(note, /\nSe completó el HRA \(Health Risk Assessment\)\.\nDocs en mi folder del NETW: SOA\.$/, outcome + "/" + idioma);
+    });
+  });
+  /* sin la casilla no hay línea, y en Obamacare o Suplementario tampoco */
+  assert.doesNotMatch(N.buildNote(make(Object.assign({ line: "mc", outcome: "enviada" }, extra, { hra: false }))), /HRA/);
+  ["oc", "supp"].forEach((line) => {
+    assert.doesNotMatch(N.buildNote(make(Object.assign({ line, outcome: "enviada" }, extra))), /HRA/, line);
+  });
+});
+
 test("nota: el botón rojo solo cierra una aplicación enviada y el task nunca va en la nota", () => {
   const extra = { gestion: "nueva", compania: "UHC", net: {}, botonRojo: true };
   ["oc", "mc", "supp"].forEach((line) => {
