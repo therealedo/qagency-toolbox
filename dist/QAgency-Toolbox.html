@@ -1409,7 +1409,7 @@ kbd {
 (function (root) {
   "use strict";
 
-  var VERSION = "1.17.0";
+  var VERSION = "1.18.0";
   /* De aquí la herramienta instalada lee el número de la última versión (y
      nada más). La política de seguridad de index.html solo permite esta
      dirección, y el actualizador de Windows usa el mismo repositorio. */
@@ -3090,6 +3090,8 @@ kbd {
           : "Carta de consentimiento enviada.");
       }
     } else {
+      /* Medicare: el HRA hecho con el cliente, en cualquier idioma del cliente */
+      if (d.line === "mc" && d.hra) { out.push("Se completó el HRA (Health Risk Assessment)."); }
       var docs = networkDocs(d);
       if (docs.length) { out.push("Docs en mi folder del NETW: " + docs.join(", ") + "."); }
     }
@@ -7075,6 +7077,8 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
     { k: "afeccion", g: "plan", sec: "plan", type: "text", label: "Afección crónica que califica", w: "w2", lines: ["mc"], when: function () { return !mcSin(); } },
     { k: "cmd", g: "plan", sec: "plan", type: "check", w: "w2", lines: ["mc"], label: "Condiciones médicas diversas (task CMD)",
       when: function () { return O().task === "mc_mant" && !O().cancelled && !mcSin(); } },
+    /* solo agrega su línea a la nota */
+    { k: "hra", g: "plan", sec: "plan", type: "check", w: "w2", lines: ["mc"], label: "Se completó el HRA (Health Risk Assessment)" },
 
     { k: "pagoEstado", g: "pago", sec: "pago", type: "seg", label: "Estado del pago", w: "full",
       options: function () {
