@@ -1842,6 +1842,13 @@
     }, function () { toast("No se pudo llenar el PDF."); }).then(function () { btn.disabled = false; });
   }
 
+  /* los enlaces de los formularios que existen, para el archivo del equipo */
+  function formLinks() {
+    var out = {};
+    Object.keys(FM.TEMPLATES).forEach(function (k) { if (settings.signLinks[k]) { out[k] = settings.signLinks[k]; } });
+    return out;
+  }
+
   /* Ajustes: un enlace de plantilla de SignWell por formulario */
   function renderSignLinks() {
     var box = $("signLinkRows");
@@ -3136,14 +3143,19 @@
         var current = settings.team.filter(function (t) { return t.name; });
         if (current.length && !window.confirm("¿Reemplazar el equipo de este navegador por el del archivo (" + r.team.length + " personas)?")) { return; }
         settings.team = r.team;
-        saveSettings(); renderTeam();
-        toast("Equipo importado: " + r.team.length + (r.team.length === 1 ? " persona." : " personas."));
+        /* los enlaces del archivo reemplazan los mismos formularios; los
+           que el archivo no trae se quedan como estaban */
+        var links = Object.keys(r.signLinks).filter(function (k) { return FM.TEMPLATES[k]; });
+        links.forEach(function (k) { settings.signLinks[k] = r.signLinks[k]; });
+        saveSettings(); renderTeam(); renderSignLinks();
+        toast("Equipo importado: " + r.team.length + (r.team.length === 1 ? " persona" : " personas") +
+          (links.length ? " y " + links.length + (links.length === 1 ? " enlace" : " enlaces") + " de SignWell." : "."));
       }, function () { input.value = ""; toast("No se pudo leer el archivo."); });
     });
     $("teamExport").addEventListener("click", function () {
       if (!settings.team.some(function (t) { return t.name; })) { toast("No hay nadie en el equipo para exportar."); return; }
       var a = el("a");
-      a.href = URL.createObjectURL(new Blob([U.teamFile(settings.team)], { type: "application/json" }));
+      a.href = URL.createObjectURL(new Blob([U.teamFile(settings.team, formLinks())], { type: "application/json" }));
       a.download = "QAgency-Equipo.json";
       document.body.appendChild(a); a.click(); a.remove();
       setTimeout(function () { URL.revokeObjectURL(a.href); }, 60000);

@@ -336,11 +336,27 @@
     if (!list) { return { error: TEAM_BAD }; }
     var team = cleanTeam(list);
     if (!team.length) { return { error: "El archivo del equipo no tiene ninguna persona con nombre." }; }
-    return { team: team };
+    return { team: team, signLinks: Array.isArray(data) ? {} : cleanLinks(data.signLinks) };
   }
 
-  function teamFile(team) {
-    return JSON.stringify({ app: TEAM_APP, version: 1, team: cleanTeam(team || []) }, null, 2) + "\n";
+  /* Los enlaces de las plantillas de SignWell van en el mismo archivo: son de
+     la oficina, no de cada persona. Solo se guardan enlaces https. */
+  function cleanLinks(links) {
+    var out = {};
+    if (!links || typeof links !== "object" || Array.isArray(links)) { return out; }
+    Object.keys(links).forEach(function (k) {
+      if (!/^[a-z0-9_-]{1,40}$/i.test(k) || typeof links[k] !== "string") { return; }
+      var url = collapse(links[k]).slice(0, 500);
+      if (/^https:\/\/\S+$/i.test(url)) { out[k] = url; }
+    });
+    return out;
+  }
+
+  function teamFile(team, signLinks) {
+    var file = { app: TEAM_APP, version: 1, team: cleanTeam(team || []) };
+    var links = cleanLinks(signLinks);
+    if (Object.keys(links).length) { file.signLinks = links; }
+    return JSON.stringify(file, null, 2) + "\n";
   }
 
   /* ¿La versión publicada (remote) es más nueva que la instalada (local)?

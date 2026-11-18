@@ -140,3 +140,19 @@ test("archivo del equipo: la agencia de cada agente se guarda y se lee", () => {
   ]);
   assert.deepEqual(U.parseTeam(U.teamFile(r.team)).team, r.team);
 });
+
+test("archivo del equipo: lleva los enlaces de SignWell, sin el nombre ni la oficina", () => {
+  const team = [{ name: "Laura Gomez", ini: "LG", npn: "12345678" }];
+  const links = { soa_en: " https://www.signwell.com/abc ", consent_qa_es: "", raro: "javascript:alert(1)" };
+  const file = U.teamFile(team, links);
+  const data = JSON.parse(file);
+  assert.deepEqual(data.signLinks, { soa_en: "https://www.signwell.com/abc" });
+  assert.equal(data.autor, undefined);
+  assert.equal(data.oficina, undefined);
+  const r = U.parseTeam(file);
+  assert.deepEqual(r.team, team);
+  assert.deepEqual(r.signLinks, { soa_en: "https://www.signwell.com/abc" });
+  /* un archivo de antes, sin enlaces, sigue sirviendo */
+  assert.deepEqual(U.parseTeam(U.teamFile(team)).signLinks, {});
+  assert.deepEqual(U.parseTeam(JSON.stringify(team)).signLinks, {});
+});
