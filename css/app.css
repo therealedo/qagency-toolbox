@@ -183,6 +183,7 @@ body[data-view="tasks"] #btnNew { display: none; }
   background: var(--brand-soft); color: var(--brand-ink); font-weight: 550;
   border-bottom: 1px solid var(--line);
 }
+.profile-bar { background: var(--warn-soft); color: var(--warn); flex-wrap: wrap; text-align: center; }
 
 /* ------------------------------------------------------------------ rejilla */
 

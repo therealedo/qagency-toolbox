@@ -2760,6 +2760,9 @@
     }
     $("btnReload").addEventListener("click", function () { location.reload(); });
     $("btnUpdateClose").addEventListener("click", function () { $("updateBar").hidden = true; });
+    /* abierta sin su ícono: otro perfil del navegador, sin los ajustes */
+    if (U.launchCheck(location) === "otro") { $("profileBar").hidden = false; }
+    $("profileExport").addEventListener("click", function () { $("teamExport").click(); });
     checkForUpdate();
   }
 

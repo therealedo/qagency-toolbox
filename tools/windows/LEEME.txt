@@ -38,6 +38,11 @@ de Chrome. Al actualizar se mantiene el navegador del acceso directo que ya
 tenias. Si alguna vez cambia, abre Ajustes > Equipo en el anterior, pulsa
 "Exportar equipo" e importalo en el nuevo.
 
+Si la anclaste en la barra de tareas antes de que tuviera su propio perfil,
+el instalador y el actualizador arreglan ese icono para que abra igual que
+el del Escritorio. Si la abres de otra forma (doble clic en el archivo, un
+marcador), la herramienta avisa que esa ventana no ve tus ajustes.
+
 Quitar: doble clic en Desinstalar.bat.
 
 Privacidad: la herramienta lee los documentos dentro del navegador y no

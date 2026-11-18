@@ -372,13 +372,26 @@
     return false;
   }
 
+  /* La copia instalada abre con su ícono, que lleva ?perfil=propio: así usa el
+     perfil del navegador que es solo de la herramienta, donde están los
+     ajustes. Abierta de otra forma (un ancla vieja de la barra de tareas, doble
+     clic en el archivo) cae en otro perfil, que no tiene esos ajustes.
+     "propio", "otro", o "" si no es la copia instalada. */
+  function launchCheck(loc) {
+    if (!loc || loc.protocol !== "file:") { return ""; }
+    if (/(^|[?&])perfil=propio(&|$)/.test(String(loc.search || "").replace(/^\?/, ""))) { return "propio"; }
+    var path = String(loc.pathname || "");
+    try { path = decodeURIComponent(path); } catch (e) { /* se usa tal cual */ }
+    return /\/QAgencyToolbox\/QAgency-Toolbox\.html$/i.test(path) ? "otro" : "";
+  }
+
   var api = {
     pad2: pad2, fmtDate: fmtDate, today: today, parseDate: parseDate, parseBirth: parseBirth, parseDateWords: parseDateWords,
     findDate: findDate, toDateObj: toDateObj, addDays: addDays, addMonths: addMonths, taskDate: taskDate,
     parseTime: parseTime, parseSlot: parseSlot, parseClock: parseClock, floorSlot: floorSlot, to12h: to12h, timeLabel: timeLabel, halfHourSlots: halfHourSlots, yearMonth: yearMonth, defaultPlanYear: defaultPlanYear, moneyNumber: moneyNumber, parseMoney: parseMoney,
     stripAccents: stripAccents, collapse: collapse, titleCase: titleCase, initials: initials,
     splitName: splitName, parseList: parseList, escapeHtml: escapeHtml, MONTHS: MONTHS,
-    parseTeam: parseTeam, teamFile: teamFile, newerVersion: newerVersion
+    parseTeam: parseTeam, teamFile: teamFile, newerVersion: newerVersion, launchCheck: launchCheck
   };
   root.QA = root.QA || {};
   root.QA.util = api;

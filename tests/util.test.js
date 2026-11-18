@@ -122,6 +122,18 @@ test("versiones: solo una más nueva cuenta como actualización", () => {
   ["", null, "v1.10", "1.10.0-beta", "abc", "1..2"].forEach((v) => assert.equal(U.newerVersion(v, "1.9.0"), false, String(v)));
 });
 
+test("perfil: la copia instalada sabe si la abrió su ícono, con el perfil propio del navegador", () => {
+  const installed = "/C:/Users/Ana%20Torres/AppData/Local/QAgencyToolbox/QAgency-Toolbox.html";
+  assert.equal(U.launchCheck({ protocol: "file:", pathname: installed, search: "?perfil=propio" }), "propio");
+  /* un ancla vieja, el archivo abierto con doble clic o un marcador */
+  assert.equal(U.launchCheck({ protocol: "file:", pathname: installed, search: "" }), "otro");
+  assert.equal(U.launchCheck({ protocol: "file:", pathname: installed.toLowerCase(), search: "?x=1" }), "otro");
+  /* otra copia del archivo (la de dist, una descargada) o la versión web no avisan */
+  assert.equal(U.launchCheck({ protocol: "file:", pathname: "/C:/Users/Ana/Downloads/QAgency-Toolbox.html", search: "" }), "");
+  assert.equal(U.launchCheck({ protocol: "https:", pathname: "/QAgencyToolbox/QAgency-Toolbox.html", search: "" }), "");
+  assert.equal(U.launchCheck(null), "");
+});
+
 test("parseBirth: una fecha de nacimiento con el año en dos cifras no queda en el futuro", () => {
   assert.equal(U.parseBirth("5/2/80"), "05/02/1980");
   assert.equal(U.parseBirth("5/2/12"), "05/02/2012");
