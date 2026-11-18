@@ -469,9 +469,18 @@ const OC_DOCS = {
   "OC My Plans & Programs Ambetter": { type: "oc_plans", net: "plans", fields: {
     plan: "Clarity Silver", prima: "$1.40", appId: "4412345678", miembros: "LAURA RAMOS\nDIEGO RAMOS",
     nombres: "LAURA", apellidos: "RAMOS", efectiva: "01/01/2027", estado: "Active", compania: "AMBETTER", anio: "2027" } },
+  /* el plan es "Clarity Silver", no "Report a life" (el menú, en la línea del
+     Plan ID); la fila del miembro parte el apellido y el año a la línea de abajo */
+  "OC My Plans & Programs Wrapped": { type: "oc_plans", net: "plans", fields: {
+    plan: "Clarity Silver", prima: "$16.91", appId: "4412345679", miembros: "MARTA LOPEZ VIDAL",
+    nombres: "MARTA", apellidos: "LOPEZ VIDAL", efectiva: "01/01/2027", estado: "Active", compania: "AMBETTER", anio: "2027" } },
   /* la guía que viene detrás de la carta habla de documentos: nadie los pidió */
   "OC Eligibility Notice": { type: "oc_elig", net: "eligibility", fields: {
     appId: "4412345678", anio: "2027", nombres: "LAURA", apellidos: "RAMOS", ingreso: "$31,200.00" } },
+  /* la carta en español: la guía de detrás ("GUÍA DE ELEGIBILIDAD DEL
+     MERCADO") habla de Medicare, Medicaid e ingresos, pero nadie pidió nada */
+  "OC Eligibility Notice ES": { type: "oc_elig", net: "eligibility", fields: {
+    appId: "4412345679", anio: "2027", nombres: "MARTA", apellidos: "LOPEZ VIDAL", ingreso: "$21,000.00" } },
   /* escaneo: texto del OCR. El ingreso es el anual, no el del mes; "2/17/41"
      es una fecha de nacimiento, no puede ser de 2041 */
   "OC App Summary OCR": { type: "oc_app", net: "appsummary", fields: {

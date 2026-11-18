@@ -430,7 +430,7 @@
   /* ---------------------------------------------------------- Marketplace */
 
   function appId(doc) {
-    return find(doc, /(?:Application\s*(?:ID|number|#|no\.?)|ID de (?:la )?solicitud|N[uú]mero de (?:la )?solicitud)\s*[:#]?\s*(\d{8,12})\b/i);
+    return find(doc, /(?:Application\s*(?:ID|number|#|no\.?)|ID de (?:la )?solicitud|N[uú]mero de (?:Identificaci[oó]n de )?(?:la )?solicitud)\s*[:#]?\s*(\d{8,12})\b/i);
   }
 
   /* Los espacios se buscan dentro de la misma línea: "…, 2026" seguido de
@@ -550,7 +550,7 @@
      se buscan antes de la guía. */
   function noticePart(doc) {
     for (var i = 0; i < doc.lines.length; i++) {
-      if (/^\s*MARKETPLACE ELIGIBILITY GUIDE\s*$/.test(doc.lines[i])) { return makeDoc(doc.lines.slice(0, i).join("\n")); }
+      if (/^\s*(MARKETPLACE ELIGIBILITY GUIDE|GU[IÍ]A DE ELEGIBILIDAD DEL MERCADO)\s*$/i.test(doc.lines[i])) { return makeDoc(doc.lines.slice(0, i).join("\n")); }
     }
     return doc;
   }
@@ -560,20 +560,23 @@
     f.appId = appId(doc);
     doc = noticePart(doc);
     /* "Estimated 2027 income used to determine eligibility" */
-    f.anio = planYear(doc) || find(doc, /\bEstimated[ \t]+(20[2-4]\d)[ \t]+income\b/i);
+    f.anio = planYear(doc) || find(doc, /\bEstimated[ \t]+(20[2-4]\d)[ \t]+income\b/i) ||
+      find(doc, /\bIngresos[ \t]+estimados[ \t]+(?:del?[ \t]+|para[ \t]+el[ \t]+)?(20[2-4]\d)\b/i);
 
     var dear = find(doc, /(?:^|\n)\s*(?:Dear|Estimad[oa](?:\(a\))?)\s+([^\n:,]{3,60})[:,]/i);
     if (dear && vFullName(dear)) { setName(f, dear); }
     else {
       /* "Primary contact" con el nombre en la línea de abajo */
-      var pc = after(doc, [/^\s*(Primary contact|Contacto principal)\b/i], vPerson, 1);
+      var pc = after(doc, [/^\s*(Primary contact|Contacto (principal|primario))\b/i], vPerson, 1);
       if (pc) { setName(f, pc); }
     }
 
     var inc = doc.flat.match(/(?:yearly|annual)\s*(?:household\s*)?income\s*(?:of|is|:)?\s*\$\s?([\d,]+(?:\.\d{2})?)/i) ||
               doc.flat.match(/ingresos?\s*anual(?:es)?(?:\s*del\s*hogar)?\s*(?:de|es|:)?\s*\$\s?([\d,]+(?:\.\d{2})?)/i) ||
               /* el ingreso estimado va unas líneas abajo, como "$31,200/year" */
-              doc.flat.match(/\bEstimated[^\n]{0,12}income used to determine[^\n]*(?:\n[^\n]*){0,3}?\n\$\s?([\d,]+(?:\.\d{2})?)\s*\/\s*year\b/i);
+              doc.flat.match(/\bEstimated[^\n]{0,12}income used to determine[^\n]*(?:\n[^\n]*){0,3}?\n\$\s?([\d,]+(?:\.\d{2})?)\s*\/\s*year\b/i) ||
+              /* en español va junto al crédito del mes: "para ayuda financiera: $21,000/año" */
+              doc.flat.match(/\bIngresos estimados[^\n]{0,12}utilizados para determinar[^\n]*(?:\n[^\n]*){0,3}?\n[^\n$]*\$\s?([\d,]+(?:\.\d{2})?)\s*\/\s*a[nñ]o\b/i);
     if (inc) { f.ingreso = U.parseMoney(inc[1]); }
     var size = find(doc, /household size (?:of|is|:)?\s*(\d{1,2})\b/i) || find(doc, /tama[nñ]o del hogar (?:de|es|:)?\s*(\d{1,2})\b/i);
     if (size) { f.hogar = size; }
@@ -611,7 +614,7 @@
   /* Enlaces y menú de la cuenta del Mercado que quedan entre el nombre del
      plan y su ID ("Go to my plan benefits", "Communication preferences" a la
      izquierda): se saltan, no son el plan. */
-  var PLAN_SKIP = /^(go to my plan benefits|communication|preferences|communication preferences|exemptions|mailing address|tax forms|report a life change|eligibility & appeals|applications? details|my plan profile|marketplace plans)$/i;
+  var PLAN_SKIP = /^(go to my plan benefits|communication|preferences|communication preferences|exemptions|mailing address|tax forms|report a life( change)?|coverage record|eligibility & appeals|applications? details|my plan profile|marketplace plans)$/i;
 
   /* El nombre del plan está justo encima de su ID; puede ocupar dos líneas
      cuando trae la descripción de beneficios entre paréntesis. */
@@ -644,6 +647,23 @@
     return null;
   }
 
+  /* Con la ventana angosta, la fila del miembro se parte en dos: arriba el
+     nombre y "Jan 1,  Dec 31,", y una o dos líneas abajo el apellido y los
+     años ("Vidal   2027   2027"). Se juntan en una sola fila. */
+  var ROW_NO_YEAR = /^(.*?\S)\s{2,}([A-Za-z]{3,9}\.?\s+\d{1,2},)\s{2,}([A-Za-z]{3,9}\.?\s+\d{1,2},)(\s.*)?$/;
+  var ROW_YEARS = /^\s*(.*?)\s*\b(20[2-4]\d)\s{2,}(20[2-4]\d)\s*$/;
+  function memberRows(lines) {
+    var out = [];
+    for (var i = 0; i < lines.length; i++) {
+      var m = lines[i].match(ROW_NO_YEAR), y = null, j;
+      for (j = i + 1; m && !y && j < lines.length && j <= i + 2; j++) { y = lines[j].match(ROW_YEARS); }
+      if (!y) { out.push(lines[i]); continue; }
+      out.push(m[1] + (y[1] ? " " + y[1] : "") + "   " + m[2] + " " + y[2] + "   " + m[3] + " " + y[3]);
+      i = j - 1;
+    }
+    return out;
+  }
+
   function extractPlans(doc) {
     var f = {};
     var p = planAboveId(doc);
@@ -662,7 +682,7 @@
 
     /* Tabla de miembros: nombre seguido de las fechas de cobertura */
     var names = [], all = [];
-    doc.lines.forEach(function (l) {
+    memberRows(doc.lines).forEach(function (l) {
       var ds = datesIn(l);
       if (!ds.length) { return; }
       var name = vFullName(l.slice(0, ds[0].index));
