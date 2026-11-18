@@ -201,6 +201,7 @@ body[data-view="tasks"] #btnNew { display: none; }
   background: var(--brand-soft); color: var(--brand-ink); font-weight: 550;
   border-bottom: 1px solid var(--line);
 }
+.profile-bar { background: var(--warn-soft); color: var(--warn); flex-wrap: wrap; text-align: center; }
 
 /* ------------------------------------------------------------------ rejilla */
 
@@ -1023,6 +1024,11 @@ kbd {
   <button type="button" class="icon-btn tiny" id="btnUpdateClose" aria-label="Ocultar el aviso" hidden>✕</button>
 </div>
 
+<div class="update-bar profile-bar" id="profileBar" role="note" hidden>
+  <span>Esta ventana no se abrió con el ícono de la herramienta, así que no ve tus ajustes guardados. Ciérrala y abre «Q Agency Toolbox» desde el Escritorio o el menú Inicio. Si aquí sí ves tu equipo, antes pulsa «Exportar equipo» y luego impórtalo allá, en Ajustes.</span>
+  <button type="button" class="btn small" id="profileExport">Exportar equipo</button>
+</div>
+
 <main id="main" tabindex="-1">
 
   <!-- ============================================================ NOTA -->
@@ -1409,7 +1415,7 @@ kbd {
 (function (root) {
   "use strict";
 
-  var VERSION = "1.18.0";
+  var VERSION = "1.19.0";
   /* De aquí la herramienta instalada lee el número de la última versión (y
      nada más). La política de seguridad de index.html solo permite esta
      dirección, y el actualizador de Windows usa el mismo repositorio. */
@@ -2180,13 +2186,26 @@ kbd {
     return false;
   }
 
+  /* La copia instalada abre con su ícono, que lleva ?perfil=propio: así usa el
+     perfil del navegador que es solo de la herramienta, donde están los
+     ajustes. Abierta de otra forma (un ancla vieja de la barra de tareas, doble
+     clic en el archivo) cae en otro perfil, que no tiene esos ajustes.
+     "propio", "otro", o "" si no es la copia instalada. */
+  function launchCheck(loc) {
+    if (!loc || loc.protocol !== "file:") { return ""; }
+    if (/(^|[?&])perfil=propio(&|$)/.test(String(loc.search || "").replace(/^\?/, ""))) { return "propio"; }
+    var path = String(loc.pathname || "");
+    try { path = decodeURIComponent(path); } catch (e) { /* se usa tal cual */ }
+    return /\/QAgencyToolbox\/QAgency-Toolbox\.html$/i.test(path) ? "otro" : "";
+  }
+
   var api = {
     pad2: pad2, fmtDate: fmtDate, today: today, parseDate: parseDate, parseBirth: parseBirth, parseDateWords: parseDateWords,
     findDate: findDate, toDateObj: toDateObj, addDays: addDays, addMonths: addMonths, taskDate: taskDate,
     parseTime: parseTime, parseSlot: parseSlot, parseClock: parseClock, floorSlot: floorSlot, to12h: to12h, timeLabel: timeLabel, halfHourSlots: halfHourSlots, yearMonth: yearMonth, defaultPlanYear: defaultPlanYear, moneyNumber: moneyNumber, parseMoney: parseMoney,
     stripAccents: stripAccents, collapse: collapse, titleCase: titleCase, initials: initials,
     splitName: splitName, parseList: parseList, escapeHtml: escapeHtml, MONTHS: MONTHS,
-    parseTeam: parseTeam, teamFile: teamFile, newerVersion: newerVersion
+    parseTeam: parseTeam, teamFile: teamFile, newerVersion: newerVersion, launchCheck: launchCheck
   };
   root.QA = root.QA || {};
   root.QA.util = api;
@@ -9525,6 +9544,9 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
     }
     $("btnReload").addEventListener("click", function () { location.reload(); });
     $("btnUpdateClose").addEventListener("click", function () { $("updateBar").hidden = true; });
+    /* abierta sin su ícono: otro perfil del navegador, sin los ajustes */
+    if (U.launchCheck(location) === "otro") { $("profileBar").hidden = false; }
+    $("profileExport").addEventListener("click", function () { $("teamExport").click(); });
     checkForUpdate();
   }
 
