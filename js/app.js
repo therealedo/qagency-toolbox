@@ -1589,19 +1589,62 @@
     }
   }
 
+  /* El aviso es una sola línea ("Faltan 3 datos antes de copiar") que abre
+     la lista; queda abierta mientras se escribe si se abrió. */
+  var statusOpen = false;
   function renderStatus(warns) {
     var box = $("status");
     box.textContent = "";
     box.className = "status " + (warns.length ? "warn" : "ok");
-    var head = el("div", "status-head");
+    var head = el(warns.length ? "summary" : "div", "status-head");
     head.appendChild(el("span", "status-dot"));
-    head.appendChild(el("strong", null, warns.length ? "Antes de copiar" : "Lista para copiar"));
-    box.appendChild(head);
-    if (warns.length) {
-      var ul = el("ul");
-      warns.forEach(function (w) { ul.appendChild(el("li", null, w)); });
-      box.appendChild(ul);
-    }
+    head.appendChild(el("strong", null, U.pendingLabel(warns.length)));
+    if (!warns.length) { box.appendChild(head); return; }
+    var det = el("details", "status-more");
+    det.open = statusOpen;
+    det.addEventListener("toggle", function () { statusOpen = det.open; });
+    det.appendChild(head);
+    var ul = el("ul");
+    warns.forEach(function (w) { ul.appendChild(el("li", null, w)); });
+    det.appendChild(ul);
+    box.appendChild(det);
+  }
+
+  /* ---------------------------------------------------- pestañas de salida --
+     Un texto a la vez. Hay pestaña para lo que aplica al caso: la nota y el
+     task siempre; el reporte si se reporta; el SMS y el email si los hay. */
+  var outTab = "note";
+  var TAB_LABEL = { note: "Nota", task: "Task", report: "Reporte", sms: "SMS", email: "Email" };
+  var TAB_OF = { note: "note", task: "task", report: "report", sms: "sms", email1: "email", email2: "email" };
+  function tabCards() { return Array.prototype.slice.call(document.querySelectorAll(".out [data-tab]")); }
+  function tabApplies(card) { return !card.hidden && (card.dataset.tab !== "report" || $("reportNA").hidden); }
+  function renderOutTabs() {
+    var shown = tabCards().filter(tabApplies), keys = shown.map(function (c) { return c.dataset.tab; });
+    if (keys.indexOf(outTab) < 0) { outTab = "note"; }
+    var bar = $("outTabs");
+    bar.textContent = "";
+    keys.forEach(function (k) {
+      var b = el("button", "out-tab" + (k === outTab ? " on" : ""), TAB_LABEL[k]);
+      b.type = "button"; b.id = "tab-" + k; b.dataset.outTab = k;
+      b.setAttribute("role", "tab");
+      b.setAttribute("aria-selected", k === outTab ? "true" : "false");
+      b.setAttribute("aria-controls", tabCards().filter(function (c) { return c.dataset.tab === k; })[0].id);
+      b.tabIndex = k === outTab ? 0 : -1;
+      bar.appendChild(b);
+    });
+    tabCards().forEach(function (c) {
+      var off = c.dataset.tab !== outTab;
+      var was = c.classList.contains("tab-off");
+      c.classList.toggle("tab-off", off);
+      /* un texto que estaba oculto no tenía alto: se ajusta al mostrarse */
+      if (was && !off) { each(c.querySelectorAll("textarea"), fitHeight); }
+    });
+  }
+  function showTab(k, focus) {
+    if (!TAB_LABEL[k]) { return; }
+    outTab = k;
+    renderOutTabs();
+    if (focus) { var b = $("tab-" + outTab); if (b) { b.focus(); } }
   }
 
   function refresh() {
@@ -1673,6 +1716,7 @@
     $("outcomeDesc").textContent = O().desc + ".";
     renderSign(d);
     renderSheet(d);
+    renderOutTabs();
     updateSummaries();
     var openSec = openGroup && $("sec-" + openGroup);
     if (autoOpenNext || (openSec && openSec.hidden)) { autoOpenNext = false; autoOpen(); }
@@ -2069,6 +2113,7 @@
     var i = (S.copyPos || 0) % list.length;
     S.copyPos = i + 1;
     if (btn) { btn.dataset.label = nextLabel(); }
+    showTab(TAB_OF[list[i]]);
     copyOut(list[i], btn, win);
     if (!pip) { toast("Copiado: " + copyLabel(list[i], list)); }
     syncNext();
@@ -3005,6 +3050,18 @@
       if (sec.dataset.group) { openSection(sec.dataset.group); }
       sec.scrollIntoView({ behavior: "smooth", block: "start" });
     });
+    /* pestañas de salida: clic, y flechas para moverse entre ellas */
+    $("outTabs").addEventListener("click", function (e) {
+      var b = e.target.closest("[data-out-tab]");
+      if (b) { showTab(b.dataset.outTab); }
+    });
+    $("outTabs").addEventListener("keydown", function (e) {
+      if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") { return; }
+      var keys = Array.prototype.map.call(this.querySelectorAll("[data-out-tab]"), function (b) { return b.dataset.outTab; });
+      var i = keys.indexOf(outTab) + (e.key === "ArrowRight" ? 1 : -1);
+      e.preventDefault();
+      showTab(keys[(i + keys.length) % keys.length], true);
+    });
     /* abrir o cerrar una sección con su cabecera */
     $("form").addEventListener("click", function (e) {
       var b = e.target.closest("[data-toggle]");
@@ -3082,7 +3139,7 @@
     $("signEmailOpen").addEventListener("click", function () { this.href = N.mailtoLink(S.f.clienteEmail, $("signEmail").value); });
     document.addEventListener("keydown", function (e) {
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === "Enter" && currentView === "nota") { e.preventDefault(); copyNext($("copyNext")); return; }
-      if ((e.ctrlKey || e.metaKey) && e.key === "Enter" && currentView === "nota") { e.preventDefault(); copyOut("note", $("copyNote")); }
+      if ((e.ctrlKey || e.metaKey) && e.key === "Enter" && currentView === "nota") { e.preventDefault(); showTab("note"); copyOut("note", $("copyNote")); }
     });
 
     /* opciones del task y del reporte */

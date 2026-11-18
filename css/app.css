@@ -683,6 +683,24 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
 .status.warn { padding: 9px 12px; border-radius: 10px; background: var(--warn-soft); color: var(--warn); }
 .status.warn .status-dot { background: currentColor; }
 .status ul { margin: 5px 0 0; padding-left: 16px; display: flex; flex-direction: column; gap: 2px; }
+/* el aviso es una línea que abre la lista */
+.status-more summary { cursor: pointer; list-style: none; }
+.status-more summary::-webkit-details-marker { display: none; }
+.status-more summary::after { content: "Ver"; margin-left: auto; font-size: 12px; font-weight: 600; text-decoration: underline; }
+.status-more[open] summary::after { content: "Ocultar"; }
+.status-more summary:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; border-radius: 6px; }
+
+/* pestañas de salida: un texto a la vez */
+.out-tabs { display: flex; gap: 4px; padding: 4px; border-radius: 12px; background: var(--inset); border: 1px solid var(--line); }
+.out-tabs:empty { display: none; }
+.out-tab {
+  flex: 1; min-height: 40px; border-radius: 9px; border: 0; background: transparent;
+  color: var(--ink-2); font: inherit; font-weight: 550; cursor: pointer;
+}
+.out-tab:hover { color: var(--ink); }
+.out-tab.on { background: var(--surface); color: var(--brand-ink); font-weight: 650; box-shadow: var(--shadow); }
+.out-tab:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
+.out .tab-off { display: none !important; }
 .status li::marker { content: "–  "; }
 
 #note {

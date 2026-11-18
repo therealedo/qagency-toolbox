@@ -411,6 +411,13 @@
     return out.length ? out.join(" · ") : "Sin datos todavía";
   }
 
+  /* El aviso de la nota en una línea: cuántos datos faltan. */
+  function pendingLabel(n) {
+    n = Number(n) || 0;
+    if (!n) { return "Lista para copiar"; }
+    return (n === 1 ? "Falta 1 dato" : "Faltan " + n + " datos") + " antes de copiar";
+  }
+
   var api = {
     pad2: pad2, fmtDate: fmtDate, today: today, parseDate: parseDate, parseBirth: parseBirth, parseDateWords: parseDateWords,
     findDate: findDate, toDateObj: toDateObj, addDays: addDays, addMonths: addMonths, taskDate: taskDate,
@@ -418,7 +425,7 @@
     stripAccents: stripAccents, collapse: collapse, titleCase: titleCase, initials: initials,
     splitName: splitName, parseList: parseList, escapeHtml: escapeHtml, MONTHS: MONTHS,
     parseTeam: parseTeam, teamFile: teamFile, newerVersion: newerVersion, launchCheck: launchCheck,
-    greeting: greeting, joinOr: joinOr, summaryLine: summaryLine
+    greeting: greeting, joinOr: joinOr, summaryLine: summaryLine, pendingLabel: pendingLabel
   };
   root.QA = root.QA || {};
   root.QA.util = api;

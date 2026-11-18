@@ -205,7 +205,10 @@
           <button type="button" class="btn" id="btnFloat" hidden title="Una ventana pequeña con los botones de copiar, siempre encima de Zoho">Ventana flotante</button>
         </div>
 
-        <div class="card out-card note-card">
+        <!-- un texto a la vez: solo las pestañas de lo que aplica al caso -->
+        <div class="out-tabs" id="outTabs" role="tablist" aria-label="Textos para copiar"></div>
+
+        <div class="card out-card note-card" id="noteCard" data-tab="note" role="tabpanel" aria-labelledby="tab-note">
           <div class="out-head">
             <h2>Nota para Zoho</h2>
             <button type="button" class="link-btn" id="noteRegen" hidden>Regenerar</button>
@@ -220,7 +223,7 @@
           </div>
         </div>
 
-        <div class="card out-card">
+        <div class="card out-card" id="taskCard" data-tab="task" role="tabpanel" aria-labelledby="tab-task">
           <div class="out-head">
             <h2>Task</h2>
             <button type="button" class="link-btn" id="taskRegen" hidden>Regenerar</button>
@@ -236,7 +239,7 @@
           </div>
         </div>
 
-        <div class="card out-card" id="reportCard">
+        <div class="card out-card" id="reportCard" data-tab="report" role="tabpanel" aria-labelledby="tab-report">
           <div class="out-head">
             <h2>Reporte para Cliq</h2>
             <button type="button" class="link-btn" id="reportRegen" hidden>Regenerar</button>
@@ -248,7 +251,7 @@
           <p class="muted" id="reportNA" hidden>Esta situación no se reporta en Cliq.</p>
         </div>
 
-        <div class="card out-card" id="smsCard">
+        <div class="card out-card" id="smsCard" data-tab="sms" role="tabpanel" aria-labelledby="tab-sms">
           <div class="out-head">
             <h2>SMS para el cliente</h2>
             <div class="seg seg-mini" data-lang-seg role="radiogroup" aria-label="Idioma del SMS y el email" hidden></div>
@@ -262,7 +265,7 @@
           </div>
         </div>
 
-        <div class="card out-card" id="emailCard" hidden>
+        <div class="card out-card" id="emailCard" data-tab="email" role="tabpanel" aria-labelledby="tab-email" hidden>
           <div class="out-head">
             <h2>Email para el cliente</h2>
             <div class="seg seg-mini" data-lang-seg role="radiogroup" aria-label="Idioma del SMS y el email" hidden></div>
