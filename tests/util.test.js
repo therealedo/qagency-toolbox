@@ -155,6 +155,12 @@ test("secciones: la línea de resumen junta los valores sin repetir ni dejar hue
   assert.equal(U.summaryLine(["", "  "]), "Sin datos todavía");
 });
 
+test("salidas: el aviso dice cuántos datos faltan en una sola línea", () => {
+  assert.equal(U.pendingLabel(1), "Falta 1 dato antes de copiar");
+  assert.equal(U.pendingLabel(6), "Faltan 6 datos antes de copiar");
+  assert.equal(U.pendingLabel(0), "Lista para copiar");
+});
+
 test("parseBirth: una fecha de nacimiento con el año en dos cifras no queda en el futuro", () => {
   assert.equal(U.parseBirth("5/2/80"), "05/02/1980");
   assert.equal(U.parseBirth("5/2/12"), "05/02/2012");
