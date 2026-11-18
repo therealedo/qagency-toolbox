@@ -100,7 +100,8 @@
     /* con la carta de consentimiento ya recibida no hay nada que firmar, y si
        revisará los planes el consent todavía no se envía */
     if (d.line === "oc") { return N.outcomeOf(d).id === "pendiente" && !(d.net && d.net.consent) && !d.revisaPlanes ? "consent" : ""; }
-    if (d.line === "mc") { return N.networkOf(d).some(function (n) { return n.k === "soa"; }) ? "soa" : ""; }
+    /* igual en Medicare: con el SOA ya marcado en el Network no hay nada que firmar */
+    if (d.line === "mc") { return N.networkOf(d).some(function (n) { return n.k === "soa"; }) && !(d.net && d.net.soa) ? "soa" : ""; }
     return "";
   }
 

@@ -85,10 +85,10 @@ A change is a value edited, cleared or toggled after a document filled it (shown
 
 There are two situations:
 
-- **App enviada.** Whoever writes the note talked to the client and processed the app, so there is no collaborator. *Fecha del SOA* is the date of the note unless it is changed, and the SOA is ticked in Network like any other document. The contract (H-PBP) is part of the plan name; when the application shows it apart, the reader appends it. **Tiene prima mensual** shows the premium; off, the note says `Premium: $0.00`. The note says `App ID: …` and `Medicaid ID: 12345678`, and Network has the SOA and the App. The SMS is the agency's official Medicare SMS (see *SMS, email and file names*), and there is no email.
+- **App enviada.** Whoever writes the note talked to the client and processed the app, so there is no collaborator. The note opens with the *Canal*, as in Obamacare: `ER_02/01/2026: Se atiende al cliente en la oficina (09:00), se procesa app de MC con Humana.` (`Se conversa con el cliente` on a call, `en cita …` for an appointment). *Fecha del SOA* is the date of the note unless it is changed, and the SOA is ticked in Network like any other document. The contract (H-PBP) is part of the plan name; when the application shows it apart, the reader appends it. **Tiene prima mensual** shows the premium; off, the note says `Premium: $0.00`. The note says `App ID: …` and `Medicaid ID: 12345678`, and Network has the SOA and the App. The SMS is the agency's official Medicare SMS (see *SMS, email and file names*), and there is no email.
 - **Sin cambios.** The client reviews their plan and keeps it, so it only asks for the client, the plan name and the SOA: `ER_11/14/2026: Se atiende al cliente en cita telefónica (09:00), se revisan los beneficios de su plan para 2027 y decide mantenerse en su plan actual - Humana Gold Plus H1036-077 (HMO)`. The report line is for the NO CHANGE channel in Cliq: `Diaz, Beatriz se quedara en su mismo plan Humana Gold Plus H1036-077 (HMO)`. The task is `MC MANTENIMIENTO`, or `FOLLOW UP LEAD_INACTIVE CLIENT MC` when **Es cliente** is off. No SMS.
 
-In both, *Cliente* also has the client's phone and email, which only feed the SOA's Cliq line and signing link, and the **Dirección**, which is only there to confirm it with the client: it goes in no note, task, report, message or form, and the Medicare application fills it in when it has one. Below the form **SOA para firmar** downloads the Scope of Appointment (see *Consent and SOA*).
+In both, *Cliente* also has the client's phone and email, which only feed the SOA's Cliq line and signing link, and the **Dirección**, which is only there to confirm it with the client: it goes in no note, task, report, message or form, and the Medicare application fills it in when it has one. Below the form **SOA para firmar** downloads the Scope of Appointment (see *Consent and SOA*); it hides once the SOA is ticked in Network.
 
 ### Consent and SOA
 
@@ -173,6 +173,7 @@ Para cualquier duda, comuníquese de inmediato con nosotros. Saludos
 Ana Ruiz
 Directo: (305) 555-0101
 Oficina: (305) 555-0100
+🎁 ¡Por cada 4 personas que nos refiera, gana una GIFT CARD!
 ```
 
 ```
