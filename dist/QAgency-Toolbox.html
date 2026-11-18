@@ -1519,7 +1519,7 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
 (function (root) {
   "use strict";
 
-  var VERSION = "1.21.0";
+  var VERSION = "1.21.1";
   /* De aquí la herramienta instalada lee el número de la última versión (y
      nada más). La política de seguridad de index.html solo permite esta
      dirección, y el actualizador de Windows usa el mismo repositorio. */
@@ -2736,7 +2736,8 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
     }
     if (d.line === "mc") {
       switch (O.id) {
-        case "enviada": return G.v === "cambio" ? "Se procesa cambio de plan de MC" + (carrier ? " a " + carrier : "") + "." : "Se procesa app de MC" + con + ".";
+        /* el canal abre la nota como en OC: "Se atiende al cliente en la oficina (hora), se procesa..." */
+        case "enviada": return talk(d) + ", " + (G.v === "cambio" ? "se procesa cambio de plan de MC" + (carrier ? " a " + carrier : "") : "se procesa app de MC" + con) + ".";
         /* el plan cierra la línea, sin punto, como en el formato de la agencia */
         case "sincambio": return talk(d) + ", se revisan los beneficios de su plan para" + (y || " el próximo año") +
                                  " y decide mantenerse en su plan actual" + (val(d.plan) ? " - " + val(d.plan) : "");
@@ -3347,6 +3348,8 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
       lines.push("Para cualquier duda, comuníquese de inmediato con nosotros. Saludos");
     }
     smsSignature(d, lines);
+    /* los referidos, como en el SMS de OC */
+    lines.push(GIFT + (en ? " For every 4 people you refer to us, you get a GIFT CARD!" : " ¡Por cada 4 personas que nos refiera, gana una GIFT CARD!"));
     return lines.join("\n");
   }
 
@@ -3935,7 +3938,8 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
     /* con la carta de consentimiento ya recibida no hay nada que firmar, y si
        revisará los planes el consent todavía no se envía */
     if (d.line === "oc") { return N.outcomeOf(d).id === "pendiente" && !(d.net && d.net.consent) && !d.revisaPlanes ? "consent" : ""; }
-    if (d.line === "mc") { return N.networkOf(d).some(function (n) { return n.k === "soa"; }) ? "soa" : ""; }
+    /* igual en Medicare: con el SOA ya marcado en el Network no hay nada que firmar */
+    if (d.line === "mc") { return N.networkOf(d).some(function (n) { return n.k === "soa"; }) && !(d.net && d.net.soa) ? "soa" : ""; }
     return "";
   }
 
