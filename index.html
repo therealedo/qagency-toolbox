@@ -75,6 +75,28 @@
 
   <!-- ============================================================ NOTA -->
   <section class="view" id="view-nota" aria-label="Nota">
+    <!-- Pantalla de inicio: cada nota nueva empieza eligiendo la línea o soltando sus documentos -->
+    <section class="start" id="startScreen" aria-labelledby="startHello" hidden>
+      <div class="start-head">
+        <h1 id="startHello">¿Qué vas a anotar?</h1>
+        <p>Elige la línea. Después te pedimos solo lo que falta.</p>
+      </div>
+      <div class="start-lines" id="startLines"></div>
+      <div class="start-drop">
+        <span class="drop-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="26" height="26"><path d="M12 15V4m0 0L8 8m4-4 4 4M5 14v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </span>
+        <div class="start-drop-text">
+          <strong>¿Ya tienes los PDF del caso? Suéltalos aquí</strong>
+          <span>Reconocemos la línea y llenamos los datos por ti. También sirven las capturas (Ctrl + V).</span>
+        </div>
+        <div class="drop-actions">
+          <button type="button" class="btn" id="startBrowse">Buscar archivos</button>
+          <button type="button" class="btn ghost" id="startPaste">Pegar texto</button>
+        </div>
+      </div>
+      <p class="start-hint" id="startAuthorHint" hidden>Antes de empezar, elige tu nombre arriba a la derecha: va en la nota y en el task.</p>
+    </section>
     <div class="layout">
 
       <nav class="rail" id="rail" aria-label="Partes del formulario"></nav>

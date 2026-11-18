@@ -1299,6 +1299,32 @@
     $("dropHint").textContent = hints[S.line] + (ocrReady() ? " Los escaneos y las capturas (también pegadas con Ctrl + V) se leen con OCR." : "");
   }
 
+  /* --------------------------------------------------- pantalla de inicio --
+     Cada nota nueva empieza aquí: se elige la línea o se sueltan los
+     documentos del caso (el documento ya dice de qué línea es). */
+  var starting = false;
+  function renderStart() {
+    $("startHello").textContent = U.greeting(new Date().getHours(), settings.autor) + " ¿Qué vas a anotar?";
+    $("startAuthorHint").hidden = !!settings.autor;
+    var box = $("startLines");
+    box.textContent = "";
+    Object.keys(C.LINES).forEach(function (k) {
+      var b = el("button", "start-line" + (k === S.line ? " on" : ""));
+      b.type = "button"; b.dataset.startLine = k;
+      b.appendChild(el("span", "tag", C.LINES[k].code));
+      b.appendChild(el("strong", null, C.LINES[k].label));
+      b.appendChild(el("span", null, U.joinOr(C.LINES[k].outcomes.map(function (o) { return o.label; }))));
+      box.appendChild(b);
+    });
+  }
+  function showStart(on) {
+    starting = !!on;
+    document.body.classList.toggle("starting", starting);
+    $("startScreen").hidden = !starting;
+    if (starting) { renderStart(); }
+    window.scrollTo(0, 0);
+  }
+
   function setLine(line) {
     if (!C.LINES[line] || line === S.line) { return; }
     var keep = S.outcome;
@@ -2391,6 +2417,7 @@
     var files = Array.prototype.slice.call(list || []);
     if (!files.length) { return; }
     if (currentView !== "nota") { setView("nota"); }
+    if (starting) { showStart(false); }
     var before = S.files.length;
     files.reduce(function (p, f) { return p.then(function () { return readFile(f); }); }, Promise.resolve())
       .then(function () {
@@ -3009,8 +3036,18 @@
       afterOutcomeChange(); defaultPeople();
       each(form.querySelectorAll(".bad"), function (x) { x.classList.remove("bad"); });
       renderFiles(); renderPicker(); syncInputs(); refresh();
-      window.scrollTo(0, 0);
+      showStart(true);
     });
+
+    /* pantalla de inicio: la línea elegida o los documentos abren la nota */
+    $("startLines").addEventListener("click", function (e) {
+      var b = e.target.closest("[data-start-line]");
+      if (!b) { return; }
+      setLine(b.dataset.startLine);
+      showStart(false);
+    });
+    $("startBrowse").addEventListener("click", function () { $("fileInput").click(); });
+    $("startPaste").addEventListener("click", function () { openPaste(); });
 
     /* archivos */
     var input = $("fileInput"), depth = 0, veil = $("dropveil");
@@ -3071,6 +3108,7 @@
     $("pasteGo").addEventListener("click", function () {
       var text = $("pasteText").value;
       if (text.replace(/\s/g, "").length < 40) { toast("Pega primero el texto del documento."); return; }
+      if (starting) { showStart(false); }
       var entry = { name: pasteSource ? pasteSource.name : "Texto pegado", status: "reading", applied: 0 };
       /* el texto pegado reemplaza al archivo: primero se deshace lo que llenó */
       if (pasteSource) { removeFile(pasteSource); }
@@ -3088,6 +3126,7 @@
       if (this.value === "__edit") { renderAuthor(); openSettings(); return; }
       settings.autor = this.value; saveSettings();
       defaultPeople(); syncInputs(); refresh();
+      if (starting) { renderStart(); }
       if (currentView === "tasks") { renderTasks(); }
     });
     $("btnSettings").addEventListener("click", openSettings);
@@ -3233,6 +3272,7 @@
     });
     refresh();
     setView(viewFromHash());
+    showStart(true);
   }
 
   init();

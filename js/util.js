@@ -385,13 +385,30 @@
     return /\/QAgencyToolbox\/QAgency-Toolbox\.html$/i.test(path) ? "otro" : "";
   }
 
+  /* Saludo de la pantalla de inicio: por la hora, con el primer nombre. */
+  function greeting(hour, fullName) {
+    var h = Number(hour), when = h >= 5 && h < 12 ? "Buenos días" : (h >= 12 && h < 19 ? "Buenas tardes" : "Buenas noches");
+    var first = titleCase(collapse(fullName).split(" ")[0] || "");
+    return when + (first ? ", " + first : "") + ".";
+  }
+
+  /* "App enviada, pendiente o cancelación": la primera como viene, las demás
+     en minúscula, como se dice. */
+  function joinOr(list) {
+    var xs = (list || []).map(collapse).filter(Boolean).map(function (x, i) {
+      return i ? x.charAt(0).toLowerCase() + x.slice(1) : x;
+    });
+    return xs.length < 2 ? (xs[0] || "") : xs.slice(0, -1).join(", ") + " o " + xs[xs.length - 1];
+  }
+
   var api = {
     pad2: pad2, fmtDate: fmtDate, today: today, parseDate: parseDate, parseBirth: parseBirth, parseDateWords: parseDateWords,
     findDate: findDate, toDateObj: toDateObj, addDays: addDays, addMonths: addMonths, taskDate: taskDate,
     parseTime: parseTime, parseSlot: parseSlot, parseClock: parseClock, floorSlot: floorSlot, to12h: to12h, timeLabel: timeLabel, halfHourSlots: halfHourSlots, yearMonth: yearMonth, defaultPlanYear: defaultPlanYear, moneyNumber: moneyNumber, parseMoney: parseMoney,
     stripAccents: stripAccents, collapse: collapse, titleCase: titleCase, initials: initials,
     splitName: splitName, parseList: parseList, escapeHtml: escapeHtml, MONTHS: MONTHS,
-    parseTeam: parseTeam, teamFile: teamFile, newerVersion: newerVersion, launchCheck: launchCheck
+    parseTeam: parseTeam, teamFile: teamFile, newerVersion: newerVersion, launchCheck: launchCheck,
+    greeting: greeting, joinOr: joinOr
   };
   root.QA = root.QA || {};
   root.QA.util = api;
