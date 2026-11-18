@@ -382,7 +382,8 @@
     }
     if (d.line === "mc") {
       switch (O.id) {
-        case "enviada": return G.v === "cambio" ? "Se procesa cambio de plan de MC" + (carrier ? " a " + carrier : "") + "." : "Se procesa app de MC" + con + ".";
+        /* el canal abre la nota como en OC: "Se atiende al cliente en la oficina (hora), se procesa..." */
+        case "enviada": return talk(d) + ", " + (G.v === "cambio" ? "se procesa cambio de plan de MC" + (carrier ? " a " + carrier : "") : "se procesa app de MC" + con) + ".";
         /* el plan cierra la línea, sin punto, como en el formato de la agencia */
         case "sincambio": return talk(d) + ", se revisan los beneficios de su plan para" + (y || " el próximo año") +
                                  " y decide mantenerse en su plan actual" + (val(d.plan) ? " - " + val(d.plan) : "");
@@ -993,6 +994,8 @@
       lines.push("Para cualquier duda, comuníquese de inmediato con nosotros. Saludos");
     }
     smsSignature(d, lines);
+    /* los referidos, como en el SMS de OC */
+    lines.push(GIFT + (en ? " For every 4 people you refer to us, you get a GIFT CARD!" : " ¡Por cada 4 personas que nos refiera, gana una GIFT CARD!"));
     return lines.join("\n");
   }
 

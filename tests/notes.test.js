@@ -309,7 +309,7 @@ test("nota: Medicare enviada como el template MEDICARE", () => {
     agente: "Ana Torres", agenteIni: "LI", net: { soa: true, appsummary: true }
   }));
   assert.equal(note, [
-    "ER_02/01/2026: Se procesa app de MC con Humana.",
+    "ER_02/01/2026: Se conversa con el cliente (09:00), se procesa app de MC con Humana.",
     "Name: Caso, Angel",
     "MC #: 6CX0X98VT11",
     "PART A: 04/01/2025",
@@ -540,7 +540,8 @@ test("SMS Medicare enviada: formato oficial de la agencia en español e inglés"
     "Para cualquier duda, comuníquese de inmediato con nosotros. Saludos",
     "Ana Ruiz",
     "Directo: (305) 555-0101",
-    "Oficina: (305) 555-0100"
+    "Oficina: (305) 555-0100",
+    "🎁 ¡Por cada 4 personas que nos refiera, gana una GIFT CARD!"
   ].join("\n"));
   /* la agencia sale de la oficina elegida en Ajustes */
   assert.equal(N.buildSms(Object.assign({}, d, { idioma: "en", oficina: "QAgency" })), [
@@ -552,7 +553,8 @@ test("SMS Medicare enviada: formato oficial de la agencia en español e inglés"
     "If you have any questions, contact us right away. Regards",
     "Ana Ruiz",
     "Direct: (305) 555-0101",
-    "Office: (305) 555-0100"
+    "Office: (305) 555-0100",
+    "🎁 For every 4 people you refer to us, you get a GIFT CARD!"
   ].join("\n"));
   /* sin año del plan, el de la fecha efectiva; sin ninguno de los dos, sin año */
   assert.match(N.buildSms(Object.assign({}, d, { anio: "", efectiva: "2/1/2027" })), /su inscripción en Medicare para el 2027 se ha completado/);
@@ -561,8 +563,26 @@ test("SMS Medicare enviada: formato oficial de la agencia en español e inglés"
   assert.equal(N.buildSms(make({ line: "mc", outcome: "enviada", gestion: "cambio", anio: "2027", genero: "a", oficina: "QAgency" })), [
     "Estimada Beatriz:",
     "Somos QAgency Insurance. Le confirmamos que su inscripción en Medicare para el 2027 se ha completado con éxito.",
-    "Para cualquier duda, comuníquese de inmediato con nosotros. Saludos"
+    "Para cualquier duda, comuníquese de inmediato con nosotros. Saludos",
+    "🎁 ¡Por cada 4 personas que nos refiera, gana una GIFT CARD!"
   ].join("\n"));
+});
+
+test("Medicare enviada: el canal abre la nota como en OC", () => {
+  const d = make({ line: "mc", outcome: "enviada", gestion: "nueva", compania: "Humana", genero: "a", hora: "14:30" });
+  const first = (x) => N.buildNote(Object.assign({}, d, x)).split("\n")[0];
+  assert.equal(first({ canal: "Call" }), "LI_02/01/2026: Se conversa con la cliente (02:30), se procesa app de MC con Humana.");
+  assert.equal(first({ canal: "Walk In" }), "LI_02/01/2026: Se atiende a la cliente en la oficina (02:30), se procesa app de MC con Humana.");
+  assert.equal(first({ canal: "Appointment", modalidad: "Zoom" }), "LI_02/01/2026: Se atiende a la cliente en cita por Zoom (02:30), se procesa app de MC con Humana.");
+  assert.equal(first({ canal: "Walk In", gestion: "cambio" }), "LI_02/01/2026: Se atiende a la cliente en la oficina (02:30), se procesa cambio de plan de MC a Humana.");
+  /* OC enviada sigue igual */
+  assert.equal(N.buildNote(make({ line: "oc", outcome: "enviada", gestion: "nueva", compania: "UHC", canal: "Walk In" })).split("\n")[0], "LI_02/01/2026: Se procesa app OC 2026 con UHC.");
+});
+
+test("SMS Medicare enviada: cierra con la gift card de los referidos", () => {
+  const d = make({ line: "mc", outcome: "enviada", gestion: "nueva", anio: "2027", oficina: "QAgency", firmaNombre: "ANA RUIZ" });
+  assert.match(N.buildSms(d), /\nAna Ruiz\n🎁 ¡Por cada 4 personas que nos refiera, gana una GIFT CARD!$/);
+  assert.match(N.buildSms(Object.assign({}, d, { idioma: "en" })), /\nAna Ruiz\n🎁 For every 4 people you refer to us, you get a GIFT CARD!$/);
 });
 
 test("SMS Suplementario enviada: formato oficial de la agencia en español e inglés", () => {
@@ -955,7 +975,7 @@ test("compañía leída de un documento: su opción oficial, o Otra con el nombr
 test("BCBS of, Healthspring y Otra en la nota, el reporte y los archivos", () => {
   const d = conCliente({ line: "mc", outcome: "enviada", gestion: "nueva", codigoQ: "1234", compania: "BCBS OF GA",
     efectiva: "01/01/2027", soaFecha: "11/10/2026" });
-  assert.match(N.buildNote(d), /^LI_11\/15\/2026: Se procesa app de MC con BCBS of GA\.\n/);
+  assert.match(N.buildNote(d), /^LI_11\/15\/2026: Se conversa con .+, se procesa app de MC con BCBS of GA\.\n/);
   assert.equal(N.buildReport(d), "Q1234 - Diaz, Beatriz Elena - App MC BCBS of GA 2026 - Call (LI)");
   assert.deepEqual(N.buildFileNames(d).map((f) => f.name), [
     "Diaz, Beatriz Elena - Medicare_BCBS of GA_SOA 2026 NOV",
