@@ -72,21 +72,42 @@ New-Item -ItemType Directory -Force -Path $destino | Out-Null
 Copy-Item -Force $html $destino
 Copy-Item -Force (Join-Path $origen "toolbox.ico") $destino
 
-$pagina = ([System.Uri](Join-Path $destino "QAgency-Toolbox.html")).AbsoluteUri
+# ?perfil=propio le dice a la herramienta que la abrio su icono: abierta de
+# otra forma avisa que esa ventana no ve los ajustes.
+$pagina = ([System.Uri](Join-Path $destino "QAgency-Toolbox.html")).AbsoluteUri + "?perfil=propio"
 # La herramienta abre siempre con su propio perfil del navegador. Sin un perfil
 # fijo, Chrome la abre en el ultimo perfil que se uso, y con varios perfiles los
 # ajustes (equipo, oficina, carpetas) parecen perderse al cerrarla y abrirla.
 $perfil = Join-Path $destino "Navegador"
 New-Item -ItemType Directory -Force -Path $perfil | Out-Null
+$argumentos = "--user-data-dir=`"$perfil`" --no-first-run --no-default-browser-check --app=`"$pagina`""
 $shell = New-Object -ComObject WScript.Shell
-foreach ($a in $accesos) {
-  $s = $shell.CreateShortcut($a)
+function Apuntar-Acceso($s) {
   $s.TargetPath = $navegador
-  $s.Arguments = "--user-data-dir=`"$perfil`" --no-first-run --no-default-browser-check --app=`"$pagina`""
+  $s.Arguments = $argumentos
   $s.IconLocation = (Join-Path $destino "toolbox.ico")
   $s.WorkingDirectory = $destino
   $s.Description = "Nota, task y reporte en un solo paso"
   $s.Save()
+}
+foreach ($a in $accesos) { Apuntar-Acceso ($shell.CreateShortcut($a)) }
+
+# Un ancla de la barra de tareas es una copia del acceso directo y no cambia
+# sola: una anclada antes de que la herramienta tuviera su propio perfil sigue
+# abriendo el navegador en otro perfil, sin los ajustes. Se apunta como el
+# acceso directo. Solo se tocan las que abren esta herramienta instalada.
+$anclas = Join-Path $env:APPDATA "Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar"
+$anclasArregladas = 0
+if (Test-Path $anclas) {
+  foreach ($f in (Get-ChildItem -LiteralPath $anclas -Filter "*.lnk" -ErrorAction SilentlyContinue)) {
+    try {
+      $s = $shell.CreateShortcut($f.FullName)
+      if ($s.Arguments -match 'QAgencyToolbox[\\/]+QAgency-Toolbox\.html' -and ($s.Arguments -ne $argumentos -or $s.TargetPath -ne $navegador)) {
+        Apuntar-Acceso $s
+        $anclasArregladas++
+      }
+    } catch { }
+  }
 }
 
 # El actualizador queda junto a la herramienta. Su acceso directo llama a
@@ -120,5 +141,10 @@ if ($habiaAcceso -and -not $propioAntes) {
   Write-Host "perfil del navegador, para que los ajustes no se pierdan al cerrarla."
   Write-Host "La primera vez que la abras configurala de nuevo: Ajustes > Importar equipo"
   Write-Host "(QAgency-Equipo.json), tu nombre, la oficina y las carpetas del Network."
-  Write-Host "Si la tenias anclada en la barra de tareas, quitala y vuelve a anclarla."
+}
+if ($anclasArregladas -gt 0) {
+  Write-Host ""
+  Write-Host "Se arreglo el icono anclado en la barra de tareas: ahora abre la herramienta"
+  Write-Host "con su propio perfil, igual que el icono del Escritorio."
+  Write-Host "Si al abrirla falta tu equipo, importa QAgency-Equipo.json en Ajustes."
 }

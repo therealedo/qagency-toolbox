@@ -159,11 +159,23 @@ test("los accesos directos abren siempre el mismo perfil del navegador, propio d
   const ps = fs.readFileSync(path.join(root, "tools", "windows", "instalar.ps1"), "utf8");
   /* sin perfil fijo, Chrome la abre en el último perfil usado y los ajustes "desaparecen" */
   assert.match(ps, /\$perfil = Join-Path \$destino "Navegador"/);
-  const args = ps.match(/\$s\.Arguments = "(--user-data-dir[^\n]*--app=[^\n]*)"/);
+  const args = ps.match(/\$argumentos = "(--user-data-dir[^\n]*--app=[^\n]*)"/);
   assert.ok(args, "el acceso directo de la herramienta lleva --user-data-dir antes de --app");
   assert.match(args[1], /--user-data-dir=`"\$perfil`"/);
   assert.match(args[1], /--no-first-run/);
+  assert.match(ps, /\$s\.Arguments = \$argumentos/);
+  /* el ícono marca la página para que sepa que la abrió con su perfil */
+  assert.match(ps, /\.AbsoluteUri \+ "\?perfil=propio"/);
   /* quien venía del perfil compartido recibe el aviso de qué volver a configurar */
   assert.match(ps, /\$propioAntes/);
   assert.match(ps, /Importar equipo/);
+});
+
+test("las anclas viejas de la barra de tareas se apuntan al perfil propio", () => {
+  const ps = fs.readFileSync(path.join(root, "tools", "windows", "instalar.ps1"), "utf8");
+  assert.match(ps, /\$anclas = Join-Path \$env:APPDATA "Microsoft\\Internet Explorer\\Quick Launch\\User Pinned\\TaskBar"/);
+  /* solo las que abren la copia instalada, y solo si no están ya bien */
+  assert.match(ps, /\$s\.Arguments -match 'QAgencyToolbox\[\\\\\/\]\+QAgency-Toolbox\\\.html'/);
+  assert.match(ps, /\$s\.Arguments -ne \$argumentos -or \$s\.TargetPath -ne \$navegador/);
+  assert.match(ps, /Apuntar-Acceso \$s/);
 });
