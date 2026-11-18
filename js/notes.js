@@ -893,6 +893,8 @@
           : "Carta de consentimiento enviada.");
       }
     } else {
+      /* Medicare: el HRA hecho con el cliente, en cualquier idioma del cliente */
+      if (d.line === "mc" && d.hra) { out.push("Se completó el HRA (Health Risk Assessment)."); }
       var docs = networkDocs(d);
       if (docs.length) { out.push("Docs en mi folder del NETW: " + docs.join(", ") + "."); }
     }

@@ -136,6 +136,8 @@ The team is not in the code: the repository is public, so names and NPNs stay ou
 
 Each situation writes the note the way PROCESS TEMPLATES does: `ER_11/09/2026:` and one sentence, then the case data in the agency's own labels (`ID#`, `Status`, `Inicia cobertura`, `Premium`, `Enrollment Period`, `MC #`, `PART A`, `Conf/App #`, `Effective Date`, `Monthly Premium`, `AutoPay`…), the agent as `NPN: LI`, and `Docs en mi folder del NETW: …`. **En la nota** switches between *el cliente* and *la cliente*.
 
+In Medicare, the **Se completó el HRA (Health Risk Assessment)** checkbox only adds that line to the note, before the Network documents, in both Medicare situations and whether the client speaks Spanish or English; it changes nothing else.
+
 A submitted application ends with «Se reporta en el botón rojo» (it can be switched off in Ajustes). The task never goes in the note; it is only in the Task box.
 
 The note never asks for or includes Marketplace usernames, passwords or security questions.

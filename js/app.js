@@ -312,6 +312,8 @@
     { k: "afeccion", g: "plan", sec: "plan", type: "text", label: "Afección crónica que califica", w: "w2", lines: ["mc"], when: function () { return !mcSin(); } },
     { k: "cmd", g: "plan", sec: "plan", type: "check", w: "w2", lines: ["mc"], label: "Condiciones médicas diversas (task CMD)",
       when: function () { return O().task === "mc_mant" && !O().cancelled && !mcSin(); } },
+    /* solo agrega su línea a la nota */
+    { k: "hra", g: "plan", sec: "plan", type: "check", w: "w2", lines: ["mc"], label: "Se completó el HRA (Health Risk Assessment)" },
 
     { k: "pagoEstado", g: "pago", sec: "pago", type: "seg", label: "Estado del pago", w: "full",
       options: function () {
