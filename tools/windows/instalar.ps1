@@ -102,7 +102,8 @@ if (Test-Path $anclas) {
   foreach ($f in (Get-ChildItem -LiteralPath $anclas -Filter "*.lnk" -ErrorAction SilentlyContinue)) {
     try {
       $s = $shell.CreateShortcut($f.FullName)
-      if ($s.Arguments -match 'QAgencyToolbox[\\/]+QAgency-Toolbox\.html' -and ($s.Arguments -ne $argumentos -or $s.TargetPath -ne $navegador)) {
+      $abreNavegador = $s.TargetPath -match '\\(chrome|msedge|brave)(_proxy)?\.exe$'
+      if ($abreNavegador -and $s.Arguments -match 'QAgencyToolbox[\\/]+QAgency-Toolbox\.html' -and ($s.Arguments -ne $argumentos -or $s.TargetPath -ne $navegador)) {
         Apuntar-Acceso $s
         $anclasArregladas++
       }

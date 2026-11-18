@@ -177,5 +177,8 @@ test("las anclas viejas de la barra de tareas se apuntan al perfil propio", () =
   /* solo las que abren la copia instalada, y solo si no están ya bien */
   assert.match(ps, /\$s\.Arguments -match 'QAgencyToolbox\[\\\\\/\]\+QAgency-Toolbox\\\.html'/);
   assert.match(ps, /\$s\.Arguments -ne \$argumentos -or \$s\.TargetPath -ne \$navegador/);
+  /* un ancla que abre el archivo con otro programa (un editor) no se toca */
+  assert.match(ps, /\$abreNavegador = \$s\.TargetPath -match '\\\\\(chrome\|msedge\|brave\)\(_proxy\)\?\\\.exe\$'/);
+  assert.match(ps, /if \(\$abreNavegador -and /);
   assert.match(ps, /Apuntar-Acceso \$s/);
 });
