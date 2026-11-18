@@ -6,7 +6,7 @@
    datos de los clientes nunca salen de la página. */
 "use strict";
 
-const VERSION = "1.19.0";
+const VERSION = "1.20.0";
 const CACHE = "qa-toolbox-" + VERSION;
 const SHELL = [
   "./",
