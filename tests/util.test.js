@@ -148,6 +148,13 @@ test("inicio: el saludo usa la hora y el primer nombre de quien escribe", () => 
   assert.equal(U.joinOr([]), "");
 });
 
+test("secciones: la línea de resumen junta los valores sin repetir ni dejar huecos", () => {
+  assert.equal(U.summaryLine(["Beatriz", " Diaz ", "", null, "Q1234"]), "Beatriz · Diaz · Q1234");
+  assert.equal(U.summaryLine(["Call", "call", "11/18/2026"]), "Call · 11/18/2026");
+  assert.equal(U.summaryLine([]), "Sin datos todavía");
+  assert.equal(U.summaryLine(["", "  "]), "Sin datos todavía");
+});
+
 test("parseBirth: una fecha de nacimiento con el año en dos cifras no queda en el futuro", () => {
   assert.equal(U.parseBirth("5/2/80"), "05/02/1980");
   assert.equal(U.parseBirth("5/2/12"), "05/02/2012");

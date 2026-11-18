@@ -461,6 +461,22 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
 
 .group-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
 .group-head h3 { font-size: 15px; font-weight: 650; letter-spacing: -.005em; }
+/* secciones que se cierran: la cabecera es el botón; cerrada muestra su resumen */
+.group-head h3.group-title { flex: 1; min-width: 0; margin: 0; }
+.group-toggle {
+  display: flex; align-items: center; gap: 12px; width: 100%; min-height: 40px; padding: 2px 0;
+  background: none; border: 0; color: inherit; font: inherit; text-align: left; cursor: pointer;
+}
+.group-toggle:focus-visible { outline: 2px solid var(--brand); outline-offset: 3px; border-radius: 8px; }
+.group-name { flex: none; }
+.group-sum { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 400; color: var(--ink-3); }
+.group-chev { flex: none; margin-left: auto; display: flex; color: var(--ink-3); transition: transform .15s; }
+.group:not(.is-closed) .group-sum { display: none; }
+.group:not(.is-closed) .group-chev { transform: rotate(180deg); }
+.group.is-closed .group-body { display: none; }
+.group.is-closed .group-head { margin-bottom: 0; }
+.group.is-closed { padding-top: 12px; padding-bottom: 12px; }
+.group.is-closed .group-toggle:hover .group-name { color: var(--brand-ink); }
 .review {
   padding: 1px 9px; border-radius: 999px;
   background: var(--gold-soft); color: var(--gold-ink);

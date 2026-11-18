@@ -196,7 +196,8 @@
      when     condición adicional sobre los datos
      w        ancho en la rejilla: w2, w3, full
      type     text, date, int, money, area, select, seg, check, slot (hora
-              de media hora) o una lista: personas, docslist, planeslist */
+              de media hora) o una lista: personas, docslist, planeslist
+     sum      false: no va en el resumen de la sección cerrada */
   var FIELDS = [
     { k: "fecha", g: "contacto", type: "date", label: "Fecha de la nota" },
     { k: "anio", g: "contacto", type: "int", label: "Año del plan", max: 4 },
@@ -209,7 +210,7 @@
     { k: "nombres", g: "cliente", sec: "cliente", type: "text", label: function () { return S.line !== "mc" ? "Nombre(s) del titular" : "Nombre(s)"; },
       w: "w2", upper: true, hint: "Como aparece en Zoho" },
     { k: "apellidos", g: "cliente", sec: "cliente", type: "text", label: "Apellido(s)", w: "w2", upper: true },
-    { k: "genero", g: "cliente", sec: "cliente", type: "seg", label: "En la nota", w: "w2",
+    { k: "genero", g: "cliente", sec: "cliente", type: "seg", label: "En la nota", w: "w2", sum: false,
       options: [{ v: "o", l: "el cliente" }, { v: "a", l: "la cliente" }] },
     { k: "codigoTipo", g: "cliente", sec: "cliente", type: "seg", label: "Código en Zoho", w: "w2",
       options: [{ v: "Q", l: "Código Q" }, { v: "New", l: "New" }, { v: "Sin Code", l: "Sin Code" }] },
@@ -884,7 +885,18 @@
       sec.id = "sec-" + G.id;
       sec.dataset.group = G.id;
       var head = el("div", "group-head");
-      var h3 = el("h3"); h3.dataset.title = G.id;
+      /* la cabecera abre y cierra la sección; cerrada, muestra su resumen */
+      var h3 = el("h3", "group-title");
+      var tog = el("button", "group-toggle");
+      tog.type = "button"; tog.dataset.toggle = G.id;
+      tog.setAttribute("aria-expanded", "true"); tog.setAttribute("aria-controls", "body-" + G.id);
+      var t = el("span", "group-name"); t.dataset.title = G.id;
+      tog.appendChild(t);
+      tog.appendChild(el("span", "group-sum")).dataset.sum = G.id;
+      var chev = el("span", "group-chev"); chev.setAttribute("aria-hidden", "true");
+      chev.innerHTML = '<svg viewBox="0 0 20 20" width="18" height="18"><path d="m5 8 5 5 5-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+      tog.appendChild(chev);
+      h3.appendChild(tog);
       head.appendChild(h3);
       var badge = el("span", "review"); badge.hidden = true;
       head.appendChild(badge);
@@ -895,21 +907,23 @@
       ok.addEventListener("click", function () { confirmReviewed(G.id); });
       head.appendChild(ok);
       sec.appendChild(head);
+      var body = el("div", "group-body"); body.id = "body-" + G.id;
       var grid = el("div", "grid");
       FIELDS.filter(function (F) { return F.g === G.id; }).forEach(function (F) { grid.appendChild(buildField(F)); });
       if (G.id === "network") {
         grid.id = "netGrid"; grid.className = "net";
-        sec.appendChild(el("p", "hint net-hint", "Marca lo que guardaste: sale en la nota. El nombre ya viene en el formato de NOMBRE DE ARCHIVOS."));
+        body.appendChild(el("p", "hint net-hint", "Marca lo que guardaste: sale en la nota. El nombre ya viene en el formato de NOMBRE DE ARCHIVOS."));
       }
-      sec.appendChild(grid);
+      body.appendChild(grid);
       if (G.id === "network") {
         var foot = el("div", "net-foot"); foot.id = "netFoot"; foot.hidden = true;
         var all = el("button", "btn small", "Guardar todo en el Network"); all.type = "button"; all.id = "netSaveAll";
         foot.appendChild(all);
         var where = el("span", "muted"); where.id = "netWhere";
         foot.appendChild(where);
-        sec.appendChild(foot);
+        body.appendChild(foot);
       }
+      sec.appendChild(body);
       form.appendChild(sec);
     });
     updateGroupTitles();
@@ -920,6 +934,63 @@
       var sec = $("sec-" + G.id), t = resolve(G.title);
       sec.querySelector("[data-title]").textContent = t;
       sec.dataset.rail = G.short || t;
+    });
+  }
+
+  /* --------------------------------------------- secciones que se cierran --
+     Una sola abierta a la vez. Cuál, se elige sola solo en momentos
+     tranquilos (nota nueva, documento leído, cambio de línea o situación):
+     la primera que tiene algo por revisar o elegir. Nunca mientras se escribe. */
+  var openGroup = "", autoOpenNext = true;
+  function applyOpen() {
+    each($("form").querySelectorAll(".group"), function (g) {
+      var open = g.dataset.group === openGroup;
+      g.classList.toggle("is-closed", !open);
+      g.querySelector(".group-toggle").setAttribute("aria-expanded", open ? "true" : "false");
+    });
+  }
+  function openSection(id, keepInView) {
+    openGroup = id;
+    applyOpen();
+    var sec = id && $("sec-" + id);
+    if (keepInView && sec) {
+      var top = sec.getBoundingClientRect().top;
+      if (top < 64 || top > window.innerHeight - 80) { sec.scrollIntoView({ block: "start" }); window.scrollBy(0, -72); }
+    }
+  }
+  function autoOpen() {
+    var shown = Array.prototype.filter.call($("form").querySelectorAll(".group"), function (g) { return !g.hidden; });
+    var pick = shown.filter(function (g) { return +g.dataset.pending > 0; })[0] || shown[0];
+    openSection(pick ? pick.dataset.group : "");
+  }
+  /* lo que dice una sección cerrada: sus valores visibles, en una línea */
+  function fieldSummary(F) {
+    if (F.sum === false) { return ""; }
+    var k = key(F), v = S.f[k], wrap = $("form").querySelector('.fld[data-k="' + F.k + '"]'), ctl = $("f_" + F.k);
+    if (F.type === "check") { return v ? resolve(F.label) : ""; }
+    if (F.type === "seg") { var on = wrap && wrap.querySelector(".seg .on"); return on ? on.textContent : ""; }
+    if (F.type === "select") { return ctl && ctl.value && ctl.selectedIndex >= 0 ? ctl.options[ctl.selectedIndex].text : ""; }
+    if (F.type === "personas") { var ps = $("peopleSum"); return ps ? ps.textContent : ""; }
+    if (F.type === "docslist" || F.type === "planeslist") {
+      var n = Array.isArray(v) ? v.length : 0;
+      if (!n) { return ""; }
+      return F.type === "docslist" ? n + (n === 1 ? " documento pedido" : " documentos pedidos") : n + (n === 1 ? " plan cotizado" : " planes cotizados");
+    }
+    return ctl && "value" in ctl ? ctl.value : U.collapse(v);
+  }
+  function updateSummaries() {
+    GROUPS.forEach(function (G) {
+      var box = $("form").querySelector('[data-sum="' + G.id + '"]');
+      if (!box) { return; }
+      var text;
+      if (G.id === "network") {
+        var list = N.networkOf(data()), done = list.filter(function (n) { return S.f.net && S.f.net[n.k]; }).length;
+        text = list.length ? done + " de " + list.length + " guardados" : U.summaryLine([]);
+      } else {
+        text = U.summaryLine(FIELDS.filter(function (F) { return F.g === G.id && fieldVisible(F); }).map(fieldSummary));
+      }
+      box.textContent = text;
+      box.title = text;
     });
   }
 
@@ -1337,6 +1408,7 @@
     /* cada línea tiene su lista oficial de compañías */
     syncCarrierChoice();
     afterOutcomeChange();
+    autoOpenNext = true;
     renderPicker(); syncInputs(); refresh();
   }
 
@@ -1345,6 +1417,7 @@
     S.outcome = id;
     S.f.taskId = "";
     afterOutcomeChange();
+    autoOpenNext = true;
     renderPicker(); syncInputs(); refresh();
   }
 
@@ -1600,6 +1673,9 @@
     $("outcomeDesc").textContent = O().desc + ".";
     renderSign(d);
     renderSheet(d);
+    updateSummaries();
+    var openSec = openGroup && $("sec-" + openGroup);
+    if (autoOpenNext || (openSec && openSec.hidden)) { autoOpenNext = false; autoOpen(); }
     renderRail();
   }
 
@@ -2426,6 +2502,7 @@
         var viaOcr = added.some(function (f) { return f.ocr && f.applied; });
         var held = added.filter(function (f) { return f.held; });
         S.dirty = true;
+        autoOpenNext = true;
         renderPicker(); syncInputs(); renderNetwork(); refresh();
         if (held.length) {
           toast((held.length === 1 ? held[0].name + " no coincide" : held.length + " documentos no coinciden") +
@@ -2923,7 +3000,15 @@
     /* carril de secciones */
     $("rail").addEventListener("click", function (e) {
       var b = e.target.closest("[data-target]");
-      if (b) { $(b.dataset.target).scrollIntoView({ behavior: "smooth", block: "start" }); }
+      if (!b) { return; }
+      var sec = $(b.dataset.target);
+      if (sec.dataset.group) { openSection(sec.dataset.group); }
+      sec.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+    /* abrir o cerrar una sección con su cabecera */
+    $("form").addEventListener("click", function (e) {
+      var b = e.target.closest("[data-toggle]");
+      if (b) { openSection(openGroup === b.dataset.toggle ? "" : b.dataset.toggle, true); }
     });
     var ticking = false;
     window.addEventListener("scroll", function () {
@@ -3035,6 +3120,7 @@
       S.outcome = L().outcomes[0].id;
       afterOutcomeChange(); defaultPeople();
       each(form.querySelectorAll(".bad"), function (x) { x.classList.remove("bad"); });
+      autoOpenNext = true;
       renderFiles(); renderPicker(); syncInputs(); refresh();
       showStart(true);
     });
@@ -3117,6 +3203,7 @@
       finishFile(entry, text);
       $("dlgPaste").close();
       S.dirty = true;
+      autoOpenNext = true;
       renderPicker(); syncInputs(); refresh();
       toast(entry.applied ? "Se llenaron " + entry.applied + " campos. Revísalos antes de copiar." : "No se encontraron datos en el texto.");
     });
