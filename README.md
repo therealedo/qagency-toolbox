@@ -144,7 +144,7 @@ The note never asks for or includes Marketplace usernames, passwords or security
 
 ### SMS, email and file names
 
-The SMS card writes a short message for the client: what was done and what they need to do next, greeting them by first name and signed by the agency of the agent whose NPN is used (set per agent in **Ajustes → Equipo**, column *Agencia*) or, when that agent has none, by the office chosen at the top of the screen (or in Ajustes), with that office's phone number if one is set. The email and the signing-link messages follow the same agency. The *Agencia* column travels in the team file (**Exportar equipo** / **Importar equipo**). The counter shows how many text messages it takes; accents or emoji make each one hold 70 characters instead of 160.
+The SMS card writes a short message for the client: what was done and what they need to do next, greeting them by first name and signed by the agency of the agent whose NPN is used (set per agent in **Ajustes → Equipo**, column *Agencia*) or, when that agent has none, by the office chosen at the top of the screen (or in Ajustes), with that agency's phone number if one is set. **Ajustes → Oficina** has one phone field per agency (QAgency and ATH Insurance), so the SMS gets the right number whichever agency signs it. The email and the signing-link messages follow the same agency. The *Agencia* column travels in the team file (**Exportar equipo** / **Importar equipo**). The counter shows how many text messages it takes; accents or emoji make each one hold 70 characters instead of 160.
 
 For an Obamacare **App enviada**, the SMS follows the agency's format, in **Español** or **English** (the switch on the SMS and email cards):
 
@@ -191,7 +191,7 @@ Oficina: (305) 555-0100
 
 The Medicare year is the plan year, or the effective date's year when it is empty. A line whose value is empty is left out.
 
-Below it, **Email para el cliente** has two parts, each with its own **Copiar**: part 1 with the policy (company, coverage start, plan and monthly premium) and part 2 with what the Marketplace is requesting (every requested document with its due date, left out when nothing is requested) and the closing signed by whoever talked to the client. Both follow the same Español / English switch.
+Below it, **Email para el cliente** has two parts, each with its own **Copiar**: part 1 with the policy (company, coverage start, plan and monthly premium) and part 2 with what the Marketplace is requesting (every requested document with its due date, left out when nothing is requested) and the closing signed by whoever talked to the client. Both follow the same Español / English switch. Every client email greets the titular by first name (`Estimada Beatriz:`, `Dear Beatriz:`), or `Cliente` / `Client` when the name is empty.
 
 The Network section lists the documents for the line of business, each with its file name ready to copy. Copying a name also ticks the document, so it is listed in the note. Names follow the agency's official formats, `Lastname, Firstname MiddleName - …`:
 

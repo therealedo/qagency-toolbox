@@ -1086,6 +1086,11 @@
      Email al cliente de una app de Obamacare enviada, en dos partes que se
      copian por separado: 1, la póliza y el plan; 2, lo que pide el Mercado
      (todo lo pedido, enviado o no) y la firma de quien habló con el cliente. */
+  /* el saludo del email lleva el primer nombre del titular: "Estimada Beatriz" */
+  function emailHello(d, en) {
+    var name = firstName(d);
+    return en ? "Dear " + (name || "Client") : (d.genero === "a" ? "Estimada " : "Estimado ") + (name || "Cliente");
+  }
   function buildEmail(d, part) {
     var O = outcomeOf(d);
     if (d.line === "oc" && O.id === "pendiente" && d.revisaPlanes) { return part === 1 ? emailCotizacion(d) : ""; }
@@ -1097,14 +1102,14 @@
       var y = val(d.anio), carrier = carrierName("oc", d.compania), plan = val(d.plan);
       var ef = U.parseDate(d.efectiva), pay = U.parseMoney(d.prima);
       if (en) {
-        lines.push("Dear Client:");
+        lines.push(emailHello(d, true) + ":");
         lines.push("Attached are documents for your" + (y ? " " + y : "") + " policy" + (carrier ? " with " + carrier : "") + ", your application is complete.");
         if (ef) { lines.push("Effective date: " + ef); }
         if (plan) { lines.push("PLAN: " + plan); }
         lines.push("Attached is a detailed description of your benefits with this plan.");
         if (pay) { lines.push("Premium Monthly Payment: " + pay); }
       } else {
-        lines.push((d.genero === "a" ? "Estimada" : "Estimado") + " Cliente:");
+        lines.push(emailHello(d, false) + ":");
         lines.push("Adjunto documentos por su póliza" + (y ? " del " + y : "") + (carrier ? " con " + carrier : "") + ", ya la aplicación fue completada.");
         if (ef) { lines.push("Cobertura a partir del " + ef); }
         if (plan) { lines.push("PLAN: " + plan); }
@@ -1148,11 +1153,11 @@
     var many = plans.length > 1, carriers = groups.length > 1, lines = [];
     var only = carriers ? "" : groups[0].carrier;
     if (en) {
-      lines.push("Dear Client");
+      lines.push(emailHello(d, true));
       lines.push(many ? "Attached are quotes for Insurance Health Plans" : "Attached is a quote for an Insurance Health Plan");
       lines.push(carriers ? "with the following companies:" : "with the following company:" + (only ? " " + only : ""));
     } else {
-      lines.push((d.genero === "a" ? "Estimada" : "Estimado") + " Cliente");
+      lines.push(emailHello(d, false));
       lines.push("Adjunto cotizaciones para su plan médico a través de " +
         (carriers ? "las compañías:" : "la compañía:" + (only ? " " + only : "")));
     }
@@ -1181,14 +1186,14 @@
     var carrier = carrierName("supp", d.compania), id = val(d.poliza);
     var ef = U.parseDate(d.efectiva), pay = U.parseMoney(d.prima);
     if (en) {
-      lines.push("Dear Client", "", "We attached the application for:");
+      lines.push(emailHello(d, true), "", "We attached the application for:");
       if (carrier) { lines.push("Company " + carrier); }
       if (id) { lines.push("ID # " + id); }
       if (ef) { lines.push("Effective date: " + ef); }
       if (pay) { lines.push("Monthly Premium: " + pay); }
       lines.push("Please feel free to contact us, if you have any questions or concerns.", "", "Best regards,");
     } else {
-      lines.push((d.genero === "a" ? "Estimada" : "Estimado") + " Cliente", "", "Se adjunta Aplicación al Plan:");
+      lines.push(emailHello(d, false), "", "Se adjunta Aplicación al Plan:");
       if (carrier) { lines.push("Compañía " + carrier); }
       if (id) { lines.push("ID # " + id); }
       if (ef) { lines.push("Cobertura a partir del " + ef); }

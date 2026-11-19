@@ -2794,7 +2794,6 @@
     settings.oficina = v; saveSettings();
     renderOffice();
     syncSeg($("officeSeg"), v);
-    $("officeTel").value = settings.telefonos[v] || "";
     refresh();
   }
 
@@ -2867,12 +2866,21 @@
     fillSettings();
     $("dlgSettings").showModal();
   }
+  /* un teléfono por agencia: el SMS usa el de la agencia que lo firma, que
+     puede ser la del agente del NPN y no la elegida arriba */
+  function renderOfficeTels() {
+    $("officeTels").innerHTML = C.OFFICES.map(function (o) {
+      return '<label class="mini"><span>Teléfono de ' + U.escapeHtml(o) + '</span><input type="text" data-office-tel="' + U.escapeHtml(o) +
+        '" value="' + U.escapeHtml(settings.telefonos[o] || "") + '" placeholder="(305) 555-0100" inputmode="tel"></label>';
+    }).join("");
+  }
+
   function fillSettings() {
     renderTeam();
     var seg = $("officeSeg");
     fillSeg(seg, C.OFFICES.map(function (o) { return { v: o, l: o }; }));
     syncSeg(seg, settings.oficina);
-    $("officeTel").value = settings.telefonos[settings.oficina] || "";
+    renderOfficeTels();
     $("optRojo").checked = settings.botonRojo;
     $("optAcentos").checked = settings.sinAcentos;
     renderSignLinks();
@@ -3306,9 +3314,11 @@
       setOffice(b.dataset.v);
     });
     $("oficinaTop").addEventListener("change", function () { setOffice(this.value); });
-    $("officeTel").addEventListener("input", function () {
-      settings.telefonos[settings.oficina] = U.collapse(this.value);
-      saveSettings();
+    $("officeTels").addEventListener("input", function (e) {
+      var o = e.target.dataset.officeTel;
+      if (!o) { return; }
+      settings.telefonos[o] = U.collapse(e.target.value);
+      saveSettings(); refresh();
     });
     $("signLinkRows").addEventListener("input", function (e) {
       var k = e.target.dataset.signLink;

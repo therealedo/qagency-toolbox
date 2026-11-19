@@ -635,7 +635,7 @@ test("email Obamacare: parte 1 con la póliza y parte 2 con lo que pide el Merca
     docs: [{ cat: "immigration", persona: "JUAN CARLOS DIAZ", fecha: "03/01/2027", enviado: true },
            { cat: "income", persona: "BEATRIZ DIAZ", fecha: "02/12/2027" }] });
   assert.equal(N.buildEmail(d, 1), [
-    "Estimado Cliente:",
+    "Estimado Beatriz:",
     "Adjunto documentos por su póliza del 2027 con Florida Blue, ya la aplicación fue completada.",
     "Cobertura a partir del 01/01/2027",
     "PLAN: myBlue Essentials Silver",
@@ -654,7 +654,7 @@ test("email Obamacare: parte 1 con la póliza y parte 2 con lo que pide el Merca
   ].join("\n"));
   const en = Object.assign({}, d, { idioma: "en" });
   assert.equal(N.buildEmail(en, 1), [
-    "Dear Client:",
+    "Dear Beatriz:",
     "Attached are documents for your 2027 policy with Florida Blue, your application is complete.",
     "Effective date: 01/01/2027",
     "PLAN: myBlue Essentials Silver",
@@ -675,7 +675,7 @@ test("email Obamacare: parte 1 con la póliza y parte 2 con lo que pide el Merca
   assert.match(N.buildEmail(Object.assign({}, d, { docs: [{ cat: "income", persona: "BEATRIZ DIAZ", fecha: "02/12/2027" }] }), 2),
     /^MARKETPLACE SOLICITA:\nPruebas de Ingresos, fecha límite 02\/12\/2027\n\n/);
   assert.equal(N.buildEmail(Object.assign({}, d, { docs: [] }), 2), "Por favor comuníquese con nosotros por cualquier duda.\n\nSaludos\nDaniel Rivas");
-  assert.match(N.buildEmail(Object.assign({}, d, { genero: "a" }), 1), /^Estimada Cliente:\n/);
+  assert.match(N.buildEmail(Object.assign({}, d, { genero: "a" }), 1), /^Estimada Beatriz:\n/);
   assert.equal(N.buildEmail(make({ line: "oc", outcome: "pendiente" }), 1), "", "solo para una app enviada");
   assert.equal(N.buildEmail(make({ line: "mc", outcome: "enviada" }), 2), "");
   assert.ok(C.MKPL_DOCS.every((c) => /^Pruebas de /.test(c.es) && /^Proof of /.test(c.en)), "las 11 en los dos idiomas");
@@ -685,7 +685,7 @@ test("email de cotización: Obamacare pendiente que revisará los planes", () =>
   const blue = { compania: "Florida Blue", plan: "Blue Care Silver 1477C", prima: "0" };
   const d = make({ line: "oc", outcome: "pendiente", revisaPlanes: true, efectiva: "01/01/2027", planes: [blue] });
   assert.equal(N.buildEmail(d, 1), [
-    "Estimado Cliente",
+    "Estimado Beatriz",
     "Adjunto cotizaciones para su plan médico a través de la compañía: FLORIDA BLUE",
     "NOMBRE DEL PLAN: BLUE CARE SILVER 1477C",
     "Prima Mensual: $0.00",
@@ -693,19 +693,19 @@ test("email de cotización: Obamacare pendiente que revisará los planes", () =>
   ].join("\n"));
   assert.equal(N.buildEmail(d, 2), "", "una sola parte");
   assert.equal(N.buildEmail(Object.assign({}, d, { idioma: "en" }), 1), [
-    "Dear Client",
+    "Dear Beatriz",
     "Attached is a quote for an Insurance Health Plan",
     "with the following company: FLORIDA BLUE",
     "Name of the plan: BLUE CARE SILVER 1477C",
     "Monthly Premium Payment: $0.00",
     "Effective Date: 01/01/2027"
   ].join("\n"));
-  assert.match(N.buildEmail(Object.assign({}, d, { genero: "a" }), 1), /^Estimada Cliente\n/);
+  assert.match(N.buildEmail(Object.assign({}, d, { genero: "a" }), 1), /^Estimada Beatriz\n/);
   /* varios planes de la misma compañía: la compañía una vez y cada plan con su prima */
   const otro = { compania: "Florida Blue", plan: "myBlue Essentials Silver", prima: "45" };
   const dos = Object.assign({}, d, { planes: [blue, otro, { compania: "", plan: "" }] });
   assert.equal(N.buildEmail(dos, 1), [
-    "Estimado Cliente",
+    "Estimado Beatriz",
     "Adjunto cotizaciones para su plan médico a través de la compañía: FLORIDA BLUE",
     "",
     "NOMBRE DEL PLAN: BLUE CARE SILVER 1477C",
@@ -717,7 +717,7 @@ test("email de cotización: Obamacare pendiente que revisará los planes", () =>
     "Cobertura a partir del 01/01/2027"
   ].join("\n"));
   assert.equal(N.buildEmail(Object.assign({}, dos, { idioma: "en" }), 1), [
-    "Dear Client",
+    "Dear Beatriz",
     "Attached are quotes for Insurance Health Plans",
     "with the following company: FLORIDA BLUE",
     "",
@@ -733,7 +733,7 @@ test("email de cotización: Obamacare pendiente que revisará los planes", () =>
   const amb = { compania: "Ambetter", plan: "Everyday Bronze", prima: "12.5" };
   const tres = Object.assign({}, d, { planes: [blue, amb, otro] });
   assert.equal(N.buildEmail(tres, 1), [
-    "Estimado Cliente",
+    "Estimado Beatriz",
     "Adjunto cotizaciones para su plan médico a través de las compañías:",
     "",
     "Compañía: FLORIDA BLUE",
@@ -749,7 +749,7 @@ test("email de cotización: Obamacare pendiente que revisará los planes", () =>
     "Cobertura a partir del 01/01/2027"
   ].join("\n"));
   assert.equal(N.buildEmail(Object.assign({}, tres, { idioma: "en" }), 1), [
-    "Dear Client",
+    "Dear Beatriz",
     "Attached are quotes for Insurance Health Plans",
     "with the following companies:",
     "",
@@ -776,7 +776,7 @@ test("email Suplementario: aplicación enviada en español e inglés", () => {
   const d = make({ line: "supp", outcome: "enviada", gestion: "nueva", producto: "Dental", compania: "FLORIDA BLUE (FCL)",
     poliza: "FB123456", efectiva: "12/01/2026", prima: "38.5", firmaNombre: "DANIEL RIVAS" });
   assert.equal(N.buildEmail(d, 1), [
-    "Estimado Cliente",
+    "Estimado Beatriz",
     "",
     "Se adjunta Aplicación al Plan:",
     "Compañía Florida Blue",
@@ -790,7 +790,7 @@ test("email Suplementario: aplicación enviada en español e inglés", () => {
     "Daniel Rivas"
   ].join("\n"));
   assert.equal(N.buildEmail(Object.assign({}, d, { idioma: "en" }), 1), [
-    "Dear Client",
+    "Dear Beatriz",
     "",
     "We attached the application for:",
     "Company Florida Blue",
@@ -802,7 +802,7 @@ test("email Suplementario: aplicación enviada en español e inglés", () => {
     "Best regards,",
     "Daniel Rivas"
   ].join("\n"));
-  assert.match(N.buildEmail(Object.assign({}, d, { genero: "a" }), 1), /^Estimada Cliente\n/);
+  assert.match(N.buildEmail(Object.assign({}, d, { genero: "a" }), 1), /^Estimada Beatriz\n/);
   /* una sola parte; sin póliza no hay línea de ID */
   assert.equal(N.buildEmail(d, 2), "");
   assert.doesNotMatch(N.buildEmail(Object.assign({}, d, { poliza: "" }), 1), /ID #/);
@@ -1511,4 +1511,16 @@ test("Medicare: la dirección es solo para confirmar, no sale en la nota, el tas
     const out = [N.buildNote(d), N.buildTask(d), N.buildReport(d), N.buildSms(d), N.buildEmail(d, 1), N.buildEmail(d, 2)];
     out.forEach((t) => assert.doesNotMatch(String(t || ""), /SAMPLE BLVD/i, outcome));
   });
+});
+
+test("email: el saludo lleva el primer nombre del titular, o Cliente si no hay nombre", () => {
+  const oc = make({ line: "oc", outcome: "enviada", nombres: "MARIA ELENA", genero: "a" });
+  assert.match(N.buildEmail(oc, 1), /^Estimada Maria:\n/);
+  assert.match(N.buildEmail(Object.assign({}, oc, { idioma: "en" }), 1), /^Dear Maria:\n/);
+  assert.match(N.buildEmail(Object.assign({}, oc, { nombres: "" }), 1), /^Estimada Cliente:\n/);
+  assert.match(N.buildEmail(Object.assign({}, oc, { nombres: "", idioma: "en" }), 1), /^Dear Client:\n/);
+  const supp = make({ line: "supp", outcome: "enviada", nombres: "" });
+  assert.match(N.buildEmail(supp, 1), /^Estimado Cliente\n/);
+  const cot = make({ line: "oc", outcome: "pendiente", revisaPlanes: true, nombres: "LUIS", planes: [{ compania: "Ambetter", plan: "Silver", prima: "10" }] });
+  assert.match(N.buildEmail(cot, 1), /^Estimado Luis\n/);
 });
