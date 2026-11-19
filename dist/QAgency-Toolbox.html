@@ -1404,9 +1404,9 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
     <h3>Oficina</h3>
     <div class="office-row">
       <div class="seg seg-fit" id="officeSeg" role="radiogroup" aria-label="Oficina"></div>
-      <label class="mini"><span>Teléfono de la oficina</span><input type="text" id="officeTel" placeholder="(305) 555-0100" inputmode="tel"></label>
     </div>
-    <p class="muted">El nombre de la oficina y su teléfono salen en el SMS para el cliente. Si el agente cuyo NPN se usa tiene su agencia elegida en Equipo, el Consent, el SMS y el email salen de esa agencia.</p>
+    <div class="office-row" id="officeTels"></div>
+    <p class="muted">El nombre de la oficina y su teléfono salen en el SMS para el cliente. Si el agente cuyo NPN se usa tiene su agencia elegida en Equipo, el Consent, el SMS y el email salen de esa agencia, con el teléfono de esa agencia.</p>
 
     <h3>Equipo</h3>
     <p class="muted">Las iniciales de notas encabezan la nota y el task. Las de agente son las que salen entre paréntesis en el reporte, si son distintas. El NPN solo hace falta para quien figura como agente escritor. El teléfono directo sale en el SMS de Obamacare, debajo de la firma de quien habló con el cliente.</p>
@@ -1519,7 +1519,7 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
 (function (root) {
   "use strict";
 
-  var VERSION = "1.21.1";
+  var VERSION = "1.21.2";
   /* De aquí la herramienta instalada lee el número de la última versión (y
      nada más). La política de seguridad de index.html solo permite esta
      dirección, y el actualizador de Windows usa el mismo repositorio. */
@@ -3440,6 +3440,11 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
      Email al cliente de una app de Obamacare enviada, en dos partes que se
      copian por separado: 1, la póliza y el plan; 2, lo que pide el Mercado
      (todo lo pedido, enviado o no) y la firma de quien habló con el cliente. */
+  /* el saludo del email lleva el primer nombre del titular: "Estimada Beatriz" */
+  function emailHello(d, en) {
+    var name = firstName(d);
+    return en ? "Dear " + (name || "Client") : (d.genero === "a" ? "Estimada " : "Estimado ") + (name || "Cliente");
+  }
   function buildEmail(d, part) {
     var O = outcomeOf(d);
     if (d.line === "oc" && O.id === "pendiente" && d.revisaPlanes) { return part === 1 ? emailCotizacion(d) : ""; }
@@ -3451,14 +3456,14 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
       var y = val(d.anio), carrier = carrierName("oc", d.compania), plan = val(d.plan);
       var ef = U.parseDate(d.efectiva), pay = U.parseMoney(d.prima);
       if (en) {
-        lines.push("Dear Client:");
+        lines.push(emailHello(d, true) + ":");
         lines.push("Attached are documents for your" + (y ? " " + y : "") + " policy" + (carrier ? " with " + carrier : "") + ", your application is complete.");
         if (ef) { lines.push("Effective date: " + ef); }
         if (plan) { lines.push("PLAN: " + plan); }
         lines.push("Attached is a detailed description of your benefits with this plan.");
         if (pay) { lines.push("Premium Monthly Payment: " + pay); }
       } else {
-        lines.push((d.genero === "a" ? "Estimada" : "Estimado") + " Cliente:");
+        lines.push(emailHello(d, false) + ":");
         lines.push("Adjunto documentos por su póliza" + (y ? " del " + y : "") + (carrier ? " con " + carrier : "") + ", ya la aplicación fue completada.");
         if (ef) { lines.push("Cobertura a partir del " + ef); }
         if (plan) { lines.push("PLAN: " + plan); }
@@ -3502,11 +3507,11 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
     var many = plans.length > 1, carriers = groups.length > 1, lines = [];
     var only = carriers ? "" : groups[0].carrier;
     if (en) {
-      lines.push("Dear Client");
+      lines.push(emailHello(d, true));
       lines.push(many ? "Attached are quotes for Insurance Health Plans" : "Attached is a quote for an Insurance Health Plan");
       lines.push(carriers ? "with the following companies:" : "with the following company:" + (only ? " " + only : ""));
     } else {
-      lines.push((d.genero === "a" ? "Estimada" : "Estimado") + " Cliente");
+      lines.push(emailHello(d, false));
       lines.push("Adjunto cotizaciones para su plan médico a través de " +
         (carriers ? "las compañías:" : "la compañía:" + (only ? " " + only : "")));
     }
@@ -3535,14 +3540,14 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
     var carrier = carrierName("supp", d.compania), id = val(d.poliza);
     var ef = U.parseDate(d.efectiva), pay = U.parseMoney(d.prima);
     if (en) {
-      lines.push("Dear Client", "", "We attached the application for:");
+      lines.push(emailHello(d, true), "", "We attached the application for:");
       if (carrier) { lines.push("Company " + carrier); }
       if (id) { lines.push("ID # " + id); }
       if (ef) { lines.push("Effective date: " + ef); }
       if (pay) { lines.push("Monthly Premium: " + pay); }
       lines.push("Please feel free to contact us, if you have any questions or concerns.", "", "Best regards,");
     } else {
-      lines.push((d.genero === "a" ? "Estimada" : "Estimado") + " Cliente", "", "Se adjunta Aplicación al Plan:");
+      lines.push(emailHello(d, false), "", "Se adjunta Aplicación al Plan:");
       if (carrier) { lines.push("Compañía " + carrier); }
       if (id) { lines.push("ID # " + id); }
       if (ef) { lines.push("Cobertura a partir del " + ef); }
@@ -9720,7 +9725,6 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
     settings.oficina = v; saveSettings();
     renderOffice();
     syncSeg($("officeSeg"), v);
-    $("officeTel").value = settings.telefonos[v] || "";
     refresh();
   }
 
@@ -9793,12 +9797,21 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
     fillSettings();
     $("dlgSettings").showModal();
   }
+  /* un teléfono por agencia: el SMS usa el de la agencia que lo firma, que
+     puede ser la del agente del NPN y no la elegida arriba */
+  function renderOfficeTels() {
+    $("officeTels").innerHTML = C.OFFICES.map(function (o) {
+      return '<label class="mini"><span>Teléfono de ' + U.escapeHtml(o) + '</span><input type="text" data-office-tel="' + U.escapeHtml(o) +
+        '" value="' + U.escapeHtml(settings.telefonos[o] || "") + '" placeholder="(305) 555-0100" inputmode="tel"></label>';
+    }).join("");
+  }
+
   function fillSettings() {
     renderTeam();
     var seg = $("officeSeg");
     fillSeg(seg, C.OFFICES.map(function (o) { return { v: o, l: o }; }));
     syncSeg(seg, settings.oficina);
-    $("officeTel").value = settings.telefonos[settings.oficina] || "";
+    renderOfficeTels();
     $("optRojo").checked = settings.botonRojo;
     $("optAcentos").checked = settings.sinAcentos;
     renderSignLinks();
@@ -10232,9 +10245,11 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
       setOffice(b.dataset.v);
     });
     $("oficinaTop").addEventListener("change", function () { setOffice(this.value); });
-    $("officeTel").addEventListener("input", function () {
-      settings.telefonos[settings.oficina] = U.collapse(this.value);
-      saveSettings();
+    $("officeTels").addEventListener("input", function (e) {
+      var o = e.target.dataset.officeTel;
+      if (!o) { return; }
+      settings.telefonos[o] = U.collapse(e.target.value);
+      saveSettings(); refresh();
     });
     $("signLinkRows").addEventListener("input", function (e) {
       var k = e.target.dataset.signLink;
