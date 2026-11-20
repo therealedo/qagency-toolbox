@@ -17,6 +17,10 @@ Branch: `feat/signwell-signing` from `main` (2d1ea82). Delivery: work-unit commi
 - S10 The toolbox deletes a document in SignWell only after a confirmed save (automatic or **Guardar**) or **Ya lo guardé**. Until then it stays listed.
 - S11 The Windows installer installs the helper, asks for the key, writes the token for the toolbox, starts the helper at logon; uninstall removes all of it. The packaged zip carries the helper.
 - S12 README, LEEME and the help texts describe the flow.
+- S13 (replaces the delete-after-save part of S10) "a dashboard on the app where we users can see the history of signed documents, the status on pending ones". History stays in SignWell ("Keep in SignWell"): saving a signed PDF no longer deletes it; the helper keeps on disk only document IDs, the send date, the final status and whether it was saved, and reads names, status and dates from SignWell. There is no SignWell list endpoint, so the history is the documents sent from this computer.
+- S14 "the option to delete any cancelled or expired": a document that ended unsigned (canceled, expired, declined, no longer in SignWell) can be deleted in SignWell from the dashboard, after a confirmation. Assumption: declined counts as unsigned too.
+- S15 "cancel the ones sent by mistake": a document still waiting for the signature can be cancelled from the dashboard, after a confirmation (SignWell's DELETE "will also cancel document signing (if in progress)").
+- S16 A signed document is never deleted from the dashboard; it stays in the history with Descargar.
 
 ## Tasks
 
@@ -27,6 +31,10 @@ Branch: `feat/signwell-signing` from `main` (2d1ea82). Delivery: work-unit commi
 | T3 | S5, S11 | inline | done: package test; PowerShell parse check, 0 errors; installer not run on a real profile (it would touch real shortcuts) | d01e632 |
 | T4 | S6, S8, S9, S10, S4 | inline | done: 287/287. Headless Edge smoke test (file:// page + real helper + fake SignWell): listed, Descargar byte-identical, Ya lo guardé → DELETE. Not run in a browser: the Enviar para firmar click, and auto-save into a chosen folder (needs the folder picker) | 89bb9cc |
 | T5 | S12 + verification | inline | done: verifier S1–S12 pass except B1; B1 and A1 fixed (RED→GREEN redirect test), plus A2/A5/A6/A8; 289/289; smoke test rerun OK; native review (risk, resilience, reliability): 0 findings, approved and acknowledged (lineage review-60e5b9ab1c00e551) | 42f265e, 5a13307, e65b26a |
+
+| T6 | S13–S16 (helper: history, /saved, /delete) | inline | done: RED (no documentos.json), then GREEN helper 4/4 | 93aede6, b102034 |
+| T7 | S13–S16 (Firmas dashboard view) | inline | done: RED (signActions not a function), then GREEN forms 32/32; headless Edge smoke test: badge 1, 4 rows, Descargar byte-identical, Ya lo guardé → /saved (no DELETE), Cancelar envío and Borrar → DELETE, no Borrar on signed rows, no horizontal scroll at 390px | 93aede6, b102034 |
+| T8 | S12 for S13–S16 (README, LEEME) | inline | done | fcf9078, 93449bf |
 
 Route evidence: one feature with one contract (helper protocol) shared by all units; app.js, index.html and README are shared, so no parallel writers.
 
@@ -51,3 +59,5 @@ Route evidence: one feature with one contract (helper protocol) shared by all un
   - A4: "Quitar" deletes unsigned final documents after a confirmation. To confirm with the user.
   - A7: /health answers null-origin callers, by design; the token is the gate.
   - A9: the 500/200-character limits.
+- L7 (2026-11-20) User: "I would rather have a dashboard on the app where we users can see the history of signed documents, the status on pending ones and the option to delete any cancelled or expired, as well as cancel the ones sent by mistake like". Asked where history lives; user chose "Keep in SignWell (Recommended)". SignWell docs (developers.signwell.com/reference/deletedocument.md, getdocument.md): DELETE cancels signing if in progress; no list-documents endpoint; GET returns status, created_at, updated_at, recipients[name,email,status]. This settles A4.
+- L8 Independent verifier on dd1f9c3..fcf9078: S13–S16 pass, 293/293. Blocker: README still named the removed "Enviados a firmar" bar → fixed (93449bf). Advisories fixed in b102034 with tests that failed before the fix: a 404 no longer turns a signed document into a deletable one; an unreadable documentos.json is set aside (documentos.json.ilegible-<time>) and the store is written through a temp file; the "Ver más" count after a save. Also fixed: stale forms.js comment, LEEME list of deletable states. Left as advisories: the tiny race between the status re-check and DELETE (SignWell's API can't close it); /list after a restart fetches open docs plus up to `limit` closed ones one by one; a failed v1 migration is not retried (pendientes.json stays for manual recovery). 294/294.
