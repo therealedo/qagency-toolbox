@@ -36,7 +36,7 @@ function Detener-Ayudante {
 }
 function Iniciar-Ayudante {
   if (Test-Path $ayudante) {
-    Start-Process -FilePath $powershell -WindowStyle Hidden -ArgumentList "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$ayudante`""
+    Start-Process -FilePath $powershell -WindowStyle Hidden -WorkingDirectory $destino -ArgumentList "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$ayudante`""
   }
 }
 # La clave la pega quien instala; no se muestra ni se guarda en texto plano.
@@ -44,7 +44,11 @@ function Pedir-Clave {
   Write-Host ""
   Write-Host "Clave de la API de SignWell para enviar a firmar (Enter para omitir):"
   $s = Read-Host -AsSecureString
-  if ($s.Length -eq 0) { Write-Host "Sin clave: la herramienta no enviara a firmar hasta que se agregue."; return }
+  if ($s.Length -eq 0) {
+    if (Test-Path (Join-Path $firma "clave.txt")) { Write-Host "Se mantiene la clave que ya habia." }
+    else { Write-Host "Sin clave: la herramienta no enviara a firmar hasta que se agregue con 'Clave de firma.bat'." }
+    return
+  }
   New-Item -ItemType Directory -Force -Path $firma | Out-Null
   $s | ConvertFrom-SecureString | Set-Content -LiteralPath (Join-Path $firma "clave.txt") -Encoding ASCII
   Write-Host "Clave guardada (cifrada para este usuario de Windows)."
@@ -189,7 +193,12 @@ if (Test-Path $ayudanteOrigen) {
   }
   Set-Content -LiteralPath (Join-Path $destino "helper-config.js") -Encoding ASCII `
     -Value ("window.QA_HELPER = { port: 47815, token: `"" + $tok + "`" };")
-  if (-not $SinPreguntar -and -not (Test-Path (Join-Path $firma "clave.txt"))) { Pedir-Clave }
+  # La clave se pide solo en una instalacion nueva: al actualizar (incluso con
+  # un actualizador viejo, que no pasa -SinPreguntar) no se detiene a pedirla.
+  if (-not (Test-Path (Join-Path $firma "clave.txt"))) {
+    if (-not $SinPreguntar -and -not $habiaAcceso) { Pedir-Clave }
+    else { Write-Host "Para enviar a firmar, agrega la clave de SignWell con 'Clave de firma.bat'." }
+  }
   $s = $shell.CreateShortcut($accesoAyudante)
   $s.TargetPath = $powershell
   $s.Arguments = "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$ayudante`""

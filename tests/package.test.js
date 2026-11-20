@@ -212,3 +212,15 @@ test("el instalador pone el ayudante de firma: token propio, helper-config.js, a
   assert.match(build, /tools\/windows\/signing-helper\.ps1/);
   assert.match(build, /tools\/windows\/Clave de firma\.bat/);
 });
+
+test("al actualizar, el instalador no se detiene a pedir la clave, aunque lo llame un actualizador viejo sin -SinPreguntar", () => {
+  const inst = fs.readFileSync(path.join(root, "tools", "windows", "instalar.ps1"), "utf8");
+  /* la única llamada a Pedir-Clave fuera de -Clave exige una instalación nueva */
+  const calls = inst.split(/\r?\n/).filter((l) => /\bPedir-Clave\b/.test(l) && !/function Pedir-Clave/.test(l));
+  const outsideClave = calls.filter((l) => !/^\s{2}Pedir-Clave$/.test(l));
+  assert.equal(outsideClave.length, 1);
+  assert.match(outsideClave[0], /-not \$SinPreguntar -and -not \$habiaAcceso/);
+  assert.ok(inst.indexOf("$habiaAcceso = $true") < inst.indexOf("-not $habiaAcceso"), "se sabe si había instalación antes de preguntar");
+  /* el ayudante no queda trabado en la carpeta del .zip */
+  assert.match(inst, /Start-Process -FilePath \$powershell -WindowStyle Hidden -WorkingDirectory \$destino/);
+});

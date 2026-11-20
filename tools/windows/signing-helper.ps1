@@ -64,18 +64,34 @@ function Save-Pending {
   Set-Content -LiteralPath $pendFile -Value $json -Encoding UTF8
 }
 
-$http = New-Object System.Net.Http.HttpClient
+# Sin redirecciones automaticas: HttpClient reenviaria X-Api-Key al servidor
+# al que SignWell redirija (por ejemplo, donde guarda el PDF). Una
+# redireccion de un GET se sigue a mano, una sola vez y sin la clave.
+$handler = New-Object System.Net.Http.HttpClientHandler
+$handler.AllowAutoRedirect = $false
+$http = New-Object System.Net.Http.HttpClient($handler)
 $http.Timeout = [TimeSpan]::FromSeconds(30)
+function Read-Result($res) {
+  return @{ code = [int]$res.StatusCode; bytes = $res.Content.ReadAsByteArrayAsync().GetAwaiter().GetResult();
+            type = [string]$res.Content.Headers.ContentType }
+}
 function Invoke-SignWell([string]$method, [string]$path, $body) {
-  $req = New-Object System.Net.Http.HttpRequestMessage ([System.Net.Http.HttpMethod]::new($method)), ($ApiBase + $path)
+  $uri = New-Object System.Uri ($ApiBase + $path)
+  $req = New-Object System.Net.Http.HttpRequestMessage ([System.Net.Http.HttpMethod]::new($method)), $uri
   $req.Headers.Add("X-Api-Key", $apiKey)
   $req.Headers.Add("Accept", "application/json")
   if ($null -ne $body) {
     $req.Content = New-Object System.Net.Http.StringContent ((ConvertTo-Json -InputObject $body -Depth 8 -Compress), [Text.Encoding]::UTF8, "application/json")
   }
   $res = $http.SendAsync($req).GetAwaiter().GetResult()
-  return @{ code = [int]$res.StatusCode; bytes = $res.Content.ReadAsByteArrayAsync().GetAwaiter().GetResult();
-            type = [string]$res.Content.Headers.ContentType }
+  $code = [int]$res.StatusCode
+  if ($method -eq "GET" -and @(301, 302, 303, 307, 308) -contains $code -and $res.Headers.Location) {
+    $to = $res.Headers.Location
+    if (-not $to.IsAbsoluteUri) { $to = New-Object System.Uri ($uri, $to) }
+    if (@("https", "http") -notcontains $to.Scheme) { return @{ code = 502; bytes = [byte[]]@(); type = "" } }
+    $res = $http.GetAsync($to).GetAwaiter().GetResult()
+  }
+  return (Read-Result $res)
 }
 function Read-Json($bytes) {
   try { return ([Text.Encoding]::UTF8.GetString($bytes) | ConvertFrom-Json) } catch { return $null }

@@ -216,3 +216,36 @@ test("ayudante de firma: sin clave no envía nada; con testMode false en ajustes
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("ayudante de firma: si SignWell redirige el PDF a otro servidor, la clave no viaja con la redirección", { skip: !WIN, timeout: 60000 }, async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "qa-helper-"));
+  const seen = [];
+  const files = http.createServer((req, res) => { seen.push({ url: req.url, key: req.headers["x-api-key"] }); res.writeHead(200, { "Content-Type": "application/pdf" }); res.end(PDF); });
+  await new Promise((r) => files.listen(0, "127.0.0.1", r));
+  const sw = http.createServer((req, res) => {
+    if (req.url === "/api/v1/documents/doc-9") { res.writeHead(200, { "Content-Type": "application/json" }); return res.end(JSON.stringify({ id: "doc-9", status: "Completed", metadata: {} })); }
+    if (req.url.startsWith("/api/v1/documents/doc-9/completed_pdf")) { res.writeHead(302, { Location: "http://127.0.0.1:" + files.address().port + "/signed.pdf?sig=1" }); return res.end(); }
+    res.writeHead(404); res.end();
+  });
+  await new Promise((r) => sw.listen(0, "127.0.0.1", r));
+  let helper;
+  try {
+    writeKey(dir);
+    fs.writeFileSync(path.join(dir, "token.txt"), TOKEN);
+    fs.writeFileSync(path.join(dir, "pendientes.json"), '["doc-9"]');
+    helper = await startHelper(dir, sw.address().port);
+    await waitFor(async () => {
+      const r = await call(helper.port, "POST", "/list", { headers: auth(), body: {} });
+      return r.json.docs[0] && r.json.docs[0].status === "completed";
+    });
+    const pdf = await call(helper.port, "POST", "/pdf", { headers: auth(), body: { id: "doc-9" } });
+    assert.equal(pdf.status, 200);
+    assert.ok(pdf.buf.equals(PDF));
+    assert.deepEqual(seen, [{ url: "/signed.pdf?sig=1", key: undefined }]);
+  } finally {
+    if (helper) { helper.child.kill(); }
+    sw.close(); files.close();
+    await new Promise((r) => setTimeout(r, 300));
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});

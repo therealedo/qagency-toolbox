@@ -2135,7 +2135,8 @@
       } else {
         btn.hidden = false;
         $("signSendWarn").hidden = !helper.testMode;
-        msg = "Se envía al email " + r.body.recipient.email + ", en " + (r.body.language === "en" ? "inglés" : "español") +
+        msg = (helper.testMode ? "" : "Modo real: el cliente recibe el documento para firmar de verdad. ") +
+          "Se envía al email " + r.body.recipient.email + ", en " + (r.body.language === "en" ? "inglés" : "español") +
           ". Cuando el cliente firme, el PDF se guarda solo en el Network (" + r.body.meta.fileName + ").";
       }
     }
@@ -2186,7 +2187,7 @@
       helper.docs = helper.docs.filter(function (x) { return x.id !== id; });
       delete helper.pdfs[id]; delete helper.saved[id]; delete helper.downloaded[id]; delete helper.note[id];
       var d = data();
-      if (meta.netKey && meta.line === S.line && FM.formKind(d) === meta.kind && FM.downloadName(d, meta.kind) === signedName(doc)) {
+      if (meta.netKey && meta.line === S.line && FM.formKind(d) === meta.kind && signedName({ id: id, meta: { fileName: FM.downloadName(d, meta.kind) } }) === signedName(doc)) {
         S.f.net[meta.netKey] = true; S.dirty = true; renderNetwork(); refresh();
       }
       renderSigned();

@@ -44,7 +44,7 @@ el del Escritorio. Si la abres de otra forma (doble clic en el archivo, un
 marcador), la herramienta avisa que esa ventana no ve tus ajustes.
 
 Enviar a firmar (SignWell): el instalador pide la clave de la API de
-SignWell (no se ve al escribirla; Enter para omitir) y la guarda cifrada
+SignWell en una instalacion nueva (no se ve al escribirla; Enter para omitir) y la guarda cifrada
 para este usuario de Windows. Para agregarla o cambiarla despues, doble
 clic en "Clave de firma.bat". Tambien deja abierto el ayudante de firma,
 que arranca solo al iniciar sesion en Windows. Mientras Q Agency no firme
