@@ -484,6 +484,11 @@ const OC_DOCS = {
   "OC My Plans & Programs Second Member": { type: "oc_plans", net: "plans", fields: {
     plan: "Clarity Silver", prima: "$7.67", appId: "4412345681", miembros: "RAMON DE LA PAZ\nLUCIA SOTO VERA",
     nombres: "RAMON", apellidos: "DE LA PAZ", efectiva: "01/01/2027", estado: "Active", compania: "AMBETTER", anio: "2027" } },
+  /* el plan comparte la línea con el menú ("Exemptions") y el botón, y sus
+     beneficios van en la línea de abajo; "(HSA)" es parte del nombre */
+  "OC My Plans & Programs Menu Beside Plan": { type: "oc_plans", net: "plans", fields: {
+    plan: "myBlue Bronze (HSA) 2129", prima: "$204.52", appId: "4412345682", miembros: "ELSA MORA",
+    nombres: "ELSA", apellidos: "MORA", efectiva: "01/01/2027", compania: "FLORIDA BLUE", anio: "2027" } },
   /* la guía que viene detrás de la carta habla de documentos: nadie los pidió */
   "OC Eligibility Notice": { type: "oc_elig", net: "eligibility", fields: {
     appId: "4412345678", anio: "2027", nombres: "LAURA", apellidos: "RAMOS", ingreso: "$31,200.00" } },
