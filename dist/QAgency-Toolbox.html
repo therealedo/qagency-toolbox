@@ -1519,7 +1519,7 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
 (function (root) {
   "use strict";
 
-  var VERSION = "1.21.3";
+  var VERSION = "1.21.4";
   /* De aquí la herramienta instalada lee el número de la última versión (y
      nada más). La política de seguridad de index.html solo permite esta
      dirección, y el actualizador de Windows usa el mismo repositorio. */
@@ -5161,33 +5161,49 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
 
   /* El nombre del plan está justo encima de su ID; puede ocupar dos líneas
      cuando trae la descripción de beneficios entre paréntesis. */
+  /* La celda del plan en una línea que puede traer el menú de la izquierda y
+     los botones de la derecha ("Exemptions   myBlue Bronze (HSA) 2129   Go
+     to my plan benefits"): la primera que no es menú ni botón. Una línea
+     que solo trae menú o botones da null; una vacía, "". */
+  function nameCell(line) {
+    var cells = String(line || "").trim().split(/\s{2,}|\t/).map(function (c) { return c.trim(); }).filter(Boolean);
+    if (!cells.length) { return ""; }
+    for (var i = 0; i < cells.length; i++) { if (!PLAN_SKIP.test(cells[i])) { return cells[i]; } }
+    return null;
+  }
+
   function planAboveId(doc) {
     for (var i = 0; i < doc.lines.length; i++) {
       var m = doc.lines[i].match(HIOS_RE);
       if (!m) { continue; }
-      var before = doc.lines[i].slice(0, m.index).replace(/(plan\s*id|id del plan)\s*[:#]?\s*$/i, "").trim();
+      var before = nameCell(doc.lines[i].slice(0, m.index).replace(/(plan\s*id|id del plan)\s*[:#]?\s*$/i, "")) || "";
       var parts = [];
-      if (before.length > 4 && !PLAN_STOP.test(before) && !PLAN_SKIP.test(before)) { parts.push(before); }
+      if (before.length > 4 && !PLAN_STOP.test(before)) { parts.push(before); }
       for (var j = i - 1; !parts.length && j >= 0 && j >= i - 4; j--) {
-        var c = firstCell(doc.lines[j]);
-        if (!c || PLAN_SKIP.test(c)) { continue; }
+        var c = nameCell(doc.lines[j]);
+        if (!c) { continue; }
         if (PLAN_STOP.test(c) || datesIn(c).length || c.length > 110 || !/[A-Za-z]/.test(c)) { break; }
         var chunk = [c];
-        /* continuación de un paréntesis abierto más arriba; los botones
-           ("Change plans", "Go to my plan benefits") pueden quedar en medio */
-        if (c.indexOf(")") >= 0 && c.indexOf("(") < 0) {
+        /* continuación de un paréntesis más arriba: los beneficios en su
+           propia línea ("($35 PCP Visits / Rewards)") o partidos entre los
+           botones ("Change plans", "Go to my plan benefits") */
+        var tail = c.charAt(0) === "(";
+        if (tail || (c.indexOf(")") >= 0 && c.indexOf("(") < 0)) {
           var open = [];
           for (var k = j - 1; k >= 0 && k >= j - 6; k--) {
-            var up = firstCell(doc.lines[k]);
-            if (up && PLAN_SKIP.test(up)) { continue; }
+            var up = nameCell(doc.lines[k]);
+            if (up === null) { continue; }
             if (!up || PLAN_STOP.test(up)) { break; }
             open.unshift(up);
-            if (up.indexOf("(") >= 0) { chunk = open.concat(chunk); break; }
+            if (tail || up.indexOf("(") >= 0) { chunk = open.concat(chunk); break; }
           }
         }
         parts = chunk;
       }
-      var name = parts.join(" ").replace(/\s*\(.*$/, "").replace(/\s+/g, " ").replace(/[\s,;\-–]+$/, "").trim();
+      /* fuera los beneficios entre paréntesis (traen $ o /, y pueden quedar
+         sin cerrar); un paréntesis del nombre se queda: "myBlue Bronze (HSA) 2129" */
+      var name = parts.join(" ").replace(/\s*\([^()]*[$\/][^()]*(\)|$)/g, "").replace(/\s*\([^()]*$/, "")
+        .replace(/\s+/g, " ").replace(/[\s,;\-–]+$/, "").trim();
       return { id: m[1], name: name.length > 4 ? name : "" };
     }
     return null;
