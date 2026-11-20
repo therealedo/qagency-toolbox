@@ -177,6 +177,14 @@
            (to.length ? " " + to.join(" y ") : "") + " pls @Support QAgency";
   }
 
+  /* Los campos de la plantilla de SignWell con su valor, en el orden de
+     SIGN_IDS y sin los vacíos: los usan el enlace y el envío por la API. */
+  function signFields(kind, v) {
+    return (SIGN_IDS[kind] || []).filter(function (x) { return val(v[x[1]]); }).map(function (x) {
+      return { api_id: x[0], value: val(v[x[1]]) };
+    });
+  }
+
   /* ----------------------------------------------------- enlace de firma --
      El enlace de la plantilla (Template Link) de SignWell más los datos como
      parámetros, con el ID de cada campo. Sin un enlace http(s) no hay enlace. */
@@ -185,8 +193,8 @@
     if (!/^https?:\/\/\S+$/i.test(b)) { return ""; }
     var hash = "", h = b.indexOf("#");
     if (h >= 0) { hash = b.slice(h); b = b.slice(0, h); }
-    var q = (SIGN_IDS[kind] || []).filter(function (x) { return val(v[x[1]]); }).map(function (x) {
-      return encodeURIComponent(x[0]) + "=" + encodeURIComponent(val(v[x[1]]));
+    var q = signFields(kind, v).map(function (f) {
+      return encodeURIComponent(f.api_id) + "=" + encodeURIComponent(f.value);
     });
     if (!q.length) { return b + hash; }
     var sep = b.indexOf("?") < 0 ? "?" : (/[?&]$/.test(b) ? "" : "&");
@@ -227,6 +235,35 @@
     var k = kind === "soa" ? "soa" : "consent";
     var f = N.buildFileNames(d).filter(function (x) { return x.k === k; })[0];
     return (f ? f.name : k.toUpperCase()) + ".pdf";
+  }
+
+  /* ------------------------------------------------ envío por la API --
+     Lo que la herramienta le pasa al ayudante de firma (signing-helper.ps1),
+     que guarda la clave de SignWell y hace la llamada: los datos van en un
+     cuerpo JSON, nunca en un enlace. El firmante de cada plantilla de SignWell
+     se llama SIGN_PLACEHOLDER. meta viaja con el documento en SignWell y dice
+     con qué nombre y en qué carpeta del Network se guarda el PDF firmado.
+     Sin plantilla, sin un email válido o sin el nombre del cliente no hay
+     envío: { ok: false, missing: [...] }. */
+  var SIGN_PLACEHOLDER = "Cliente";
+  function buildSendPayload(kind, d, v, opts) {
+    var o = opts || {}, soa = kind === "soa";
+    var templateId = val(o.templateId), email = val(d.clienteEmail), name = val(soa ? v.beneficiaryName : v.clientName);
+    var missing = [];
+    if (!/^[A-Za-z0-9_-]+$/.test(templateId)) { missing.push("plantilla"); }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { missing.push("email"); }
+    if (!name) { missing.push("nombre"); }
+    if (missing.length) { return { ok: false, missing: missing }; }
+    var oficina = val(d.oficina) || C.OFFICES[0], k = soa ? "soa" : "consent";
+    return { ok: true, body: {
+      templateId: templateId,
+      placeholder: SIGN_PLACEHOLDER,
+      recipient: { name: name, email: email },
+      fields: signFields(k, v),
+      language: d.idioma === "en" ? "en" : "es",
+      requester: val(o.requester) || C.OFFICE_NAMES[oficina] || oficina,
+      meta: { kind: k, line: val(d.line), netKey: k, fileName: downloadName(d, k) }
+    } };
   }
 
   /* --------------------------------------------- solo en el navegador --
@@ -381,7 +418,8 @@
   var api = {
     TEMPLATES: TEMPLATES, FIELDS: FIELDS, SIGN_IDS: SIGN_IDS, SOA_EN_FIELDS: SOA_EN_FIELDS,
     formKind: formKind, templateKey: templateKey, consentValues: consentValues, soaValues: soaValues, values: values,
-    fieldMap: fieldMap, cliqText: cliqText, signingUrl: signingUrl, signTexts: signTexts, downloadName: downloadName,
+    fieldMap: fieldMap, cliqText: cliqText, signFields: signFields, signingUrl: signingUrl, signTexts: signTexts, downloadName: downloadName,
+    SIGN_PLACEHOLDER: SIGN_PLACEHOLDER, buildSendPayload: buildSendPayload,
     templateBytes: templateBytes, fillPdf: fillPdf
   };
   root.QA = root.QA || {};

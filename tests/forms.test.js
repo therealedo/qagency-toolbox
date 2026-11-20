@@ -312,3 +312,46 @@ test("SOA: la dirección de Medicare no va al formulario", () => {
   const d = Object.assign({}, base, { line: "mc", direccion: "1200 Sample Blvd, Naples, FL 34100" });
   assert.doesNotMatch(JSON.stringify(F.soaValues(d)), /Sample Blvd/);
 });
+
+/* Envío por la API de SignWell (a través del ayudante local): el cuerpo que
+   la herramienta le pasa al ayudante. Los datos van en JSON, nunca en un enlace. */
+test("envío por la API: el Consent lleva la plantilla, el cliente, los campos con su ID de SignWell, el idioma y adónde va en el Network", () => {
+  const d = make({ line: "oc", clienteEmail: " bea@example.com " });
+  const v = Object.assign({}, consent, { marital: "" });
+  const r = F.buildSendPayload("consent", d, v, { templateId: "tpl-123", requester: "Ana Torres" });
+  assert.equal(r.ok, true);
+  assert.deepEqual(r.body, {
+    templateId: "tpl-123",
+    placeholder: "Cliente",
+    recipient: { name: "Beatriz Diaz", email: "bea@example.com" },
+    fields: [
+      { api_id: "client_name", value: "Beatriz Diaz" }, { api_id: "client_name_sign", value: "Beatriz Diaz" },
+      { api_id: "consent_date", value: "02/01/2026" }, { api_id: "agent_name", value: "Ana Torres" },
+      { api_id: "agent_npn", value: "10000001" }, { api_id: "plan", value: "Ambetter Silver Value" },
+      { api_id: "premium", value: "$45.00" }, { api_id: "income", value: "$32,000" },
+      { api_id: "tax_people", value: "3" }, { api_id: "covered_people", value: "2" }
+    ],
+    language: "es",
+    requester: "Ana Torres",
+    meta: { kind: "consent", line: "oc", netKey: "consent", fileName: F.downloadName(d, "consent") }
+  });
+});
+
+test("envío por la API: el SOA va sin campos, a nombre del beneficiario, en inglés si el cliente habla inglés", () => {
+  const d = make({ line: "mc", idioma: "en", clienteEmail: "bea@example.com" });
+  const r = F.buildSendPayload("soa", d, soaNote, { templateId: "soa-en", requester: "" });
+  assert.equal(r.ok, true);
+  assert.deepEqual(r.body.fields, []);
+  assert.deepEqual(r.body.recipient, { name: "Beatriz Diaz", email: "bea@example.com" });
+  assert.equal(r.body.language, "en");
+  assert.equal(r.body.requester, "QAgency Insurance");
+  assert.deepEqual(r.body.meta, { kind: "soa", line: "mc", netKey: "soa", fileName: F.downloadName(d, "soa") });
+});
+
+test("envío por la API: sin plantilla, sin un email válido o sin nombre no hay envío, y se dice qué falta", () => {
+  const ok = make({ line: "oc", clienteEmail: "bea@example.com" });
+  assert.deepEqual(F.buildSendPayload("consent", ok, consent, { templateId: "" }), { ok: false, missing: ["plantilla"] });
+  assert.deepEqual(F.buildSendPayload("consent", ok, consent, { templateId: "a b" }), { ok: false, missing: ["plantilla"] });
+  assert.deepEqual(F.buildSendPayload("consent", make({ clienteEmail: "bea@" }), consent, { templateId: "t1" }), { ok: false, missing: ["email"] });
+  assert.deepEqual(F.buildSendPayload("soa", make({}), { beneficiaryName: " " }, {}), { ok: false, missing: ["plantilla", "email", "nombre"] });
+});
