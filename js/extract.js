@@ -614,7 +614,7 @@
   /* Enlaces y menú de la cuenta del Mercado que quedan entre el nombre del
      plan y su ID ("Go to my plan benefits", "Communication preferences" a la
      izquierda): se saltan, no son el plan. */
-  var PLAN_SKIP = /^(go to my plan benefits|communication|preferences|communication preferences|exemptions|mailing address|tax forms|report a life( change)?|coverage record|eligibility & appeals|applications? details|my plan profile|marketplace plans)$/i;
+  var PLAN_SKIP = /^(go to my plan benefits|communication|preferences|communication preferences|exemptions|mailing address|tax forms|report a life( change)?|change plans|coverage record|eligibility & appeals|applications? details|my plan profile|marketplace plans)$/i;
 
   /* El nombre del plan está justo encima de su ID; puede ocupar dos líneas
      cuando trae la descripción de beneficios entre paréntesis. */
@@ -630,13 +630,16 @@
         if (!c || PLAN_SKIP.test(c)) { continue; }
         if (PLAN_STOP.test(c) || datesIn(c).length || c.length > 110 || !/[A-Za-z]/.test(c)) { break; }
         var chunk = [c];
-        /* continuación de un paréntesis abierto más arriba */
+        /* continuación de un paréntesis abierto más arriba; los botones
+           ("Change plans", "Go to my plan benefits") pueden quedar en medio */
         if (c.indexOf(")") >= 0 && c.indexOf("(") < 0) {
-          for (var k = j - 1; k >= 0 && k >= j - 2; k--) {
+          var open = [];
+          for (var k = j - 1; k >= 0 && k >= j - 6; k--) {
             var up = firstCell(doc.lines[k]);
+            if (up && PLAN_SKIP.test(up)) { continue; }
             if (!up || PLAN_STOP.test(up)) { break; }
-            chunk.unshift(up);
-            if (up.indexOf("(") >= 0) { break; }
+            open.unshift(up);
+            if (up.indexOf("(") >= 0) { chunk = open.concat(chunk); break; }
           }
         }
         parts = chunk;
@@ -652,10 +655,20 @@
      años ("Vidal   2027   2027"). Se juntan en una sola fila. */
   var ROW_NO_YEAR = /^(.*?\S)\s{2,}([A-Za-z]{3,9}\.?\s+\d{1,2},)\s{2,}([A-Za-z]{3,9}\.?\s+\d{1,2},)(\s.*)?$/;
   var ROW_YEARS = /^\s*(.*?)\s*\b(20[2-4]\d)\s{2,}(20[2-4]\d)\s*$/;
+  /* O las fechas arriba, el nombre en medio y los años abajo:
+     "Jan 1,  Dec 31," / "Ramon De La Paz   Remove" / "2027   2027". */
+  var ROW_DATES = /^\s*([A-Za-z]{3,9}\.?\s+\d{1,2},)\s{2,}([A-Za-z]{3,9}\.?\s+\d{1,2},)\s*$/;
   function memberRows(lines) {
     var out = [];
     for (var i = 0; i < lines.length; i++) {
-      var m = lines[i].match(ROW_NO_YEAR), y = null, j;
+      var top = lines[i].match(ROW_DATES), yy = top && lines[i + 2] ? lines[i + 2].match(ROW_YEARS) : null;
+      if (yy && !yy[1] && U.collapse(lines[i + 1])) {
+        var who = lines[i + 1].replace(/\s{2,}(remove|eliminar|quitar)\s*$/i, "").trim();
+        out.push(who + "   " + top[1] + " " + yy[2] + "   " + top[2] + " " + yy[3]);
+        i += 2;
+        continue;
+      }
+      var m =lines[i].match(ROW_NO_YEAR), y = null, j;
       for (j = i + 1; m && !y && j < lines.length && j <= i + 2; j++) { y = lines[j].match(ROW_YEARS); }
       if (!y) { out.push(lines[i]); continue; }
       out.push(m[1] + (y[1] ? " " + y[1] : "") + "   " + m[2] + " " + y[2] + "   " + m[3] + " " + y[3]);
@@ -691,6 +704,15 @@
       if (names.indexOf(name) < 0) { names.push(name); }
       ds.forEach(function (d) { all.push(d.value); });
     });
+    /* el titular es quien tiene la cuenta: su nombre está arriba a la
+       derecha ("Ramon     Menu"), aunque en Members salga después */
+    var owner = "";
+    doc.lines.slice(0, 8).forEach(function (l) {
+      var o = l.match(/^\s*([A-Za-zÁÉÍÓÚÑÜáéíóúñü'’\-]+)\s+Men[uú]\s*$/i);
+      if (o && !owner) { owner = U.stripAccents(o[1]).toUpperCase(); }
+    });
+    var mine = owner ? names.filter(function (n) { return U.stripAccents(n).split(" ")[0] === owner; }) : [];
+    if (mine.length === 1) { names.splice(names.indexOf(mine[0]), 1); names.unshift(mine[0]); }
     if (names.length) {
       f.miembros = names.join("\n");
       setName(f, names[0]);

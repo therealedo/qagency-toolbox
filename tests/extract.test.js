@@ -474,6 +474,16 @@ const OC_DOCS = {
   "OC My Plans & Programs Wrapped": { type: "oc_plans", net: "plans", fields: {
     plan: "Clarity Silver", prima: "$16.91", appId: "4412345679", miembros: "MARTA LOPEZ VIDAL",
     nombres: "MARTA", apellidos: "LOPEZ VIDAL", efectiva: "01/01/2027", estado: "Active", compania: "AMBETTER", anio: "2027" } },
+  /* el nombre parte su paréntesis alrededor de los botones "Go to my plan
+     benefits" y "Change plans": el plan es lo de antes del paréntesis */
+  "OC My Plans & Programs Florida Blue": { type: "oc_plans", net: "plans", fields: {
+    plan: "myBlue Silver 26M02-04C", prima: "$104.00", appId: "4412345680", miembros: "ROSA FUENTES MORA",
+    nombres: "ROSA", apellidos: "FUENTES MORA", efectiva: "12/01/2026", compania: "FLORIDA BLUE", anio: "2026" } },
+  /* el titular es el de la esquina de arriba ("Ramon     Menu") aunque salga
+     segundo en Members, donde su fila trae las fechas encima del nombre */
+  "OC My Plans & Programs Second Member": { type: "oc_plans", net: "plans", fields: {
+    plan: "Clarity Silver", prima: "$7.67", appId: "4412345681", miembros: "RAMON DE LA PAZ\nLUCIA SOTO VERA",
+    nombres: "RAMON", apellidos: "DE LA PAZ", efectiva: "01/01/2027", estado: "Active", compania: "AMBETTER", anio: "2027" } },
   /* la guía que viene detrás de la carta habla de documentos: nadie los pidió */
   "OC Eligibility Notice": { type: "oc_elig", net: "eligibility", fields: {
     appId: "4412345678", anio: "2027", nombres: "LAURA", apellidos: "RAMOS", ingreso: "$31,200.00" } },
