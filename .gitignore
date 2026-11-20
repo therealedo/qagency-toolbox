@@ -4,3 +4,6 @@ node_modules/
 
 # Team file with real names and NPNs: share it privately, never commit it
 private/
+
+# Token of the local signing helper (written by the Windows installer)
+helper-config.js

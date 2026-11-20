@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <!-- Nada sale de esta página: sin conexiones externas, sin fuentes ni scripts remotos. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' data: blob: file: 'wasm-unsafe-eval'; connect-src https://raw.githubusercontent.com/therealedo/qagency-toolbox/main/package.json; object-src 'none'; base-uri 'self'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' data: blob: file: 'wasm-unsafe-eval'; connect-src https://raw.githubusercontent.com/therealedo/qagency-toolbox/main/package.json http://127.0.0.1:47815; object-src 'none'; base-uri 'self'; form-action 'none'">
 <meta name="color-scheme" content="light dark">
 <meta name="theme-color" content="#F4F6FA" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0B1730" media="(prefers-color-scheme: dark)">
@@ -70,6 +70,16 @@
   <span>Esta ventana no se abrió con el ícono de la herramienta, así que no ve tus ajustes guardados. Ciérrala y abre «Q Agency Toolbox» desde el Escritorio o el menú Inicio. Si aquí sí ves tu equipo, antes pulsa «Exportar equipo» y luego impórtalo allá, en Ajustes.</span>
   <button type="button" class="btn small" id="profileExport">Exportar equipo</button>
 </div>
+
+<!-- Documentos enviados a firmar con el ayudante de firma: los firmados se guardan solos en el Network -->
+<section class="signed-bar" id="signedBar" aria-labelledby="signedTitle" hidden>
+  <div class="out-sub">
+    <h3 id="signedTitle">Enviados a firmar</h3>
+    <button type="button" class="link-btn" id="signedRefresh">Revisar ahora</button>
+  </div>
+  <p class="muted" id="signedHelp">Cuando el cliente firma, el PDF se guarda solo en su carpeta del Network y se borra de SignWell. Si no se puede guardar solo, usa Guardar o Descargar.</p>
+  <ul class="signed-list" id="signedList"></ul>
+</section>
 
 <main id="main" tabindex="-1">
 
@@ -154,6 +164,14 @@
               <button type="button" class="btn small" id="copySignCliq" data-label="Copiar">Copiar</button>
             </div>
             <textarea class="mono one-line" id="signCliq" rows="2" readonly spellcheck="false" aria-label="Texto para Zoho Cliq"></textarea>
+          </div>
+          <div class="sign-block" id="signSendBox">
+            <div class="out-sub">
+              <h3>Enviar a firmar (SignWell)</h3>
+              <button type="button" class="btn small primary" id="signSend" hidden>Enviar para firmar</button>
+            </div>
+            <p class="sign-warn" id="signSendWarn" role="note" hidden><strong>Modo de prueba.</strong> Usa solo datos de prueba: Q Agency todavía no tiene un acuerdo de privacidad (BAA) con SignWell, y el documento de prueba no vale legalmente.</p>
+            <p class="muted sign-hint" id="signSendStatus"></p>
           </div>
           <div class="sign-block" id="signLinkBox" hidden>
             <div class="out-sub">
@@ -393,6 +411,10 @@
     <h3>Enlaces de firma (SignWell)</h3>
     <p class="muted">Opcional. Pega el enlace de la plantilla (Template Link) de SignWell de cada formulario. Con el enlace, la sección del Consent o del SOA arma el enlace de firma con los datos del cliente y el SMS y el email para enviarlo. La herramienta no se conecta a SignWell.</p>
     <div class="signlinks" id="signLinkRows"></div>
+
+    <h3>Envío a firmar (API de SignWell)</h3>
+    <p class="muted">Pega el ID de cada plantilla de SignWell (Template ID). Con el ayudante de firma instalado, la sección del Consent o del SOA envía el formulario al email del cliente; cuando firma, el PDF se guarda solo en el Network. El firmante de cada plantilla debe llamarse «Cliente» y sus campos usar los mismos IDs que el enlace.</p>
+    <div class="signlinks" id="signTplRows"></div>
 
     <h3>Formato de la nota</h3>
     <label class="check"><input type="checkbox" id="optRojo"><span>Agregar «Se reporta en el botón rojo» cuando es una aplicación enviada</span></label>

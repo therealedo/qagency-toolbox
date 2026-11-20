@@ -31,6 +31,8 @@
       botonRojo: true, sinAcentos: false, theme: "", line: "oc",
       /* enlace de la plantilla de SignWell de cada formulario (FM.TEMPLATES) */
       signLinks: {},
+      /* ID de la plantilla de SignWell de cada formulario, para el envío por la API */
+      signTemplates: {},
       /* nombre de cada carpeta del Network elegida, para avisar cuál falta
          si el navegador deja de tenerla */
       netDirNames: {}
@@ -47,6 +49,7 @@
     if (C.OFFICES.indexOf(def.oficina) < 0) { def.oficina = C.OFFICES[0]; }
     if (!def.telefonos || typeof def.telefonos !== "object") { def.telefonos = {}; }
     if (!def.signLinks || typeof def.signLinks !== "object") { def.signLinks = {}; }
+    if (!def.signTemplates || typeof def.signTemplates !== "object") { def.signTemplates = {}; }
     if (!def.netDirNames || typeof def.netDirNames !== "object") { def.netDirNames = {}; }
     return def;
   }
@@ -1184,10 +1187,11 @@
       if (N.docKinds(d.dataset.netDirLine).some(function (x) { return netDirs[d.dataset.netDirLine + ":" + x.k]; })) { d.open = true; }
     });
   }
-  /* la carpeta de un archivo de la línea de ahora (su clase, la línea o la
-     general); si no hay ninguna, se pide la general */
-  function ensureNetDir(kind) {
-    var t = N.netDirFor(netDirs, S.line, kind), dir = t.dir;
+  /* la carpeta de un archivo de la línea de ahora (o de la que se diga: un
+     documento firmado puede ser de otra nota), por su clase, la línea o la
+     general; si no hay ninguna, se pide la general */
+  function ensureNetDir(kind, line) {
+    var t = N.netDirFor(netDirs, line || S.line, kind), dir = t.dir;
     if (!dir) { return pickNetDir("general"); }
     return dir.queryPermission({ mode: "readwrite" }).then(function (p) {
       if (p === "granted") { return dir; }
@@ -1977,6 +1981,7 @@
     /* los mensajes internos (Cliq) nombran al cliente como en Zoho: "Apellido, Nombre" */
     $("signCliq").value = FM.cliqText(kind, N.zohoName(S.f) || (kind === "soa" ? v.beneficiaryName : v.clientName), email, phone);
     fitHeight($("signCliq"));
+    renderSignSend(kind, d, v, key, T);
     var link = U.collapse(settings.signLinks[key]), url = FM.signingUrl(link, kind, v);
     $("signLinkBox").hidden = !url;
     $("signLinkHint").hidden = !!url;
@@ -2016,6 +2021,279 @@
     var out = {};
     Object.keys(FM.TEMPLATES).forEach(function (k) { if (settings.signLinks[k]) { out[k] = settings.signLinks[k]; } });
     return out;
+  }
+  /* igual, los IDs de las plantillas de SignWell para el envío por la API */
+  function formTemplateIds() {
+    var out = {};
+    Object.keys(FM.TEMPLATES).forEach(function (k) { if (settings.signTemplates[k]) { out[k] = settings.signTemplates[k]; } });
+    return out;
+  }
+
+  /* Ajustes: el ID de la plantilla de SignWell de cada formulario */
+  function renderSignTemplates() {
+    var box = $("signTplRows");
+    box.textContent = "";
+    Object.keys(FM.TEMPLATES).forEach(function (k) {
+      var lab = el("label", "mini");
+      lab.appendChild(el("span", null, FM.TEMPLATES[k].label));
+      var inp = el("input"); inp.type = "text"; inp.spellcheck = false; inp.autocomplete = "off";
+      inp.placeholder = "ID de la plantilla"; inp.value = settings.signTemplates[k] || ""; inp.dataset.signTpl = k;
+      lab.appendChild(inp);
+      box.appendChild(lab);
+    });
+  }
+
+  /* ------------------------------------------------- ayudante de firma --
+     El envío a firmar pasa por signing-helper.ps1, que corre en esta
+     computadora (127.0.0.1) con la clave de SignWell: la página nunca la ve.
+     El instalador deja junto a la herramienta helper-config.js con el token
+     que el ayudante pide; ninguna página web puede leer ese archivo. Cada
+     minuto se pregunta qué documentos ya se firmaron: un firmado se guarda
+     solo en su carpeta del Network cuando esa carpeta ya está elegida y con
+     permiso, y si no, quedan Guardar y Descargar. Solo después de guardarlo
+     (o de «Ya lo guardé», tras descargarlo) se borra de SignWell. */
+  var helper = { token: "", up: false, ok: false, testMode: true, docs: [], pdfs: {}, busy: {}, tried: {}, saved: {}, downloaded: {}, note: {} };
+
+  function loadHelper() {
+    if (location.protocol !== "file:" || !window.fetch) { return; }
+    var s = document.createElement("script");
+    s.src = "helper-config.js";
+    s.onload = function () {
+      var c = window.QA_HELPER;
+      try { delete window.QA_HELPER; } catch (e) { window.QA_HELPER = undefined; }
+      if (!c || !/^[0-9a-f]{64}$/.test(String(c.token || ""))) { return; }
+      helper.token = c.token;
+      checkHelper(true);
+      setInterval(function () { checkHelper(false); }, 60000);
+    };
+    s.onerror = function () { s.remove(); };
+    document.head.appendChild(s);
+  }
+
+  function helperFetch(path, body, binary) {
+    var opt = { method: body === undefined ? "GET" : "POST", cache: "no-store", credentials: "omit", referrerPolicy: "no-referrer" };
+    if (body !== undefined) {
+      opt.headers = { "Content-Type": "application/json", "X-Helper-Token": helper.token };
+      opt.body = JSON.stringify(body);
+    }
+    return fetch(C.HELPER_URL + path, opt).then(function (r) {
+      if (!r.ok) {
+        return r.json().catch(function () { return {}; }).then(function (j) {
+          var e = new Error((j && j.error) || "http " + r.status); e.info = j || {}; throw e;
+        });
+      }
+      return binary ? r.arrayBuffer() : r.json();
+    });
+  }
+
+  function checkHelper(refresh) {
+    if (!helper.token) { return; }
+    helperFetch("/health").then(function (h) {
+      helper.up = true; helper.ok = !!h.ok; helper.testMode = h.testMode !== false;
+      return helper.ok ? helperFetch("/list", { refresh: !!refresh }) : { docs: [] };
+    }).then(function (r) {
+      helper.docs = Array.isArray(r.docs) ? r.docs : [];
+      renderSigned();
+      renderSign(data());
+      helper.docs.forEach(function (doc) {
+        /* guardado pero sin borrar de SignWell (falló el borrado): se reintenta */
+        if (helper.saved[doc.id]) { finishSigned(doc, ""); }
+        else if (FM.signedStatus(doc.status).done) { autoSaveSigned(doc); }
+      });
+    }).catch(function () {
+      helper.up = false; helper.ok = false;
+      renderSigned();
+      renderSign(data());
+    });
+  }
+
+  function requesterName() {
+    var p = people(), who = (p.agent && p.agent.name) || (p.me && p.me.name) || "";
+    return U.titleCase(who);
+  }
+
+  function signSendPayload(kind, d, v, key) {
+    return FM.buildSendPayload(kind, d, v, { templateId: settings.signTemplates[key], requester: requesterName() });
+  }
+
+  /* El bloque «Enviar a firmar» de la sección: qué falta, o el botón. */
+  function renderSignSend(kind, d, v, key, T) {
+    var btn = $("signSend"), msg = "";
+    btn.hidden = true;
+    $("signSendWarn").hidden = true;
+    if (!helper.token) {
+      msg = "Para enviar a firmar desde aquí, instala la herramienta con el paquete de Windows: trae el ayudante de firma.";
+    } else if (!helper.up) {
+      msg = "El ayudante de firma no responde. Se abre solo al iniciar sesión en Windows; si sigue así, vuelve a instalar la herramienta.";
+    } else if (!helper.ok) {
+      msg = "Falta la clave de SignWell en esta computadora: agrégala con «Clave de firma.bat» del paquete de Windows.";
+    } else {
+      var r = signSendPayload(kind, d, v, key);
+      if (!r.ok) {
+        var what = { plantilla: "el ID de la plantilla «" + T.label + "» en Ajustes", email: "el email del cliente", nombre: "el nombre del cliente" };
+        msg = "Para enviarlo falta " + r.missing.map(function (m) { return what[m]; }).join(", ") + ".";
+      } else {
+        btn.hidden = false;
+        $("signSendWarn").hidden = !helper.testMode;
+        msg = "Se envía al email " + r.body.recipient.email + ", en " + (r.body.language === "en" ? "inglés" : "español") +
+          ". Cuando el cliente firme, el PDF se guarda solo en el Network (" + r.body.meta.fileName + ").";
+      }
+    }
+    $("signSendStatus").textContent = msg;
+  }
+
+  function sendError(e) {
+    var info = (e && e.info) || {};
+    if (info.error === "signwell") { return "SignWell no aceptó el envío (" + info.status + "). Revisa el ID de la plantilla y que su firmante se llame «" + FM.SIGN_PLACEHOLDER + "»."; }
+    if (info.error === "datos") { return "El ayudante de firma rechazó los datos: revisa el nombre y el email del cliente."; }
+    if (info.error === "conexion") { return "No hubo conexión con SignWell. Intenta de nuevo en un momento."; }
+    if (info.error === "sin-clave") { return "Falta la clave de SignWell en esta computadora: agrégala con «Clave de firma.bat»."; }
+    return "No se pudo enviar a firmar. Revisa que el ayudante de firma esté abierto.";
+  }
+
+  function sendForSignature(btn) {
+    var d = data(), kind = FM.formKind(d);
+    if (!kind || !helper.ok) { return; }
+    var key = FM.templateKey(kind, d.oficina, S.f.idioma), r = signSendPayload(kind, d, signValues(d, kind), key);
+    if (!r.ok) { return; }
+    var title = kind === "soa" ? "SOA" : "Consent";
+    if (!window.confirm("¿Enviar el " + title + " a " + r.body.recipient.email + " para firmar" + (helper.testMode ? " (modo de prueba)" : "") + "?")) { return; }
+    btn.disabled = true;
+    helperFetch("/send", r.body).then(function () {
+      flashButton(btn);
+      toast(title + " enviado a firmar a " + r.body.recipient.email + ".");
+      checkHelper(false);
+    }, function (e) { toast(sendError(e)); }).then(function () { btn.disabled = false; });
+  }
+
+  /* el nombre con que se guarda: el del Network que viajó con el documento */
+  function signedName(doc) {
+    var n = String((doc.meta && doc.meta.fileName) || "").replace(/\.pdf$/i, "");
+    return N.safeFileName(n || "Documento firmado " + doc.id) + ".pdf";
+  }
+
+  function signedPdf(id) {
+    if (helper.pdfs[id]) { return Promise.resolve(helper.pdfs[id]); }
+    return helperFetch("/pdf", { id: id }, true).then(function (buf) { return (helper.pdfs[id] = new Uint8Array(buf)); });
+  }
+
+  /* Guardado: se borra de SignWell y sale de la lista. Si es el documento
+     de la nota que está abierta, se marca en Network. */
+  function finishSigned(doc, msg) {
+    var id = doc.id, meta = doc.meta || {};
+    helper.saved[id] = true;
+    return helperFetch("/ack", { id: id }).then(function () {
+      helper.docs = helper.docs.filter(function (x) { return x.id !== id; });
+      delete helper.pdfs[id]; delete helper.saved[id]; delete helper.downloaded[id]; delete helper.note[id];
+      var d = data();
+      if (meta.netKey && meta.line === S.line && FM.formKind(d) === meta.kind && FM.downloadName(d, meta.kind) === signedName(doc)) {
+        S.f.net[meta.netKey] = true; S.dirty = true; renderNetwork(); refresh();
+      }
+      renderSigned();
+      if (msg) { toast(msg); }
+    }, function () {
+      helper.note[id] = "Guardado. No se pudo borrar de SignWell todavía: se intenta otra vez en un minuto.";
+      renderSigned();
+    });
+  }
+
+  function autoSaveSigned(doc) {
+    var id = doc.id, meta = doc.meta || {}, name = signedName(doc);
+    if (helper.busy[id] || helper.tried[id] || !canSave) { return; }
+    helper.tried[id] = true;
+    var dir = N.netDirFor(netDirs, meta.line || S.line, meta.netKey).dir;
+    if (!dir) { helper.note[id] = "Falta elegir la carpeta del Network en Ajustes: usa Guardar o Descargar."; renderSigned(); return; }
+    helper.busy[id] = true;
+    dir.queryPermission({ mode: "readwrite" }).then(function (p) {
+      if (p !== "granted") { throw { quiet: "El navegador pide permiso para la carpeta: usa Guardar." }; }
+      /* uno con el mismo nombre no se reemplaza sin preguntar */
+      return dir.getFileHandle(name).then(function () {
+        throw { quiet: "Ya hay un archivo con ese nombre en la carpeta: usa Guardar para reemplazarlo, o Descargar." };
+      }, function () { return null; });
+    }).then(function () { return signedPdf(id); })
+      .then(function (bytes) { return writeOne(dir, { name: name, file: bytes }); })
+      .then(function (ok) {
+        if (!ok) { throw { quiet: "No se guardó: usa Guardar o Descargar." }; }
+        return finishSigned(doc, "Firmado y guardado en el Network: " + name);
+      })
+      .catch(function (e) {
+        helper.note[id] = (e && e.quiet) || "No se pudo guardar solo: usa Guardar o Descargar.";
+        renderSigned();
+      })
+      .then(function () { delete helper.busy[id]; });
+  }
+
+  /* Guardar a mano: puede pedir permiso o la carpeta (hace falta el clic). */
+  function saveSignedManually(doc, btn) {
+    var meta = doc.meta || {}, name = signedName(doc);
+    btn.disabled = true;
+    ensureNetDir(meta.netKey, meta.line).then(function (dir) {
+      return signedPdf(doc.id).then(function (bytes) { return writeOne(dir, { name: name, file: bytes }); });
+    }).then(function (ok) {
+      if (ok) { return finishSigned(doc, "Guardado en el Network: " + name); }
+    }).catch(function (e) {
+      if (e && e.name === "AbortError") { return; }
+      toast("No se pudo guardar en la carpeta del Network. Usa Descargar y guárdalo a mano.");
+    }).then(function () { if (btn.isConnected) { btn.disabled = false; } });
+  }
+
+  function downloadSigned(doc, btn) {
+    var name = signedName(doc);
+    btn.disabled = true;
+    signedPdf(doc.id).then(function (bytes) {
+      var a = el("a");
+      a.href = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
+      a.download = name;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(function () { URL.revokeObjectURL(a.href); }, 60000);
+      helper.downloaded[doc.id] = true;
+      renderSigned();
+      toast("Descargado: " + name + ". Cuando lo guardes en el Network, pulsa «Ya lo guardé».");
+    }, function () { toast("No se pudo traer el PDF firmado. Revisa que el ayudante de firma esté abierto."); })
+      .then(function () { if (btn.isConnected) { btn.disabled = false; } });
+  }
+
+  function renderSigned() {
+    var docs = helper.ok ? helper.docs : [], list = $("signedList");
+    $("signedBar").hidden = !docs.length;
+    list.textContent = "";
+    docs.forEach(function (doc) {
+      var st = FM.signedStatus(doc.status), li = el("li", "signed-row" + (st.done ? " is-done" : ""));
+      var name = el("span", "signed-name", signedName(doc));
+      name.title = name.textContent;
+      li.appendChild(name);
+      li.appendChild(el("span", "signed-status", st.label + (helper.note[doc.id] ? ". " + helper.note[doc.id] : "")));
+      var acts = el("span", "net-acts");
+      function act(label, what, cls) {
+        var b = el("button", "btn small" + (cls ? " " + cls : ""), label);
+        b.type = "button"; b.dataset.signedAct = what; b.dataset.id = doc.id;
+        acts.appendChild(b);
+      }
+      if (st.done && !helper.saved[doc.id]) {
+        if (canSave) { act("Guardar", "save", "primary"); }
+        act("Descargar", "download");
+        if (helper.downloaded[doc.id]) { act("Ya lo guardé", "ack"); }
+      } else if (st.final && !st.done) {
+        act("Quitar", "drop");
+      }
+      li.appendChild(acts);
+      list.appendChild(li);
+    });
+  }
+
+  function onSignedClick(e) {
+    var b = e.target.closest("[data-signed-act]");
+    if (!b) { return; }
+    var doc = helper.docs.filter(function (x) { return x.id === b.dataset.id; })[0];
+    if (!doc) { return; }
+    var act = b.dataset.signedAct, name = signedName(doc);
+    if (act === "save") { saveSignedManually(doc, b); }
+    else if (act === "download") { downloadSigned(doc, b); }
+    else if (act === "ack") {
+      if (window.confirm("¿Ya guardaste «" + name + "» en el Network? Se borra de SignWell.")) { finishSigned(doc, "Listo: " + name + " se borró de SignWell."); }
+    } else if (act === "drop") {
+      if (window.confirm("¿Quitar «" + name + "» de la lista? Se borra de SignWell.")) { finishSigned(doc, ""); }
+    }
   }
 
   /* Ajustes: un enlace de plantilla de SignWell por formulario */
@@ -2884,6 +3162,7 @@
     $("optRojo").checked = settings.botonRojo;
     $("optAcentos").checked = settings.sinAcentos;
     renderSignLinks();
+    renderSignTemplates();
     $("installHelp").textContent = installHelp();
     $("versionTag").textContent = "Versión " + C.VERSION;
   }
@@ -2942,6 +3221,7 @@
     if (U.launchCheck(location) === "otro") { $("profileBar").hidden = false; }
     $("profileExport").addEventListener("click", function () { $("teamExport").click(); });
     checkForUpdate();
+    loadHelper();
   }
 
   /* Instalada con el paquete de Windows (abierta como archivo): pregunta a
@@ -3153,6 +3433,9 @@
     });
     $("signReset").addEventListener("click", function () { delete S.signEdits[signKind]; renderSign(data()); });
     $("signDownload").addEventListener("click", function () { downloadSign(this); });
+    $("signSend").addEventListener("click", function () { sendForSignature(this); });
+    $("signedList").addEventListener("click", onSignedClick);
+    $("signedRefresh").addEventListener("click", function () { checkHelper(true); });
     $("sheetPrint").addEventListener("click", printSheet);
     $("sheetSave").addEventListener("click", saveSheet);
     window.addEventListener("resize", fitSheet);
@@ -3326,6 +3609,12 @@
       settings.signLinks[k] = U.collapse(e.target.value);
       saveSettings();
     });
+    $("signTplRows").addEventListener("input", function (e) {
+      var k = e.target.dataset.signTpl;
+      if (!k) { return; }
+      settings.signTemplates[k] = U.collapse(e.target.value);
+      saveSettings(); refresh();
+    });
     $("teamRows").addEventListener("input", function (e) {
       var t = e.target;
       if (t.dataset.team == null) { return; }
@@ -3366,7 +3655,9 @@
            que el archivo no trae se quedan como estaban */
         var links = Object.keys(r.signLinks).filter(function (k) { return FM.TEMPLATES[k]; });
         links.forEach(function (k) { settings.signLinks[k] = r.signLinks[k]; });
-        saveSettings(); renderTeam(); renderSignLinks();
+        Object.keys(r.signTemplates).filter(function (k) { return FM.TEMPLATES[k]; })
+          .forEach(function (k) { settings.signTemplates[k] = r.signTemplates[k]; });
+        saveSettings(); renderTeam(); renderSignLinks(); renderSignTemplates(); refresh();
         toast("Equipo importado: " + r.team.length + (r.team.length === 1 ? " persona" : " personas") +
           (links.length ? " y " + links.length + (links.length === 1 ? " enlace" : " enlaces") + " de SignWell." : "."));
       }, function () { input.value = ""; toast("No se pudo leer el archivo."); });
@@ -3374,7 +3665,7 @@
     $("teamExport").addEventListener("click", function () {
       if (!settings.team.some(function (t) { return t.name; })) { toast("No hay nadie en el equipo para exportar."); return; }
       var a = el("a");
-      a.href = URL.createObjectURL(new Blob([U.teamFile(settings.team, formLinks())], { type: "application/json" }));
+      a.href = URL.createObjectURL(new Blob([U.teamFile(settings.team, formLinks(), formTemplateIds())], { type: "application/json" }));
       a.download = "QAgency-Equipo.json";
       document.body.appendChild(a); a.click(); a.remove();
       setTimeout(function () { URL.revokeObjectURL(a.href); }, 60000);

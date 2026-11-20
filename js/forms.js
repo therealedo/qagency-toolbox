@@ -230,6 +230,21 @@
     };
   }
 
+  /* Estado de un documento enviado a firmar (lo que dice SignWell, en
+     minúsculas). done: ya está firmado y se puede guardar. final: no va a
+     cambiar, así que se puede quitar de la lista. */
+  var SIGNED_STATUS = {
+    completed: { label: "Firmado", done: true, final: true },
+    declined: { label: "El cliente no lo firmó", done: false, final: true },
+    expired: { label: "Venció sin firmar", done: false, final: true },
+    canceled: { label: "Cancelado en SignWell", done: false, final: true },
+    missing: { label: "Ya no está en SignWell", done: false, final: true }
+  };
+  function signedStatus(status) {
+    var s = SIGNED_STATUS[String(status || "").toLowerCase()];
+    return s ? { label: s.label, done: s.done, final: s.final } : { label: "Esperando la firma", done: false, final: false };
+  }
+
   /* El PDF lleno se descarga con el nombre del Consent o del SOA del Network. */
   function downloadName(d, kind) {
     var k = kind === "soa" ? "soa" : "consent";
@@ -419,7 +434,7 @@
     TEMPLATES: TEMPLATES, FIELDS: FIELDS, SIGN_IDS: SIGN_IDS, SOA_EN_FIELDS: SOA_EN_FIELDS,
     formKind: formKind, templateKey: templateKey, consentValues: consentValues, soaValues: soaValues, values: values,
     fieldMap: fieldMap, cliqText: cliqText, signFields: signFields, signingUrl: signingUrl, signTexts: signTexts, downloadName: downloadName,
-    SIGN_PLACEHOLDER: SIGN_PLACEHOLDER, buildSendPayload: buildSendPayload,
+    SIGN_PLACEHOLDER: SIGN_PLACEHOLDER, buildSendPayload: buildSendPayload, signedStatus: signedStatus,
     templateBytes: templateBytes, fillPdf: fillPdf
   };
   root.QA = root.QA || {};

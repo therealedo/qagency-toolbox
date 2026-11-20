@@ -74,11 +74,14 @@ test("al actualizar, el instalador mantiene el navegador del acceso directo que 
   assert.ok(ps.includes("(chrome|msedge|brave)\\.exe$"), "solo si sigue siendo uno de los navegadores conocidos");
 });
 
-test("la página solo puede pedir el número de versión: el OCR solo agrega 'wasm-unsafe-eval'", () => {
+test("la página solo puede pedir el número de versión y hablar con el ayudante de firma local: el OCR solo agrega 'wasm-unsafe-eval'", () => {
   const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
   const csp = html.match(/Content-Security-Policy" content="([^"]+)"/)[1];
   assert.equal(C.UPDATE_URL, "https://raw.githubusercontent.com/therealedo/qagency-toolbox/main/package.json");
-  assert.equal(csp, "default-src 'self' 'unsafe-inline' data: blob: file: 'wasm-unsafe-eval'; connect-src " + C.UPDATE_URL + "; object-src 'none'; base-uri 'self'; form-action 'none'");
+  assert.equal(C.HELPER_URL, "http://127.0.0.1:47815");
+  assert.equal(csp, "default-src 'self' 'unsafe-inline' data: blob: file: 'wasm-unsafe-eval'; connect-src " + C.UPDATE_URL + " " + C.HELPER_URL + "; object-src 'none'; base-uri 'self'; form-action 'none'");
+  /* el mismo puerto que abre el ayudante */
+  assert.match(fs.readFileSync(path.join(root, "tools", "windows", "signing-helper.ps1"), "utf8"), /\[int\]\$Port = 47815/);
   /* el motor y los modelos del OCR van dentro de la herramienta */
   ["vendor/tesseract/ocr-loader.js", "vendor/tesseract/ocr-wasm.js", "vendor/tesseract/ocr-lang-spa.js",
     "vendor/tesseract/ocr-lang-eng.js", "js/ocr.js"].forEach((f) => assert.ok(html.includes('<script src="' + f + '"></script>'), f));

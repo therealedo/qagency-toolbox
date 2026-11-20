@@ -672,6 +672,18 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
 .sign-hint { margin-top: 12px; }
 .fld.is-edited input[type="text"] { border-color: var(--brand); }
 .signlinks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; }
+/* documentos enviados a firmar (ayudante de firma) */
+.signed-bar { max-width: 1500px; margin: 16px auto 0; padding: 0 24px; }
+.signed-bar > * { background: var(--surface); }
+.signed-bar .out-sub, .signed-bar > p, .signed-list { margin: 0; padding: 10px 16px; border: 1px solid var(--line); border-top: 0; }
+.signed-bar .out-sub { border-top: 1px solid var(--line); border-radius: 12px 12px 0 0; }
+.signed-bar > p { font-size: 12.5px; }
+.signed-list { list-style: none; display: flex; flex-direction: column; gap: 8px; border-radius: 0 0 12px 12px; }
+.signed-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 12px; align-items: center; }
+.signed-name { font-weight: 550; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.signed-status { grid-column: 1; font-size: 12.5px; color: var(--ink-3); }
+.signed-row .net-acts { grid-column: 2; grid-row: 1 / span 2; }
+.signed-row.is-done .signed-status { color: var(--brand-ink); }
 @media (max-width: 560px) { .signlinks { grid-template-columns: minmax(0, 1fr); } }
 
 .privacy { font-size: 12.5px; color: var(--ink-3); padding: 2px 4px 0; }

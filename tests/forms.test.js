@@ -355,3 +355,13 @@ test("envío por la API: sin plantilla, sin un email válido o sin nombre no hay
   assert.deepEqual(F.buildSendPayload("consent", make({ clienteEmail: "bea@" }), consent, { templateId: "t1" }), { ok: false, missing: ["email"] });
   assert.deepEqual(F.buildSendPayload("soa", make({}), { beneficiaryName: " " }, {}), { ok: false, missing: ["plantilla", "email", "nombre"] });
 });
+
+test("enviados a firmar: qué dice cada estado de SignWell y cuáles ya se pueden guardar o quitar de la lista", () => {
+  assert.deepEqual(F.signedStatus("completed"), { label: "Firmado", done: true, final: true });
+  assert.deepEqual(F.signedStatus("declined"), { label: "El cliente no lo firmó", done: false, final: true });
+  assert.deepEqual(F.signedStatus("expired"), { label: "Venció sin firmar", done: false, final: true });
+  assert.deepEqual(F.signedStatus("canceled"), { label: "Cancelado en SignWell", done: false, final: true });
+  assert.deepEqual(F.signedStatus("missing"), { label: "Ya no está en SignWell", done: false, final: true });
+  ["sent", "viewed", "created", "unknown", "", undefined].forEach((s) =>
+    assert.deepEqual(F.signedStatus(s), { label: "Esperando la firma", done: false, final: false }));
+});
