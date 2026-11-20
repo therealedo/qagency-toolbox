@@ -68,14 +68,19 @@ $info = @{}
 function New-Entry([string]$id, [string]$sent, [bool]$saved, [string]$status) {
   return [pscustomobject]@{ id = $id; sent = $sent; saved = $saved; status = $status }
 }
+# Se escribe aparte y se reemplaza de una vez: un corte a mitad de camino
+# no deja el historial a medias.
 function Save-Docs {
   $json = if ($docs.Count) { ConvertTo-Json -InputObject ([object[]]$docs.ToArray()) -Compress } else { "[]" }
-  Set-Content -LiteralPath $docsFile -Value $json -Encoding UTF8
+  $tmp = $docsFile + ".tmp"
+  Set-Content -LiteralPath $tmp -Value $json -Encoding UTF8
+  Move-Item -LiteralPath $tmp -Destination $docsFile -Force
 }
 function Find-Doc([string]$id) {
   foreach ($e in $docs) { if ($e.id -eq $id) { return $e } }
   return $null
 }
+$loaded = $false
 if (Test-Path -LiteralPath $docsFile) {
   try {
     $saved = Get-Content -LiteralPath $docsFile -Raw | ConvertFrom-Json
@@ -85,8 +90,15 @@ if (Test-Path -LiteralPath $docsFile) {
       if ($Final -notcontains $st) { $st = "" }
       [void]$docs.Add((New-Entry ([string]$i.id) ([string]$i.sent) ($i.saved -eq $true) $st))
     }
-  } catch { Write-Log "documentos.json ilegible" }
-} elseif (Test-Path -LiteralPath $oldFile) {
+    $loaded = $true
+  } catch {
+    # Ilegible: se aparta (no se pisa) para poder recuperarlo a mano.
+    $docs.Clear()
+    try { Move-Item -LiteralPath $docsFile -Destination ($docsFile + ".ilegible-" + (Get-Date).ToString("yyyyMMddHHmmss")) -Force } catch { }
+    Write-Log "documentos.json ilegible: se aparto"
+  }
+}
+if (-not $loaded -and (Test-Path -LiteralPath $oldFile)) {
   # La version 1 guardaba solo los pendientes: pasan al historial.
   try {
     $old = Get-Content -LiteralPath $oldFile -Raw | ConvertFrom-Json
@@ -153,6 +165,9 @@ function Fetch-Doc($e) {
   } else {
     Write-Log ("estado " + $e.id + " http " + $r.code); return $false
   }
+  # Un firmado sigue firmado: si SignWell ya no lo encuentra (o la clave es
+  # de otra cuenta), no pasa a borrable.
+  if ($e.status -eq "completed") { $info[$e.id].status = "completed" }
   $st = $info[$e.id].status
   if ($Final -contains $st -and $e.status -ne $st) { $e.status = $st; Save-Docs }
   return $true

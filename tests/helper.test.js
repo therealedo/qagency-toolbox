@@ -251,14 +251,43 @@ test("ayudante de firma: el historial llega de a partes, lo más nuevo primero, 
     fs.writeFileSync(path.join(dir, "token.txt"), TOKEN);
     const at = (n) => "2026-11-0" + n + "T10:00:00.0000000Z";
     fs.writeFileSync(path.join(dir, "documentos.json"), JSON.stringify([
+      { id: "d-0", sent: at(0), saved: true, status: "completed" },
       { id: "d-1", sent: at(1), saved: true, status: "completed" }, { id: "d-2", sent: at(2), saved: true, status: "completed" },
       { id: "d-3", sent: at(3), saved: false, status: "expired" }, { id: "d-4", sent: at(4), saved: false, status: "" }]));
     helper = await startHelper(dir, sw.port);
     const one = (await post(helper.port, "/list", { limit: 1 })).json;
-    assert.deepEqual([one.total, one.docs.map((x) => x.id)], [3, ["d-4", "d-3"]]);
+    assert.deepEqual([one.total, one.docs.map((x) => x.id)], [4, ["d-4", "d-3"]]);
     const all = (await post(helper.port, "/list", { limit: 25 })).json;
-    assert.deepEqual(all.docs.map((x) => x.id), ["d-4", "d-3", "d-2", "d-1"]);
+    assert.deepEqual(all.docs.map((x) => x.id), ["d-4", "d-3", "d-2", "d-1", "d-0"]);
     assert.equal((await post(helper.port, "/list", { limit: "x" })).status, 400);
+    /* un firmado que SignWell ya no encuentra (otra cuenta, o borrado allá) sigue firmado: no se borra */
+    assert.equal(all.docs.find((x) => x.id === "d-0").status, "completed");
+    const del = await post(helper.port, "/delete", { id: "d-0" });
+    assert.deepEqual([del.status, del.json], [409, { error: "firmado" }]);
+    assert.equal(readStore(dir).find((x) => x.id === "d-0").status, "completed");
+  } finally {
+    await stopHelper(helper);
+    sw.server.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("ayudante de firma: un documentos.json ilegible se aparta, no se pisa", { skip: !WIN, timeout: 60000 }, async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "qa-helper-"));
+  const sw = await fakeSignWell();
+  let helper;
+  try {
+    writeKey(dir);
+    fs.writeFileSync(path.join(dir, "token.txt"), TOKEN);
+    const broken = '[{"id":"old-1","sent":"2026-11-01T10:00:00Z","saved":true,"status":"compl';
+    fs.writeFileSync(path.join(dir, "documentos.json"), broken);
+    helper = await startHelper(dir, sw.port);
+    await post(helper.port, "/send", SEND);
+    const kept = fs.readdirSync(dir).filter((f) => f.startsWith("documentos.json.ilegible-"));
+    assert.equal(kept.length, 1);
+    assert.equal(fs.readFileSync(path.join(dir, kept[0]), "utf8"), broken);
+    assert.deepEqual(readStore(dir).map((x) => x.id), ["doc-1"]);
+    assert.ok(!fs.existsSync(path.join(dir, "documentos.json.tmp")));
   } finally {
     await stopHelper(helper);
     sw.server.close();

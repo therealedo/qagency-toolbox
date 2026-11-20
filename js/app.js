@@ -2188,6 +2188,7 @@
     var id = doc.id, meta = doc.meta || {};
     helper.savePending[id] = true;
     return helperFetch("/saved", { id: id }).then(function () {
+      if (!doc.saved) { helper.total += 1; }
       doc.saved = true;
       delete helper.savePending[id]; delete helper.pdfs[id]; delete helper.downloaded[id]; delete helper.note[id];
       var d = data();

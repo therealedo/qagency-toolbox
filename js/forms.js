@@ -231,8 +231,8 @@
   }
 
   /* Estado de un documento enviado a firmar (lo que dice SignWell, en
-     minúsculas). done: ya está firmado y se puede guardar. final: no va a
-     cambiar, así que se puede quitar de la lista. */
+     minúsculas). done: ya está firmado y se puede guardar. final: ya no va
+     a cambiar. */
   /* group: en qué parte del tablero Firmas va. pending: espera la firma;
      signed: firmado; unsigned: terminó sin firmar. */
   var SIGNED_STATUS = {
