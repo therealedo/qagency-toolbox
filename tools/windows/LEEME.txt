@@ -51,7 +51,10 @@ que arranca solo al iniciar sesion en Windows. Mientras Q Agency no firme
 el acuerdo de privacidad (BAA) con SignWell, todo se envia en modo de
 prueba: usa solo datos de prueba. Cuando el cliente firma, el PDF se
 guarda solo en la carpeta del Network; si no se puede, la herramienta
-ofrece Guardar o Descargar.
+ofrece Guardar o Descargar. La pestana Firmas muestra lo enviado desde
+esta computadora: lo que espera la firma, lo firmado (el historial, que
+queda en SignWell) y lo que no se firmo. Ahi se cancela un envio hecho
+por error y se borra uno que vencio o se cancelo. Lo firmado no se borra.
 
 Quitar: doble clic en Desinstalar.bat.
 
