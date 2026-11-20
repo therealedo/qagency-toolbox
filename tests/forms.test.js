@@ -356,12 +356,41 @@ test("envío por la API: sin plantilla, sin un email válido o sin nombre no hay
   assert.deepEqual(F.buildSendPayload("soa", make({}), { beneficiaryName: " " }, {}), { ok: false, missing: ["plantilla", "email", "nombre"] });
 });
 
-test("enviados a firmar: qué dice cada estado de SignWell y cuáles ya se pueden guardar o quitar de la lista", () => {
-  assert.deepEqual(F.signedStatus("completed"), { label: "Firmado", done: true, final: true });
-  assert.deepEqual(F.signedStatus("declined"), { label: "El cliente no lo firmó", done: false, final: true });
-  assert.deepEqual(F.signedStatus("expired"), { label: "Venció sin firmar", done: false, final: true });
-  assert.deepEqual(F.signedStatus("canceled"), { label: "Cancelado en SignWell", done: false, final: true });
-  assert.deepEqual(F.signedStatus("missing"), { label: "Ya no está en SignWell", done: false, final: true });
-  ["sent", "viewed", "created", "unknown", "", undefined].forEach((s) =>
-    assert.deepEqual(F.signedStatus(s), { label: "Esperando la firma", done: false, final: false }));
+test("enviados a firmar: qué dice cada estado de SignWell y en qué grupo del tablero va", () => {
+  assert.deepEqual(F.signedStatus("completed"), { label: "Firmado", done: true, final: true, group: "signed" });
+  assert.deepEqual(F.signedStatus("Completed"), F.signedStatus("completed"));
+  assert.deepEqual(F.signedStatus("declined"), { label: "El cliente no lo firmó", done: false, final: true, group: "unsigned" });
+  assert.deepEqual(F.signedStatus("expired"), { label: "Venció sin firmar", done: false, final: true, group: "unsigned" });
+  assert.deepEqual(F.signedStatus("canceled"), { label: "Cancelado en SignWell", done: false, final: true, group: "unsigned" });
+  assert.deepEqual(F.signedStatus("missing"), { label: "Ya no está en SignWell", done: false, final: true, group: "unsigned" });
+  assert.deepEqual(F.signedStatus("viewed"), { label: "El cliente lo abrió, falta firmar", done: false, final: false, group: "pending" });
+  ["sent", "pending", "created", "unknown", "", undefined].forEach((s) =>
+    assert.deepEqual(F.signedStatus(s), { label: "Esperando la firma", done: false, final: false, group: "pending" }));
+});
+
+test("tablero Firmas: qué se puede hacer con cada documento; un firmado nunca se borra", () => {
+  assert.deepEqual(F.signActions({ status: "sent" }), ["cancel"]);
+  assert.deepEqual(F.signActions({ status: "viewed" }), ["cancel"]);
+  assert.deepEqual(F.signActions({ status: "completed", saved: false }), ["save", "download"]);
+  assert.deepEqual(F.signActions({ status: "completed", saved: true }), ["download"]);
+  ["expired", "canceled", "declined", "missing"].forEach((s) => assert.deepEqual(F.signActions({ status: s }), ["delete"]));
+});
+
+test("tablero Firmas: cuenta por grupo, filtra y deja el orden del ayudante", () => {
+  const docs = [{ id: "a", status: "sent" }, { id: "b", status: "completed", saved: false }, { id: "c", status: "expired" },
+    { id: "d", status: "completed", saved: true }, { id: "e", status: "viewed" }];
+  const all = F.signDashboard(docs, "all");
+  assert.deepEqual(all.counts, { pending: 2, signed: 2, unsigned: 1, all: 5, toSave: 1 });
+  assert.deepEqual(all.rows.map((x) => x.id), ["a", "b", "c", "d", "e"]);
+  assert.deepEqual(F.signDashboard(docs, "pending").rows.map((x) => x.id), ["a", "e"]);
+  assert.deepEqual(F.signDashboard(docs, "signed").rows.map((x) => x.id), ["b", "d"]);
+  assert.deepEqual(F.signDashboard(docs, "unsigned").rows.map((x) => x.id), ["c"]);
+  assert.deepEqual(F.signDashboard(docs, "otro").rows.map((x) => x.id), ["a", "b", "c", "d", "e"]);
+  assert.deepEqual(F.signDashboard([], "all"), { counts: { pending: 0, signed: 0, unsigned: 0, all: 0, toSave: 0 }, rows: [] });
+});
+
+test("tablero Firmas: fechas de SignWell como MM/DD/AAAA", () => {
+  assert.equal(F.signDate("2026-11-20T12:00:00Z"), "11/20/2026");
+  assert.equal(F.signDate("2026-03-05T12:00:00.0000000Z"), "03/05/2026");
+  ["", null, undefined, "ayer"].forEach((v) => assert.equal(F.signDate(v), ""));
 });

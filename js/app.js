@@ -2050,9 +2050,12 @@
      que el ayudante pide; ninguna página web puede leer ese archivo. Cada
      minuto se pregunta qué documentos ya se firmaron: un firmado se guarda
      solo en su carpeta del Network cuando esa carpeta ya está elegida y con
-     permiso, y si no, quedan Guardar y Descargar. Solo después de guardarlo
-     (o de «Ya lo guardé», tras descargarlo) se borra de SignWell. */
-  var helper = { token: "", up: false, ok: false, testMode: true, docs: [], pdfs: {}, busy: {}, tried: {}, saved: {}, downloaded: {}, note: {} };
+     permiso, y si no, quedan Guardar y Descargar. Los documentos se quedan
+     en SignWell: son el historial del tablero Firmas, donde también se
+     cancela uno enviado por error y se borra uno que no se firmó. */
+  var HISTORY_STEP = 25;
+  var helper = { token: "", up: false, ok: false, testMode: true, docs: [], total: 0, limit: HISTORY_STEP, filter: "all",
+    pdfs: {}, busy: {}, tried: {}, savePending: {}, downloaded: {}, note: {} };
 
   function loadHelper() {
     if (location.protocol !== "file:" || !window.fetch) { return; }
@@ -2063,7 +2066,7 @@
       try { delete window.QA_HELPER; } catch (e) { window.QA_HELPER = undefined; }
       if (!c || !/^[0-9a-f]{64}$/.test(String(c.token || ""))) { return; }
       helper.token = c.token;
-      checkHelper(true);
+      if (viewFromHash() === "firmas") { setView("firmas"); } else { renderFirmas(); checkHelper(true); }
       setInterval(function () { checkHelper(false); }, 60000);
     };
     s.onerror = function () { s.remove(); };
@@ -2090,19 +2093,20 @@
     if (!helper.token) { return; }
     helperFetch("/health").then(function (h) {
       helper.up = true; helper.ok = !!h.ok; helper.testMode = h.testMode !== false;
-      return helper.ok ? helperFetch("/list", { refresh: !!refresh }) : { docs: [] };
+      return helper.ok ? helperFetch("/list", { refresh: !!refresh, limit: helper.limit }) : { docs: [], total: 0 };
     }).then(function (r) {
       helper.docs = Array.isArray(r.docs) ? r.docs : [];
-      renderSigned();
+      helper.total = Number(r.total) || 0;
+      renderFirmas();
       renderSign(data());
       helper.docs.forEach(function (doc) {
-        /* guardado pero sin borrar de SignWell (falló el borrado): se reintenta */
-        if (helper.saved[doc.id]) { finishSigned(doc, ""); }
-        else if (FM.signedStatus(doc.status).done) { autoSaveSigned(doc); }
+        if (!FM.signedStatus(doc.status).done || doc.saved) { return; }
+        /* guardado, pero el ayudante no lo pudo marcar: se reintenta */
+        if (helper.savePending[doc.id]) { markSaved(doc, ""); } else { autoSaveSigned(doc); }
       });
     }).catch(function () {
       helper.up = false; helper.ok = false;
-      renderSigned();
+      renderFirmas();
       renderSign(data());
     });
   }
@@ -2137,7 +2141,7 @@
         $("signSendWarn").hidden = !helper.testMode;
         msg = (helper.testMode ? "" : "Modo real: el cliente recibe el documento para firmar de verdad. ") +
           "Se envía al email " + r.body.recipient.email + ", en " + (r.body.language === "en" ? "inglés" : "español") +
-          ". Cuando el cliente firme, el PDF se guarda solo en el Network (" + r.body.meta.fileName + ").";
+          ". Cuando el cliente firme, el PDF se guarda solo en el Network (" + r.body.meta.fileName + "). Su estado se ve en Firmas.";
       }
     }
     $("signSendStatus").textContent = msg;
@@ -2162,7 +2166,7 @@
     btn.disabled = true;
     helperFetch("/send", r.body).then(function () {
       flashButton(btn);
-      toast(title + " enviado a firmar a " + r.body.recipient.email + ".");
+      toast(title + " enviado a firmar a " + r.body.recipient.email + ". Su estado se ve en Firmas.");
       checkHelper(false);
     }, function (e) { toast(sendError(e)); }).then(function () { btn.disabled = false; });
   }
@@ -2178,23 +2182,23 @@
     return helperFetch("/pdf", { id: id }, true).then(function (buf) { return (helper.pdfs[id] = new Uint8Array(buf)); });
   }
 
-  /* Guardado: se borra de SignWell y sale de la lista. Si es el documento
-     de la nota que está abierta, se marca en Network. */
-  function finishSigned(doc, msg) {
+  /* Ya está en el Network: el ayudante lo marca como guardado (no se borra
+     de SignWell). Si es el documento de la nota abierta, se marca Network. */
+  function markSaved(doc, msg) {
     var id = doc.id, meta = doc.meta || {};
-    helper.saved[id] = true;
-    return helperFetch("/ack", { id: id }).then(function () {
-      helper.docs = helper.docs.filter(function (x) { return x.id !== id; });
-      delete helper.pdfs[id]; delete helper.saved[id]; delete helper.downloaded[id]; delete helper.note[id];
+    helper.savePending[id] = true;
+    return helperFetch("/saved", { id: id }).then(function () {
+      doc.saved = true;
+      delete helper.savePending[id]; delete helper.pdfs[id]; delete helper.downloaded[id]; delete helper.note[id];
       var d = data();
       if (meta.netKey && meta.line === S.line && FM.formKind(d) === meta.kind && signedName({ id: id, meta: { fileName: FM.downloadName(d, meta.kind) } }) === signedName(doc)) {
         S.f.net[meta.netKey] = true; S.dirty = true; renderNetwork(); refresh();
       }
-      renderSigned();
+      renderFirmas();
       if (msg) { toast(msg); }
     }, function () {
-      helper.note[id] = "Guardado. No se pudo borrar de SignWell todavía: se intenta otra vez en un minuto.";
-      renderSigned();
+      helper.note[id] = "Guardado en el Network. Firmas no lo pudo marcar todavía: se intenta otra vez en un minuto.";
+      renderFirmas();
     });
   }
 
@@ -2203,7 +2207,7 @@
     if (helper.busy[id] || helper.tried[id] || !canSave) { return; }
     helper.tried[id] = true;
     var dir = N.netDirFor(netDirs, meta.line || S.line, meta.netKey).dir;
-    if (!dir) { helper.note[id] = "Falta elegir la carpeta del Network en Ajustes: usa Guardar o Descargar."; renderSigned(); return; }
+    if (!dir) { helper.note[id] = "Falta elegir la carpeta del Network en Ajustes: usa Guardar o Descargar."; renderFirmas(); return; }
     helper.busy[id] = true;
     dir.queryPermission({ mode: "readwrite" }).then(function (p) {
       if (p !== "granted") { throw { quiet: "El navegador pide permiso para la carpeta: usa Guardar." }; }
@@ -2215,11 +2219,11 @@
       .then(function (bytes) { return writeOne(dir, { name: name, file: bytes }); })
       .then(function (ok) {
         if (!ok) { throw { quiet: "No se guardó: usa Guardar o Descargar." }; }
-        return finishSigned(doc, "Firmado y guardado en el Network: " + name);
+        return markSaved(doc, "Firmado y guardado en el Network: " + name);
       })
       .catch(function (e) {
         helper.note[id] = (e && e.quiet) || "No se pudo guardar solo: usa Guardar o Descargar.";
-        renderSigned();
+        renderFirmas();
       })
       .then(function () { delete helper.busy[id]; });
   }
@@ -2231,7 +2235,7 @@
     ensureNetDir(meta.netKey, meta.line).then(function (dir) {
       return signedPdf(doc.id).then(function (bytes) { return writeOne(dir, { name: name, file: bytes }); });
     }).then(function (ok) {
-      if (ok) { return finishSigned(doc, "Guardado en el Network: " + name); }
+      if (ok) { return markSaved(doc, "Guardado en el Network: " + name); }
     }).catch(function (e) {
       if (e && e.name === "AbortError") { return; }
       toast("No se pudo guardar en la carpeta del Network. Usa Descargar y guárdalo a mano.");
@@ -2247,53 +2251,127 @@
       a.download = name;
       document.body.appendChild(a); a.click(); a.remove();
       setTimeout(function () { URL.revokeObjectURL(a.href); }, 60000);
+      if (doc.saved) { toast("Descargado: " + name + "."); return; }
       helper.downloaded[doc.id] = true;
-      renderSigned();
+      renderFirmas();
       toast("Descargado: " + name + ". Cuando lo guardes en el Network, pulsa «Ya lo guardé».");
     }, function () { toast("No se pudo traer el PDF firmado. Revisa que el ayudante de firma esté abierto."); })
       .then(function () { if (btn.isConnected) { btn.disabled = false; } });
   }
 
-  function renderSigned() {
-    var docs = helper.ok ? helper.docs : [], list = $("signedList");
-    $("signedBar").hidden = !docs.length;
+  /* Cancelar uno que espera la firma, o borrar uno que no se firmó: se
+     borra en SignWell y sale de Firmas. Un firmado no llega aquí. */
+  function deleteSigned(doc, btn, cancel) {
+    var name = signedName(doc);
+    var q = cancel
+      ? "¿Cancelar el envío de «" + name + "»" + (doc.email ? " a " + doc.email : "") + "? El cliente ya no podrá firmarlo y se borra de SignWell."
+      : "¿Borrar «" + name + "» de SignWell? No se puede deshacer.";
+    if (!window.confirm(q)) { return; }
+    btn.disabled = true;
+    helperFetch("/delete", { id: doc.id }).then(function () {
+      helper.docs = helper.docs.filter(function (x) { return x.id !== doc.id; });
+      if (!cancel) { helper.total = Math.max(0, helper.total - 1); }
+      renderFirmas();
+      toast((cancel ? "Envío cancelado: " : "Borrado de SignWell: ") + name + ".");
+    }, function (e) {
+      var info = (e && e.info) || {};
+      if (info.error === "firmado") { toast("El cliente ya lo firmó, así que no se " + (cancel ? "canceló" : "borró") + ". Queda en Firmados."); checkHelper(true); return; }
+      toast("No se pudo " + (cancel ? "cancelar" : "borrar") + " en SignWell. Revisa la conexión e intenta de nuevo.");
+    }).then(function () { if (btn.isConnected) { btn.disabled = false; } });
+  }
+
+  var FIRMAS_KIND = { consent: "Consent", soa: "SOA" };
+  /* Ya cerrado y no falta nada: cuenta para «Ver más del historial» */
+  function isClosedDoc(doc) {
+    var st = FM.signedStatus(doc.status);
+    return st.final && !(st.done && !doc.saved);
+  }
+
+  function renderFirmas() {
+    $("navFirmas").hidden = !helper.token;
+    var docs = helper.ok ? helper.docs : [], dash = FM.signDashboard(docs, helper.filter);
+    var badge = $("firmasBadge");
+    badge.hidden = !dash.counts.toSave;
+    badge.textContent = dash.counts.toSave || "";
+    badge.title = dash.counts.toSave ? "Firmados que falta guardar en el Network" : "";
+    if (currentView !== "firmas") { return; }
+
+    var state = $("firmasState"), msg = "";
+    if (!helper.up) { msg = "El ayudante de firma no responde. Se abre solo al iniciar sesión en Windows; si sigue así, vuelve a instalar la herramienta."; }
+    else if (!helper.ok) { msg = "Falta la clave de SignWell en esta computadora: agrégala con «Clave de firma.bat» del paquete de Windows."; }
+    else if (helper.testMode) { msg = "Modo de prueba: lo que se envía desde esta computadora es de prueba en SignWell."; }
+    state.textContent = msg;
+    state.hidden = !msg;
+
+    each(document.querySelectorAll("#firmasFilter [data-filter]"), function (b) {
+      var on = b.dataset.filter === helper.filter;
+      b.classList.toggle("on", on);
+      b.setAttribute("aria-pressed", on ? "true" : "false");
+      b.querySelector(".n").textContent = dash.counts[b.dataset.filter] ? "(" + dash.counts[b.dataset.filter] + ")" : "";
+    });
+
+    var list = $("firmasList");
     list.textContent = "";
-    docs.forEach(function (doc) {
-      var st = FM.signedStatus(doc.status), li = el("li", "signed-row" + (st.done ? " is-done" : ""));
-      var name = el("span", "signed-name", signedName(doc));
-      name.title = name.textContent;
-      li.appendChild(name);
-      li.appendChild(el("span", "signed-status", st.label + (helper.note[doc.id] ? ". " + helper.note[doc.id] : "")));
-      var acts = el("span", "net-acts");
+    dash.rows.forEach(function (doc) {
+      var st = FM.signedStatus(doc.status), meta = doc.meta || {}, li = el("li", "firmas-row is-" + st.group);
+      var who = el("div", "firmas-who");
+      who.appendChild(el("strong", "", doc.name || "Cliente"));
+      var file = el("span", "firmas-file", (FIRMAS_KIND[meta.kind] ? FIRMAS_KIND[meta.kind] + " · " : "") + signedName(doc));
+      file.title = file.textContent;
+      who.appendChild(file);
+      li.appendChild(who);
+
+      var when = el("div", "firmas-when");
+      var sent = FM.signDate(doc.sent || doc.created), upd = FM.signDate(doc.updated);
+      when.appendChild(el("span", "", sent ? "Enviado " + sent : "Enviado"));
+      if (upd && upd !== sent) { when.appendChild(el("span", "firmas-sub", "Último cambio " + upd)); }
+      li.appendChild(when);
+
+      var status = el("div", "firmas-status");
+      status.appendChild(el("span", "firmas-pill", st.label));
+      var sub = st.done ? (doc.saved ? "Guardado en el Network" : "Falta guardarlo en el Network") : (doc.email || "");
+      if (helper.note[doc.id]) { sub = helper.note[doc.id]; }
+      if (sub) { status.appendChild(el("span", "firmas-sub", sub)); }
+      li.appendChild(status);
+
+      var acts = el("div", "firmas-acts");
       function act(label, what, cls) {
         var b = el("button", "btn small" + (cls ? " " + cls : ""), label);
-        b.type = "button"; b.dataset.signedAct = what; b.dataset.id = doc.id;
+        b.type = "button"; b.dataset.firmaAct = what; b.dataset.id = doc.id;
         acts.appendChild(b);
       }
-      if (st.done && !helper.saved[doc.id]) {
-        if (canSave) { act("Guardar", "save", "primary"); }
-        act("Descargar", "download");
-        if (helper.downloaded[doc.id]) { act("Ya lo guardé", "ack"); }
-      } else if (st.final && !st.done) {
-        act("Quitar", "drop");
-      }
+      FM.signActions(doc).forEach(function (a) {
+        if (a === "save" && canSave) { act("Guardar", "save", "primary"); }
+        if (a === "download") { act("Descargar", "download"); }
+        if (a === "cancel") { act("Cancelar envío", "cancel", "ghost"); }
+        if (a === "delete") { act("Borrar", "delete", "ghost"); }
+      });
+      if (!doc.saved && helper.downloaded[doc.id]) { act("Ya lo guardé", "ack"); }
       li.appendChild(acts);
       list.appendChild(li);
     });
+
+    var empty = $("firmasEmpty");
+    empty.hidden = !!dash.rows.length || !helper.ok;
+    empty.textContent = docs.length ? "No hay documentos en este grupo." :
+      "Todavía no hay documentos enviados a firmar desde esta computadora. Se envían desde la sección Consent o SOA de la nota.";
+    var shown = docs.filter(isClosedDoc).length, more = $("firmasMore");
+    more.hidden = !helper.ok || helper.total <= shown;
+    more.textContent = "Ver más del historial (" + Math.max(0, helper.total - shown) + " más)";
   }
 
-  function onSignedClick(e) {
-    var b = e.target.closest("[data-signed-act]");
+  function onFirmasClick(e) {
+    var b = e.target.closest("[data-firma-act]");
     if (!b) { return; }
     var doc = helper.docs.filter(function (x) { return x.id === b.dataset.id; })[0];
     if (!doc) { return; }
-    var act = b.dataset.signedAct, name = signedName(doc);
+    var act = b.dataset.firmaAct, name = signedName(doc);
     if (act === "save") { saveSignedManually(doc, b); }
     else if (act === "download") { downloadSigned(doc, b); }
+    else if (act === "cancel") { deleteSigned(doc, b, true); }
+    else if (act === "delete") { deleteSigned(doc, b, false); }
     else if (act === "ack") {
-      if (window.confirm("¿Ya guardaste «" + name + "» en el Network? Se borra de SignWell.")) { finishSigned(doc, "Listo: " + name + " se borró de SignWell."); }
-    } else if (act === "drop") {
-      if (window.confirm("¿Quitar «" + name + "» de la lista? Se borra de SignWell.")) { finishSigned(doc, ""); }
+      if (window.confirm("¿Ya guardaste «" + name + "» en el Network?")) { markSaved(doc, "Listo: " + name + " quedó como guardado."); }
     }
   }
 
@@ -3031,18 +3109,21 @@
   var currentView = "nota";
 
   function setView(name) {
-    currentView = name === "tasks" ? "tasks" : "nota";
+    currentView = name === "tasks" ? "tasks" : name === "firmas" && helper.token ? "firmas" : "nota";
     $("view-nota").hidden = currentView !== "nota";
     $("view-tasks").hidden = currentView !== "tasks";
+    $("view-firmas").hidden = currentView !== "firmas";
     document.body.dataset.view = currentView;
     each(document.querySelectorAll(".views a"), function (a) {
       if (a.dataset.view === currentView) { a.setAttribute("aria-current", "page"); } else { a.removeAttribute("aria-current"); }
     });
-    if (currentView === "tasks") { renderTasks(); } else { markRail(); }
+    if (currentView === "tasks") { renderTasks(); }
+    else if (currentView === "firmas") { renderFirmas(); checkHelper(true); }
+    else { markRail(); }
     window.scrollTo(0, 0);
   }
 
-  function viewFromHash() { return location.hash.replace(/^#/, "") === "tasks" ? "tasks" : "nota"; }
+  function viewFromHash() { var h = location.hash.replace(/^#/, ""); return h === "tasks" || h === "firmas" ? h : "nota"; }
 
   /* -------------------------------------------------------------- ajustes */
 
@@ -3435,8 +3516,18 @@
     $("signReset").addEventListener("click", function () { delete S.signEdits[signKind]; renderSign(data()); });
     $("signDownload").addEventListener("click", function () { downloadSign(this); });
     $("signSend").addEventListener("click", function () { sendForSignature(this); });
-    $("signedList").addEventListener("click", onSignedClick);
-    $("signedRefresh").addEventListener("click", function () { checkHelper(true); });
+    $("firmasList").addEventListener("click", onFirmasClick);
+    $("firmasRefresh").addEventListener("click", function () { checkHelper(true); });
+    $("firmasFilter").addEventListener("click", function (e) {
+      var b = e.target.closest("[data-filter]");
+      if (!b) { return; }
+      helper.filter = b.dataset.filter;
+      renderFirmas();
+    });
+    $("firmasMore").addEventListener("click", function () {
+      helper.limit += HISTORY_STEP;
+      checkHelper(false);
+    });
     $("sheetPrint").addEventListener("click", printSheet);
     $("sheetSave").addEventListener("click", saveSheet);
     window.addEventListener("resize", fitSheet);

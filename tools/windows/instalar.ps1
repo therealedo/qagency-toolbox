@@ -57,8 +57,14 @@ function Pedir-Clave {
 if ($Quitar) {
   Detener-Ayudante
   $pend = Join-Path $firma "pendientes.json"
-  if ((Test-Path $pend) -and ((Get-Content -LiteralPath $pend -Raw) -match '"')) {
-    Write-Host "Aviso: habia documentos enviados a firmar sin guardar. Siguen en SignWell."
+  $docsJson = Join-Path $firma "documentos.json"
+  $sinGuardar = $false
+  if ((Test-Path $pend) -and ((Get-Content -LiteralPath $pend -Raw) -match '"')) { $sinGuardar = $true }
+  if (Test-Path $docsJson) {
+    try { foreach ($i in (Get-Content -LiteralPath $docsJson -Raw | ConvertFrom-Json)) { if (-not $i.status -or ($i.status -eq "completed" -and -not $i.saved)) { $sinGuardar = $true } } } catch { }
+  }
+  if ($sinGuardar) {
+    Write-Host "Aviso: habia documentos enviados a firmar que esperan la firma o sin guardar en el Network. Siguen en SignWell."
   }
   foreach ($a in ($accesos + $accesosActualizar + @($accesoAyudante))) { if (Test-Path $a) { Remove-Item $a -Force } }
   if (Test-Path $destino) { Remove-Item $destino -Recurse -Force }

@@ -233,16 +233,48 @@
   /* Estado de un documento enviado a firmar (lo que dice SignWell, en
      minúsculas). done: ya está firmado y se puede guardar. final: no va a
      cambiar, así que se puede quitar de la lista. */
+  /* group: en qué parte del tablero Firmas va. pending: espera la firma;
+     signed: firmado; unsigned: terminó sin firmar. */
   var SIGNED_STATUS = {
-    completed: { label: "Firmado", done: true, final: true },
-    declined: { label: "El cliente no lo firmó", done: false, final: true },
-    expired: { label: "Venció sin firmar", done: false, final: true },
-    canceled: { label: "Cancelado en SignWell", done: false, final: true },
-    missing: { label: "Ya no está en SignWell", done: false, final: true }
+    completed: { label: "Firmado", done: true, final: true, group: "signed" },
+    declined: { label: "El cliente no lo firmó", done: false, final: true, group: "unsigned" },
+    expired: { label: "Venció sin firmar", done: false, final: true, group: "unsigned" },
+    canceled: { label: "Cancelado en SignWell", done: false, final: true, group: "unsigned" },
+    missing: { label: "Ya no está en SignWell", done: false, final: true, group: "unsigned" },
+    viewed: { label: "El cliente lo abrió, falta firmar", done: false, final: false, group: "pending" }
   };
   function signedStatus(status) {
     var s = SIGNED_STATUS[String(status || "").toLowerCase()];
-    return s ? { label: s.label, done: s.done, final: s.final } : { label: "Esperando la firma", done: false, final: false };
+    return s ? { label: s.label, done: s.done, final: s.final, group: s.group } : { label: "Esperando la firma", done: false, final: false, group: "pending" };
+  }
+
+  /* Qué se puede hacer con un documento del tablero. Un firmado nunca se
+     borra: es el historial. */
+  function signActions(doc) {
+    var st = signedStatus(doc && doc.status);
+    if (st.group === "signed") { return doc.saved ? ["download"] : ["save", "download"]; }
+    return st.group === "unsigned" ? ["delete"] : ["cancel"];
+  }
+
+  /* Cuántos hay de cada grupo (toSave: firmados que falta guardar en el
+     Network) y las filas del filtro elegido, en el orden del ayudante. */
+  function signDashboard(docs, filter) {
+    var counts = { pending: 0, signed: 0, unsigned: 0, all: 0, toSave: 0 };
+    var rows = (docs || []).filter(function (doc) {
+      var g = signedStatus(doc.status).group;
+      counts[g]++; counts.all++;
+      if (g === "signed" && !doc.saved) { counts.toSave++; }
+      return ["pending", "signed", "unsigned"].indexOf(filter) < 0 || g === filter;
+    });
+    return { counts: counts, rows: rows };
+  }
+
+  /* Fecha ISO de SignWell (o del ayudante) como MM/DD/AAAA, en la hora local. */
+  function signDate(iso) {
+    var t = iso ? new Date(iso) : null;
+    if (!t || isNaN(t.getTime())) { return ""; }
+    var two = function (n) { return (n < 10 ? "0" : "") + n; };
+    return two(t.getMonth() + 1) + "/" + two(t.getDate()) + "/" + t.getFullYear();
   }
 
   /* El PDF lleno se descarga con el nombre del Consent o del SOA del Network. */
@@ -435,6 +467,7 @@
     formKind: formKind, templateKey: templateKey, consentValues: consentValues, soaValues: soaValues, values: values,
     fieldMap: fieldMap, cliqText: cliqText, signFields: signFields, signingUrl: signingUrl, signTexts: signTexts, downloadName: downloadName,
     SIGN_PLACEHOLDER: SIGN_PLACEHOLDER, buildSendPayload: buildSendPayload, signedStatus: signedStatus,
+    signActions: signActions, signDashboard: signDashboard, signDate: signDate,
     templateBytes: templateBytes, fillPdf: fillPdf
   };
   root.QA = root.QA || {};

@@ -2,10 +2,12 @@
 # Escucha solo en 127.0.0.1. La herramienta le pasa en JSON el Consent o el
 # SOA que hay que firmar; el ayudante guarda la clave de la API de SignWell
 # (cifrada con DPAPI, solo la lee este usuario de Windows), hace la llamada,
-# revisa cada minuto los documentos enviados y entrega el PDF firmado a la
-# herramienta, que lo guarda en el Network. En el disco guarda solo los
-# numeros de los documentos: ningun dato del cliente.
-# Rutas: GET /health; POST /send, /list, /pdf, /ack (con X-Helper-Token).
+# revisa cada minuto los documentos que esperan la firma y entrega el PDF
+# firmado a la herramienta, que lo guarda en el Network. Los documentos se
+# quedan en SignWell: son el historial del tablero Firmas. En el disco guarda
+# solo los numeros de los documentos, la fecha de envio, el estado final y si
+# ya se guardo en el Network: ningun dato del cliente.
+# Rutas: GET /health; POST /send, /list, /pdf, /saved, /delete (con X-Helper-Token).
 # (Los mensajes van sin acentos para que se lean bien en cualquier consola.)
 param(
   [int]$Port = 47815,
@@ -15,7 +17,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$Version = "1"
+$Version = "2"
 Add-Type -AssemblyName System.Net.Http
 Add-Type -AssemblyName System.Security
 [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
@@ -23,7 +25,8 @@ Add-Type -AssemblyName System.Security
 $claveFile = Join-Path $Dir "clave.txt"
 $tokenFile = Join-Path $Dir "token.txt"
 $ajustesFile = Join-Path $Dir "ajustes.json"
-$pendFile = Join-Path $Dir "pendientes.json"
+$docsFile = Join-Path $Dir "documentos.json"
+$oldFile = Join-Path $Dir "pendientes.json"
 $logFile = Join-Path $Dir "registro.log"
 New-Item -ItemType Directory -Force -Path $Dir | Out-Null
 
@@ -52,16 +55,45 @@ if (Test-Path -LiteralPath $ajustesFile) {
   try { $aj = Get-Content -LiteralPath $ajustesFile -Raw | ConvertFrom-Json; if ($aj.testMode -eq $false) { $testMode = $false } } catch { }
 }
 
-# Pendientes: solo los numeros de documento, en el disco. Lo demas (estado y
-# metadata) se pide a SignWell y vive en memoria.
-$pending = New-Object System.Collections.ArrayList
-if (Test-Path -LiteralPath $pendFile) {
-  try { foreach ($i in @(Get-Content -LiteralPath $pendFile -Raw | ConvertFrom-Json)) { if ($i -match '^[A-Za-z0-9_-]+$') { [void]$pending.Add([string]$i) } } } catch { }
+# Estados con los que un documento ya no cambia: no se vuelven a sondear.
+$Final = @("completed", "declined", "expired", "canceled", "missing")
+$idOk = '^[A-Za-z0-9_-]{1,100}$'
+
+# En el disco, por documento enviado desde esta computadora: su numero,
+# cuando se envio, su estado final y si ya se guardo en el Network. El
+# cliente, el archivo y las fechas de SignWell se piden a SignWell y viven
+# solo en memoria ($info).
+$docs = New-Object System.Collections.ArrayList
+$info = @{}
+function New-Entry([string]$id, [string]$sent, [bool]$saved, [string]$status) {
+  return [pscustomobject]@{ id = $id; sent = $sent; saved = $saved; status = $status }
 }
-$cache = @{}
-function Save-Pending {
-  $json = if ($pending.Count) { ConvertTo-Json -InputObject ([object[]]$pending.ToArray()) -Compress } else { "[]" }
-  Set-Content -LiteralPath $pendFile -Value $json -Encoding UTF8
+function Save-Docs {
+  $json = if ($docs.Count) { ConvertTo-Json -InputObject ([object[]]$docs.ToArray()) -Compress } else { "[]" }
+  Set-Content -LiteralPath $docsFile -Value $json -Encoding UTF8
+}
+function Find-Doc([string]$id) {
+  foreach ($e in $docs) { if ($e.id -eq $id) { return $e } }
+  return $null
+}
+if (Test-Path -LiteralPath $docsFile) {
+  try {
+    $saved = Get-Content -LiteralPath $docsFile -Raw | ConvertFrom-Json
+    foreach ($i in $saved) {
+      if ($null -eq $i -or -not (([string]$i.id) -match $idOk)) { continue }
+      $st = [string]$i.status
+      if ($Final -notcontains $st) { $st = "" }
+      [void]$docs.Add((New-Entry ([string]$i.id) ([string]$i.sent) ($i.saved -eq $true) $st))
+    }
+  } catch { Write-Log "documentos.json ilegible" }
+} elseif (Test-Path -LiteralPath $oldFile) {
+  # La version 1 guardaba solo los pendientes: pasan al historial.
+  try {
+    $old = Get-Content -LiteralPath $oldFile -Raw | ConvertFrom-Json
+    foreach ($i in $old) { if (([string]$i) -match $idOk) { [void]$docs.Add((New-Entry ([string]$i) "" $false "")) } }
+    Save-Docs
+    Remove-Item -LiteralPath $oldFile -Force
+  } catch { Write-Log "pendientes.json ilegible" }
 }
 
 # Sin redirecciones automaticas: HttpClient reenviaria X-Api-Key al servidor
@@ -102,23 +134,40 @@ function Get-Meta($doc) {
   if ($null -eq $m) { return @{} }
   return @{ kind = [string]$m.qa_kind; line = [string]$m.qa_line; netKey = [string]$m.qa_net; fileName = [string]$m.qa_file }
 }
+function Get-Info($doc) {
+  $r = @($doc.recipients)[0]
+  return @{ status = ([string]$doc.status).ToLowerInvariant(); meta = (Get-Meta $doc); name = [string]$r.name; email = [string]$r.email;
+            created = [string]$doc.created_at; updated = [string]$doc.updated_at }
+}
 
-# Pregunta a SignWell el estado de cada documento pendiente.
+# Pide a SignWell un documento y anota su estado final en el disco.
+# Devuelve $false cuando SignWell no contesto.
+function Fetch-Doc($e) {
+  try { $r = Invoke-SignWell "GET" ("/documents/" + $e.id) $null } catch { Write-Log ("estado " + $e.id + " sin conexion"); return $false }
+  if ($r.code -eq 200) {
+    $doc = Read-Json $r.bytes
+    if (-not $doc) { Write-Log ("estado " + $e.id + " ilegible"); return $false }
+    $info[$e.id] = Get-Info $doc
+  } elseif ($r.code -eq 404) {
+    $info[$e.id] = @{ status = "missing"; meta = @{}; name = ""; email = ""; created = ""; updated = "" }
+  } else {
+    Write-Log ("estado " + $e.id + " http " + $r.code); return $false
+  }
+  $st = $info[$e.id].status
+  if ($Final -contains $st -and $e.status -ne $st) { $e.status = $st; Save-Docs }
+  return $true
+}
+
+# Sondeo: solo lo que todavia puede cambiar.
 function Update-Pending {
   if (-not $apiKey) { return }
-  foreach ($id in @($pending.ToArray())) {
-    try {
-      $r = Invoke-SignWell "GET" ("/documents/" + $id) $null
-      if ($r.code -eq 200) {
-        $doc = Read-Json $r.bytes
-        $cache[$id] = @{ status = ([string]$doc.status).ToLowerInvariant(); meta = (Get-Meta $doc) }
-      } elseif ($r.code -eq 404) {
-        $cache[$id] = @{ status = "missing"; meta = @{} }
-      } else {
-        Write-Log ("estado " + $id + " http " + $r.code)
-      }
-    } catch { Write-Log ("estado " + $id + " sin conexion") }
-  }
+  foreach ($e in @($docs.ToArray())) { if ($Final -notcontains $e.status) { [void](Fetch-Doc $e) } }
+}
+
+function Current-Status($e) {
+  if ($info.ContainsKey($e.id)) { return $info[$e.id].status }
+  if ($e.status) { return $e.status }
+  return "unknown"
 }
 
 function Send-Response($ctx, [int]$code, $obj, [byte[]]$raw, [string]$type) {
@@ -220,45 +269,75 @@ function Handle($ctx) {
       if ($null -eq $doc) { Write-Log "send invalido"; Send-Response $ctx 400 @{ error = "datos" }; return }
       try { $r = Invoke-SignWell "POST" "/document_templates/documents" $doc } catch { Write-Log "send sin conexion"; Send-Response $ctx 502 @{ error = "conexion" }; return }
       $res = Read-Json $r.bytes
-      if ($r.code -lt 200 -or $r.code -ge 300 -or -not $res -or -not ([string]$res.id -match '^[A-Za-z0-9_-]+$')) {
+      if ($r.code -lt 200 -or $r.code -ge 300 -or -not $res -or -not ([string]$res.id -match $idOk)) {
         Write-Log ("send http " + $r.code)
         Send-Response $ctx 502 @{ error = "signwell"; status = $r.code }; return
       }
       $id = [string]$res.id
-      if (-not $pending.Contains($id)) { [void]$pending.Add($id); Save-Pending }
-      $cache[$id] = @{ status = ([string]$res.status).ToLowerInvariant(); meta = (Get-Meta $res) }
+      if (-not (Find-Doc $id)) { [void]$docs.Add((New-Entry $id ((Get-Date).ToUniversalTime().ToString("o")) $false "")); Save-Docs }
+      $info[$id] = Get-Info $res
       Write-Log ("send " + $id + " test=" + $testMode)
-      Send-Response $ctx 200 @{ id = $id; status = $cache[$id].status; testMode = $testMode }
+      Send-Response $ctx 200 @{ id = $id; status = $info[$id].status; testMode = $testMode }
     }
     "/list" {
-      if ($b.refresh -eq $true) { Update-Pending }
-      $docs = New-Object System.Collections.ArrayList
-      foreach ($id in $pending) {
-        $c = $cache[$id]
-        [void]$docs.Add(@{ id = $id; status = $(if ($c) { $c.status } else { "unknown" }); meta = $(if ($c) { $c.meta } else { @{} }) })
+      # Todo lo que espera algo (la firma, o guardarlo en el Network) y,
+      # de lo demas, los $limit mas nuevos. total: cuantos hay de lo demas.
+      $limit = 25
+      if ($null -ne $b.limit) {
+        if (-not (($b.limit -is [int]) -or ($b.limit -is [long])) -or $b.limit -lt 1 -or $b.limit -gt 1000) { Send-Response $ctx 400 @{ error = "limit" }; return }
+        $limit = [int]$b.limit
       }
-      Send-Response $ctx 200 @{ docs = [object[]]$docs.ToArray() }
+      if ($b.refresh -eq $true) { Update-Pending }
+      $open = New-Object System.Collections.ArrayList
+      $closed = New-Object System.Collections.ArrayList
+      for ($i = $docs.Count - 1; $i -ge 0; $i--) {
+        $e = $docs[$i]
+        if ($Final -contains $e.status -and -not ($e.status -eq "completed" -and -not $e.saved)) { [void]$closed.Add($e) } else { [void]$open.Add($e) }
+      }
+      $out = New-Object System.Collections.ArrayList
+      foreach ($e in (@($open.ToArray()) + @($closed.ToArray() | Select-Object -First $limit))) {
+        if (-not $info.ContainsKey($e.id)) { [void](Fetch-Doc $e) }
+        $c = $info[$e.id]
+        [void]$out.Add(@{ id = $e.id; status = (Current-Status $e); saved = [bool]$e.saved; sent = $e.sent;
+          meta = $(if ($c) { $c.meta } else { @{} }); name = $(if ($c) { $c.name } else { "" }); email = $(if ($c) { $c.email } else { "" });
+          created = $(if ($c) { $c.created } else { "" }); updated = $(if ($c) { $c.updated } else { "" }) })
+      }
+      Send-Response $ctx 200 @{ docs = [object[]]$out.ToArray(); total = $closed.Count }
     }
     "/pdf" {
-      $id = [string]$b.id
-      if (-not $pending.Contains($id)) { Send-Response $ctx 404 @{ error = "id" }; return }
-      if (-not $cache[$id] -or $cache[$id].status -ne "completed") { Send-Response $ctx 409 @{ error = "no-firmado" }; return }
-      try { $r = Invoke-SignWell "GET" ("/documents/" + $id + "/completed_pdf?url_only=false") $null } catch { Send-Response $ctx 502 @{ error = "conexion" }; return }
+      $e = Find-Doc ([string]$b.id)
+      if (-not $e) { Send-Response $ctx 404 @{ error = "id" }; return }
+      if ((Current-Status $e) -ne "completed") { Send-Response $ctx 409 @{ error = "no-firmado" }; return }
+      try { $r = Invoke-SignWell "GET" ("/documents/" + $e.id + "/completed_pdf?url_only=false") $null } catch { Send-Response $ctx 502 @{ error = "conexion" }; return }
       if ($r.code -ne 200 -or $r.bytes.Length -lt 5 -or [Text.Encoding]::ASCII.GetString($r.bytes, 0, 5) -ne "%PDF-") {
-        Write-Log ("pdf " + $id + " http " + $r.code)
+        Write-Log ("pdf " + $e.id + " http " + $r.code)
         Send-Response $ctx 502 @{ error = "signwell"; status = $r.code }; return
       }
-      Write-Log ("pdf " + $id)
+      Write-Log ("pdf " + $e.id)
       Send-Response $ctx 200 $null $r.bytes "application/pdf"
     }
-    "/ack" {
-      # Se borra en SignWell solo cuando la herramienta ya lo guardo.
-      $id = [string]$b.id
-      if (-not $pending.Contains($id)) { Send-Response $ctx 404 @{ error = "id" }; return }
-      try { $r = Invoke-SignWell "DELETE" ("/documents/" + $id) $null } catch { Send-Response $ctx 502 @{ error = "conexion" }; return }
-      if (($r.code -lt 200 -or $r.code -ge 300) -and $r.code -ne 404) { Write-Log ("ack " + $id + " http " + $r.code); Send-Response $ctx 502 @{ error = "signwell"; status = $r.code }; return }
-      $pending.Remove($id); $cache.Remove($id); Save-Pending
-      Write-Log ("ack " + $id)
+    "/saved" {
+      # La herramienta ya guardo el PDF en el Network. No se borra nada.
+      $e = Find-Doc ([string]$b.id)
+      if (-not $e) { Send-Response $ctx 404 @{ error = "id" }; return }
+      if ((Current-Status $e) -ne "completed") { Send-Response $ctx 409 @{ error = "no-firmado" }; return }
+      if (-not $e.saved) { $e.saved = $true; Save-Docs }
+      Write-Log ("saved " + $e.id)
+      Send-Response $ctx 200 @{ ok = $true }
+    }
+    "/delete" {
+      # Cancela uno que espera la firma, o borra uno que no se firmo. Un
+      # firmado nunca: es el historial. El estado se pregunta otra vez a
+      # SignWell justo antes, por si el cliente acaba de firmar.
+      $e = Find-Doc ([string]$b.id)
+      if (-not $e) { Send-Response $ctx 404 @{ error = "id" }; return }
+      if (-not (Fetch-Doc $e)) { Send-Response $ctx 502 @{ error = "conexion" }; return }
+      $st = Current-Status $e
+      if ($st -eq "completed") { Send-Response $ctx 409 @{ error = "firmado" }; return }
+      try { $r = Invoke-SignWell "DELETE" ("/documents/" + $e.id) $null } catch { Send-Response $ctx 502 @{ error = "conexion" }; return }
+      if (($r.code -lt 200 -or $r.code -ge 300) -and $r.code -ne 404) { Write-Log ("delete " + $e.id + " http " + $r.code); Send-Response $ctx 502 @{ error = "signwell"; status = $r.code }; return }
+      $docs.Remove($e); $info.Remove($e.id); Save-Docs
+      Write-Log ("delete " + $e.id + " " + $st)
       Send-Response $ctx 200 @{ ok = $true }
     }
     default { Send-Response $ctx 404 @{ error = "ruta" } }
@@ -272,7 +351,7 @@ try { $listener.Start() } catch {
   Write-Host "No se pudo abrir el puerto $Port. Puede que el ayudante ya este abierto."
   exit 1
 }
-Write-Log ("inicio puerto " + $Port + " test=" + $testMode + " pendientes=" + $pending.Count)
+Write-Log ("inicio puerto " + $Port + " test=" + $testMode + " documentos=" + $docs.Count)
 $nextPoll = Get-Date
 $wait = $listener.GetContextAsync()
 while ($listener.IsListening) {

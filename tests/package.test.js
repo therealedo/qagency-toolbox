@@ -205,6 +205,10 @@ test("el instalador pone el ayudante de firma: token propio, helper-config.js, a
   assert.match(quitar, /Detener-Ayudante/);
   assert.match(quitar, /\$accesoAyudante/);
   assert.match(quitar, /Remove-Item \$destino -Recurse -Force/);
+  /* avisa si algo espera la firma o falta guardarlo (documentos.json, y pendientes.json de la versión 1) */
+  assert.match(quitar, /documentos\.json/);
+  assert.match(quitar, /-not \$i\.status -or \(\$i\.status -eq "completed" -and -not \$i\.saved\)/);
+  assert.match(quitar, /pendientes\.json/);
   /* el actualizador no se detiene a pedir la clave; Clave de firma.bat sí la pide */
   assert.match(win("actualizar.ps1"), /instalar\.ps1"\) -SinPreguntar/);
   assert.match(win("Clave de firma.bat"), /instalar\.ps1" -Clave/);
