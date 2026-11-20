@@ -614,7 +614,9 @@
   /* Enlaces y menú de la cuenta del Mercado que quedan entre el nombre del
      plan y su ID ("Go to my plan benefits", "Communication preferences" a la
      izquierda): se saltan, no son el plan. */
-  var PLAN_SKIP = /^(go to my plan benefits|communication|preferences|communication preferences|exemptions|mailing address|tax forms|report a life( change)?|change plans|coverage record|eligibility & appeals|applications? details|my plan profile|marketplace plans)$/i;
+  /* El menú se parte en dos líneas ("Report a life" / "change", "Eligibility &"
+     / "appeals"): cada pedazo suelto también se salta. */
+  var PLAN_SKIP = /^(go to my plan benefits|communication|preferences|communication preferences|exemptions|mailing address|tax forms|report a life( change)?|change|change plans|coverage record|eligibility &( appeals)?|appeals|applications?( details)?|details|overview|my plans &|programs|my plan profile|marketplace plans)$/i;
 
   /* El nombre del plan está justo encima de su ID; puede ocupar dos líneas
      cuando trae la descripción de beneficios entre paréntesis. */
@@ -721,17 +723,24 @@
       ds.forEach(function (d) { all.push(d.value); });
     });
     /* el titular es quien tiene la cuenta: su nombre está arriba a la
-       derecha ("Ramon     Menu"), aunque en Members salga después */
+       derecha ("Ramon     Menu"), aunque en Members salga después. Ese es su
+       nombre de pila, así que también dice dónde empiezan los apellidos:
+       "jose miguel     Menu" con "Jose Miguel Pena" es Jose Miguel, Pena */
     var owner = "";
     doc.lines.slice(0, 8).forEach(function (l) {
-      var o = l.match(/^\s*([A-Za-zÁÉÍÓÚÑÜáéíóúñü'’\-]+)\s+Men[uú]\s*$/i);
+      var o = l.match(/^\s*([A-Za-zÁÉÍÓÚÑÜáéíóúñü'’\-]+(?: [A-Za-zÁÉÍÓÚÑÜáéíóúñü'’\-]+){0,2})\s+Men[uú]\s*$/i);
       if (o && !owner) { owner = U.stripAccents(o[1]).toUpperCase(); }
     });
-    var mine = owner ? names.filter(function (n) { return U.stripAccents(n).split(" ")[0] === owner; }) : [];
+    var mine = owner ? names.filter(function (n) { return (U.stripAccents(n) + " ").indexOf(owner + " ") === 0; }) : [];
     if (mine.length === 1) { names.splice(names.indexOf(mine[0]), 1); names.unshift(mine[0]); }
     if (names.length) {
       f.miembros = names.join("\n");
       setName(f, names[0]);
+      var given = owner.split(" ").length, words = names[0].split(" ");
+      if (mine.length === 1 && given > 1 && words.length > given) {
+        f.nombres = words.slice(0, given).join(" ");
+        f.apellidos = words.slice(given).join(" ");
+      }
       all.sort(function (a, b) { return sortKey(a) < sortKey(b) ? -1 : 1; });
       f.efectiva = all[0];
     } else {
