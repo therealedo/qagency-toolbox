@@ -22,11 +22,11 @@ Branch: `feat/signwell-signing` from `main` (2d1ea82). Delivery: work-unit commi
 
 | ID | Specs | Route | Status | Commit |
 |----|-------|-------|--------|--------|
-| T1 | S6 (payload) | inline | pending | |
-| T2 | S2, S3, S4, S5, S7 | inline | pending | |
-| T3 | S5, S11 | inline | pending | |
-| T4 | S6, S8, S9, S10, S4 | inline | pending | |
-| T5 | S12 + verification | inline | pending | |
+| T1 | S6 (payload) | inline | done: RED (buildSendPayload not a function), then GREEN 282/282 | 4943f09 |
+| T2 | S2, S3, S4, S5, S7 | inline | done: helper tests against a fake SignWell 2/2; a mutation (token check off) fails the test | 8f7195d |
+| T3 | S5, S11 | inline | done: package test; PowerShell parse check, 0 errors; installer not run on a real profile (it would touch real shortcuts) | d01e632 |
+| T4 | S6, S8, S9, S10, S4 | inline | done: 287/287. Headless Edge smoke test (file:// page + real helper + fake SignWell): listed, Descargar byte-identical, Ya lo guardé → DELETE. Not run in a browser: the Enviar para firmar click, and auto-save into a chosen folder (needs the folder picker) | 89bb9cc |
+| T5 | S12 + verification | inline | docs done; verifier pending | 42f265e |
 
 Route evidence: one feature with one contract (helper protocol) shared by all units; app.js, index.html and README are shared, so no parallel writers.
 
@@ -36,3 +36,8 @@ Route evidence: one feature with one contract (helper protocol) shared by all un
 - L2 Constraints from the starting session: "Use SignWell only with fake data." "Never handle the user's credentials or tokens." "Never commit private/ (team file, signing key) or raw sample PDFs." Commits: Conventional Commits, no AI attribution.
 - L3 Large: the pilot (BAA, templates, test mode on real phones) is external, and the feature spans helper, installer and UI. Risk: item 2 (key storage, local listener, CSP), item 5 (installer). Independent verifier at the end.
 - L4 Helper protocol (port 47815): `GET /health` → `{ok, testMode, version}`; `POST /send` `{templateId, placeholder, recipient:{name,email}, fields:[{api_id,value}], language, requester, meta:{fileName, netKey, line, kind}}` → `{id, status}`; `POST /list` → `{docs:[{id, status, meta, error?}]}`; `POST /pdf` `{id}` → PDF bytes; `POST /ack` `{id}` → deletes in SignWell and forgets it. Token: the installer writes `helper-config.js` (`window.QA_HELPER = {port, token}`) beside the installed HTML; the page loads it at run time (not inlined by the build).
+- L5 T1–T5 committed. For T2, the tests were written alongside the code, with a mutation check instead of a RED run. Open pilot items, to check in SignWell test mode and real Chrome:
+  - Chrome's Local Network Access prompt for file:// → 127.0.0.1 (headless Edge allowed it).
+  - Whether create-from-template accepts `language` and `metadata`, and the placeholder named `Cliente`.
+  - Whether prefilled fields are editable.
+  - DELETE of a completed document.
