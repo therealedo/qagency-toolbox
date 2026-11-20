@@ -54,7 +54,8 @@ guarda solo en la carpeta del Network; si no se puede, la herramienta
 ofrece Guardar o Descargar. La pestana Firmas muestra lo enviado desde
 esta computadora: lo que espera la firma, lo firmado (el historial, que
 queda en SignWell) y lo que no se firmo. Ahi se cancela un envio hecho
-por error y se borra uno que vencio o se cancelo. Lo firmado no se borra.
+por error y se borra uno que no se firmo (vencido, cancelado, rechazado o
+que ya no esta en SignWell). Lo firmado no se borra.
 
 Quitar: doble clic en Desinstalar.bat.
 
