@@ -26,7 +26,7 @@ Branch: `feat/signwell-signing` from `main` (2d1ea82). Delivery: work-unit commi
 | T2 | S2, S3, S4, S5, S7 | inline | done: helper tests against a fake SignWell 2/2; a mutation (token check off) fails the test | 8f7195d |
 | T3 | S5, S11 | inline | done: package test; PowerShell parse check, 0 errors; installer not run on a real profile (it would touch real shortcuts) | d01e632 |
 | T4 | S6, S8, S9, S10, S4 | inline | done: 287/287. Headless Edge smoke test (file:// page + real helper + fake SignWell): listed, Descargar byte-identical, Ya lo guardé → DELETE. Not run in a browser: the Enviar para firmar click, and auto-save into a chosen folder (needs the folder picker) | 89bb9cc |
-| T5 | S12 + verification | inline | docs done; verifier pending | 42f265e |
+| T5 | S12 + verification | inline | done: verifier S1–S12 pass except B1; B1 and A1 fixed (RED→GREEN redirect test), plus A2/A5/A6/A8; 289/289; smoke test rerun OK; native review (risk, resilience, reliability): 0 findings, approved and acknowledged (lineage review-60e5b9ab1c00e551) | 42f265e, 5a13307, e65b26a |
 
 Route evidence: one feature with one contract (helper protocol) shared by all units; app.js, index.html and README are shared, so no parallel writers.
 
@@ -41,3 +41,13 @@ Route evidence: one feature with one contract (helper protocol) shared by all un
   - Whether create-from-template accepts `language` and `metadata`, and the placeholder named `Cliente`.
   - Whether prefilled fields are editable.
   - DELETE of a completed document.
+- L6 The independent verifier found one blocker, B1: the first update from an installed 1.21.2 (an old `actualizar.ps1` without `-SinPreguntar`) would stop to ask for the key. Fix: ask only on a new install (`-not $habiaAcceso`). Its high advisory A1, the key following redirects through the default HttpClient, was fixed with AllowAutoRedirect off and a key-less follow of one GET redirect, pinned by a test that failed before the fix. Also fixed:
+  - A2: the helper starts in `$destino`.
+  - A5: real mode is labelled.
+  - A6: the `-Clave` message when Enter keeps an existing key.
+  - A8: the tick comparison uses the safe name.
+  Left as advisories:
+  - A3: one request at a time; a slow SignWell blocks /health.
+  - A4: "Quitar" deletes unsigned final documents after a confirmation. To confirm with the user.
+  - A7: /health answers null-origin callers, by design; the token is the gate.
+  - A9: the 500/200-character limits.
