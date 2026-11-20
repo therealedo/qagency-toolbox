@@ -3,7 +3,9 @@
 # abren en su propia ventana, con su icono. No necesita permisos de
 # administrador ni internet. Con -Quitar deshace todo.
 # (Los mensajes van sin acentos para que se lean bien en cualquier consola.)
-param([switch]$Quitar)
+# Con -Clave solo pide (o cambia) la clave de la API de SignWell. El
+# actualizador lo llama con -SinPreguntar: no pide la clave.
+param([switch]$Quitar, [switch]$Clave, [switch]$SinPreguntar)
 
 $ErrorActionPreference = "Stop"
 $nombre  = "Q Agency Toolbox"
@@ -19,10 +21,51 @@ $accesosActualizar = @(
   (Join-Path ([Environment]::GetFolderPath("Programs")) "Actualizar $nombre.lnk")
 )
 
+# Ayudante de firma (signing-helper.ps1): escucha solo en 127.0.0.1, guarda
+# la clave de SignWell cifrada para este usuario de Windows (DPAPI) y arranca
+# al iniciar sesion. firma\ guarda la clave, el token que comparte con la
+# herramienta (helper-config.js) y los numeros de los documentos enviados.
+$firma = Join-Path $destino "firma"
+$ayudante = Join-Path $destino "signing-helper.ps1"
+$accesoAyudante = Join-Path ([Environment]::GetFolderPath("Startup")) "Ayudante de firma $nombre.lnk"
+$powershell = Join-Path $env:SystemRoot "System32\WindowsPowerShell\v1.0\powershell.exe"
+function Detener-Ayudante {
+  Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" -ErrorAction SilentlyContinue |
+    Where-Object { $_.CommandLine -like "*signing-helper.ps1*" } |
+    ForEach-Object { try { Invoke-CimMethod -InputObject $_ -MethodName Terminate | Out-Null } catch { } }
+}
+function Iniciar-Ayudante {
+  if (Test-Path $ayudante) {
+    Start-Process -FilePath $powershell -WindowStyle Hidden -ArgumentList "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$ayudante`""
+  }
+}
+# La clave la pega quien instala; no se muestra ni se guarda en texto plano.
+function Pedir-Clave {
+  Write-Host ""
+  Write-Host "Clave de la API de SignWell para enviar a firmar (Enter para omitir):"
+  $s = Read-Host -AsSecureString
+  if ($s.Length -eq 0) { Write-Host "Sin clave: la herramienta no enviara a firmar hasta que se agregue."; return }
+  New-Item -ItemType Directory -Force -Path $firma | Out-Null
+  $s | ConvertFrom-SecureString | Set-Content -LiteralPath (Join-Path $firma "clave.txt") -Encoding ASCII
+  Write-Host "Clave guardada (cifrada para este usuario de Windows)."
+}
+
 if ($Quitar) {
-  foreach ($a in ($accesos + $accesosActualizar)) { if (Test-Path $a) { Remove-Item $a -Force } }
+  Detener-Ayudante
+  $pend = Join-Path $firma "pendientes.json"
+  if ((Test-Path $pend) -and ((Get-Content -LiteralPath $pend -Raw) -match '"')) {
+    Write-Host "Aviso: habia documentos enviados a firmar sin guardar. Siguen en SignWell."
+  }
+  foreach ($a in ($accesos + $accesosActualizar + @($accesoAyudante))) { if (Test-Path $a) { Remove-Item $a -Force } }
   if (Test-Path $destino) { Remove-Item $destino -Recurse -Force }
   Write-Host "$nombre se quito de esta computadora."
+  exit 0
+}
+
+if ($Clave) {
+  Pedir-Clave
+  Detener-Ayudante
+  Iniciar-Ayudante
   exit 0
 }
 
@@ -117,7 +160,6 @@ if (Test-Path $anclas) {
 $actualizador = Join-Path $origen "actualizar.ps1"
 if (Test-Path $actualizador) {
   Copy-Item -Force $actualizador $destino
-  $powershell = Join-Path $env:SystemRoot "System32\WindowsPowerShell\v1.0\powershell.exe"
   foreach ($a in $accesosActualizar) {
     $s = $shell.CreateShortcut($a)
     $s.TargetPath = $powershell
@@ -127,6 +169,35 @@ if (Test-Path $actualizador) {
     $s.Description = "Instala la version nueva de $nombre si la hay"
     $s.Save()
   }
+}
+
+# El ayudante de firma. El token se crea una sola vez y se mantiene al
+# actualizar; la herramienta lo lee de helper-config.js (junto al HTML), que
+# ninguna pagina web puede leer.
+$ayudanteOrigen = Join-Path $origen "signing-helper.ps1"
+if (Test-Path $ayudanteOrigen) {
+  Detener-Ayudante
+  Copy-Item -Force $ayudanteOrigen $destino
+  New-Item -ItemType Directory -Force -Path $firma | Out-Null
+  $tokenFile = Join-Path $firma "token.txt"
+  $tok = if (Test-Path $tokenFile) { (Get-Content -LiteralPath $tokenFile -Raw).Trim() } else { "" }
+  if ($tok -notmatch '^[0-9a-f]{64}$') {
+    $b = New-Object byte[] 32
+    [System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b)
+    $tok = -join ($b | ForEach-Object { $_.ToString("x2") })
+    Set-Content -LiteralPath $tokenFile -Value $tok -Encoding ASCII
+  }
+  Set-Content -LiteralPath (Join-Path $destino "helper-config.js") -Encoding ASCII `
+    -Value ("window.QA_HELPER = { port: 47815, token: `"" + $tok + "`" };")
+  if (-not $SinPreguntar -and -not (Test-Path (Join-Path $firma "clave.txt"))) { Pedir-Clave }
+  $s = $shell.CreateShortcut($accesoAyudante)
+  $s.TargetPath = $powershell
+  $s.Arguments = "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$ayudante`""
+  $s.WindowStyle = 7
+  $s.WorkingDirectory = $destino
+  $s.Description = "Envia a firmar con SignWell desde $nombre"
+  $s.Save()
+  Iniciar-Ayudante
 }
 
 Write-Host ""

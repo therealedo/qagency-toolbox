@@ -113,7 +113,7 @@ try {
   if ($SoloRevisar) {
     Write-Host "Paquete $remota verificado. No se instalo (-SoloRevisar)."
   } else {
-    & (Join-Path $carpeta "instalar.ps1")
+    & (Join-Path $carpeta "instalar.ps1") -SinPreguntar
     if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) { throw "La instalacion no termino. Prueba de nuevo o usa Instalar.bat del paquete." }
     Write-Host ""
     Write-Host "Listo: $nombre $remota."

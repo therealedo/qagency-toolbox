@@ -182,3 +182,30 @@ test("las anclas viejas de la barra de tareas se apuntan al perfil propio", () =
   assert.match(ps, /if \(\$abreNavegador -and /);
   assert.match(ps, /Apuntar-Acceso \$s/);
 });
+
+test("el instalador pone el ayudante de firma: token propio, helper-config.js, arranque al iniciar sesión; desinstalar lo quita", () => {
+  const win = (f) => fs.readFileSync(path.join(root, "tools", "windows", f), "utf8");
+  const inst = win("instalar.ps1"), helper = win("signing-helper.ps1");
+  /* el puerto de helper-config.js es el que abre el ayudante */
+  const port = helper.match(/\[int\]\$Port = (\d+)/)[1];
+  assert.match(inst, new RegExp("window\.QA_HELPER = \{ port: " + port + ", token: "));
+  /* token de 32 bytes al azar, que se mantiene al actualizar */
+  assert.match(inst, /RandomNumberGenerator\]::Create\(\)\.GetBytes\(\$b\)/);
+  assert.match(inst, /if \(\$tok -notmatch '\^\[0-9a-f\]\{64\}\$'\)/);
+  /* la clave se pide oculta y se guarda con DPAPI, nunca en texto plano */
+  assert.match(inst, /Read-Host -AsSecureString/);
+  assert.match(inst, /\$s \| ConvertFrom-SecureString \| Set-Content/);
+  assert.doesNotMatch(inst, /AsPlainText/);
+  assert.match(inst, /GetFolderPath\("Startup"\)/);
+  /* desinstalar detiene el ayudante y borra su acceso de inicio (firma\ está dentro de $destino) */
+  const quitar = inst.slice(inst.indexOf("if ($Quitar) {"), inst.indexOf("if ($Clave) {"));
+  assert.match(quitar, /Detener-Ayudante/);
+  assert.match(quitar, /\$accesoAyudante/);
+  assert.match(quitar, /Remove-Item \$destino -Recurse -Force/);
+  /* el actualizador no se detiene a pedir la clave; Clave de firma.bat sí la pide */
+  assert.match(win("actualizar.ps1"), /instalar\.ps1"\) -SinPreguntar/);
+  assert.match(win("Clave de firma.bat"), /instalar\.ps1" -Clave/);
+  const build = fs.readFileSync(path.join(root, "tools", "build.js"), "utf8");
+  assert.match(build, /tools\/windows\/signing-helper\.ps1/);
+  assert.match(build, /tools\/windows\/Clave de firma\.bat/);
+});
