@@ -106,6 +106,13 @@ Every value can be changed in the section; changed values stay until **Volver a 
 | Consent | `client_name`, `client_name_sign`, `consent_date`, `agent_name`, `agent_npn`, `plan`, `premium`, `marital_status`, `income`, `tax_people`, `covered_people` |
 | SOA | none: the SignWell SOA only has the client's signature and two dates set to the signing date (today's date and the appointment date), because the agent completes and signs their section after the client signs, so the SOA link is sent as it is |
 
+**Sending for signature (SignWell API).** The Windows package installs a signing helper, `signing-helper.ps1`, that sends the form through the SignWell API, so the client's values travel in an HTTPS request body instead of a link. In **Ajustes → Envío a firmar (API de SignWell)**, paste the Template ID of each SignWell template (the same six forms). In each template the signer placeholder must be named `Cliente`, and the fields use the API IDs in the table above. With the helper running, its key added and the template ID set, the section shows **Enviar para firmar**. After a confirmation, it sends the form to the client's email in the client's language, with the agent of the app (or you) as the requester. Without one of those, the section says what is missing: the helper, its key, the template ID, the client's email or the client's name.
+
+- **Test mode first.** Until Q Agency signs a BAA with SignWell, the helper sends every document in SignWell's test mode (free, not legally binding), and the section shows **Modo de prueba** with a warning to use only test data. Real sending starts only when `%LOCALAPPDATA%\QAgencyToolbox\firma\ajustes.json` contains `{"testMode": false}`, written by hand once the BAA is signed. The helper reads it when it starts.
+- **Signed documents.** Every minute, the app asks the helper which sent documents changed. The bar **Enviados a firmar** at the top lists them. When the client signs, the signed PDF is saved byte for byte, so SignWell's seal still validates, in that document's Network folder with its Network file name (`Diaz, Beatriz - OC_Consent Ambetter 2026 NOV.pdf`), without asking. That happens only when the folder is already chosen and allowed, and no file with that name exists there. Otherwise the row says why and offers **Guardar**, which can ask for the folder or permission and asks before replacing a file, and **Descargar**, a normal download. After a download, **Ya lo guardé** confirms the file was kept. Only after a confirmed save, or **Ya lo guardé**, is the document deleted from SignWell. If the client declined it, or it expired or was canceled, **Quitar** removes it. When the signed document belongs to the note that is open, it is also ticked in Network.
+- **The helper.** It listens only on `127.0.0.1:47815`, and the page's Content-Security-Policy allows only that address. It rejects any other `Host`, any `Origin` other than the tool's `file://` page, requests without the installer's per-computer token, and non-JSON bodies. On disk it keeps only the SignWell document IDs (`firma\pendientes.json`). The file name and folder travel with the document in SignWell's metadata. Its log (`firma\registro.log`) records what happened, never client data, links, the key or the token.
+- **The key.** The installer asks for the SignWell API key once, hidden as it is typed, and stores it encrypted for that Windows user (DPAPI, `firma\clave.txt`). The page never sees it. **Clave de firma.bat** in the package adds or changes it. The installer also writes `helper-config.js` next to the installed app with the token, and starts the helper now and at every logon (a Startup shortcut). Updating keeps the key and the token. **Desinstalar.bat** stops the helper and removes all of it, and warns when sent documents had not been saved yet (they stay in SignWell).
+
 The English SOA came without form fields, so `tools/make-fillable-soa.js` added them once, in the same places as the Spanish one (the phone goes in its digit boxes). To change a template, put the six PDFs in a folder and run `node tools/vendor-forms.js <folder>`.
 
 ### Suplementario
@@ -284,11 +291,11 @@ The reader was built against the sample documents in `samples/` (all data fictit
 
 ## Privacy
 
-- Documents are read inside the browser. The page makes no network requests with client data. Its Content-Security-Policy allows exactly one address, `https://raw.githubusercontent.com/therealedo/qagency-toolbox/main/package.json`, which the installed app reads to learn the latest version number (a plain GET with no cookies and no data); every other connection is blocked. Fonts, the PDF reader and the OCR engine with its language models are bundled, so nothing loads from a CDN. The policy allows WebAssembly (`'wasm-unsafe-eval'`) only so the bundled OCR engine can run.
+- Documents are read inside the browser. The page's Content-Security-Policy allows exactly two addresses. One is `https://raw.githubusercontent.com/therealedo/qagency-toolbox/main/package.json`, which the installed app reads to learn the latest version number (a plain GET with no cookies and no data). The other is the signing helper on this computer, `http://127.0.0.1:47815`, which receives the form and the client's name and email only when **Enviar para firmar** is pressed, and sends them to SignWell (see *Sending for signature*). Every other connection is blocked. Fonts, the PDF reader and the OCR engine with its language models are bundled, so nothing loads from a CDN. The policy allows WebAssembly (`'wasm-unsafe-eval'`) only so the bundled OCR engine can run.
 - The team roster (names, NPNs) is not in the repository, which is public: it comes from the office's private `QAgency-Equipo.json` (see *People*). Keep that file out of git; `private/` is ignored for it.
 - If the tool is open in two windows (opened twice, or an old window left open after updating), each one picks up the settings the other saves, so an old window does not write its outdated settings over new ones. If the browser refuses to save the settings, a message says so.
-- Client data lives only in memory and is gone when the window closes. Only settings are stored in the browser: the team list, your name, the office and its phone, the SignWell template links, the theme, and the permission for the Network folders (not their files). Saving to the Network writes only to the folders you chose.
-- The Consent and SOA PDFs are filled inside the browser and downloaded; nothing is uploaded. A signing link carries the client's values in its address, so it is only built, never opened by the app, and it is meant for SignWell test data until there is a BAA.
+- Client data lives only in memory and is gone when the window closes. Only settings are stored in the browser: the team list, your name, the office and its phone, the SignWell template links and template IDs, the theme, and the permission for the Network folders (not their files). Saving to the Network writes only to the folders you chose.
+- The Consent and SOA PDFs are filled inside the browser and downloaded; nothing is uploaded. A signing link carries the client's values in its address, so it is only built, never opened by the app, and it is meant for SignWell test data until there is a BAA. Sending through the helper stays in SignWell's test mode until the BAA is signed.
 - Social Security numbers are never extracted, and a warning appears if the note contains something shaped like one.
 - When hosted, a service worker keeps a copy of the app's own files so it opens offline. It never handles documents or client data.
 
@@ -299,7 +306,7 @@ index.html              the page (works opened from disk or served)
 css/app.css             styles, light and dark
 js/config.js            catalogs: team, offices, carriers, tasks, situations and their wording
 js/notes.js             builds the note, task and report (pure functions)
-js/forms.js             Consent and SOA: template choice, PDF field values, Cliq line, signing link
+js/forms.js             Consent and SOA: template choice, PDF field values, Cliq line, signing link, API send payload
 js/extract.js           recognises documents and pulls the fields out
 js/ocr.js               reads scans and screenshots offline (OCR in a worker)
 js/app.js               the screen: note form, Tasks tab, settings, install
@@ -313,7 +320,7 @@ vendor/forms/           the agency's Consent and SOA templates, as scripts
 samples/                fictitious PDFs for demos and testing
 tests/                  unit tests (node --test)
 tools/build.js          makes dist/QAgency-Toolbox.html and the Windows zip
-tools/windows/          installer scripts that go into the zip
+tools/windows/          installer scripts and the signing helper that go into the zip
 tools/make-samples.js   regenerates samples/ (needs Playwright)
 tools/vendor-ocr.js     regenerates vendor/tesseract/ from npm packages
 tools/vendor-forms.js   regenerates vendor/forms/ from the six template PDFs
