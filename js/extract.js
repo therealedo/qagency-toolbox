@@ -614,34 +614,55 @@
   /* Enlaces y menú de la cuenta del Mercado que quedan entre el nombre del
      plan y su ID ("Go to my plan benefits", "Communication preferences" a la
      izquierda): se saltan, no son el plan. */
-  var PLAN_SKIP = /^(go to my plan benefits|communication|preferences|communication preferences|exemptions|mailing address|tax forms|report a life( change)?|coverage record|eligibility & appeals|applications? details|my plan profile|marketplace plans)$/i;
+  /* El menú se parte en dos líneas ("Report a life" / "change", "Eligibility &"
+     / "appeals"): cada pedazo suelto también se salta. */
+  var PLAN_SKIP = /^(go to my plan benefits|communication|preferences|communication preferences|exemptions|mailing address|tax forms|report a life( change)?|change|change plans|coverage record|eligibility &( appeals)?|appeals|applications?( details)?|details|overview|my plans &|programs|my plan profile|marketplace plans)$/i;
 
   /* El nombre del plan está justo encima de su ID; puede ocupar dos líneas
      cuando trae la descripción de beneficios entre paréntesis. */
+  /* La celda del plan en una línea que puede traer el menú de la izquierda y
+     los botones de la derecha ("Exemptions   myBlue Bronze (HSA) 2129   Go
+     to my plan benefits"): la primera que no es menú ni botón. Una línea
+     que solo trae menú o botones da null; una vacía, "". */
+  function nameCell(line) {
+    var cells = String(line || "").trim().split(/\s{2,}|\t/).map(function (c) { return c.trim(); }).filter(Boolean);
+    if (!cells.length) { return ""; }
+    for (var i = 0; i < cells.length; i++) { if (!PLAN_SKIP.test(cells[i])) { return cells[i]; } }
+    return null;
+  }
+
   function planAboveId(doc) {
     for (var i = 0; i < doc.lines.length; i++) {
       var m = doc.lines[i].match(HIOS_RE);
       if (!m) { continue; }
-      var before = doc.lines[i].slice(0, m.index).replace(/(plan\s*id|id del plan)\s*[:#]?\s*$/i, "").trim();
+      var before = nameCell(doc.lines[i].slice(0, m.index).replace(/(plan\s*id|id del plan)\s*[:#]?\s*$/i, "")) || "";
       var parts = [];
-      if (before.length > 4 && !PLAN_STOP.test(before) && !PLAN_SKIP.test(before)) { parts.push(before); }
+      if (before.length > 4 && !PLAN_STOP.test(before)) { parts.push(before); }
       for (var j = i - 1; !parts.length && j >= 0 && j >= i - 4; j--) {
-        var c = firstCell(doc.lines[j]);
-        if (!c || PLAN_SKIP.test(c)) { continue; }
+        var c = nameCell(doc.lines[j]);
+        if (!c) { continue; }
         if (PLAN_STOP.test(c) || datesIn(c).length || c.length > 110 || !/[A-Za-z]/.test(c)) { break; }
         var chunk = [c];
-        /* continuación de un paréntesis abierto más arriba */
-        if (c.indexOf(")") >= 0 && c.indexOf("(") < 0) {
-          for (var k = j - 1; k >= 0 && k >= j - 2; k--) {
-            var up = firstCell(doc.lines[k]);
+        /* continuación de un paréntesis más arriba: los beneficios en su
+           propia línea ("($35 PCP Visits / Rewards)") o partidos entre los
+           botones ("Change plans", "Go to my plan benefits") */
+        var tail = c.charAt(0) === "(";
+        if (tail || (c.indexOf(")") >= 0 && c.indexOf("(") < 0)) {
+          var open = [];
+          for (var k = j - 1; k >= 0 && k >= j - 6; k--) {
+            var up = nameCell(doc.lines[k]);
+            if (up === null) { continue; }
             if (!up || PLAN_STOP.test(up)) { break; }
-            chunk.unshift(up);
-            if (up.indexOf("(") >= 0) { break; }
+            open.unshift(up);
+            if (tail || up.indexOf("(") >= 0) { chunk = open.concat(chunk); break; }
           }
         }
         parts = chunk;
       }
-      var name = parts.join(" ").replace(/\s*\(.*$/, "").replace(/\s+/g, " ").replace(/[\s,;\-–]+$/, "").trim();
+      /* fuera los beneficios entre paréntesis (traen $ o /, y pueden quedar
+         sin cerrar); un paréntesis del nombre se queda: "myBlue Bronze (HSA) 2129" */
+      var name = parts.join(" ").replace(/\s*\([^()]*[$\/][^()]*(\)|$)/g, "").replace(/\s*\([^()]*$/, "")
+        .replace(/\s+/g, " ").replace(/[\s,;\-–]+$/, "").trim();
       return { id: m[1], name: name.length > 4 ? name : "" };
     }
     return null;
@@ -652,10 +673,20 @@
      años ("Vidal   2027   2027"). Se juntan en una sola fila. */
   var ROW_NO_YEAR = /^(.*?\S)\s{2,}([A-Za-z]{3,9}\.?\s+\d{1,2},)\s{2,}([A-Za-z]{3,9}\.?\s+\d{1,2},)(\s.*)?$/;
   var ROW_YEARS = /^\s*(.*?)\s*\b(20[2-4]\d)\s{2,}(20[2-4]\d)\s*$/;
+  /* O las fechas arriba, el nombre en medio y los años abajo:
+     "Jan 1,  Dec 31," / "Ramon De La Paz   Remove" / "2027   2027". */
+  var ROW_DATES = /^\s*([A-Za-z]{3,9}\.?\s+\d{1,2},)\s{2,}([A-Za-z]{3,9}\.?\s+\d{1,2},)\s*$/;
   function memberRows(lines) {
     var out = [];
     for (var i = 0; i < lines.length; i++) {
-      var m = lines[i].match(ROW_NO_YEAR), y = null, j;
+      var top = lines[i].match(ROW_DATES), yy = top && lines[i + 2] ? lines[i + 2].match(ROW_YEARS) : null;
+      if (yy && !yy[1] && U.collapse(lines[i + 1])) {
+        var who = lines[i + 1].replace(/\s{2,}(remove|eliminar|quitar)\s*$/i, "").trim();
+        out.push(who + "   " + top[1] + " " + yy[2] + "   " + top[2] + " " + yy[3]);
+        i += 2;
+        continue;
+      }
+      var m =lines[i].match(ROW_NO_YEAR), y = null, j;
       for (j = i + 1; m && !y && j < lines.length && j <= i + 2; j++) { y = lines[j].match(ROW_YEARS); }
       if (!y) { out.push(lines[i]); continue; }
       out.push(m[1] + (y[1] ? " " + y[1] : "") + "   " + m[2] + " " + y[2] + "   " + m[3] + " " + y[3]);
@@ -691,9 +722,25 @@
       if (names.indexOf(name) < 0) { names.push(name); }
       ds.forEach(function (d) { all.push(d.value); });
     });
+    /* el titular es quien tiene la cuenta: su nombre está arriba a la
+       derecha ("Ramon     Menu"), aunque en Members salga después. Ese es su
+       nombre de pila, así que también dice dónde empiezan los apellidos:
+       "jose miguel     Menu" con "Jose Miguel Pena" es Jose Miguel, Pena */
+    var owner = "";
+    doc.lines.slice(0, 8).forEach(function (l) {
+      var o = l.match(/^\s*([A-Za-zÁÉÍÓÚÑÜáéíóúñü'’\-]+(?: [A-Za-zÁÉÍÓÚÑÜáéíóúñü'’\-]+){0,2})\s+Men[uú]\s*$/i);
+      if (o && !owner) { owner = U.stripAccents(o[1]).toUpperCase(); }
+    });
+    var mine = owner ? names.filter(function (n) { return (U.stripAccents(n) + " ").indexOf(owner + " ") === 0; }) : [];
+    if (mine.length === 1) { names.splice(names.indexOf(mine[0]), 1); names.unshift(mine[0]); }
     if (names.length) {
       f.miembros = names.join("\n");
       setName(f, names[0]);
+      var given = owner.split(" ").length, words = names[0].split(" ");
+      if (mine.length === 1 && given > 1 && words.length > given) {
+        f.nombres = words.slice(0, given).join(" ");
+        f.apellidos = words.slice(given).join(" ");
+      }
       all.sort(function (a, b) { return sortKey(a) < sortKey(b) ? -1 : 1; });
       f.efectiva = all[0];
     } else {

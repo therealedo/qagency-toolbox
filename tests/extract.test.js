@@ -474,6 +474,31 @@ const OC_DOCS = {
   "OC My Plans & Programs Wrapped": { type: "oc_plans", net: "plans", fields: {
     plan: "Clarity Silver", prima: "$16.91", appId: "4412345679", miembros: "MARTA LOPEZ VIDAL",
     nombres: "MARTA", apellidos: "LOPEZ VIDAL", efectiva: "01/01/2027", estado: "Active", compania: "AMBETTER", anio: "2027" } },
+  /* el nombre parte su paréntesis alrededor de los botones "Go to my plan
+     benefits" y "Change plans": el plan es lo de antes del paréntesis */
+  "OC My Plans & Programs Florida Blue": { type: "oc_plans", net: "plans", fields: {
+    plan: "myBlue Silver 26M02-04C", prima: "$104.00", appId: "4412345680", miembros: "ROSA FUENTES MORA",
+    nombres: "ROSA", apellidos: "FUENTES MORA", efectiva: "12/01/2026", compania: "FLORIDA BLUE", anio: "2026" } },
+  /* el titular es el de la esquina de arriba ("Ramon     Menu") aunque salga
+     segundo en Members, donde su fila trae las fechas encima del nombre */
+  "OC My Plans & Programs Second Member": { type: "oc_plans", net: "plans", fields: {
+    plan: "Clarity Silver", prima: "$7.67", appId: "4412345681", miembros: "RAMON DE LA PAZ\nLUCIA SOTO VERA",
+    nombres: "RAMON", apellidos: "DE LA PAZ", efectiva: "01/01/2027", estado: "Active", compania: "AMBETTER", anio: "2027" } },
+  /* el plan comparte la línea con el menú ("Exemptions") y el botón, y sus
+     beneficios van en la línea de abajo; "(HSA)" es parte del nombre */
+  "OC My Plans & Programs Menu Beside Plan": { type: "oc_plans", net: "plans", fields: {
+    plan: "myBlue Bronze (HSA) 2129", prima: "$204.52", appId: "4412345682", miembros: "ELSA MORA",
+    nombres: "ELSA", apellidos: "MORA", efectiva: "01/01/2027", compania: "FLORIDA BLUE", anio: "2027" } },
+  /* el nombre de arriba a la derecha ("jose miguel     Menu") dice dónde
+     termina el nombre: Jose Miguel es el nombre y Pena el apellido */
+  "OC My Plans & Programs Two First Names": { type: "oc_plans", net: "plans", fields: {
+    plan: "Clarity Silver", prima: "$0.00", appId: "4412345683", miembros: "JOSE MIGUEL PENA",
+    nombres: "JOSE MIGUEL", apellidos: "PENA", efectiva: "01/01/2027", compania: "AMBETTER", anio: "2027" } },
+  /* encima del Plan ID queda "change", el final de "Report a life change"
+     del menú; el plan parte "(HSA, $0 Insulin)" alrededor del botón */
+  "OC My Plans & Programs Menu Fragment": { type: "oc_plans", net: "plans", fields: {
+    plan: "UHC Bronze Standard", prima: "$328.40", appId: "4412345684", miembros: "PEDRO RUIZ",
+    nombres: "PEDRO", apellidos: "RUIZ", efectiva: "01/01/2027", estado: "Active", compania: "UNITED HEALTHCARE", anio: "2027" } },
   /* la guía que viene detrás de la carta habla de documentos: nadie los pidió */
   "OC Eligibility Notice": { type: "oc_elig", net: "eligibility", fields: {
     appId: "4412345678", anio: "2027", nombres: "LAURA", apellidos: "RAMOS", ingreso: "$31,200.00" } },

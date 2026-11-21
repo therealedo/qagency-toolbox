@@ -15,11 +15,16 @@ $accesos = @(
   (Join-Path ([Environment]::GetFolderPath("Desktop")) "$nombre.lnk"),
   (Join-Path ([Environment]::GetFolderPath("Programs")) "$nombre.lnk")
 )
-# Accesos al actualizador: revisa GitHub e instala solo si hay version nueva
+# Acceso al actualizador en el menu Inicio: revisa GitHub e instala solo si
+# hay version nueva. El del Escritorio ya no se crea: la herramienta tiene su
+# boton Actualizar arriba, que lo abre con el enlace de abajo.
 $accesosActualizar = @(
-  (Join-Path ([Environment]::GetFolderPath("Desktop")) "Actualizar $nombre.lnk"),
   (Join-Path ([Environment]::GetFolderPath("Programs")) "Actualizar $nombre.lnk")
 )
+$actualizarEscritorio = Join-Path ([Environment]::GetFolderPath("Desktop")) "Actualizar $nombre.lnk"
+# Enlace qagency-toolbox-update: que abre el boton Actualizar de la
+# herramienta. Va en HKCU, sin permisos de administrador.
+$claveEnlace = "HKCU:\Software\Classes\qagency-toolbox-update"
 
 # Ayudante de firma (signing-helper.ps1): escucha solo en 127.0.0.1, guarda
 # la clave de SignWell cifrada para este usuario de Windows (DPAPI) y arranca
@@ -66,7 +71,8 @@ if ($Quitar) {
   if ($sinGuardar) {
     Write-Host "Aviso: habia documentos enviados a firmar que esperan la firma o sin guardar en el Network. Siguen en SignWell."
   }
-  foreach ($a in ($accesos + $accesosActualizar + @($accesoAyudante))) { if (Test-Path $a) { Remove-Item $a -Force } }
+  foreach ($a in ($accesos + $accesosActualizar + @($accesoAyudante, $actualizarEscritorio))) { if (Test-Path $a) { Remove-Item $a -Force } }
+  if (Test-Path $claveEnlace) { Remove-Item $claveEnlace -Recurse -Force }
   if (Test-Path $destino) { Remove-Item $destino -Recurse -Force }
   Write-Host "$nombre se quito de esta computadora."
   exit 0
@@ -179,6 +185,19 @@ if (Test-Path $actualizador) {
     $s.Description = "Instala la version nueva de $nombre si la hay"
     $s.Save()
   }
+  if (Test-Path $actualizarEscritorio) { Remove-Item $actualizarEscritorio -Force }
+  # El boton Actualizar de la herramienta abre qagency-toolbox-update:run y
+  # Windows corre el actualizador instalado. El comando no recibe la
+  # direccion del enlace: lo unico que puede hacer es buscar una version
+  # nueva firmada e instalarla.
+  $comandoActualizar = "`"$powershell`" -NoProfile -ExecutionPolicy Bypass -File `"$(Join-Path $destino 'actualizar.ps1')`""
+  New-Item -Path $claveEnlace -Force | Out-Null
+  Set-ItemProperty -Path $claveEnlace -Name "(default)" -Value "URL:Actualizar $nombre"
+  Set-ItemProperty -Path $claveEnlace -Name "URL Protocol" -Value ""
+  New-Item -Path "$claveEnlace\DefaultIcon" -Force | Out-Null
+  Set-ItemProperty -Path "$claveEnlace\DefaultIcon" -Name "(default)" -Value (Join-Path $destino "toolbox.ico")
+  New-Item -Path "$claveEnlace\shell\open\command" -Force | Out-Null
+  Set-ItemProperty -Path "$claveEnlace\shell\open\command" -Name "(default)" -Value $comandoActualizar
 }
 
 # El ayudante de firma. El token se crea una sola vez y se mantiene al
@@ -220,8 +239,10 @@ Write-Host "$nombre quedo instalado."
 Write-Host "Abrelo desde el Escritorio o desde el menu Inicio."
 Write-Host "Para dejarlo en la barra de tareas: abrelo, haz clic derecho en su"
 Write-Host "icono de la barra y elige 'Anclar a la barra de tareas'."
-Write-Host "Para actualizarlo: abre 'Actualizar $nombre' en el Escritorio o el"
-Write-Host "menu Inicio. Solo instala algo cuando hay una version nueva."
+Write-Host "Para actualizarlo: pulsa 'Actualizar' arriba en la herramienta (o abre"
+Write-Host "'Actualizar $nombre' en el menu Inicio). Solo instala algo cuando hay una"
+Write-Host "version nueva. La primera vez el navegador pregunta si abrir el"
+Write-Host "actualizador: elige Abrir (y 'Permitir siempre' si lo ofrece)."
 if ($habiaAcceso -and -not $propioAntes) {
   Write-Host ""
   Write-Host "IMPORTANTE: desde esta version la herramienta abre siempre con su propio"

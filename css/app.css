@@ -285,6 +285,10 @@ input[type="text"]:focus, input[type="search"]:focus, select:focus, textarea:foc
 .btn.ghost { background: transparent; border-color: transparent; color: var(--ink-2); }
 .btn.ghost:hover { background: var(--inset); border-color: var(--line); color: var(--ink); }
 .btn.small { min-height: 32px; padding: 0 12px; font-size: 13px; }
+a.btn { text-decoration: none; }
+/* el botón Actualizar se enciende cuando hay una versión nueva */
+.update-btn.has-update { background: var(--btn); border-color: var(--btn); color: #fff; }
+.update-btn.has-update:hover { background: var(--btn-hover); border-color: var(--btn-hover); }
 .btn.done { background: var(--ok); border-color: var(--ok); color: #fff; }
 :root[data-theme="dark"] .btn.done { color: #06140D; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .btn.done { color: #06140D; } }
