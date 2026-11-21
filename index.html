@@ -425,7 +425,7 @@
       <button type="button" class="btn small" id="teamExport">Exportar equipo</button>
       <input type="file" id="teamFile" accept=".json,application/json" hidden>
     </div>
-    <p class="muted">Los nombres y los NPN del equipo no vienen en la herramienta: se guardan solo en este navegador. «Exportar equipo» crea el archivo para pasárselo a otra persona de la oficina; lleva también los números de las plantillas de firma.</p>
+    <p class="muted">Los nombres y los NPN del equipo no vienen en la herramienta: se guardan solo en este navegador. «Exportar equipo» crea el archivo para pasárselo a otra persona de la oficina; lleva también los números de las plantillas de firma y los códigos de firma de las oficinas, así que compártelo solo dentro de la oficina.</p>
 
     <h3>Carpetas del Network</h3>
     <div class="netdirs" id="netDirBox"></div>
@@ -436,6 +436,8 @@
     <h3>Envío a firmar (DocuSeal)</h3>
     <p class="muted">Escribe el número de cada plantilla de DocuSeal: es el que sale en su dirección (…/templates/5). Con el ayudante de firma instalado, la sección del Consent o del SOA crea el enlace de firma del cliente, sin enviarle ningún email; cuando firma, el PDF se guarda solo en el Network. El firmante de cada plantilla se llama «Cliente»; el del agente en el SOA, «Agente».</p>
     <div class="signlinks" id="signTplRows"></div>
+    <p class="muted">El código de firma de cada oficina lo genera el servidor de firmas y viene en el archivo del equipo: con él, el servidor pone su clave y ninguna computadora la guarda. Es secreto: el archivo del equipo se comparte solo dentro de la oficina.</p>
+    <div class="signlinks" id="signCodeRows"></div>
 
     <h3>Formato de la nota</h3>
     <label class="check"><input type="checkbox" id="optRojo"><span>Agregar «Se reporta en el botón rojo» cuando es una aplicación enviada</span></label>

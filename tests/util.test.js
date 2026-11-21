@@ -209,3 +209,20 @@ test("archivo del equipo: lleva también los IDs de las plantillas de SignWell (
   assert.deepEqual(U.parseTeam(JSON.stringify(team)).signTemplates, {});
   assert.equal(U.teamFile(team, { soa_en: "https://www.signwell.com/abc" }), U.teamFile(team, { soa_en: "https://www.signwell.com/abc" }, {}));
 });
+
+test("archivo del equipo: lleva el código de firma de cada oficina (lo genera el servidor), solo letras, números, - y _", () => {
+  const team = [{ name: "Laura Gomez", ini: "LG", npn: "12345678" }];
+  const qa = "Qa_" + "a1B2-c3".repeat(6), ath = "ATH-" + "z9_Y8".repeat(8);
+  const codes = { QAgency: " " + qa + " ", "ATH Insurance": ath, Otra: "corto", "<x>": qa, Mala: "con espacio " + "x".repeat(40), Larga: "x".repeat(129) };
+  const file = U.teamFile(team, {}, { "soa-es": "5" }, codes);
+  const data = JSON.parse(file);
+  assert.deepEqual(data.signCodes, { QAgency: qa, "ATH Insurance": ath });
+  assert.deepEqual(data.signTemplates, { "soa-es": "5" });
+  const r = U.parseTeam(file);
+  assert.deepEqual(r.signCodes, { QAgency: qa, "ATH Insurance": ath });
+  /* un archivo sin códigos sigue sirviendo y sale igual que antes */
+  assert.deepEqual(U.parseTeam(U.teamFile(team)).signCodes, {});
+  assert.deepEqual(U.parseTeam(JSON.stringify(team)).signCodes, {});
+  assert.equal(U.teamFile(team, {}, { "soa-es": "5" }), U.teamFile(team, {}, { "soa-es": "5" }, {}));
+  assert.equal(JSON.parse(U.teamFile(team, {}, {}, {})).signCodes, undefined);
+});

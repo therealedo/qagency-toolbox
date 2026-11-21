@@ -337,7 +337,22 @@
     var team = cleanTeam(list);
     if (!team.length) { return { error: "El archivo del equipo no tiene ninguna persona con nombre." }; }
     return { team: team, signLinks: Array.isArray(data) ? {} : cleanLinks(data.signLinks),
-      signTemplates: Array.isArray(data) ? {} : cleanTemplateIds(data.signTemplates) };
+      signTemplates: Array.isArray(data) ? {} : cleanTemplateIds(data.signTemplates),
+      signCodes: Array.isArray(data) ? {} : cleanSignCodes(data.signCodes) };
+  }
+
+  /* El código de firma de cada oficina: lo genera el servidor de firmas y la
+     pasarela solo deja pasar lo que lo trae. Es de la oficina y viaja solo en
+     este archivo, que se comparte en privado. Base64url, de 32 a 128. */
+  function cleanSignCodes(codes) {
+    var out = {};
+    if (!codes || typeof codes !== "object" || Array.isArray(codes)) { return out; }
+    Object.keys(codes).forEach(function (k) {
+      if (!/^[A-Za-z0-9 ]{1,40}$/.test(k) || typeof codes[k] !== "string") { return; }
+      var c = collapse(codes[k]);
+      if (/^[A-Za-z0-9_-]{32,128}$/.test(c)) { out[k] = c; }
+    });
+    return out;
   }
 
   /* Los números de las plantillas de firma (DocuSeal) también son de
@@ -366,11 +381,12 @@
     return out;
   }
 
-  function teamFile(team, signLinks, signTemplates) {
+  function teamFile(team, signLinks, signTemplates, signCodes) {
     var file = { app: TEAM_APP, version: 1, team: cleanTeam(team || []) };
-    var links = cleanLinks(signLinks), ids = cleanTemplateIds(signTemplates);
+    var links = cleanLinks(signLinks), ids = cleanTemplateIds(signTemplates), codes = cleanSignCodes(signCodes);
     if (Object.keys(links).length) { file.signLinks = links; }
     if (Object.keys(ids).length) { file.signTemplates = ids; }
+    if (Object.keys(codes).length) { file.signCodes = codes; }
     return JSON.stringify(file, null, 2) + "\n";
   }
 

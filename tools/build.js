@@ -161,7 +161,6 @@ const pack = zip([
   { name: folder + "Instalar.bat", data: Buffer.from(crlf("tools/windows/Instalar.bat"), "latin1") },
   { name: folder + "Desinstalar.bat", data: Buffer.from(crlf("tools/windows/Desinstalar.bat"), "latin1") },
   { name: folder + "Actualizar.bat", data: Buffer.from(crlf("tools/windows/Actualizar.bat"), "latin1") },
-  { name: folder + "Clave de firma.bat", data: Buffer.from(crlf("tools/windows/Clave de firma.bat"), "latin1") },
   { name: folder + "instalar.ps1", data: Buffer.from("﻿" + crlf("tools/windows/instalar.ps1"), "utf8") },
   { name: folder + "actualizar.ps1", data: Buffer.from("﻿" + crlf("tools/windows/actualizar.ps1"), "utf8") },
   { name: folder + "signing-helper.ps1", data: Buffer.from("﻿" + crlf("tools/windows/signing-helper.ps1"), "utf8") },

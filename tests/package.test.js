@@ -179,6 +179,20 @@ test("firma con DocuSeal: se crea el enlace (sin email), el servidor de prueba s
   assert.match(html, /placeholder|Número de la plantilla|\/templates\/5/);
 });
 
+test("firma: cada pedido al ayudante lleva el código de la oficina, que viene en el archivo del equipo", () => {
+  const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
+  const app = fs.readFileSync(path.join(root, "js", "app.js"), "utf8");
+  assert.ok(app.includes('"X-Helper-Token": helper.token, "X-Office-Code": signCode()'));
+  assert.ok(app.includes("FM.officeCode(settings.signCodes, settings.oficina, C.OFFICES)"));
+  assert.match(html, /<div class="signlinks" id="signCodeRows"><\/div>/);
+  assert.match(app, /inp\.type = "password"; inp\.spellcheck = false; inp\.autocomplete = "off";/, "el código no se ve en pantalla");
+  assert.ok(app.includes("U.teamFile(settings.team, {}, formTemplateIds(), formSignCodes())"), "Exportar equipo lleva los códigos");
+  assert.match(app, /settings\.signCodes\[o\] = r\.signCodes\[o\]/, "Importar equipo los copia");
+  assert.match(app, /Falta el código de firma de la oficina/);
+  assert.match(app, /El servidor de firma no aceptó el código de la oficina/);
+  assert.doesNotMatch(html + app, /Clave de firma\.bat|sin-clave|sin-servidor/);
+});
+
 test("el paquete de Windows va firmado con la llave que el actualizador acepta", () => {
   const S = require("../tools/sign.js");
   const ps = fs.readFileSync(path.join(root, "tools", "windows", "actualizar.ps1"), "utf8");
@@ -257,44 +271,35 @@ test("el instalador pone el ayudante de firma: token propio, helper-config.js, a
   /* token de 32 bytes al azar, que se mantiene al actualizar */
   assert.match(inst, /RandomNumberGenerator\]::Create\(\)\.GetBytes\(\$b\)/);
   assert.match(inst, /if \(\$tok -notmatch '\^\[0-9a-f\]\{64\}\$'\)/);
-  /* la clave se pide oculta y se guarda con DPAPI, nunca en texto plano */
-  assert.match(inst, /Read-Host -AsSecureString/);
-  assert.match(inst, /\$s \| ConvertFrom-SecureString \| Set-Content/);
-  assert.doesNotMatch(inst, /AsPlainText/);
+  /* la clave de DocuSeal ya no está en ninguna computadora: no se pide ni se guarda */
+  assert.doesNotMatch(inst, /Read-Host|SecureString|Pedir-Clave|Pedir-Servidor|\[switch\]\$Clave/);
+  assert.doesNotMatch(helper, /SecureString|X-Auth-Token|clave\.txt|ajustes\.json/);
   assert.match(inst, /GetFolderPath\("Startup"\)/);
   /* desinstalar detiene el ayudante y borra su acceso de inicio (firma\ está dentro de $destino) */
-  const quitar = inst.slice(inst.indexOf("if ($Quitar) {"), inst.indexOf("if ($Clave) {"));
+  const quitar = inst.slice(inst.indexOf("if ($Quitar) {"), inst.indexOf("# Se usa el primer navegador"));
   assert.match(quitar, /Detener-Ayudante/);
   assert.match(quitar, /\$accesoAyudante/);
   assert.match(quitar, /Remove-Item \$destino -Recurse -Force/);
   /* los envíos viven en el servidor de firmas: desinstalar no tiene nada que avisar de documentos.json */
   assert.doesNotMatch(quitar, /documentos\.json|pendientes\.json/);
-  /* la clave va con la dirección del servidor: solo https y sin ruta, la misma regla que el ayudante */
-  const pedir = inst.slice(inst.indexOf("function Pedir-Clave"), inst.indexOf("if ($Quitar) {"));
-  assert.match(pedir, /Pedir-Servidor/);
-  const rule = "'^https://[A-Za-z0-9.-]+(:\\d{1,5})?/?$'";
-  assert.ok(inst.includes(rule), "el instalador revisa el servidor con " + rule);
-  assert.ok(helper.includes(rule), "el ayudante revisa el servidor con " + rule);
-  assert.match(inst, /ajustes\.json/);
-  assert.match(inst, /server\s*=/);
+  /* el servidor de firmas viene dentro del ayudante (no es secreto); solo https y sin ruta */
+  assert.match(helper, /\$Servidor = "https:\/\/[A-Za-z0-9.-]+"/);
   assert.doesNotMatch(inst, /SignWell/);
   assert.doesNotMatch(helper, /SignWell/);
-  /* el actualizador no se detiene a pedir la clave; Clave de firma.bat sí la pide */
   assert.match(win("actualizar.ps1"), /instalar\.ps1"\) -SinPreguntar/);
-  assert.match(win("Clave de firma.bat"), /instalar\.ps1" -Clave/);
+  /* ya no hay paso de la clave por computadora */
+  assert.equal(fs.existsSync(path.join(root, "tools", "windows", "Clave de firma.bat")), false);
   const build = fs.readFileSync(path.join(root, "tools", "build.js"), "utf8");
   assert.match(build, /tools\/windows\/signing-helper\.ps1/);
-  assert.match(build, /tools\/windows\/Clave de firma\.bat/);
+  assert.doesNotMatch(build, /Clave de firma/);
 });
 
-test("al actualizar, el instalador no se detiene a pedir la clave, aunque lo llame un actualizador viejo sin -SinPreguntar", () => {
+test("al instalar o actualizar desde 1.25.0, se borran la clave de DocuSeal y el servidor que esa versión guardaba", () => {
   const inst = fs.readFileSync(path.join(root, "tools", "windows", "instalar.ps1"), "utf8");
-  /* la única llamada a Pedir-Clave fuera de -Clave exige una instalación nueva */
-  const calls = inst.split(/\r?\n/).filter((l) => /\bPedir-Clave\b/.test(l) && !/function Pedir-Clave/.test(l));
-  const outsideClave = calls.filter((l) => !/^\s{2}Pedir-Clave$/.test(l));
-  assert.equal(outsideClave.length, 1);
-  assert.match(outsideClave[0], /-not \$SinPreguntar -and -not \$habiaAcceso/);
-  assert.ok(inst.indexOf("$habiaAcceso = $true") < inst.indexOf("-not $habiaAcceso"), "se sabe si había instalación antes de preguntar");
+  const install = inst.slice(inst.indexOf("Copy-Item -Force $ayudanteOrigen $destino"), inst.indexOf("$s = $shell.CreateShortcut($accesoAyudante)"));
+  for (const f of ["clave.txt", "ajustes.json"]) {
+    assert.match(install, new RegExp("Remove-Item -LiteralPath \\(Join-Path \\$firma \"" + f.replace(".", "\\.") + "\"\\) -Force -ErrorAction SilentlyContinue"), f);
+  }
   /* el ayudante no queda trabado en la carpeta del .zip */
   assert.match(inst, /Start-Process -FilePath \$powershell -WindowStyle Hidden -WorkingDirectory \$destino/);
 });
