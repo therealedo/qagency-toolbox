@@ -56,7 +56,7 @@ function fakeDocuSeal(opts) {
       const send = (code, obj) => { res.writeHead(code, { "Content-Type": "application/json" }); res.end(obj === undefined ? "" : JSON.stringify(obj)); };
       if (u.pathname.startsWith("/files/")) {
         files.push({ url: req.url, key: req.headers["x-auth-token"], code: req.headers["x-office-code"] });
-        if (o.redirectFile && u.pathname === "/files/merged.pdf") { res.writeHead(302, { Location: base() + "/files/blob.pdf?sig=1" }); return res.end(); }
+        if (o.redirectFile && u.pathname === "/files/combined.pdf") { res.writeHead(302, { Location: base() + "/files/blob.pdf?sig=1" }); return res.end(); }
         res.writeHead(200, { "Content-Type": "application/pdf" }); return res.end(PDF);
       }
       /* como la pasarela: solo con el código de la oficina, y el ayudante nunca manda una clave */
@@ -82,7 +82,12 @@ function fakeDocuSeal(opts) {
         const id = Number(m[1]);
         if (!subs[id]) { return send(404, { error: "Not found" }); }
         if (req.method === "GET" && m[2]) { return send(200, { id, documents: [{ name: "merged", url: base() + "/files/merged.pdf" }] }); }
-        if (req.method === "GET") { return send(200, view(id)); }
+        /* como DocuSeal: el PDF con el certificado al final, si se pide y ya se firmó todo */
+        if (req.method === "GET") {
+          const v = view(id);
+          if (v.status === "completed" && /combined_document_url/.test(u.searchParams.get("include") || "")) { v.combined_document_url = base() + "/files/combined.pdf"; }
+          return send(200, v);
+        }
         if (req.method === "DELETE") { subs[id].archived = "2026-11-21T20:00:00.000Z"; return send(200, { id, archived_at: subs[id].archived }); }
       }
       m = /^\/api\/submitters\/(\d+)$/.exec(u.pathname);
@@ -250,8 +255,10 @@ test("ayudante de firma: solo la herramienta; envía sin correos; lista del serv
     assert.equal(pdf.status, 200);
     assert.equal(pdf.headers["content-type"], "application/pdf");
     assert.ok(pdf.buf.equals(PDF), "el PDF firmado llega byte por byte");
-    assert.ok(ds.calls.some((c) => c.path === "/api/submissions/1/documents" && /merge=true/.test(c.url)));
-    assert.deepEqual(ds.files, [{ url: "/files/merged.pdf", key: undefined, code: undefined }], "el código no va al enlace del PDF");
+    /* el PDF lleva el certificado de DocuSeal al final (combined_document_url) */
+    assert.ok(ds.calls.some((c) => c.url === "/api/submissions/1?include=combined_document_url"));
+    assert.ok(!ds.calls.some((c) => /\/documents/.test(c.path)), "ya no se pide el PDF sin certificado");
+    assert.deepEqual(ds.files, [{ url: "/files/combined.pdf", key: undefined, code: undefined }], "el código no va al enlace del PDF");
 
     /* un firmado no se archiva; guardarlo se anota en esta computadora: DocuSeal
        no deja cambiar a un firmante que ya firmó (el servidor de mentira tampoco) */
@@ -478,7 +485,7 @@ test("ayudante de firma: el código no viaja al enlace del PDF ni con una redire
     const pdf = await post(helper.port, "/pdf", { id: "1" });
     assert.equal(pdf.status, 200);
     assert.ok(pdf.buf.equals(PDF));
-    assert.deepEqual(ds.files, [{ url: "/files/merged.pdf", key: undefined, code: undefined }, { url: "/files/blob.pdf?sig=1", key: undefined, code: undefined }]);
+    assert.deepEqual(ds.files, [{ url: "/files/combined.pdf", key: undefined, code: undefined }, { url: "/files/blob.pdf?sig=1", key: undefined, code: undefined }]);
   } finally {
     await stopHelper(helper);
     ds.server.close();

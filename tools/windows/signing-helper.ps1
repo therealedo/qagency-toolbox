@@ -178,8 +178,8 @@ function Get-Doc($sub) {
 }
 # Pide un envio. Devuelve @{ sub } o @{ code } (404 si no existe, 502 si el
 # servidor no contesto bien).
-function Fetch-Sub([string]$id) {
-  try { $r = Invoke-DocuSeal "GET" ("/submissions/" + $id) $null } catch { Write-Log ("envio " + $id + " sin conexion"); return @{ code = 502 } }
+function Fetch-Sub([string]$id, [string]$query = "") {
+  try { $r = Invoke-DocuSeal "GET" ("/submissions/" + $id + $query) $null } catch { Write-Log ("envio " + $id + " sin conexion"); return @{ code = 502 } }
   if ($r.code -eq 404) { return @{ code = 404 } }
   $sub = if ($r.code -eq 200) { Read-Json $r.bytes } else { $null }
   if (-not $sub -or $sub.archived_at) {
@@ -369,13 +369,13 @@ function Handle($ctx) {
       Send-Response $ctx 200 ([ordered]@{ docs = [object[]]$docs; more = $more })
     }
     "/pdf" {
-      $f = Fetch-Sub ([string]$b.id)
+      # Un solo PDF: el documento firmado y, al final, el certificado de
+      # DocuSeal (quien firmo, cuando y desde donde), sellado por el servidor.
+      $f = Fetch-Sub ([string]$b.id) "?include=combined_document_url"
       if (-not $f.sub) { Send-Response $ctx $f.code @{ error = $(if ($f.code -eq 404) { "id" } else { "conexion" }) }; return }
       if ((Get-Status $f.sub) -ne "completed") { Send-Response $ctx 409 @{ error = "no-firmado" }; return }
-      try { $r = Invoke-DocuSeal "GET" ("/submissions/" + $b.id + "/documents?merge=true") $null } catch { Send-Response $ctx 502 @{ error = "conexion" }; return }
-      $res = if ($r.code -eq 200) { Read-Json $r.bytes } else { $null }
-      $url = [string](@($res.documents) | Select-Object -First 1).url
-      if (-not ($url -match '^https?://')) { Server-Failure $ctx ("pdf " + $b.id) $r; return }
+      $url = [string]$f.sub.combined_document_url
+      if (-not ($url -match '^https?://')) { Write-Log ("pdf " + $b.id + " sin documento"); Send-Response $ctx 502 @{ error = "docuseal"; status = 502 }; return }
       try { $p = Get-File (New-Object System.Uri $url) } catch { Send-Response $ctx 502 @{ error = "conexion" }; return }
       if ($p.code -ne 200 -or $p.bytes.Length -lt 5 -or [Text.Encoding]::ASCII.GetString($p.bytes, 0, 5) -ne "%PDF-") {
         Write-Log ("pdf " + $b.id + " archivo http " + $p.code)

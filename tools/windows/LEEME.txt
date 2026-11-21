@@ -59,7 +59,8 @@ acuerdo de privacidad (BAA), usa solo datos de prueba. El Consent va con
 todo lleno: el cliente solo firma. En el SOA firma primero el cliente y
 despues el agente, con su parte ya llena, desde Firmas ("Firmar
 (agente)"). Cuando todo esta firmado, el PDF se guarda solo en la carpeta
-del Network; si no se puede, la herramienta ofrece Guardar o Descargar.
+del Network, con el certificado de firma al final (quien firmo, cuando y
+desde donde); si no se puede, la herramienta ofrece Guardar o Descargar.
 La pestana Firmas muestra lo que se envio desde esta computadora: lo que
 espera la firma, lo firmado (el historial, que queda en el servidor de
 firma) y lo que no se firmo. El agente firma el SOA desde la computadora
