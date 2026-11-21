@@ -1206,13 +1206,14 @@
 
   /* El nombre de pila de quien abrió la cuenta (el titular): debajo de
      "Logout" o delante de "Menu", arriba de la página. */
+  /* puede traer la inicial del segundo nombre: "Raidel A" */
   function accountName(doc) {
     for (var i = 0; i < doc.lines.length && i < 8; i++) {
-      var line = noIcons(doc.lines[i]), m = line.match(/^\s*(\S+)\s{2,}Menu\s*$/i);
+      var line = noIcons(doc.lines[i]), m = line.match(/^\s*(\S+(?: [A-Z]\.?)?)\s{2,}Menu\s*$/i);
       if (m) { return vName(m[1]); }
       if (/^\s*Log\s?out\b/i.test(line)) {
         var n = firstCell(noIcons(doc.lines[i + 1]));
-        return n.indexOf(" ") < 0 ? vName(n) : "";
+        return /^\S+(?: [A-Z]\.?)?$/.test(n) ? vName(n) : "";
       }
     }
     return "";
@@ -1222,7 +1223,8 @@
      immigration status" o "Confirm Yanet's immigration status   Collapse -".
      Da el nombre de pila y el tipo de documento (como en config.MKPL_DOCS). */
   function openItem(doc) {
-    var name = "([A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑáéíóúñü'’\\-]*)";
+    /* el nombre de pila, con la inicial del segundo si la tiene ("Raidel A") */
+    var name = "([A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑáéíóúñü'’\\-]*(?: [A-Z]\\.?)?)";
     var m = doc.flat.match(new RegExp("(?:^|\\n)" + name + " - You need to send proof of (?:your )?([^.\\n]+)")) ||
             doc.flat.match(new RegExp("(?:^|\\n)Confirm " + name + "['’]s ([^\\n]+?) Collapse\\b"));
     var kind = m ? DOC_KINDS.filter(function (k) { return k[0].test(m[2]); })[0] : null;
