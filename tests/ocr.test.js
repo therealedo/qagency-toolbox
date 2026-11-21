@@ -73,6 +73,13 @@ test("OCR: un PDF escaneado se lee con OCR solo si casi no trae texto", () => {
   assert.equal(O.needsOcr("Scope of Sales Appointment Confirmation Form, Beneficiary Name: Beatriz Diaz"), false);
 });
 
+/* Un App Summary escaneado lleva unas 2 páginas por persona: el de una
+   familia de 5 tiene 10, y con 6 se perdían los dos últimos hijos. Su texto
+   del OCR está en "OC App Summary OCR Family" (extract.test.js). */
+test("OCR: un PDF escaneado se lee hasta 20 páginas, lo que trae el App Summary de una familia grande", () => {
+  assert.ok(O.MAX_PAGES >= 20, "MAX_PAGES = " + O.MAX_PAGES);
+});
+
 /* Cotizaciones de HealthSherpa (capturas de la cotización pública, con un
    hogar inventado): el OCR da las palabras con su posición y se lee cada plan
    de la pantalla con su compañía y la prima que paga el cliente. */
