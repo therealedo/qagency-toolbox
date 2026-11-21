@@ -3,8 +3,10 @@
    crea los envíos sin correos, lista los del equipo desde el servidor,
    entrega el PDF firmado tal cual, marca el guardado en el servidor,
    archiva solo lo que no se firmó y, en el SOA, llena y bloquea los datos
-   del agente recién cuando el cliente firmó.
-   Corre solo en Windows (necesita Windows PowerShell y DPAPI). */
+   del agente recién cuando el cliente firmó. El ayudante no tiene la clave
+   de DocuSeal: pasa el código de la oficina que le da la página, y la
+   pasarela del servidor (aquí, el DocuSeal de mentira) pone la clave.
+   Corre solo en Windows (necesita Windows PowerShell). */
 "use strict";
 
 const test = require("node:test");
@@ -18,7 +20,7 @@ const { spawn, execFileSync } = require("node:child_process");
 
 const WIN = process.platform === "win32";
 const SCRIPT = path.join(__dirname, "..", "tools", "windows", "signing-helper.ps1");
-const KEY = "ds-test-key-0123456789";
+const CODE = "QAgency_codigo-de-prueba_0123456789abcdefABCDEF";
 const TOKEN = "a".repeat(16) + "0123456789abcdef0123456789abcdef";
 const PDF = Buffer.from("%PDF-1.7\nfirmado en DocuSeal\n%%EOF");
 
@@ -50,14 +52,15 @@ function fakeDocuSeal(opts) {
     req.on("data", (c) => { body += c; });
     req.on("end", () => {
       const u = new URL(req.url, base());
-      calls.push({ method: req.method, url: req.url, path: u.pathname, key: req.headers["x-auth-token"], type: req.headers["content-type"], body: body ? JSON.parse(body) : null });
+      calls.push({ method: req.method, url: req.url, path: u.pathname, key: req.headers["x-auth-token"], code: req.headers["x-office-code"], type: req.headers["content-type"], body: body ? JSON.parse(body) : null });
       const send = (code, obj) => { res.writeHead(code, { "Content-Type": "application/json" }); res.end(obj === undefined ? "" : JSON.stringify(obj)); };
       if (u.pathname.startsWith("/files/")) {
-        files.push({ url: req.url, key: req.headers["x-auth-token"] });
+        files.push({ url: req.url, key: req.headers["x-auth-token"], code: req.headers["x-office-code"] });
         if (o.redirectFile && u.pathname === "/files/merged.pdf") { res.writeHead(302, { Location: base() + "/files/blob.pdf?sig=1" }); return res.end(); }
         res.writeHead(200, { "Content-Type": "application/pdf" }); return res.end(PDF);
       }
-      if (req.headers["x-auth-token"] !== KEY) { return send(401, { error: "Not authenticated" }); }
+      /* como la pasarela: solo con el código de la oficina, y el ayudante nunca manda una clave */
+      if (req.headers["x-office-code"] !== CODE || req.headers["x-auth-token"] !== undefined) { return send(403, { error: "codigo" }); }
       if (o.reject && req.method === "POST") { return send(o.reject[0], o.reject[1]); }
       if (req.method === "POST" && u.pathname === "/api/submissions") {
         const b = JSON.parse(body), id = nextSub++;
@@ -118,11 +121,11 @@ function call(port, method, p, opts) {
     req.end();
   });
 }
-const auth = (extra) => Object.assign({ "X-Helper-Token": TOKEN, "Content-Type": "application/json", Origin: "null" }, extra || {});
+const auth = (extra) => Object.assign({ "X-Helper-Token": TOKEN, "X-Office-Code": CODE, "Content-Type": "application/json", Origin: "null" }, extra || {});
 const post = (port, p, body) => call(port, "POST", p, { headers: auth(), body: body || {} });
 
 /* apiPort: un DocuSeal de mentira (-ApiBase). Sin él, el ayudante usa el
-   servidor de ajustes.json. */
+   servidor de firmas que trae adentro. */
 async function startHelper(dir, apiPort) {
   const port = await freePort();
   const args = ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", SCRIPT, "-Port", String(port), "-Dir", dir];
@@ -137,14 +140,8 @@ async function startHelper(dir, apiPort) {
 }
 async function stopHelper(h) { if (h) { h.child.kill(); await new Promise((r) => setTimeout(r, 500)); } }
 
-function writeKey(dir) {
-  execFileSync("powershell.exe", ["-NoProfile", "-Command",
-    "ConvertTo-SecureString $env:QA_TEST_KEY -AsPlainText -Force | ConvertFrom-SecureString | Set-Content -LiteralPath $env:QA_TEST_FILE"],
-  { env: Object.assign({}, process.env, { QA_TEST_KEY: KEY, QA_TEST_FILE: path.join(dir, "clave.txt") }) });
-}
 function setup() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "qa-helper-"));
-  writeKey(dir);
   fs.writeFileSync(path.join(dir, "token.txt"), TOKEN);
   return dir;
 }
@@ -180,7 +177,7 @@ test("ayudante de firma: solo la herramienta; envía sin correos; lista del serv
     helper = await startHelper(dir, ds.port);
     const port = helper.port;
 
-    assert.deepEqual((await call(port, "GET", "/health")).json, { ok: true, version: "3", error: null });
+    assert.deepEqual((await call(port, "GET", "/health")).json, { ok: true, version: "4", error: null });
 
     /* la frontera: Host, Origin, token, tipo de contenido, preflight */
     assert.equal((await call(port, "POST", "/list", { headers: auth({ Host: "evil.example:" + port }), body: {} })).status, 403);
@@ -191,11 +188,12 @@ test("ayudante de firma: solo la herramienta; envía sin correos; lista del serv
     assert.equal((await call(port, "GET", "/list", { headers: auth() })).status, 405);
     assert.equal((await call(port, "POST", "/agent", { headers: auth({ "X-Helper-Token": "" }), body: { id: "1" } })).status, 401);
     const pre = await call(port, "OPTIONS", "/send", { headers: { Origin: "null", "Access-Control-Request-Method": "POST",
-      "Access-Control-Request-Headers": "content-type,x-helper-token", "Access-Control-Request-Private-Network": "true" } });
+      "Access-Control-Request-Headers": "content-type,x-helper-token,x-office-code", "Access-Control-Request-Private-Network": "true" } });
     assert.equal(pre.status, 204);
     assert.equal(pre.headers["access-control-allow-origin"], "null");
     assert.equal(pre.headers["access-control-allow-private-network"], "true");
     assert.match(pre.headers["access-control-allow-headers"], /X-Helper-Token/);
+    assert.match(pre.headers["access-control-allow-headers"], /X-Office-Code/);
     assert.equal(ds.calls.length, 0, "nada rechazado llega al servidor");
 
     /* datos inválidos no salen */
@@ -205,13 +203,15 @@ test("ayudante de firma: solo la herramienta; envía sin correos; lista del serv
     }
     assert.equal(ds.calls.length, 0);
 
-    /* envío: sin correos, la clave en el encabezado, los campos llenos y bloqueados */
+    /* envío: sin correos, el código de la oficina (nunca una clave), los campos llenos y bloqueados */
     const sent = await post(port, "/send", SEND);
     assert.equal(sent.status, 200);
     assert.equal(sent.headers["access-control-allow-origin"], "null");
     assert.deepEqual(sent.json, { id: "1", link: "http://127.0.0.1:" + ds.port + "/s/slug2" });
     const created = ds.calls.find((c) => c.method === "POST");
-    assert.equal(created.key, KEY);
+    assert.equal(created.code, CODE);
+    assert.equal(created.key, undefined, "el ayudante no tiene clave");
+    assert.ok(ds.calls.every((c) => c.code === CODE && c.key === undefined));
     assert.equal(created.type, "application/json");
     assert.equal(created.path, "/api/submissions");
     assert.deepEqual(created.body, {
@@ -246,7 +246,7 @@ test("ayudante de firma: solo la herramienta; envía sin correos; lista del serv
     assert.equal(pdf.headers["content-type"], "application/pdf");
     assert.ok(pdf.buf.equals(PDF), "el PDF firmado llega byte por byte");
     assert.ok(ds.calls.some((c) => c.path === "/api/submissions/1/documents" && /merge=true/.test(c.url)));
-    assert.deepEqual(ds.files, [{ url: "/files/merged.pdf", key: undefined }], "la clave no va al enlace del PDF");
+    assert.deepEqual(ds.files, [{ url: "/files/merged.pdf", key: undefined, code: undefined }], "el código no va al enlace del PDF");
 
     /* un firmado no se archiva; guardarlo lo marca en el servidor para todo el equipo */
     const refused = await post(port, "/delete", { id: "1" });
@@ -265,9 +265,9 @@ test("ayudante de firma: solo la herramienta; envía sin correos; lista del serv
     assert.ok(ds.calls.some((c) => c.method === "DELETE" && c.path === "/api/submissions/2"));
     assert.deepEqual((await post(port, "/list")).json.docs.map((x) => x.id), ["1"]);
 
-    /* el registro no tiene datos del cliente, ni la clave, ni el token */
+    /* el registro no tiene datos del cliente, ni el código, ni el token */
     const log = fs.readFileSync(path.join(dir, "registro.log"), "utf8");
-    for (const secret of [KEY, TOKEN, "Beatriz", "bea@example.com", "Ambetter", "slug2"]) { assert.ok(!log.includes(secret), "el registro no lleva " + secret); }
+    for (const secret of [CODE, TOKEN, "Beatriz", "bea@example.com", "Ambetter", "slug2"]) { assert.ok(!log.includes(secret), "el registro no lleva " + secret); }
     assert.match(log, /send 1\b/);
     assert.match(log, /delete 2 sent/);
   } finally {
@@ -414,37 +414,44 @@ test("ayudante de firma: si el servidor rechaza el envío, la herramienta ve por
   }
 });
 
-test("ayudante de firma: sin clave o sin servidor https no envía nada", { skip: !WIN, timeout: 60000 }, async () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "qa-helper-"));
+test("ayudante de firma: sin el código de la oficina no sale nada, y un código que el servidor no acepta se avisa", { skip: !WIN, timeout: 60000 }, async () => {
+  const dir = setup();
+  const ds = await fakeDocuSeal();
   let helper;
   try {
-    fs.writeFileSync(path.join(dir, "token.txt"), TOKEN);
-    fs.writeFileSync(path.join(dir, "ajustes.json"), '{"server": "https://firmas.example.com"}');
-    helper = await startHelper(dir);
-    assert.deepEqual((await call(helper.port, "GET", "/health")).json, { ok: false, version: "3", error: "sin-clave" });
-    assert.equal((await post(helper.port, "/send", SEND)).status, 503);
-    await stopHelper(helper);
-
-    writeKey(dir);
-    for (const bad of ['{"server": "http://firmas.example.com"}', '{"server": "https://firmas.example.com/otra/ruta"}', "{}", "no es json"]) {
-      fs.writeFileSync(path.join(dir, "ajustes.json"), bad);
-      helper = await startHelper(dir);
-      assert.deepEqual((await call(helper.port, "GET", "/health")).json, { ok: false, version: "3", error: "sin-servidor" }, bad);
-      const r = await post(helper.port, "/send", SEND);
-      assert.deepEqual([r.status, r.json], [503, { error: "sin-servidor" }]);
-      await stopHelper(helper);
-      helper = null;
+    /* la clave y el servidor que dejó la versión 1.25.0 ya no se usan */
+    fs.writeFileSync(path.join(dir, "clave.txt"), "basura-de-una-version-vieja");
+    fs.writeFileSync(path.join(dir, "ajustes.json"), '{"server": "https://otro.example.com"}');
+    helper = await startHelper(dir, ds.port);
+    const port = helper.port;
+    assert.deepEqual((await call(port, "GET", "/health")).json, { ok: true, version: "4", error: null });
+    for (const code of [undefined, "", "corto", "con espacios " + "x".repeat(40), "x".repeat(129), "tiene/barra" + "x".repeat(40)]) {
+      const headers = auth({ "X-Office-Code": code });
+      if (code === undefined) { delete headers["X-Office-Code"]; }
+      const r = await call(port, "POST", "/send", { headers, body: SEND });
+      assert.deepEqual([r.status, r.json], [400, { error: "sin-codigo" }], String(code));
     }
-    fs.writeFileSync(path.join(dir, "ajustes.json"), '{"server": "https://firmas.example.com/"}');
+    assert.equal(ds.calls.length, 0, "sin un código válido no se llama al servidor");
+    /* el código tiene la forma correcta, pero la pasarela no lo acepta */
+    const other = auth({ "X-Office-Code": "ATH_codigo-viejo_" + "z".repeat(30) });
+    for (const [p, body] of [["/send", SEND], ["/list", {}], ["/pdf", { id: "1" }], ["/delete", { id: "1" }], ["/agent", { id: "1" }], ["/saved", { id: "1" }]]) {
+      const r = await call(port, "POST", p, { headers: other, body });
+      assert.deepEqual([r.status, r.json], [403, { error: "codigo" }], p);
+    }
+    const log = fs.readFileSync(path.join(dir, "registro.log"), "utf8");
+    assert.ok(!log.includes("codigo-viejo"), "el registro no lleva el código");
+    /* sin -ApiBase el ayudante usa el servidor que trae adentro, no el de ajustes.json */
+    await stopHelper(helper);
     helper = await startHelper(dir);
-    assert.deepEqual((await call(helper.port, "GET", "/health")).json, { ok: true, version: "3", error: null });
+    assert.deepEqual((await call(helper.port, "GET", "/health")).json, { ok: true, version: "4", error: null });
   } finally {
     await stopHelper(helper);
+    ds.server.close();
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
 
-test("ayudante de firma: la clave no viaja con una redirección", { skip: !WIN, timeout: 60000 }, async () => {
+test("ayudante de firma: el código no viaja al enlace del PDF ni con una redirección", { skip: !WIN, timeout: 60000 }, async () => {
   const dir = setup();
   const ds = await fakeDocuSeal({ redirectFile: true });
   let helper;
@@ -455,7 +462,7 @@ test("ayudante de firma: la clave no viaja con una redirección", { skip: !WIN, 
     const pdf = await post(helper.port, "/pdf", { id: "1" });
     assert.equal(pdf.status, 200);
     assert.ok(pdf.buf.equals(PDF));
-    assert.deepEqual(ds.files, [{ url: "/files/merged.pdf", key: undefined }, { url: "/files/blob.pdf?sig=1", key: undefined }]);
+    assert.deepEqual(ds.files, [{ url: "/files/merged.pdf", key: undefined, code: undefined }, { url: "/files/blob.pdf?sig=1", key: undefined, code: undefined }]);
   } finally {
     await stopHelper(helper);
     ds.server.close();

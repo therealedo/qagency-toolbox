@@ -31,6 +31,9 @@
       botonRojo: true, sinAcentos: false, theme: "", line: "oc",
       /* número de la plantilla de DocuSeal de cada formulario (FM.TEMPLATES) */
       signTemplates: {},
+      /* el código de firma de cada oficina (lo genera el servidor de firmas;
+         viene en el archivo del equipo) */
+      signCodes: {},
       /* nombre de cada carpeta del Network elegida, para avisar cuál falta
          si el navegador deja de tenerla */
       netDirNames: {}
@@ -47,6 +50,7 @@
     if (C.OFFICES.indexOf(def.oficina) < 0) { def.oficina = C.OFFICES[0]; }
     if (!def.telefonos || typeof def.telefonos !== "object") { def.telefonos = {}; }
     if (!def.signTemplates || typeof def.signTemplates !== "object") { def.signTemplates = {}; }
+    if (!def.signCodes || typeof def.signCodes !== "object") { def.signCodes = {}; }
     if (!def.netDirNames || typeof def.netDirNames !== "object") { def.netDirNames = {}; }
     return def;
   }
@@ -2053,6 +2057,27 @@
     return out;
   }
 
+  /* los códigos de firma de las oficinas, para el archivo del equipo */
+  function formSignCodes() {
+    var out = {};
+    C.OFFICES.forEach(function (o) { var c = U.collapse(settings.signCodes[o]); if (c) { out[o] = c; } });
+    return out;
+  }
+
+  /* Ajustes: el código de firma de cada oficina (oculto, como una contraseña) */
+  function renderSignCodes() {
+    var box = $("signCodeRows");
+    box.textContent = "";
+    C.OFFICES.forEach(function (o) {
+      var lab = el("label", "mini");
+      lab.appendChild(el("span", null, "Código de firma de " + o));
+      var inp = el("input"); inp.type = "password"; inp.spellcheck = false; inp.autocomplete = "off";
+      inp.placeholder = "Viene en el archivo del equipo"; inp.value = settings.signCodes[o] || ""; inp.dataset.signCode = o;
+      lab.appendChild(inp);
+      box.appendChild(lab);
+    });
+  }
+
   /* Ajustes: el número de la plantilla de DocuSeal de cada formulario */
   function renderSignTemplates() {
     var box = $("signTplRows");
@@ -2078,14 +2103,25 @@
      en el servidor de firma: son el historial de todo el equipo en el
      tablero Firmas, donde también firma el agente el SOA, se cancela uno
      enviado por error y se borra uno que no se firmó. */
-  var helper = { token: "", up: false, ok: false, error: "", docs: [], more: false, limit: FM.SIGN_HISTORY_STEP, filter: "all",
+  var helper = { token: "", up: false, ok: false, error: "", badCode: "", docs: [], more: false, limit: FM.SIGN_HISTORY_STEP, filter: "all",
     sent: null, pdfs: {}, busy: {}, tried: {}, savePending: {}, downloaded: {}, note: {} };
 
-  /* lo que dice la página cuando el ayudante no tiene la clave o el servidor */
+  /* El código de firma que va con cada pedido: la clave de DocuSeal no está
+     en ninguna computadora, la pone la pasarela del servidor cuando el
+     código es de una de las oficinas. */
+  var signCodeTimer = 0;
+  function signCode() { return FM.officeCode(settings.signCodes, settings.oficina, C.OFFICES); }
+
+  /* lo que dice la página cuando falta el código, el servidor no lo acepta,
+     o el ayudante no está listo */
   function helperProblem() {
-    return helper.error === "sin-servidor"
-      ? "Falta la dirección del servidor de firma en esta computadora: agrégala con «Clave de firma.bat» del paquete de Windows."
-      : "Falta la clave de firma en esta computadora: agrégala con «Clave de firma.bat» del paquete de Windows.";
+    if (helper.error === "codigo") {
+      return "El servidor de firma no aceptó el código de la oficina. Pide el archivo del equipo actualizado e impórtalo en Ajustes > Equipo.";
+    }
+    if (helper.error === "sin-codigo") {
+      return "Falta el código de firma de la oficina. Viene en el archivo del equipo: impórtalo en Ajustes > Equipo.";
+    }
+    return "El ayudante de firma no está listo. Vuelve a instalar la herramienta con el paquete de Windows.";
   }
 
   function loadHelper() {
@@ -2107,12 +2143,15 @@
   function helperFetch(path, body, binary) {
     var opt = { method: body === undefined ? "GET" : "POST", cache: "no-store", credentials: "omit", referrerPolicy: "no-referrer" };
     if (body !== undefined) {
-      opt.headers = { "Content-Type": "application/json", "X-Helper-Token": helper.token };
+      var sentCode = signCode();
+      opt.headers = { "Content-Type": "application/json", "X-Helper-Token": helper.token, "X-Office-Code": sentCode };
       opt.body = JSON.stringify(body);
     }
     return fetch(C.HELPER_URL + path, opt).then(function (r) {
       if (!r.ok) {
         return r.json().catch(function () { return {}; }).then(function (j) {
+          /* el servidor no aceptó el código: no se vuelve a probar hasta que cambie */
+          if (j && j.error === "codigo") { helper.badCode = sentCode; helper.error = "codigo"; helper.ok = false; }
           var e = new Error((j && j.error) || "http " + r.status); e.info = j || {}; throw e;
         });
       }
@@ -2123,7 +2162,10 @@
   function checkHelper() {
     if (!helper.token) { return; }
     helperFetch("/health").then(function (h) {
-      helper.up = true; helper.ok = !!h.ok; helper.error = String(h.error || "");
+      var code = signCode();
+      helper.up = true;
+      helper.error = !h.ok ? "ayudante" : !code ? "sin-codigo" : code === helper.badCode ? "codigo" : "";
+      helper.ok = !helper.error;
       return helper.ok ? helperFetch("/list", { limit: helper.limit }) : { docs: [], more: false };
     }).then(function (r) {
       helper.docs = Array.isArray(r.docs) ? r.docs : [];
@@ -2139,6 +2181,7 @@
       /* sin respuesta: el ayudante no está. Si respondió con un error, sigue
          abierto y la lista queda como estaba. */
       if (!e || !e.info) { helper.up = false; helper.ok = false; }
+      if (!helper.ok) { helper.docs = []; }
       renderFirmas();
       renderSign(data());
     });
@@ -2185,13 +2228,17 @@
 
   function sendError(e) {
     var info = (e && e.info) || {};
+    if (info.error === "docuseal" && info.detail === "pasarela") {
+      return "El servidor de firma todavía no tiene lista su clave de DocuSeal. Avisa a quien administra el servidor de firmas.";
+    }
     if (info.error === "docuseal") {
       return "El servidor de firma no aceptó el envío (" + info.status + ")" + (info.detail ? ": " + String(info.detail).slice(0, 500) + "." :
         ". Revisa el número de la plantilla y que su firmante se llame «Cliente» (y, en el SOA, el segundo «Agente»).");
     }
     if (info.error === "datos") { return "El ayudante de firma rechazó los datos: revisa el nombre y el email del cliente y el agente del NPN."; }
     if (info.error === "conexion") { return "No hubo conexión con el servidor de firma. Intenta de nuevo en un momento."; }
-    if (info.error === "sin-clave" || info.error === "sin-servidor") { helper.error = info.error; return helperProblem(); }
+    if (info.error === "codigo") { return helperProblem(); }
+    if (info.error === "sin-codigo") { helper.error = "sin-codigo"; helper.ok = false; return helperProblem(); }
     return "No se pudo enviar a firmar. Revisa que el ayudante de firma esté abierto.";
   }
 
@@ -3302,6 +3349,7 @@
     $("optRojo").checked = settings.botonRojo;
     $("optAcentos").checked = settings.sinAcentos;
     renderSignTemplates();
+    renderSignCodes();
     $("installHelp").textContent = installHelp();
     $("versionTag").textContent = "Versión " + C.VERSION;
   }
@@ -3754,6 +3802,15 @@
       settings.telefonos[o] = U.collapse(e.target.value);
       saveSettings(); refresh();
     });
+    $("signCodeRows").addEventListener("input", function (e) {
+      var o = e.target.dataset.signCode;
+      if (!o) { return; }
+      settings.signCodes[o] = U.collapse(e.target.value);
+      saveSettings();
+      /* se revisa con el servidor al terminar de escribir, no en cada tecla */
+      clearTimeout(signCodeTimer);
+      signCodeTimer = setTimeout(checkHelper, 800);
+    });
     $("signTplRows").addEventListener("input", function (e) {
       var k = e.target.dataset.signTpl;
       if (!k) { return; }
@@ -3800,15 +3857,21 @@
            que el archivo no trae se quedan como estaban */
         var tpls = Object.keys(r.signTemplates).filter(function (k) { return FM.TEMPLATES[k]; });
         tpls.forEach(function (k) { settings.signTemplates[k] = r.signTemplates[k]; });
-        saveSettings(); renderTeam(); renderSignTemplates(); refresh();
+        /* igual los códigos de firma de las oficinas */
+        var codes = C.OFFICES.filter(function (o) { return r.signCodes[o]; });
+        codes.forEach(function (o) { settings.signCodes[o] = r.signCodes[o]; });
+        saveSettings(); renderTeam(); renderSignTemplates(); renderSignCodes(); refresh(); checkHelper();
+        var extra = [];
+        if (tpls.length) { extra.push(tpls.length + (tpls.length === 1 ? " plantilla" : " plantillas") + " de firma"); }
+        if (codes.length) { extra.push(codes.length === 1 ? "el código de firma" : "los códigos de firma"); }
         toast("Equipo importado: " + r.team.length + (r.team.length === 1 ? " persona" : " personas") +
-          (tpls.length ? " y " + tpls.length + (tpls.length === 1 ? " plantilla" : " plantillas") + " de firma." : "."));
+          (extra.length ? (extra.length === 1 ? " y " : ", ") + extra.join(" y ") + "." : "."));
       }, function () { input.value = ""; toast("No se pudo leer el archivo."); });
     });
     $("teamExport").addEventListener("click", function () {
       if (!settings.team.some(function (t) { return t.name; })) { toast("No hay nadie en el equipo para exportar."); return; }
       var a = el("a");
-      a.href = URL.createObjectURL(new Blob([U.teamFile(settings.team, {}, formTemplateIds())], { type: "application/json" }));
+      a.href = URL.createObjectURL(new Blob([U.teamFile(settings.team, {}, formTemplateIds(), formSignCodes())], { type: "application/json" }));
       a.download = "QAgency-Equipo.json";
       document.body.appendChild(a); a.click(); a.remove();
       setTimeout(function () { URL.revokeObjectURL(a.href); }, 60000);

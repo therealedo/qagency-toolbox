@@ -423,6 +423,18 @@ test("tablero Firmas: qué se puede hacer con cada documento; un firmado nunca s
   assert.deepEqual(F.signActions({ status: "sent", link: "javascript:alert(1)" }), ["cancel"], "lo que no es un enlace no se copia");
 });
 
+test("código de firma: el de la oficina elegida; si no tiene, el de la otra; sin uno válido, nada", () => {
+  const qa = "Qa_" + "a1B2-c3".repeat(6), ath = "ATH-" + "z9_Y8".repeat(8);
+  const offices = ["QAgency", "ATH Insurance"];
+  assert.equal(F.officeCode({ QAgency: qa, "ATH Insurance": ath }, "ATH Insurance", offices), ath);
+  assert.equal(F.officeCode({ QAgency: qa, "ATH Insurance": ath }, "QAgency", offices), qa);
+  assert.equal(F.officeCode({ QAgency: qa }, "ATH Insurance", offices), qa);
+  assert.equal(F.officeCode({ QAgency: " " + qa + " " }, "QAgency", offices), qa);
+  assert.equal(F.officeCode({ QAgency: "corto", "ATH Insurance": "" }, "QAgency", offices), "");
+  assert.equal(F.officeCode({ Otra: qa }, "Otra", offices), "", "solo las oficinas de la herramienta");
+  assert.equal(F.officeCode(null, "QAgency", offices), "");
+});
+
 test("enlace de firma: solo http(s), sin espacios ni comillas; lo demás no es un enlace", () => {
   assert.equal(F.signLink("https://firmas.example.com/s/abc123"), "https://firmas.example.com/s/abc123");
   assert.equal(F.signLink("http://127.0.0.1:3000/s/abc"), "http://127.0.0.1:3000/s/abc");

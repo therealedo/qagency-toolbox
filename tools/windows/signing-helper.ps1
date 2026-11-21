@@ -1,9 +1,10 @@
 # Q Agency Toolbox - ayudante de firma (DocuSeal).
 # Escucha solo en 127.0.0.1. La herramienta le pasa en JSON el Consent o el
-# SOA que hay que firmar; el ayudante guarda la clave de la API del servidor
-# de firmas (cifrada con DPAPI, solo la lee este usuario de Windows), hace las
-# llamadas y entrega el PDF firmado a la herramienta, que lo guarda en el
-# Network. Los envios viven en el servidor: son el historial de todo el
+# SOA que hay que firmar, con el codigo de firma de la oficina (viene en el
+# archivo del equipo); el ayudante hace las llamadas al servidor de firmas y
+# entrega el PDF firmado a la herramienta, que lo guarda en el Network. La
+# clave de DocuSeal no esta en esta computadora: la pone la pasarela del
+# servidor, que solo deja pasar lo que el ayudante usa y con un codigo valido. Los envios viven en el servidor: son el historial de todo el
 # equipo, y ahi mismo se marca cuales ya se guardaron. En el disco no guarda
 # nada de los envios.
 # Rutas: GET /health; POST /send, /list, /pdf, /saved, /delete, /agent (con X-Helper-Token).
@@ -11,58 +12,45 @@
 param(
   [int]$Port = 47815,
   [string]$Dir = (Join-Path $env:LOCALAPPDATA "QAgencyToolbox\firma"),
-  # Solo para las pruebas: la direccion de la API. Normalmente sale del
-  # servidor de ajustes.json.
+  # Solo para las pruebas: la direccion de la API. Normalmente es la del
+  # servidor de firmas de abajo.
   [string]$ApiBase = ""
 )
 
 $ErrorActionPreference = "Stop"
-$Version = "3"
+$Version = "4"
+# El servidor de firmas. No es secreto; cambiarlo es una version nueva.
+$Servidor = "https://34-172-167-26.sslip.io"
 Add-Type -AssemblyName System.Net.Http
-Add-Type -AssemblyName System.Security
 [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
 
-$claveFile = Join-Path $Dir "clave.txt"
 $tokenFile = Join-Path $Dir "token.txt"
-$ajustesFile = Join-Path $Dir "ajustes.json"
 $logFile = Join-Path $Dir "registro.log"
 New-Item -ItemType Directory -Force -Path $Dir | Out-Null
 
 # El registro dice que paso, nunca con que datos: ni cuerpos, ni nombres,
-# ni enlaces, ni la clave, ni el token.
+# ni enlaces, ni el codigo de la oficina, ni el token.
 function Write-Log([string]$msg) {
   try { Add-Content -LiteralPath $logFile -Value ((Get-Date).ToString("s") + " " + $msg) -Encoding UTF8 } catch { }
 }
 
-# La clave: la escribe el instalador con ConvertFrom-SecureString (DPAPI del
-# usuario actual). Sin clave el ayudante responde, pero no envia nada.
-$apiKey = $null
-if (Test-Path -LiteralPath $claveFile) {
-  try {
-    $sec = (Get-Content -LiteralPath $claveFile -Raw).Trim() | ConvertTo-SecureString
-    $apiKey = [Runtime.InteropServices.Marshal]::PtrToStringBSTR([Runtime.InteropServices.Marshal]::SecureStringToBSTR($sec))
-  } catch { Write-Log "clave ilegible"; $apiKey = $null }
-}
 $token = if (Test-Path -LiteralPath $tokenFile) { (Get-Content -LiteralPath $tokenFile -Raw).Trim() } else { "" }
 if ($token.Length -lt 32) { Write-Log "sin token: no se acepta nada"; $token = $null }
 
-# El servidor: ajustes.json {"server": "https://firmas.ejemplo.com"}, solo
-# https y sin ruta. Sin servidor valido el ayudante no envia nada.
-if (-not $ApiBase) {
-  try {
-    $aj = Get-Content -LiteralPath $ajustesFile -Raw | ConvertFrom-Json
-    $srv = [string]$aj.server
-    if ($srv -match '^https://[A-Za-z0-9.-]+(:\d{1,5})?/?$') { $ApiBase = $srv.TrimEnd("/") + "/api" }
-  } catch { }
-  if (-not $ApiBase) { Write-Log "sin servidor" }
-}
+if (-not $ApiBase) { $ApiBase = $Servidor + "/api" }
 # Los enlaces para firmar van al mismo servidor: {servidor}/s/{slug}.
 $SiteBase = if ($ApiBase) { $ApiBase -replace '/api$', '' } else { "" }
 
 $idOk = '^\d{1,12}$'
+# El codigo de firma de la oficina: lo genera el servidor (base64url). Llega
+# con cada pedido de la pagina y solo va a la API del servidor de firmas.
+$codeOk = '^[A-Za-z0-9_-]{32,128}$'
+$script:officeCode = ""
+# La pasarela no acepto el codigo: la respuesta a la pagina lo dice.
+$script:codeRejected = $false
 
-# Sin redirecciones automaticas: HttpClient reenviaria X-Auth-Token al
-# servidor al que se redirija. Las del PDF se siguen a mano y sin la clave.
+# Sin redirecciones automaticas: HttpClient reenviaria el codigo al
+# servidor al que se redirija. Las del PDF se siguen a mano y sin el codigo.
 $handler = New-Object System.Net.Http.HttpClientHandler
 $handler.AllowAutoRedirect = $false
 $http = New-Object System.Net.Http.HttpClient($handler)
@@ -74,16 +62,21 @@ function Read-Result($res) {
 function Invoke-DocuSeal([string]$method, [string]$path, $body) {
   $uri = New-Object System.Uri ($ApiBase + $path)
   $req = New-Object System.Net.Http.HttpRequestMessage ([System.Net.Http.HttpMethod]::new($method)), $uri
-  $req.Headers.Add("X-Auth-Token", $apiKey)
+  $req.Headers.Add("X-Office-Code", $script:officeCode)
   $req.Headers.Add("Accept", "application/json")
   if ($null -ne $body) {
     $req.Content = New-Object System.Net.Http.StringContent ((ConvertTo-Json -InputObject $body -Depth 8 -Compress), [Text.Encoding]::UTF8, "application/json")
     # El tipo exacto, sin "; charset=utf-8" (el cuerpo sigue en UTF-8).
     $req.Content.Headers.ContentType = New-Object System.Net.Http.Headers.MediaTypeHeaderValue("application/json")
   }
-  return (Read-Result ($http.SendAsync($req).GetAwaiter().GetResult()))
+  $r = Read-Result ($http.SendAsync($req).GetAwaiter().GetResult())
+  if ($r.code -eq 403) {
+    $j = Read-Json $r.bytes
+    if ($j -and [string]$j.error -eq "codigo") { $script:codeRejected = $true }
+  }
+  return $r
 }
-# Un archivo del servidor (el PDF): sin la clave, siguiendo hasta 3
+# Un archivo del servidor (el PDF): sin el codigo, siguiendo hasta 3
 # redirecciones http o https.
 function Get-File([System.Uri]$uri) {
   for ($i = 0; $i -lt 4; $i++) {
@@ -184,6 +177,8 @@ function Get-Page([string]$query) {
 }
 
 function Send-Response($ctx, [int]$code, $obj, [byte[]]$raw, [string]$type) {
+  # Si la pasarela rechazo el codigo de la oficina, eso es lo que falla.
+  if ($script:codeRejected -and $code -ge 400) { $code = 403; $obj = @{ error = "codigo" }; $raw = $null }
   $res = $ctx.Response
   $res.StatusCode = $code
   $res.Headers["Cache-Control"] = "no-store"
@@ -271,6 +266,8 @@ function Handle($ctx) {
   $req = $ctx.Request
   $path = $req.Url.AbsolutePath
   $route = $req.HttpMethod + " " + $path
+  $script:officeCode = ""
+  $script:codeRejected = $false
   # Solo esta computadora, y solo esta direccion (contra DNS rebinding)
   $hostHeader = [string]$req.Headers["Host"]
   if (@("127.0.0.1:$Port", "localhost:$Port") -notcontains $hostHeader) { Write-Log "rechazado host"; Send-Response $ctx 403 @{ error = "host" }; return }
@@ -279,14 +276,13 @@ function Handle($ctx) {
   if ($origin -and $origin -ne "null") { Write-Log "rechazado origin"; Send-Response $ctx 403 @{ error = "origin" }; return }
   if ($req.HttpMethod -eq "OPTIONS") {
     $ctx.Response.Headers["Access-Control-Allow-Methods"] = "GET, POST"
-    $ctx.Response.Headers["Access-Control-Allow-Headers"] = "Content-Type, X-Helper-Token"
+    $ctx.Response.Headers["Access-Control-Allow-Headers"] = "Content-Type, X-Helper-Token, X-Office-Code"
     $ctx.Response.Headers["Access-Control-Max-Age"] = "600"
     if ($req.Headers["Access-Control-Request-Private-Network"] -eq "true") { $ctx.Response.Headers["Access-Control-Allow-Private-Network"] = "true" }
     Send-Response $ctx 204 $null; return
   }
-  $problem = if (-not $apiKey) { "sin-clave" } elseif (-not $ApiBase) { "sin-servidor" } else { $null }
   if ($route -eq "GET /health") {
-    Send-Response $ctx 200 ([ordered]@{ ok = (-not $problem); version = $Version; error = $problem })
+    Send-Response $ctx 200 ([ordered]@{ ok = $true; version = $Version; error = $null })
     return
   }
   if (-not (Test-Token ([string]$req.Headers["X-Helper-Token"]))) { Write-Log ("rechazado token " + $route); Send-Response $ctx 401 @{ error = "token" }; return }
@@ -296,7 +292,9 @@ function Handle($ctx) {
   if ($in.tooBig) { Send-Response $ctx 413 @{ error = "too-big" }; return }
   if ($in.bad) { Send-Response $ctx 400 @{ error = "json" }; return }
   $b = $in.json
-  if ($problem) { Send-Response $ctx 503 @{ error = $problem }; return }
+  $code = [string]$req.Headers["X-Office-Code"]
+  if ($code -cnotmatch $codeOk) { Send-Response $ctx 400 @{ error = "sin-codigo" }; return }
+  $script:officeCode = $code
   # Las rutas que trabajan con un envio: su numero, solo digitos.
   if (@("/pdf", "/saved", "/delete", "/agent") -contains $path -and -not ([string]$b.id -match $idOk)) { Send-Response $ctx 400 @{ error = "id" }; return }
 

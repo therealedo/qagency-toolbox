@@ -3,9 +3,9 @@
 # abren en su propia ventana, con su icono. No necesita permisos de
 # administrador ni internet. Con -Quitar deshace todo.
 # (Los mensajes van sin acentos para que se lean bien en cualquier consola.)
-# Con -Clave solo pide (o cambia) la direccion del servidor de firmas y la
-# clave de su API. El actualizador lo llama con -SinPreguntar: no la pide.
-param([switch]$Quitar, [switch]$Clave, [switch]$SinPreguntar)
+# El actualizador lo llama con -SinPreguntar (no hay nada que preguntar: se
+# acepta por compatibilidad).
+param([switch]$Quitar, [switch]$SinPreguntar)
 
 $ErrorActionPreference = "Stop"
 $nombre  = "Q Agency Toolbox"
@@ -26,11 +26,12 @@ $actualizarEscritorio = Join-Path ([Environment]::GetFolderPath("Desktop")) "Act
 # herramienta. Va en HKCU, sin permisos de administrador.
 $claveEnlace = "HKCU:\Software\Classes\qagency-toolbox-update"
 
-# Ayudante de firma (signing-helper.ps1): escucha solo en 127.0.0.1, guarda
-# la clave del servidor de firmas cifrada para este usuario de Windows (DPAPI)
-# y arranca al iniciar sesion. firma\ guarda la clave, la direccion del
-# servidor (ajustes.json) y el token que comparte con la herramienta
-# (helper-config.js). Los envios viven en el servidor.
+# Ayudante de firma (signing-helper.ps1): escucha solo en 127.0.0.1 y
+# arranca al iniciar sesion. firma\ guarda el token que comparte con la
+# herramienta (helper-config.js) y su registro. La clave de DocuSeal no esta
+# en ninguna computadora: la pone la pasarela del servidor de firmas, y la
+# herramienta manda el codigo de la oficina del archivo del equipo. Los envios
+# viven en el servidor.
 $firma = Join-Path $destino "firma"
 $ayudante = Join-Path $destino "signing-helper.ps1"
 $accesoAyudante = Join-Path ([Environment]::GetFolderPath("Startup")) "Ayudante de firma $nombre.lnk"
@@ -45,48 +46,6 @@ function Iniciar-Ayudante {
     Start-Process -FilePath $powershell -WindowStyle Hidden -WorkingDirectory $destino -ArgumentList "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$ayudante`""
   }
 }
-$ajustesFirma = Join-Path $firma "ajustes.json"
-function Leer-Servidor {
-  try { return [string](Get-Content -LiteralPath $ajustesFirma -Raw | ConvertFrom-Json).server } catch { return "" }
-}
-# La direccion del servidor de firmas: solo https y sin nada despues del
-# nombre (la misma regla que usa el ayudante).
-function Pedir-Servidor {
-  $actual = Leer-Servidor
-  Write-Host ""
-  Write-Host "Direccion del servidor de firmas, por ejemplo https://firmas.ejemplo.com"
-  if ($actual) { Write-Host "(Enter para mantener $actual):" } else { Write-Host "(Enter para omitir):" }
-  while ($true) {
-    $v = ([string](Read-Host)).Trim()
-    if (-not $v) {
-      if (-not $actual) { Write-Host "Sin servidor: la herramienta no enviara a firmar hasta que se agregue con 'Clave de firma.bat'." }
-      return
-    }
-    if ($v -notmatch '^[a-z]+://') { $v = "https://" + $v }
-    if ($v -match '^https://[A-Za-z0-9.-]+(:\d{1,5})?/?$') {
-      New-Item -ItemType Directory -Force -Path $firma | Out-Null
-      Set-Content -LiteralPath $ajustesFirma -Encoding ASCII -Value (ConvertTo-Json -InputObject @{ server = $v.TrimEnd("/") } -Compress)
-      Write-Host "Servidor guardado."
-      return
-    }
-    Write-Host "Esa direccion no sirve: tiene que empezar con https:// y no llevar nada despues del nombre. Otra vez (Enter para omitir):"
-  }
-}
-# La clave la pega quien instala; no se muestra ni se guarda en texto plano.
-function Pedir-Clave {
-  Pedir-Servidor
-  Write-Host ""
-  Write-Host "Clave de la API del servidor de firmas (Enter para omitir):"
-  $s = Read-Host -AsSecureString
-  if ($s.Length -eq 0) {
-    if (Test-Path (Join-Path $firma "clave.txt")) { Write-Host "Se mantiene la clave que ya habia." }
-    else { Write-Host "Sin clave: la herramienta no enviara a firmar hasta que se agregue con 'Clave de firma.bat'." }
-    return
-  }
-  New-Item -ItemType Directory -Force -Path $firma | Out-Null
-  $s | ConvertFrom-SecureString | Set-Content -LiteralPath (Join-Path $firma "clave.txt") -Encoding ASCII
-  Write-Host "Clave guardada (cifrada para este usuario de Windows)."
-}
 
 if ($Quitar) {
   Detener-Ayudante
@@ -94,13 +53,6 @@ if ($Quitar) {
   if (Test-Path $claveEnlace) { Remove-Item $claveEnlace -Recurse -Force }
   if (Test-Path $destino) { Remove-Item $destino -Recurse -Force }
   Write-Host "$nombre se quito de esta computadora."
-  exit 0
-}
-
-if ($Clave) {
-  Pedir-Clave
-  Detener-Ayudante
-  Iniciar-Ayudante
   exit 0
 }
 
@@ -246,12 +198,10 @@ if (Test-Path $ayudanteOrigen) {
   }
   Set-Content -LiteralPath (Join-Path $destino "helper-config.js") -Encoding ASCII `
     -Value ("window.QA_HELPER = { port: 47815, token: `"" + $tok + "`" };")
-  # La clave se pide solo en una instalacion nueva: al actualizar (incluso con
-  # un actualizador viejo, que no pasa -SinPreguntar) no se detiene a pedirla.
-  if (-not (Test-Path (Join-Path $firma "clave.txt")) -or -not (Leer-Servidor)) {
-    if (-not $SinPreguntar -and -not $habiaAcceso) { Pedir-Clave }
-    else { Write-Host "Para enviar a firmar, agrega el servidor de firmas y su clave con 'Clave de firma.bat'." }
-  }
+  # La version 1.25.0 guardaba aqui la clave de DocuSeal (DPAPI) y el
+  # servidor: ya no se usan, y la clave no se deja en la computadora.
+  Remove-Item -LiteralPath (Join-Path $firma "clave.txt") -Force -ErrorAction SilentlyContinue
+  Remove-Item -LiteralPath (Join-Path $firma "ajustes.json") -Force -ErrorAction SilentlyContinue
   $s = $shell.CreateShortcut($accesoAyudante)
   $s.TargetPath = $powershell
   $s.Arguments = "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$ayudante`""

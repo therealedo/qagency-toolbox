@@ -301,6 +301,17 @@
     return signLink(doc.link) ? ["link", "cancel"] : ["cancel"];
   }
 
+  /* El código de firma que la herramienta manda al ayudante: el de la oficina
+     elegida o, si no tiene, el de otra oficina de la herramienta. La
+     pasarela del servidor acepta cualquiera de los dos. */
+  function officeCode(codes, office, offices) {
+    var ok = function (o) { var c = val(codes && (offices || []).indexOf(o) >= 0 ? codes[o] : ""); return /^[A-Za-z0-9_-]{32,128}$/.test(c) ? c : ""; };
+    var first = ok(office);
+    if (first) { return first; }
+    for (var i = 0; i < (offices || []).length; i++) { if (ok(offices[i])) { return ok(offices[i]); } }
+    return "";
+  }
+
   /* Un enlace de firma que la página puede mostrar, copiar o abrir: solo
      http(s), sin espacios ni comillas. Lo demás no es un enlace. */
   function signLink(u) {
@@ -557,7 +568,7 @@
     TEMPLATES: TEMPLATES, FIELDS: FIELDS, SOA_EN_FIELDS: SOA_EN_FIELDS, SOA_AGENT: SOA_AGENT,
     formKind: formKind, templateKey: templateKey, consentValues: consentValues, soaValues: soaValues, values: values,
     fieldMap: fieldMap, cliqText: cliqText, signTexts: signTexts, downloadName: downloadName,
-    soaAgentValues: soaAgentValues, signLink: signLink, buildSendPayload: buildSendPayload, signedStatus: signedStatus,
+    soaAgentValues: soaAgentValues, signLink: signLink, officeCode: officeCode, buildSendPayload: buildSendPayload, signedStatus: signedStatus,
     signActions: signActions, signDashboard: signDashboard, signDate: signDate,
     SIGN_HISTORY_STEP: SIGN_HISTORY_STEP, SIGN_HISTORY_MAX: SIGN_HISTORY_MAX, nextHistoryLimit: nextHistoryLimit,
     templateBytes: templateBytes, fillPdf: fillPdf, renderPreview: renderPreview
