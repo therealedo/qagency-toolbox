@@ -85,7 +85,7 @@ test("año de plan: desde octubre se vende el siguiente", () => {
 
 test("archivo del equipo: se lee, se limpia y vuelve a escribirse igual", () => {
   const text = JSON.stringify({ app: "qagency-toolbox-team", version: 1, team: [
-    { name: "  Ana   Torres ", ini: "di", agentIni: "li", npn: "1000-0001", tel: "(305) 555-0101", extra: "x" },
+    { name: "  Ana   Torres ", ini: "di", agentIni: "li", npn: "1000-0001", tel: "(305) 555-0101", telSoa: " (786)  555-0142 ", extra: "x" },
     { name: "Rosa Mendez" },
     { name: "rosa mendez", ini: "ZZ" },
     { name: "", ini: "XX" }
@@ -93,7 +93,7 @@ test("archivo del equipo: se lee, se limpia y vuelve a escribirse igual", () => 
   const r = U.parseTeam(text);
   assert.equal(r.error, undefined);
   assert.deepEqual(r.team, [
-    { name: "Ana Torres", ini: "DI", agentIni: "LI", npn: "10000001", tel: "(305) 555-0101" },
+    { name: "Ana Torres", ini: "DI", agentIni: "LI", npn: "10000001", tel: "(305) 555-0101", telSoa: "(786) 555-0142" },
     { name: "Rosa Mendez", ini: "RM", npn: "" }
   ]);
   assert.deepEqual(U.parseTeam(U.teamFile(r.team)).team, r.team);

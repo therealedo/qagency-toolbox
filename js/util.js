@@ -310,6 +310,10 @@
     out.npn = String(m.npn == null ? "" : m.npn).replace(/\D/g, "").slice(0, 10);
     var tel = collapse(m.tel).slice(0, 30);
     if (tel) { out.tel = tel; }
+    /* el teléfono personal del agente, el que tiene la compañía: va en el SOA
+       (el directo es de la agencia) */
+    var telSoa = collapse(m.telSoa).slice(0, 30);
+    if (telSoa) { out.telSoa = telSoa; }
     /* la agencia con la que trabaja el agente (su Consent y sus mensajes) */
     var oficina = collapse(m.oficina).slice(0, 40);
     if (oficina) { out.oficina = oficina; }

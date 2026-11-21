@@ -341,6 +341,16 @@ test("envío: el Consent usa los campos de la plantilla de la oficina y el idiom
   assert.equal(r.body.requester, "ATH Insurance");
 });
 
+/* el SOA lleva el teléfono personal del agente (el que tiene la compañía), no
+   el directo de la agencia: sin él no se envía */
+test("envío: el SOA no sale sin el teléfono personal del agente", () => {
+  const d = make({ line: "mc", clienteEmail: "bea@example.com" });
+  assert.deepEqual(F.buildSendPayload("soa", d, soaNote, { templateId: "6", agentTel: "" }), { ok: false, missing: ["telAgente"] });
+  assert.deepEqual(F.buildSendPayload("soa", d, soaNote, { templateId: "6", agentTel: "555-0199" }), { ok: false, missing: ["telAgente"] });
+  assert.equal(F.buildSendPayload("soa", d, soaNote, { templateId: "6", agentTel: "(786) 555-0142" }).ok, true);
+  assert.equal(F.buildSendPayload("consent", d, consent, { templateId: "4", agentTel: "" }).ok, true, "el Consent no lo necesita");
+});
+
 test("envío: el SOA va sin campos del cliente, y lleva los del agente para llenarlos cuando el cliente firme", () => {
   const d = make({ line: "mc", idioma: "en", clienteEmail: "bea@example.com", clienteTel: "1 (305) 555-0100",
     direccion: "123 Main St, Miami, FL 33101", compania: "HUMANA" });
@@ -371,13 +381,16 @@ test("envío: el SOA va sin campos del cliente, y lleva los del agente para llen
 
 test("envío: en el SOA en español lo que no tiene dato no se envía (el agente lo llena), y un teléfono sin 10 dígitos tampoco", () => {
   const d = make({ line: "mc", clienteEmail: "bea@example.com", clienteTel: "555-0100" });
-  const r = F.buildSendPayload("soa", d, soaNote, { templateId: "5" });
+  const r = F.buildSendPayload("soa", d, soaNote, { templateId: "5", agentTel: "(786) 555-0142" });
   assert.deepEqual(r.body.agent, {
     name: "Ana Torres",
     dateField: "Fecha de la cita",
     fields: [
       { name: "Nombre del Representante de Ventas con Licencia nombre y apellidos", value: "Ana Torres" },
       { name: "ID del Representante de Ventas con Licencia", value: "10000001" },
+      { name: "Teléfono del Representante (área)", value: "786" },
+      { name: "Teléfono del Representante (prefijo)", value: "555" },
+      { name: "Teléfono del Representante (número)", value: "0142" },
       { name: "Nombre del beneficiario nombre y apellidos", value: "Beatriz Diaz" },
       { name: "Método de contacto inicial", value: "Book of Business" }
     ]
@@ -396,7 +409,7 @@ test("envío: sin plantilla (un número), sin un email válido, sin nombre o, en
   assert.deepEqual(F.buildSendPayload("consent", ok, consent, { templateId: "1234567890123" }), { ok: false, missing: ["plantilla"] });
   assert.deepEqual(F.buildSendPayload("consent", make({ clienteEmail: "bea@" }), consent, { templateId: "4" }), { ok: false, missing: ["email"] });
   assert.deepEqual(F.buildSendPayload("soa", make({ agente: "" }), { beneficiaryName: " " }, {}),
-    { ok: false, missing: ["plantilla", "email", "nombre", "agente"] });
+    { ok: false, missing: ["plantilla", "email", "nombre", "agente", "telAgente"] });
   assert.equal(F.buildSendPayload("consent", make({ agente: "", clienteEmail: "bea@example.com" }), consent, { templateId: "4" }).ok, true,
     "el Consent no necesita agente para enviarse");
 });
