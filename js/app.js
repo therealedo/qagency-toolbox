@@ -2100,9 +2100,9 @@
      minuto se pregunta qué documentos ya se firmaron: un firmado se guarda
      solo en su carpeta del Network cuando esa carpeta ya está elegida y con
      permiso, y si no, quedan Guardar y Descargar. Los documentos se quedan
-     en el servidor de firma: son el historial de todo el equipo en el
-     tablero Firmas, donde también firma el agente el SOA, se cancela uno
-     enviado por error y se borra uno que no se firmó. */
+     en el servidor de firma; el tablero Firmas muestra los que se enviaron
+     desde esta computadora, y ahí también firma el agente el SOA, se cancela
+     uno enviado por error y se borra uno que no se firmó. */
   var helper = { token: "", up: false, ok: false, error: "", badCode: "", docs: [], more: false, limit: FM.SIGN_HISTORY_STEP, filter: "all",
     sent: null, pdfs: {}, busy: {}, tried: {}, savePending: {}, downloaded: {}, note: {} };
 
