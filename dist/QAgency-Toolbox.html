@@ -1613,7 +1613,7 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
 (function (root) {
   "use strict";
 
-  var VERSION = "1.25.10";
+  var VERSION = "1.25.11";
   /* De aquí la herramienta instalada lee el número de la última versión (y
      nada más). La política de seguridad de index.html solo permite esta
      dirección, y el actualizador de Windows usa el mismo repositorio. */
@@ -3818,6 +3818,10 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
     if (d.line === "oc" && O.id === "cancelada" && !val(d.motivoCancel)) { w.push("Falta el motivo de la cancelación."); }
     if (d.line === "oc" && O.id === "cancelada" && d.tipoCancel === "terminated" && !U.parseDate(d.fechaTermino)) {
       w.push("Falta la fecha de terminación de la cobertura (va en el nombre del archivo).");
+    }
+    /* el SMS firma con el teléfono de la agencia del caso; sin él sale solo el directo */
+    if (!O.noSms && !val(d.telefono)) {
+      w.push("Falta el teléfono de la oficina de " + (val(d.oficina) || C.OFFICES[0]) + " en Ajustes: el SMS sale sin él.");
     }
     if (noteText && SSN_RE.test(noteText)) { w.push("La nota parece contener un número de Seguro Social. Quítalo antes de pegarla."); }
     return w;
