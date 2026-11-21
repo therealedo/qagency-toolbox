@@ -217,7 +217,8 @@
   }
 
   /* Lo que el agente firma en el SOA: su nombre, su NPN y su teléfono (el
-     Directo de Ajustes > Equipo), el beneficiario, la dirección, cómo llegó
+     personal, el que tiene la compañía: Tel. SOA en Ajustes > Equipo; no el
+     directo de la agencia), el beneficiario, la dirección, cómo llegó
      (Book of Business) y la compañía que eligió el cliente. */
   function soaAgentValues(d, agentTel) {
     return {
@@ -371,6 +372,7 @@
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { missing.push("email"); }
     if (!name) { missing.push("nombre"); }
     if (soa && !val(d.agente)) { missing.push("agente"); }
+    if (soa && !phoneParts(o.agentTel)) { missing.push("telAgente"); }
     if (missing.length) { return { ok: false, missing: missing }; }
     var oficina = val(d.oficina) || C.OFFICES[0], k = soa ? "soa" : "consent", key = templateKey(k, oficina, d.idioma);
     var body = {

@@ -2329,10 +2329,10 @@
     return U.titleCase(who);
   }
 
-  /* el teléfono del agente del SOA: el Directo del agente del NPN en Ajustes > Equipo */
+  /* el teléfono del agente del SOA: el personal (Tel. SOA) del agente del NPN en Ajustes > Equipo, nunca el directo */
   function signSendPayload(kind, d, v, key) {
     var ag = people().agent;
-    return FM.buildSendPayload(kind, d, v, { templateId: settings.signTemplates[key], requester: requesterName(), agentTel: (ag && ag.tel) || "" });
+    return FM.buildSendPayload(kind, d, v, { templateId: settings.signTemplates[key], requester: requesterName(), agentTel: (ag && ag.telSoa) || "" });
   }
 
   /* El bloque «Enviar a firmar» de la sección: qué falta, o el botón. */
@@ -2349,7 +2349,7 @@
       var r = signSendPayload(kind, d, v, key);
       if (!r.ok) {
         var what = { plantilla: "el número de la plantilla «" + T.label + "» en Ajustes", email: "el email del cliente", nombre: "el nombre del cliente",
-          agente: "el agente del NPN" };
+          agente: "el agente del NPN", telAgente: "el teléfono personal del agente del NPN (Tel. SOA en Ajustes > Equipo: el que tiene la compañía, no el directo)" };
         msg = "Para enviarlo falta " + r.missing.map(function (m) { return what[m]; }).join(", ") + ".";
       } else {
         btn.hidden = false;
@@ -3415,7 +3415,7 @@
   }
 
   var TEAM_COLS = [["name", "Nombre completo", "Nombre"], ["ini", "XX", "Notas"], ["agentIni", "Igual", "Agente"], ["npn", "Opcional", "NPN"],
-    ["tel", "(305) 555-0100", "Directo"]];
+    ["tel", "(305) 555-0100", "Directo"], ["telSoa", "Personal (SOA)", "Tel. SOA"]];
 
   function renderTeam() {
     var box = $("teamRows");
@@ -3433,7 +3433,8 @@
         var inp = el("input"); inp.type = "text"; inp.value = t[c[0]] || ""; inp.placeholder = c[1];
         inp.dataset.team = i; inp.dataset.col = c[0];
         if (c[0] === "ini" || c[0] === "agentIni") { inp.maxLength = 3; inp.classList.add("upper"); }
-        if (c[0] === "tel") { inp.inputMode = "tel"; }
+        if (c[0] === "tel" || c[0] === "telSoa") { inp.inputMode = "tel"; }
+        if (c[0] === "telSoa") { inp.title = "Teléfono personal del agente, el que tiene la compañía: va en el SOA en lugar del directo"; }
         inp.setAttribute("aria-label", c[2] + " de " + (t.name || "la persona nueva"));
         row.appendChild(inp);
       });
