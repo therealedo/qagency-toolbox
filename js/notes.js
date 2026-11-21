@@ -1094,6 +1094,7 @@
   function buildEmail(d, part) {
     var O = outcomeOf(d);
     if (d.line === "oc" && O.id === "pendiente" && d.revisaPlanes) { return part === 1 ? emailCotizacion(d) : ""; }
+    if (d.line === "supp" && O.id === "cotizacion") { return part === 1 ? emailSuppQuote(d) : ""; }
     if (O.id !== "enviada") { return ""; }
     if (d.line === "supp") { return part === 1 ? emailSupp(d) : ""; }
     if (d.line !== "oc") { return ""; }
@@ -1199,6 +1200,33 @@
       if (ef) { lines.push("Cobertura a partir del " + ef); }
       if (pay) { lines.push("Prima Mensual: " + pay); }
       lines.push("Le llegará por correo postal la póliza, beneficios.", "Cualquier duda u observación se puede comunicar con nosotros.", "", "Saludos,");
+    }
+    if (val(d.firmaNombre)) { lines.push(U.titleCase(d.firmaNombre)); }
+    return lines.join("\n");
+  }
+
+  /* Email con la cotización de Suplementario, como las plantillas de la
+     agencia (Accidente y Hospital): el plan y la compañía, la prima estimada
+     y el brochure adjunto. Solo el texto: se pega en la plantilla. Los demás
+     productos se nombran como en el SMS ("seguro dental"). */
+  var QUOTE_PLAN = { Accident: ["Plan de Accidente", "Accident Plan"], Hospital: ["Plan de Hospital", "Hospital Plan"] };
+  function emailSuppQuote(d) {
+    var en = d.idioma === "en", P = productOf(d), q = QUOTE_PLAN[P.v] || [P.sms, P.smsEn];
+    var carrier = carrierName("supp", d.compania), plan = val(d.plan), pay = U.parseMoney(d.prima);
+    var what = (en ? q[1] : q[0]) + (plan ? " " + plan : "");
+    var lines = [emailHello(d, en), ""];
+    if (en) {
+      lines.push("Here is your quote for the " + what + (carrier ? " from " + carrier : ""));
+      if (pay) { lines.push("Estimated Monthly Premium: " + pay); }
+      lines.push("Attached is a brochure with the plan's details and benefits (see attachment)", "",
+        "The best savings are our best options!", "",
+        "If you have any questions or comments, contact us right away to start your application.", "", "Best regards,");
+    } else {
+      lines.push("Se envía cotización del " + what + (carrier ? " de la compañía " + carrier : ""));
+      if (pay) { lines.push("Prima Mensual Estimada: " + pay); }
+      lines.push("Envío Brochure con los detalles y beneficios del plan (Ver adjunto)", "",
+        "¡Los mejores ahorros son nuestras mejores opciones!", "",
+        "Cualquier duda u observación se puede comunicar con nosotros de inmediato y hacer su aplicación.", "", "Saludos,");
     }
     if (val(d.firmaNombre)) { lines.push(U.titleCase(d.firmaNombre)); }
     return lines.join("\n");
