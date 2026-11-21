@@ -1147,6 +1147,42 @@ test("mergeDocs: el documento enviado marca como enviado al que ya estaba pedido
   assert.equal(f.docs.length, 1);
 });
 
+/* "Upload documents" leído antes que la carta: aún no se sabe el nombre del
+   titular, así que su fila queda sin persona; la carta después pide lo mismo
+   con fecha y es la misma fila, ya con el nombre. */
+test("mergeDocs: el enviado sin nombre del titular y el pedido con fecha son una sola fila", () => {
+  const f = hogar({ nombres: "", apellidos: "", net: {} }), sent = [];
+  N.mergeDocs(f, [{ cat: "immigration", persona: "ROSA", titular: true, enviado: true, doc: "Permanent Resident Card, Green Card (I-551)" }], sent);
+  assert.equal(f.docs[0].persona, "");
+  const keyBefore = N.docKey(f.docs[0]);
+  f.net[keyBefore] = true;
+  const files = [{ res: { net: keyBefore } }];
+  f.nombres = "ROSA"; f.apellidos = "PEREZ LIMA";
+  assert.equal(N.mergeDocs(f, [{ cat: "immigration", persona: "", fecha: "02/24/2027" }], [], files), 2);
+  assert.equal(f.docs.length, 1);
+  assert.deepEqual(f.docs[0], { cat: "immigration", persona: "ROSA PEREZ LIMA", fecha: "02/24/2027", enviado: true, doc: "Permanent Resident Card, Green Card (I-551)",
+    auto: true, titular: true, src: "doc:IMMIGRATION|" });
+  /* su casilla y su archivo de Docs Submitted siguen a la fila */
+  assert.deepEqual(f.net, { [N.docKey(f.docs[0])]: true });
+  assert.equal(files[0].res.net, N.docKey(f.docs[0]));
+  /* al revés: la carta sin nombre primero y el enviado después */
+  const g = hogar({ nombres: "", apellidos: "" });
+  N.mergeDocs(g, [{ cat: "immigration", persona: "", fecha: "02/24/2027" }], []);
+  g.nombres = "ROSA"; g.apellidos = "PEREZ LIMA";
+  const sent2 = [];
+  N.mergeDocs(g, [{ cat: "immigration", persona: "ROSA", titular: true, enviado: true, doc: "Permanent Resident Card, Green Card (I-551)" }], sent2);
+  assert.equal(g.docs.length, 1);
+  assert.deepEqual([g.docs[0].persona, g.docs[0].fecha, g.docs[0].enviado], ["ROSA PEREZ LIMA", "02/24/2027", true]);
+  assert.deepEqual(sent2, [g.docs[0]]);
+});
+
+test("mergeDocs: el documento del titular y el de otra persona del hogar siguen siendo dos filas", () => {
+  const f = hogar(), sent = [];
+  N.mergeDocs(f, [{ cat: "immigration", persona: "", fecha: "02/24/2027" }], sent);
+  N.mergeDocs(f, [{ cat: "immigration", persona: "YANET", enviado: true }], sent);
+  assert.deepEqual(f.docs.map((x) => [x.persona, x.titular, x.enviado]), [["ROSA PEREZ LIMA", true, false], ["YANET SOTO MESA", false, true]]);
+});
+
 test("mergeDocs: los acentos no cuentan al buscar a la persona", () => {
   const f = hogar({ nombres: "JOSÉ", apellidos: "NÚÑEZ", personas: [{ titular: true }] }), sent = [];
   N.mergeDocs(f, [{ cat: "income", persona: "JOSE NUNEZ" }], sent);

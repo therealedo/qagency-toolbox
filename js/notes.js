@@ -688,7 +688,9 @@
     if (f.descartados.indexOf(row.src) < 0) { f.descartados.push(row.src); }
   }
 
-  function mergeDocs(f, list, sent) {
+  /* `files`: los archivos leídos; la casilla y el archivo de Docs Submitted
+     siguen a la fila del titular cuando por fin recibe su nombre. */
+  function mergeDocs(f, list, sent, files) {
     var added = 0, tit = (f.personas || [])[0], titName = tit && val(val(f.nombres) + val(f.apellidos)) ? personaLabel(f, tit) : "";
     list.forEach(function (x) {
       var persona = "", isTit = !!x.titular || !x.persona;
@@ -699,8 +701,17 @@
         isTit = match === tit;
       }
       persona = persona || titName;
-      var dup = f.docs.filter(function (y) { return y.cat === x.cat && sameName(y.persona, persona); })[0];
+      /* dos filas del titular son la misma aunque una se leyó antes de saber
+         su nombre ("Upload documents" antes que la carta) */
+      var dup = f.docs.filter(function (y) { return y.cat === x.cat && (sameName(y.persona, persona) || (isTit && y.titular)); })[0];
       if (dup) {
+        if (isTit && persona && !val(dup.persona)) {
+          var keyBefore = docKey(dup);
+          dup.persona = persona;
+          moveDocKey(f, files, keyBefore, docKey(dup));
+          added++;
+        }
+        if (x.fecha && !dup.fecha) { dup.fecha = x.fecha; added++; }
         if (x.enviado && !dup.enviado) { dup.enviado = true; dup.doc = dup.doc || x.doc || ""; added++; }
         if (isTit) { dup.titular = true; }
         if (x.enviado) { sent.push(dup); }
