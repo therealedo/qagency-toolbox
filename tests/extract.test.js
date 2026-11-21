@@ -597,6 +597,17 @@ test("Docs Submitted: la etiqueta del tipo y el nombre del archivo como pista", 
   assert.equal(X.extract("", "Perez Lima, Rosa - OC_Docs Submitted_Immigration status 2026 NOV.png", "oc").type, "oc_docs");
 });
 
+/* "Rosa M" en la cuenta: el nombre de pila con la inicial del segundo */
+test("Docs Submitted: un nombre con inicial («Rosa M») sigue siendo el titular", () => {
+  const text = fixture("OC Docs Submitted Principal").replace(/^Rosa /m, "Rosa M ")
+    .replace("Confirm Rosa's", "Confirm Rosa M's").replace("Rosa - You need", "Rosa M - You need");
+  const f = X.extract(text, "document.pdf", "oc").fields;
+  assert.deepEqual(f.docs, [{ cat: "immigration", persona: "ROSA PEREZ LIMA", titular: true, enviado: true, doc: "Permanent Resident Card, Green Card (I-551)" }]);
+  /* un dependiente con inicial no es el titular */
+  const dep = fixture("OC Docs Submitted Dependent").replace("Yanet - You need", "Yanet B - You need").replace("Confirm Yanet's", "Confirm Yanet B's");
+  assert.deepEqual(X.extract(dep, "document.pdf", "oc").fields.docs.map((x) => [x.persona, x.titular]), [["YANET SOTO MESA", false]]);
+});
+
 test("Docs Submitted: sin un punto abierto no hay documento enviado", () => {
   const text = fixture("OC Docs Submitted Principal").replace("Collapse -", "Expand +").replace(/^Rosa - You need.*$/m, "");
   const r = X.extract(text, "document.pdf", "oc");
