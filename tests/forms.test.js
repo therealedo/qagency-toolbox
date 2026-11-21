@@ -402,3 +402,30 @@ test("tablero Firmas: fechas de SignWell como MM/DD/AAAA", () => {
   assert.equal(F.signDate("2026-03-05T12:00:00.0000000Z"), "03/05/2026");
   ["", null, undefined, "ayer"].forEach((v) => assert.equal(F.signDate(v), ""));
 });
+
+test("vista previa: una imagen por página, al ancho pedido y con los campos llenos dibujados", async () => {
+  const made = [];
+  const rendered = [];
+  global.document = { createElement: (tag) => { const c = { tag, style: {}, getContext: () => ({ id: made.length }) }; made.push(c); return c; } };
+  let destroyed = false;
+  const pdfjs = {
+    AnnotationMode: { ENABLE: 1, ENABLE_FORMS: 2 },
+    getDocument: ({ data }) => ({ promise: Promise.resolve({
+      numPages: 2,
+      getPage: (n) => Promise.resolve({
+        getViewport: ({ scale }) => ({ width: 612 * scale, height: 792 * scale }),
+        render: (args) => { rendered.push({ n, mode: args.annotationMode, w: args.viewport.width }); return { promise: Promise.resolve() }; }
+      }),
+      destroy: () => { destroyed = true; }
+    }), data })
+  };
+  try {
+    const pages = await F.renderPreview(pdfjs, new Uint8Array([37, 80, 68, 70]), 306, 2);
+    assert.equal(pages.length, 2);
+    /* nítida en pantallas de alta densidad: el doble de píxeles, mismo tamaño en pantalla */
+    assert.deepEqual(pages.map((c) => [c.tag, c.width, c.height, c.style.aspectRatio]), [["canvas", 612, 792, "612 / 792"], ["canvas", 612, 792, "612 / 792"]]);
+    /* los campos se dibujan como saldrán impresos (no como cajas para escribir) */
+    assert.deepEqual(rendered.map((r) => [r.n, r.mode]), [[1, 1], [2, 1]]);
+    assert.ok(destroyed, "el documento se suelta al terminar");
+  } finally { delete global.document; }
+});
