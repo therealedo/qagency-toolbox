@@ -143,6 +143,13 @@
           </p>
         </section>
 
+        <!-- revisar uno a uno lo leído de los documentos; abrir o cerrar todas las secciones -->
+        <div class="formbar" id="formBar">
+          <span class="formbar-count" id="reviewCount"></span>
+          <button type="button" class="btn small primary" id="btnReviewStep" title="Confirma el dato donde está el cursor y va al siguiente (Alt + Enter)" hidden>✓ Bien, siguiente <kbd>Alt</kbd><kbd>Enter</kbd></button>
+          <button type="button" class="link-btn formbar-all" id="btnOpenAll">Abrir todo</button>
+        </div>
+
         <form id="form" autocomplete="off" novalidate></form>
 
         <!-- Consent (Obamacare Pendiente) o SOA (Medicare) lleno con los datos de la nota -->

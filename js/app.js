@@ -209,7 +209,7 @@
     { k: "modalidad", g: "contacto", type: "select", label: "Modalidad de la cita", options: C.MODALIDADES,
       when: function (f) { return f.canal === "Appointment"; } },
 
-    { k: "nombres", g: "cliente", sec: "cliente", type: "text", label: function () { return S.line !== "mc" ? "Nombre(s) del titular" : "Nombre(s)"; },
+    { k: "nombres", g: "cliente", sec: "cliente", type: "text", head: function () { return S.line !== "mc" ? "Titular" : ""; }, label: function () { return S.line !== "mc" ? "Nombre(s) del titular" : "Nombre(s)"; },
       w: "w2", upper: true, hint: "Como aparece en Zoho" },
     { k: "apellidos", g: "cliente", sec: "cliente", type: "text", label: "Apellido(s)", w: "w2", upper: true },
     { k: "genero", g: "cliente", sec: "cliente", type: "seg", label: "En la nota", w: "w2", sum: false,
@@ -220,7 +220,7 @@
       when: function (f) { return f.codigoTipo === "Q"; } },
     { k: "esCliente", g: "cliente", sec: "cliente", type: "check", w: "w2", lines: ["mc"],
       label: "Es cliente (si no, el task es FOLLOW UP LEAD_INACTIVE CLIENT MC)", when: mcSin },
-    { k: "direccion", g: "cliente", sec: "cliente", type: "text", label: "Dirección", w: "full", lines: ["oc", "mc", "supp"],
+    { k: "direccion", g: "cliente", sec: "cliente", type: "text", head: "Dirección, teléfono y email", label: "Dirección", w: "full", lines: ["oc", "mc", "supp"],
       ph: "Calle, ciudad, estado y código postal", when: function () { return !isOC("cancelada"); } },
     /* en Medicare van al SOA y al texto para pedirlo en Cliq */
     { k: "clienteTel", g: "cliente", sec: "cliente", type: "text", w: "w2", mode: "tel", ph: "(305) 555-0100",
@@ -229,10 +229,10 @@
     { k: "clienteEmail", g: "cliente", sec: "cliente", type: "text", w: "w2", mode: "email",
       label: function () { return S.line === "mc" ? "Email del cliente" : "Email del titular"; },
       when: function () { return !isOC("cancelada"); } },
-    { k: "personas", g: "cliente", sec: "cliente", type: "personas", w: "full", lines: ["oc", "supp"] },
+    { k: "personas", g: "cliente", sec: "cliente", type: "personas", head: function () { return S.line === "supp" ? "Miembros" : "Personas del hogar"; }, w: "full", lines: ["oc", "supp"] },
     { k: "adicionales", g: "cliente", sec: "cliente", type: "text", label: "Miembros ±", lines: ["supp"],
       hint: "Para el reporte: +2, o -1 si se quitó" },
-    { k: "mbi", g: "cliente", sec: "medicare", type: "text", label: "Número de Medicare (MBI)", w: "w2", upper: true, lines: ["mc"] },
+    { k: "mbi", g: "cliente", sec: "medicare", type: "text", head: "Medicare", label: "Número de Medicare (MBI)", w: "w2", upper: true, lines: ["mc"] },
     { k: "medicaid", g: "cliente", sec: "medicare", type: "text", label: "ID de Medicaid", w: "w2", lines: ["mc"], hint: "Solo si tiene Medicaid" },
     { k: "parteA", g: "cliente", sec: "medicare", type: "date", label: "Parte A efectiva", lines: ["mc"] },
     { k: "parteB", g: "cliente", sec: "medicare", type: "date", label: "Parte B efectiva", lines: ["mc"] },
@@ -393,6 +393,7 @@
     }
 
     if (F.type === "check") {
+      wrap.classList.add("is-check");
       var lab = el("label", "check");
       ctl = el("input"); ctl.type = "checkbox"; ctl.id = id;
       lab.appendChild(ctl); lab.appendChild(el("span", null, resolve(F.label)));
@@ -914,7 +915,11 @@
       var body = el("div", "group-body"); body.id = "body-" + G.id;
       var inner = body.appendChild(el("div", "group-inner"));
       var grid = el("div", "grid");
-      FIELDS.filter(function (F) { return F.g === G.id; }).forEach(function (F) { grid.appendChild(buildField(F)); });
+      FIELDS.filter(function (F) { return F.g === G.id; }).forEach(function (F) {
+        /* un sub-título separa las partes de una sección larga (Hogar: titular, contacto, personas) */
+        if (F.head) { var sh = grid.appendChild(el("div", "sub-head", resolve(F.head))); sh.dataset.headFor = F.k; }
+        grid.appendChild(buildField(F));
+      });
       if (G.id === "network") {
         grid.id = "netGrid"; grid.className = "net";
         inner.appendChild(el("p", "hint net-hint", "Marca lo que guardaste: sale en la nota. El nombre ya viene en el formato de NOMBRE DE ARCHIVOS."));
@@ -943,41 +948,55 @@
   }
 
   /* --------------------------------------------- secciones que se cierran --
-     Una sola abierta a la vez. Cuál, se elige sola solo en momentos
-     tranquilos (nota nueva, documento leído, cambio de línea o situación):
-     la primera que tiene algo por revisar o elegir. Nunca mientras se escribe. */
-  var openGroup = "", autoOpenNext = true;
+     Varias pueden estar abiertas. Cuáles, se elige solo en momentos
+     tranquilos (nota nueva, documento leído, cambio de línea o situación),
+     nunca mientras se escribe: sin documentos, todas (se llena desde cero);
+     al leer un documento, las que tienen algo por revisar o elegir. El
+     agente abre o cierra cada una con su cabecera, o todas a la vez. */
+  var openSet = {}, autoOpenNext = true;
+  function shownGroups() {
+    return Array.prototype.filter.call($("form").querySelectorAll(".group"), function (g) { return !g.hidden; });
+  }
   function applyOpen() {
     each($("form").querySelectorAll(".group"), function (g) {
-      var open = g.dataset.group === openGroup;
+      var open = !!openSet[g.dataset.group];
       g.classList.toggle("is-closed", !open);
       g.querySelector(".group-toggle").setAttribute("aria-expanded", open ? "true" : "false");
     });
+    var all = shownGroups().every(function (g) { return openSet[g.dataset.group]; });
+    $("btnOpenAll").textContent = all ? "Cerrar todo" : "Abrir todo";
   }
   var OPEN_MS = 240, reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)");
+  function smooth() { return reduceMotion && reduceMotion.matches ? "auto" : "smooth"; }
   /* instant: sin animación (el carril ya mueve la página con su propio desplazamiento) */
   function openSection(id, keepInView, instant) {
     var form = $("form");
-    openGroup = id;
+    if (id) { openSet[id] = true; }
     if (instant) { form.classList.add("no-anim"); }
     applyOpen();
     if (instant) { void form.offsetHeight; form.classList.remove("no-anim"); }
     var sec = id && $("sec-" + id);
     if (keepInView && sec) {
-      /* se mide cuando terminó de abrirse: las de arriba que se cierran la mueven */
       setTimeout(function () {
         var top = sec.getBoundingClientRect().top;
-        if (top < 64 || top > window.innerHeight - 80) {
-          window.scrollTo({ top: window.scrollY + top - 72, behavior: reduceMotion && reduceMotion.matches ? "auto" : "smooth" });
-        }
+        if (top < 120 || top > window.innerHeight - 80) { window.scrollTo({ top: window.scrollY + top - 128, behavior: smooth() }); }
       }, instant ? 0 : OPEN_MS + 20);
     }
   }
-  /* "Están bien" en una sección: abre la siguiente que tiene algo por revisar
-     o elegir y pone el cursor en su primer dato dorado (o por elegir). Sin
+  function toggleSection(id) {
+    if (openSet[id]) { delete openSet[id]; applyOpen(); } else { openSection(id, true); }
+  }
+  function toggleAll() {
+    var shown = shownGroups(), all = shown.every(function (g) { return openSet[g.dataset.group]; });
+    openSet = {};
+    if (!all) { shown.forEach(function (g) { openSet[g.dataset.group] = true; }); }
+    applyOpen();
+  }
+  /* "Están bien" en una sección: la cierra y va a la siguiente que tiene algo
+     por revisar o elegir, con el cursor en su primer dato pendiente. Sin
      ninguna pendiente, el foco vuelve a la cabecera de la sección. */
   function reviewNext(from) {
-    var shown = Array.prototype.filter.call($("form").querySelectorAll(".group"), function (g) { return !g.hidden; });
+    var shown = shownGroups();
     var at = shown.map(function (g) { return g.dataset.group; }).indexOf(from);
     var order = shown.slice(at + 1).concat(shown.slice(0, Math.max(at, 0)));
     var next = order.filter(function (g) { return +g.dataset.pending > 0; })[0];
@@ -986,20 +1005,90 @@
       if (tog) { tog.focus(); }
       return;
     }
-    openSection(next.dataset.group);
-    /* medida cuando ya se cerró la de arriba: el título de la sección queda a la vista */
-    setTimeout(function () {
-      window.scrollTo({ top: window.scrollY + next.getBoundingClientRect().top - 72, behavior: reduceMotion && reduceMotion.matches ? "auto" : "smooth" });
-      var target = next.querySelector(".fld.is-auto:not([hidden]) input, .fld.is-auto:not([hidden]) select, .fld.is-auto:not([hidden]) textarea, " +
-        ".fld.is-auto:not([hidden]) .seg .on, .fld.is-auto:not([hidden]) .seg button, .fld.is-choose:not([hidden]) select, .fld.is-choose:not([hidden]) .seg button, " +
-        ".is-auto input, .is-auto select") || next.querySelector(".group-toggle");
-      if (target) { target.focus({ preventScroll: true }); }
-    }, OPEN_MS + 60);
+    /* se cierra sin animación: lo de abajo sube ya y el desplazamiento cae bien */
+    delete openSet[from];
+    var form = $("form");
+    form.classList.add("no-anim"); applyOpen(); void form.offsetHeight; form.classList.remove("no-anim");
+    var target = pendingUnits().filter(function (u) { return next.contains(u); })[0];
+    if (target) { goToUnit(target); } else { openSection(next.dataset.group, true); }
   }
-  function autoOpen() {
-    var shown = Array.prototype.filter.call($("form").querySelectorAll(".group"), function (g) { return !g.hidden; });
-    var pick = shown.filter(function (g) { return +g.dataset.pending > 0; })[0] || shown[0];
-    openSection(pick ? pick.dataset.group : "");
+  function autoOpen(kind) {
+    var shown = shownGroups(), pend = shown.filter(function (g) { return +g.dataset.pending > 0; });
+    if (!S.files.length) { openSet = {}; shown.forEach(function (g) { openSet[g.dataset.group] = true; }); }
+    else if (kind === "docs" && pend.length) { openSet = {}; pend.forEach(function (g) { openSet[g.dataset.group] = true; }); }
+    else if (!shown.some(function (g) { return openSet[g.dataset.group]; })) { (pend.length ? pend : shown).forEach(function (g) { openSet[g.dataset.group] = true; }); }
+    applyOpen();
+  }
+
+  /* ------------------------------------------------------ revisar uno a uno --
+     Lo pendiente, en el orden de la página: cada campo dorado o por elegir,
+     con el formato mal, y cada fila dorada de una lista (persona, documento,
+     plan). La barra de arriba del formulario lleva de uno al siguiente; con
+     el cursor en uno pendiente, "Bien, siguiente" (Alt + Enter) lo confirma. */
+  var UNIT_SEL = ".fld.is-auto, .fld.is-choose, .fld.bad, .list-box .is-auto[data-i]";
+  function isRow(u) { return u.matches(".list-box .is-auto[data-i], .list-box [data-i]") && !u.matches(".fld"); }
+  function pendingUnits() {
+    return shownGroups().reduce(function (out, g) {
+      return out.concat(Array.prototype.filter.call(g.querySelectorAll(UNIT_SEL), function (u) {
+        var f = u.closest(".fld"); return !u.hidden && !(f && f.hidden);
+      }));
+    }, []);
+  }
+  function unitControl(u) {
+    return u.querySelector(".seg .on") || u.querySelector("input:not([type=checkbox]), select, textarea, .seg button, .person-toggle, input, button");
+  }
+  function goToUnit(u) {
+    var g = u.closest(".group");
+    if (g && !openSet[g.dataset.group]) { openSection(g.dataset.group, false, true); }
+    var r = u.getBoundingClientRect();
+    if (r.top < 130 || r.bottom > window.innerHeight - 40) {
+      window.scrollTo({ top: window.scrollY + r.top - window.innerHeight / 3, behavior: smooth() });
+    }
+    var c = unitControl(u);
+    if (c) { c.focus({ preventScroll: true }); }
+  }
+  /* quita el dorado (o el "elígelo") de un solo campo o fila */
+  function confirmUnit(u) {
+    if (isRow(u)) {
+      var box = u.closest(".list-box"), list = S.f[box.id.replace(/^list_/, "")], x = list && list[+u.dataset.i];
+      if (x && typeof x === "object") { delete x.auto; if (box.id === "list_personas") { x.ok = true; } }
+      renderLists();
+    } else {
+      var F = FIELD[u.dataset.k];
+      if (!F || u.classList.contains("bad")) { return; }
+      if (S.auto[key(F)] === true) { delete S.auto[key(F)]; }
+      if (MUST_CHOOSE.indexOf(key(F)) >= 0) { S.chosen[key(F)] = true; }
+    }
+    refresh();
+  }
+  var lastUnit = null;
+  function reviewStep() {
+    var units = pendingUnits(), act = document.activeElement;
+    var cur = act && $("form").contains(act) ? act.closest(UNIT_SEL) : null;
+    if (!cur && lastUnit && document.body.contains(lastUnit)) { cur = lastUnit; }
+    if (!cur || units.indexOf(cur) < 0) {
+      /* sin uno pendiente elegido: el primero desde lo que se ve */
+      var first = units.filter(function (u) { return u.getBoundingClientRect().bottom > 100; })[0] || units[0];
+      if (first) { goToUnit(first); }
+      return;
+    }
+    /* dónde estaba: el campo, o la lista y la fila (las filas se vuelven a dibujar) */
+    var fld = cur.closest(".fld"), row = isRow(cur) ? +cur.dataset.i : -1;
+    confirmUnit(cur);
+    var after = pendingUnits().filter(function (u) {
+      if (row >= 0 && fld.contains(u)) { return isRow(u) && +u.dataset.i > row; }
+      return !!(fld.compareDocumentPosition(u) & Node.DOCUMENT_POSITION_FOLLOWING) && !fld.contains(u);
+    });
+    var next = after[0] || pendingUnits()[0];
+    /* sin nada más: el foco pasa a Copiar nota (si se ve), lo que sigue */
+    if (next) { goToUnit(next); } else { lastUnit = null; toast("Todo revisado."); var cp = $("copyNote"); if (cp && cp.offsetParent) { cp.focus({ preventScroll: true }); } }
+  }
+  function renderReviewBar() {
+    var sum = function (k) { return shownGroups().reduce(function (s, g) { return s + (+g.dataset[k] || 0); }, 0); };
+    var rev = sum("rev"), ch = sum("ch"), n = rev + ch;
+    $("reviewCount").textContent = n ? [rev ? rev + " por revisar" : "", ch ? ch + " por elegir" : ""].filter(Boolean).join(" · ") : "Nada por revisar";
+    $("reviewCount").classList.toggle("is-done", !n);
+    $("btnReviewStep").hidden = !n;
   }
   /* lo que dice una sección cerrada: sus valores visibles, en una línea */
   function fieldSummary(F) {
@@ -1294,11 +1383,13 @@
   /* Muestra solo lo que aplica a la línea y a la situación elegidas, y cuenta
      en cada sección los datos leídos de documentos que faltan por revisar. */
   function updateVisibility() {
-    var form = $("form"), pending = {};
+    var form = $("form"), pending = {}, choosing = {};
     FIELDS.forEach(function (F) {
       var wrap = form.querySelector('.fld[data-k="' + F.k + '"]');
       var visible = fieldVisible(F);
       wrap.hidden = !visible;
+      var sh = F.head && form.querySelector('[data-head-for="' + F.k + '"]');
+      if (sh) { sh.textContent = resolve(F.head); sh.hidden = !visible || !sh.textContent; }
       var lab = wrap.querySelector("[data-label]");
       if (lab && typeof F.label === "function") { lab.textContent = F.label(); lab.title = lab.textContent; }
       var hint = wrap.querySelector("[data-hint]");
@@ -1310,7 +1401,8 @@
       wrap.classList.toggle("is-auto", fromDoc);
       var choose = mustChoose(F);
       wrap.classList.toggle("is-choose", choose);
-      if ((fromDoc || choose) && visible) { pending[F.g] = (pending[F.g] || 0) + 1; }
+      if (fromDoc && visible) { pending[F.g] = (pending[F.g] || 0) + 1; }
+      if (choose && visible) { choosing[F.g] = (choosing[F.g] || 0) + 1; }
       if (visible && Array.isArray(S.f[F.k])) {
         var n = S.f[F.k].filter(function (x) { return F.k === "personas" ? toReview(x) : x && x.auto; }).length;
         if (n) { pending[F.g] = (pending[F.g] || 0) + n; }
@@ -1327,23 +1419,39 @@
       var bad = Array.prototype.filter.call(g.querySelectorAll(".bad"), function (x) {
         var f = x.closest(".fld"); return !f || !f.hidden;
       }).length;
-      var badge = g.querySelector(".review"), n = (pending[id] || 0) + bad;
+      /* lo leído (o mal escrito) se revisa; lo que casi nunca viene en un documento se elige */
+      var badge = g.querySelector(".review"), rev = (pending[id] || 0) + bad, ch = choosing[id] || 0, n = rev + ch;
       badge.hidden = !n;
-      badge.textContent = n + " por revisar";
-      g.querySelector(".review-ok").hidden = !pending[id];
+      badge.textContent = [rev ? rev + " por revisar" : "", ch ? ch + " por elegir" : ""].filter(Boolean).join(" · ");
+      badge.classList.toggle("only-choose", !rev && !!ch);
+      g.querySelector(".review-ok").hidden = !pending[id] && !ch;
       g.classList.toggle("has-bad", !!bad);
-      g.dataset.pending = n;
+      g.dataset.pending = n; g.dataset.rev = rev; g.dataset.ch = ch;
     });
-    var total = Object.keys(pending).reduce(function (s, k) { return s + pending[k]; }, 0);
-    $("btnReviewed").hidden = !total;
+    $("btnReviewed").hidden = !Object.keys(pending).concat(Object.keys(choosing)).some(function (k) { return pending[k] || choosing[k]; });
   }
 
+  /* Un grupo de opciones es una sola parada del tabulador (la elegida, o la
+     primera); las flechas pasan de una opción a otra. */
   function syncSeg(seg, value) {
-    each(seg.querySelectorAll("button"), function (b) {
+    var bs = seg.querySelectorAll("button"), any = false, roving = seg.getAttribute("role") === "radiogroup";
+    each(bs, function (b) {
       var on = b.dataset.v === value;
+      any = any || on;
       b.classList.toggle("on", on);
       b.setAttribute("aria-checked", on ? "true" : "false");
+      if (roving) { b.tabIndex = on ? 0 : -1; }
     });
+    if (roving && !any && bs.length) { bs[0].tabIndex = 0; }
+  }
+  function segArrows(e) {
+    var keys = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 };
+    var b = e.target.closest && e.target.closest('.seg[role="radiogroup"] > button');
+    if (!b || !keys[e.key] || e.altKey || e.ctrlKey || e.metaKey) { return; }
+    var all = Array.prototype.slice.call(b.parentNode.querySelectorAll(":scope > button")).filter(function (x) { return !x.disabled && !x.hidden; });
+    var next = all[(all.indexOf(b) + keys[e.key] + all.length) % all.length];
+    e.preventDefault();
+    if (next && next !== b) { next.focus(); next.click(); }
   }
 
   /* Controles que comparten un dato con otro (Compañía en Plan y en
@@ -1503,10 +1611,14 @@
   function markRail() {
     var targets = railTargets(), current = targets.length ? targets[0].id : "";
     targets.forEach(function (sec) { if (sec.getBoundingClientRect().top <= 150) { current = sec.id; } });
-    /* al llegar al final, la última sección es la activa aunque no suba hasta arriba */
+    /* al llegar al final, la última que empieza en la mitad de arriba de la
+       pantalla, aunque no suba hasta arriba */
     if (targets.length && window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4) {
-      current = targets[targets.length - 1].id;
+      targets.forEach(function (sec) { if (sec.getBoundingClientRect().top < window.innerHeight / 2) { current = sec.id; } });
     }
+    /* la sección donde está el cursor manda */
+    var act = document.activeElement;
+    targets.forEach(function (sec) { if (act && act !== document.body && sec.contains(act)) { current = sec.id; } });
     railActive = current;
     each($("rail").children, function (b) {
       var on = b.dataset.target === current;
@@ -1766,9 +1878,9 @@
     renderSheet(d);
     renderOutTabs();
     updateSummaries();
-    var openSec = openGroup && $("sec-" + openGroup);
-    if (autoOpenNext || (openSec && openSec.hidden)) { autoOpenNext = false; autoOpen(); }
+    if (autoOpenNext) { var kind = autoOpenNext; autoOpenNext = false; autoOpen(kind); }
     renderRail();
+    renderReviewBar();
   }
 
   /* --------------------------------------------- Consent y SOA para firmar --
@@ -3054,7 +3166,7 @@
         var viaOcr = added.some(function (f) { return f.ocr && f.applied; });
         var held = added.filter(function (f) { return f.held; });
         S.dirty = true;
-        autoOpenNext = true;
+        autoOpenNext = "docs";
         renderPicker(); syncInputs(); renderNetwork(); refresh();
         if (held.length) {
           toast((held.length === 1 ? held[0].name + " no coincide" : held.length + " documentos no coinciden") +
@@ -3580,6 +3692,19 @@
       if (sec.dataset.group) { openSection(sec.dataset.group, false, true); }
       sec.scrollIntoView({ behavior: "smooth", block: "start" });
     });
+    /* barra del formulario: revisar uno a uno y abrir o cerrar todo */
+    $("btnOpenAll").addEventListener("click", toggleAll);
+    /* el botón no se lleva el foco: confirma el campo donde está el cursor */
+    $("btnReviewStep").addEventListener("mousedown", function (e) { e.preventDefault(); });
+    $("btnReviewStep").addEventListener("click", reviewStep);
+    $("form").addEventListener("focusin", function (e) { lastUnit = e.target.closest(UNIT_SEL) || lastUnit; markRail(); });
+    document.addEventListener("keydown", segArrows);
+    document.addEventListener("keydown", function (e) {
+      if (e.altKey && !e.ctrlKey && !e.metaKey && e.key === "Enter" && currentView === "nota" && !document.querySelector("dialog[open]")) {
+        e.preventDefault();
+        reviewStep();
+      }
+    });
     /* pestañas de salida: clic, y flechas para moverse entre ellas */
     $("outTabs").addEventListener("click", function (e) {
       var b = e.target.closest("[data-out-tab]");
@@ -3595,7 +3720,7 @@
     /* abrir o cerrar una sección con su cabecera */
     $("form").addEventListener("click", function (e) {
       var b = e.target.closest("[data-toggle]");
-      if (b) { openSection(openGroup === b.dataset.toggle ? "" : b.dataset.toggle, true); }
+      if (b) { toggleSection(b.dataset.toggle); }
     });
     var ticking = false;
     window.addEventListener("scroll", function () {
@@ -3795,7 +3920,7 @@
       finishFile(entry, text);
       $("dlgPaste").close();
       S.dirty = true;
-      autoOpenNext = true;
+      autoOpenNext = "docs";
       renderPicker(); syncInputs(); refresh();
       toast(entry.applied ? "Se llenaron " + entry.applied + " campos. Revísalos antes de copiar." : "No se encontraron datos en el texto.");
     });

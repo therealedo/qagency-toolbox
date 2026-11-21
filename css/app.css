@@ -106,7 +106,8 @@
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 
-html { -webkit-text-size-adjust: 100%; scroll-padding-top: calc(var(--top) + 16px); }
+/* deja sitio para la barra del formulario, que queda fija arriba */
+html { -webkit-text-size-adjust: 100%; scroll-padding-top: calc(var(--top) + 72px); }
 body {
   margin: 0;
   background: var(--bg);
@@ -214,7 +215,25 @@ body[data-view="tasks"] #btnNew, body[data-view="firmas"] #btnNew { display: non
   padding: 16px 18px 18px;
   box-shadow: var(--shadow);
 }
-.work > .card, #form > .card { scroll-margin-top: calc(var(--top) + 16px); }
+.work > .card, #form > .card { scroll-margin-top: calc(var(--top) + 72px); }
+
+/* barra del formulario: cuántos datos faltan por revisar, el paso al
+   siguiente y abrir o cerrar todas las secciones. Queda fija al bajar. */
+.formbar {
+  position: sticky; top: calc(var(--top) + 8px); z-index: 6;
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  min-height: 48px; padding: 6px 8px 6px 14px;
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  border: 1px solid var(--line); border-radius: 12px;
+  box-shadow: var(--shadow);
+}
+.formbar-count { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 650; color: var(--gold-ink); }
+.formbar-count::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--gold); }
+.formbar-count.is-done { color: var(--ink-3); font-weight: 500; }
+.formbar-count.is-done::before { background: var(--ok); }
+.formbar .btn kbd { margin-left: 2px; background: rgba(255, 255, 255, .18); border-color: transparent; color: inherit; }
+.formbar-all { margin-left: auto; font-size: 13px; }
 
 /* ------------------------------------------------------------------- carril */
 
@@ -498,13 +517,21 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
   border: 1px solid color-mix(in srgb, var(--gold) 45%, transparent);
   font-size: 11.5px; font-weight: 650;
 }
-.grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px 14px; align-items: start; }
+/* solo falta elegir: ámbar, como el "elígelo" de los campos */
+.review.only-choose { background: var(--warn-soft); color: var(--warn); border-color: color-mix(in srgb, var(--warn) 45%, transparent); }
+/* dos columnas iguales: los bordes izquierdos se alinean y la sección se lee
+   de arriba abajo. Lo ancho (w3, full) y las casillas van en su propia fila. */
+.grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 16px; align-items: start; }
 .fld { min-width: 0; }
-.fld.w2 { grid-column: span 2; }
-.fld.w3 { grid-column: span 3; }
-.fld.full { grid-column: 1 / -1; }
-.fld > .check { padding-top: 30px; padding-bottom: 0; }
-.fld.full > .check, .fld.w2 > .check { padding-top: 2px; }
+.fld.w3, .fld.full, .fld.is-check { grid-column: 1 / -1; }
+.fld > .check { padding: 2px 0 0; }
+/* sub-título dentro de una sección larga (Hogar: titular, contacto, personas) */
+.sub-head {
+  grid-column: 1 / -1;
+  margin-top: 6px; padding-top: 12px; border-top: 1px solid var(--line);
+  font-size: 11.5px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3);
+}
+.grid > .sub-head:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
 
 /* dato leído de un documento: pendiente de revisar */
 .fld.is-auto input[type="text"], .fld.is-auto textarea, .fld.is-auto select {
@@ -964,7 +991,7 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
   .who select { max-width: 132px; }
   .seg-line .tag { display: none; }
   .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .fld.w3, .fld.w2 { grid-column: 1 / -1; }
+  .fld.w3 { grid-column: 1 / -1; }
   .drop-main { flex-wrap: wrap; }
   .drop-actions { width: 100%; }
   .drop-actions .btn { flex: 1; }
@@ -995,6 +1022,8 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
 }
 
 @media (max-width: 460px) {
+  .grid { grid-template-columns: minmax(0, 1fr); }
+  .formbar .btn kbd { display: none; }
   .views a svg { display: none; }
   .views a { padding: 0 9px; }
   #btnTheme { display: none; }
