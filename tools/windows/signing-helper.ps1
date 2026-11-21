@@ -126,6 +126,9 @@ function Invoke-SignWell([string]$method, [string]$path, $body) {
   $req.Headers.Add("Accept", "application/json")
   if ($null -ne $body) {
     $req.Content = New-Object System.Net.Http.StringContent ((ConvertTo-Json -InputObject $body -Depth 8 -Compress), [Text.Encoding]::UTF8, "application/json")
+    # SignWell solo acepta "application/json" exacto: con "; charset=utf-8"
+    # responde 400 (missing_content_type_error). El cuerpo sigue en UTF-8.
+    $req.Content.Headers.ContentType = New-Object System.Net.Http.Headers.MediaTypeHeaderValue("application/json")
   }
   $res = $http.SendAsync($req).GetAwaiter().GetResult()
   $code = [int]$res.StatusCode
@@ -166,7 +169,10 @@ function Get-SignWellError($res, [byte[]]$bytes) {
   if ($invalid.Count) { $detail = ($detail + " (" + ($invalid.ToArray() -join ", ") + ")").Trim() }
   # Otra forma: un message suelto, o un cuerpo que no es JSON.
   if (-not $detail) {
-    if ($res -and $res.message -is [string]) { $detail = $res.message }
+    if ($res -and $res.message -is [string]) {
+      $detail = $res.message
+      if ($res.meta -and $res.meta.message -is [string] -and $res.meta.message -ne $res.message) { $detail = $detail + ": " + $res.meta.message }
+    }
     elseif ($null -eq $res -and $bytes -and $bytes.Length) { $detail = [Text.Encoding]::UTF8.GetString($bytes) }
     $detail = ($detail -replace '\s+', ' ').Trim()
     if ($res -and -not $keys.Count -and -not $invalid.Count) {

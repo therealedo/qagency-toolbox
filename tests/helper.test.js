@@ -40,7 +40,7 @@ function fakeSignWell(seed) {
     let body = "";
     req.on("data", (c) => { body += c; });
     req.on("end", () => {
-      calls.push({ method: req.method, url: req.url, key: req.headers["x-api-key"], body: body ? JSON.parse(body) : null });
+      calls.push({ method: req.method, url: req.url, key: req.headers["x-api-key"], type: req.headers["content-type"], body: body ? JSON.parse(body) : null });
       const send = (code, obj) => { res.writeHead(code, { "Content-Type": "application/json" }); res.end(obj ? JSON.stringify(obj) : ""); };
       if (req.method === "POST" && req.url === "/api/v1/document_templates/documents") {
         const b = JSON.parse(body), id = "doc-" + next++;
@@ -156,6 +156,8 @@ test("ayudante de firma: solo la herramienta, en modo de prueba; guarda solo nú
     assert.deepEqual(sent.json, { id: "doc-1", status: "sent", testMode: true });
     const created = sw.calls.find((c) => c.method === "POST");
     assert.equal(created.key, KEY);
+    /* SignWell rechaza "application/json; charset=utf-8": el tipo va exacto */
+    assert.equal(created.type, "application/json");
     assert.equal(created.url, "/api/v1/document_templates/documents");
     assert.deepEqual(created.body, {
       test_mode: true, template_id: "tpl-123",
@@ -292,6 +294,8 @@ test("ayudante de firma: si SignWell rechaza el envío, la herramienta ve por qu
     const r422 = await post(helper.port, "/send", SEND);
     assert.equal(r422.json.detail, "template_fields: DateField value must be in Iso8601 format. custom_requester_name: is too long (maximum is 100 characters)");
     /* otras formas: un message suelto, o un cuerpo que no es JSON */
+    reply = [400, { message: "Bad request (bad request data)", meta: { error: "missing_content_type_error", message: "Request is missing Content-Type header." } }];
+    assert.equal((await post(helper.port, "/send", SEND)).json.detail, "Bad request (bad request data): Request is missing Content-Type header.");
     reply = [400, { message: "Template not found", status: 400 }];
     assert.equal((await post(helper.port, "/send", SEND)).json.detail, "Template not found");
     reply = [400, "Bad   Request\n"];
