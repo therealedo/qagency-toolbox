@@ -176,14 +176,14 @@ test("valores del SOA: solo el beneficiario y su teléfono, para la línea de Cl
 
 test("Cliq: Enviar CONSENT / SOA, sin el email o el teléfono que falte", () => {
   assert.equal(F.cliqText("consent", "Diaz, Beatriz", "bea@example.com", "(305) 555-0100"),
-    "Enviar CONSENT a Diaz, Beatriz al bea@example.com y al (305) 555-0100 pls @Support QAgency");
+    "Enviar CONSENT a Diaz, Beatriz al bea@example.com y al (305) 555-0100 pls @Support Agency");
   assert.equal(F.cliqText("consent", "Diaz, Beatriz", "bea@example.com", ""),
-    "Enviar CONSENT a Diaz, Beatriz al bea@example.com pls @Support QAgency");
+    "Enviar CONSENT a Diaz, Beatriz al bea@example.com pls @Support Agency");
   assert.equal(F.cliqText("consent", "Diaz, Beatriz", " ", "(305) 555-0100"),
-    "Enviar CONSENT a Diaz, Beatriz al (305) 555-0100 pls @Support QAgency");
-  assert.equal(F.cliqText("soa", "Diaz, Beatriz", "", ""), "Enviar SOA a Diaz, Beatriz pls @Support QAgency");
+    "Enviar CONSENT a Diaz, Beatriz al (305) 555-0100 pls @Support Agency");
+  assert.equal(F.cliqText("soa", "Diaz, Beatriz", "", ""), "Enviar SOA a Diaz, Beatriz pls @Support Agency");
   assert.equal(F.cliqText("soa", "", "bea@example.com", "(305) 555-0100"),
-    "Enviar SOA a Apellido, Nombre al bea@example.com y al (305) 555-0100 pls @Support QAgency");
+    "Enviar SOA a Apellido, Nombre al bea@example.com y al (305) 555-0100 pls @Support Agency");
 });
 
 /* ------------------------------------------------------- enlace de firma -- */
@@ -203,6 +203,18 @@ test("enlace de firma: SMS y email en el idioma del cliente, de usted y firmados
   const soaEs = F.signTexts("soa", make({ genero: "o", nombres: "" }), url);
   assert.equal(soaEs.sms.split("\n")[0], "Estimado cliente:");
   assert.equal(soaEs.sms.split("\n")[1], "Antes de su cita de Medicare, firme el formulario de Alcance de la Cita (SOA) en este enlace:");
+});
+
+test("enlace de firma: el SMS lleva el teléfono de la oficina cuando está en Ajustes, en los dos idiomas", () => {
+  const url = "https://example.com/t?a=1";
+  const es = F.signTexts("consent", make({ oficina: "QAgency", telefono: "(305) 555-0199" }), url);
+  assert.equal(es.sms, "Estimada Beatriz:\nPara continuar con su seguro de salud, firme la carta de consentimiento en este enlace:\n" + url +
+    "\nSi tiene dudas, comuníquese con nosotros.\nQAgency Insurance\nOficina: (305) 555-0199");
+  const en = F.signTexts("soa", make({ idioma: "en", oficina: "ATH Insurance", genero: "o", nombres: "JUAN", telefono: "(305) 555-0199" }), url);
+  assert.equal(en.sms, "Dear Juan:\nBefore your Medicare appointment, please sign the Scope of Appointment (SOA) form at this link:\n" + url +
+    "\nIf you have any questions, contact us.\nATH Insurance\nOffice: (305) 555-0199");
+  /* el email no cambia */
+  assert.ok(!es.email.includes("555-0199"));
 });
 
 /* ------------------------------------------------------ nombre del archivo -- */

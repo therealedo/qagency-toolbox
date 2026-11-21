@@ -199,7 +199,7 @@
   function cliqText(kind, name, email, phone) {
     var to = [val(email), val(phone)].filter(Boolean).map(function (x) { return "al " + x; });
     return "Enviar " + (kind === "soa" ? "SOA" : "CONSENT") + " a " + (val(name) || "Apellido, Nombre") +
-           (to.length ? " " + to.join(" y ") : "") + " pls @Support QAgency";
+           (to.length ? " " + to.join(" y ") : "") + " pls @Support Agency";
   }
 
   /* ------------------------------------------- campos para DocuSeal --
@@ -242,7 +242,8 @@
   }
 
   /* SMS y email con el enlace, en el idioma del cliente (de usted), firmados
-     con el nombre de la oficina. */
+     con el nombre de la oficina; el SMS lleva además el teléfono de la
+     oficina de Ajustes, como los demás SMS. */
   var SIGN_TEXT = {
     consent: {
       es: { sms: "Para continuar con su seguro de salud, firme la carta de consentimiento en este enlace:",
@@ -263,8 +264,10 @@
     var oficina = val(d.oficina) || C.OFFICES[0], office = C.OFFICE_NAMES[oficina] || oficina;
     var name = U.titleCase(val(d.nombres).split(" ")[0] || "");
     var hello = en ? "Dear " + (name || "client") + ":" : (d.genero === "a" ? "Estimada " : "Estimado ") + (name || "cliente") + ":";
+    var tel = val(d.telefono);
     return {
-      sms: [hello, t.sms, url, en ? "If you have any questions, contact us." : "Si tiene dudas, comuníquese con nosotros.", office].join("\n"),
+      sms: [hello, t.sms, url, en ? "If you have any questions, contact us." : "Si tiene dudas, comuníquese con nosotros.", office]
+        .concat(tel ? [(en ? "Office: " : "Oficina: ") + tel] : []).join("\n"),
       email: [hello, "", t.email, url, "", en ? "If you have any questions, please contact us." : "Si tiene alguna duda, comuníquese con nosotros.",
         "", en ? "Best regards," : "Saludos,", office].join("\n")
     };
