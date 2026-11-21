@@ -47,23 +47,28 @@ el instalador y el actualizador arreglan ese icono para que abra igual que
 el del Escritorio. Si la abres de otra forma (doble clic en el archivo, un
 marcador), la herramienta avisa que esa ventana no ve tus ajustes.
 
-Enviar a firmar (SignWell): el instalador pide la clave de la API de
-SignWell en una instalacion nueva (no se ve al escribirla; Enter para omitir) y la guarda cifrada
-para este usuario de Windows. Para agregarla o cambiarla despues, doble
+Enviar a firmar (DocuSeal): en una instalacion nueva el instalador pide
+la direccion del servidor de firma (solo https) y la clave de la API de
+DocuSeal (no se ve al escribirla; Enter para omitir), y la guarda cifrada
+para este usuario de Windows. Para agregarlas o cambiarlas despues, doble
 clic en "Clave de firma.bat". Tambien deja abierto el ayudante de firma,
-que arranca solo al iniciar sesion en Windows. Mientras Q Agency no firme
-el acuerdo de privacidad (BAA) con SignWell, todo se envia en modo de
-prueba: usa solo datos de prueba. Cuando el cliente firma, el PDF se
-guarda solo en la carpeta del Network; si no se puede, la herramienta
-ofrece Guardar o Descargar. La pestana Firmas muestra lo enviado desde
-esta computadora: lo que espera la firma, lo firmado (el historial, que
-queda en SignWell) y lo que no se firmo. Ahi se cancela un envio hecho
-por error y se borra uno que no se firmo (vencido, cancelado, rechazado o
-que ya no esta en SignWell). Lo firmado no se borra.
+que arranca solo al iniciar sesion en Windows. No se envia ningun email:
+al pulsar "Crear enlace de firma" sale el enlace del cliente con el SMS y
+el email para mandarselo. Mientras el servidor de firma no tenga el
+acuerdo de privacidad (BAA), usa solo datos de prueba. El Consent va con
+todo lleno: el cliente solo firma. En el SOA firma primero el cliente y
+despues el agente, con su parte ya llena, desde Firmas ("Firmar
+(agente)"). Cuando todo esta firmado, el PDF se guarda solo en la carpeta
+del Network; si no se puede, la herramienta ofrece Guardar o Descargar.
+La pestana Firmas muestra lo que envio todo el equipo: lo que espera la
+firma, lo firmado (el historial, que queda en el servidor de firma) y lo
+que no se firmo. Ahi se copia el enlace del cliente, se cancela un envio
+hecho por error y se borra uno que no se firmo. Lo firmado no se borra.
 
 Quitar: doble clic en Desinstalar.bat.
 
 Privacidad: la herramienta lee los documentos dentro del navegador y no
 guarda datos de clientes. Lo unico que pide a internet es el numero de la
-ultima version, a GitHub. Solo al pulsar "Enviar para firmar" el formulario
-y el nombre y el email del cliente van a SignWell, a traves del ayudante.
+ultima version, a GitHub. Solo al pulsar "Crear enlace de firma" el formulario
+y el nombre y el email del cliente van al servidor de firma (DocuSeal), a
+traves del ayudante.
