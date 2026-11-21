@@ -102,6 +102,11 @@ test("el servidor lee el Caddyfile, guarda la clave aparte y la pide sin mostrar
   assert.ok(!startup.includes("reverse-proxy --from"));
   assert.ok(!/>\s*pasarela\.env/.test(startup));
   assert.ok(startup.includes("docker compose restart caddy"));
+  /* a Caddyfile Caddy rejects falls back to the plain proxy, so DocuSeal stays online */
+  assert.ok(startup.includes("caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile"));
+  assert.ok(startup.includes("printf '%s {\\n\\treverse_proxy app:3000\\n}\\n' \"$HOST\" > Caddyfile"));
+  assert.ok(startup.indexOf("caddy validate") < startup.indexOf("docker compose up -d"));
+  assert.ok(script.includes('if ! grep -q "header_regexp X-Office-Code" Caddyfile; then'));
   /* an existing machine gets this version's startup script */
   assert.ok(script.includes("gcloud compute instances add-metadata"));
   /* the key is typed hidden, checked, and goes through stdin, never argv or a file */

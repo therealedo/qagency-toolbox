@@ -150,6 +150,13 @@ $HOST {
 EOF
 umask 022
 # --- fin pasarela ---
+# Si Caddy no acepta el Caddyfile, queda solo el proxy de siempre: DocuSeal
+# sigue en linea y la pasarela no reenvia nada con codigo.
+if ! docker run --rm -v "$PWD/Caddyfile:/etc/caddy/Caddyfile:ro" "caddy:$(md caddy-version)" \
+    caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile >/dev/null 2>&1; then
+  echo "pasarela: Caddy no acepto el Caddyfile; queda solo el proxy" >&2
+  printf '%s {\n\treverse_proxy app:3000\n}\n' "$HOST" > Caddyfile
+fi
 cat > docker-compose.yml <<'EOF'
 services:
   app:
@@ -253,6 +260,11 @@ mv pasarela.env.nuevo pasarela.env
 if ! google_metadata_script_runner startup >/dev/null 2>&1; then
   echo "La clave quedo guardada, pero el servidor no pudo reiniciar la pasarela. Corra el script otra vez."
   exit 4
+fi
+if ! grep -q "header_regexp X-Office-Code" Caddyfile; then
+  echo "La clave quedo guardada, pero la pasarela no quedo activa (Caddy no acepto la configuracion)."
+  echo "DocuSeal sigue en linea. Avise para revisarlo: journalctl -u google-startup-scripts"
+  exit 5
 fi
 echo
 echo "Pasarela lista. Codigos de firma de las oficinas:"
