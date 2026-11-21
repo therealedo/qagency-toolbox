@@ -130,6 +130,82 @@
     }
   }
 
+  /* ------------------------------------------- una línea partida en dos --
+     Al imprimir una página web a PDF (el App Summary de HealthCare.gov), una
+     línea puede quedar cortada: la parte de arriba al final de una página y
+     la de abajo al empezar la siguiente. Cada parte sola se lee mal
+     ("$20,000.00" salía "$70.000.00"), así que la parte de abajo se pega
+     debajo de la de arriba y se borra de la página siguiente. Las imágenes
+     son { width, height, data } en RGBA, como las da getImageData. */
+  var INK = 160;   /* más oscuro que esto es tinta (las rayas grises no) */
+  var EDGE = 0.3;  /* una parte cortada termina o empieza con mucha tinta */
+
+  function isInk(d, i) { return d[i] < INK && d[i + 1] < INK && d[i + 2] < INK; }
+
+  function inkRows(img) {
+    var rows = [], d = img.data, w = img.width * 4;
+    for (var y = 0; y < img.height; y++) {
+      var k = 0;
+      for (var i = y * w, end = i + w; i < end; i += 4) { if (isInk(d, i)) { k++; } }
+      rows.push(k);
+    }
+    return rows;
+  }
+
+  /* las franjas de filas con tinta, de arriba abajo */
+  function inkBands(rows) {
+    var out = [], top = -1;
+    for (var y = 0; y <= rows.length; y++) {
+      var ink = y < rows.length && rows[y] > 0;
+      if (ink && top < 0) { top = y; }
+      if (!ink && top >= 0) { out.push({ top: top, end: y }); top = -1; }
+    }
+    return out;
+  }
+
+  function peak(rows, b) {
+    var m = 0;
+    for (var y = b.top; y < b.end; y++) { m = Math.max(m, rows[y]); }
+    return m;
+  }
+
+  function inkSpan(img, b) {
+    var d = img.data, w = img.width, lo = w, hi = -1;
+    for (var y = b.top; y < b.end; y++) {
+      for (var x = 0; x < w; x++) {
+        if (isInk(d, (y * w + x) * 4)) { lo = Math.min(lo, x); hi = Math.max(hi, x); }
+      }
+    }
+    return { lo: lo, hi: hi };
+  }
+
+  /* prev: el final de una página; next: el principio de la siguiente (el
+     mismo ancho). Si la última línea de prev y la primera de next son las
+     dos mitades de una sola, las junta en prev, la borra de next y da true. */
+  function joinCut(prev, next) {
+    if (prev.width !== next.width) { return false; }
+    var rp = inkRows(prev), rn = inkRows(next), bp = inkBands(rp), bn = inkBands(rn);
+    var a = bp[bp.length - 1], b = bn[0];
+    if (!a || !b) { return false; }
+    var ha = a.end - a.top, hb = b.end - b.top;
+    /* una línea entera termina y empieza con poca tinta (las curvas de las letras) */
+    if (rp[a.end - 1] < EDGE * peak(rp, a) || rn[b.top] < EDGE * peak(rn, b)) { return false; }
+    /* las dos partes suman una línea, no dos (sin contar rayas ni puntos) */
+    var hs = bp.concat(bn).map(function (x) { return x.end - x.top; })
+      .filter(function (h) { return h >= 4; }).sort(function (x, y) { return x - y; });
+    var line = hs[Math.floor(hs.length / 2)] || 0;
+    if (!line || ha + hb < 0.6 * line || ha + hb > 1.4 * line || a.end + hb > prev.height) { return false; }
+    var sa = inkSpan(prev, a), sb = inkSpan(next, b);
+    if (sb.lo > sa.hi || sb.hi < sa.lo) { return false; }
+    var w = prev.width * 4;
+    for (var r = 0; r < hb; r++) {
+      var from = (b.top + r) * w, to = (a.end + r) * w;
+      prev.data.set(next.data.subarray(from, from + w), to);
+      next.data.fill(255, from, from + w);
+    }
+    return true;
+  }
+
   /* ------------------------------------------------------- en la página */
 
   var SIMD_PROBE = [0, 97, 115, 109, 1, 0, 0, 0, 1, 5, 1, 96, 0, 1, 123, 3, 2, 1, 0, 10, 10, 1, 8, 0, 65, 0, 253, 15, 253, 98, 11];
@@ -226,31 +302,53 @@
     }).then(function (png) { return recognize(png, words); });
   }
 
+  /* Una línea partida entre dos páginas dibujadas se junta en la primera.
+     Basta mirar el último tercio de una y el primero de la otra. */
+  function joinPages(a, b) {
+    var h = Math.min(a.height, b.height, Math.ceil(a.height / 3)), ga = a.getContext("2d"), gb = b.getContext("2d");
+    var ia = ga.getImageData(0, a.height - h, a.width, h), ib = gb.getImageData(0, 0, b.width, h);
+    if (joinCut(ia, ib)) { ga.putImageData(ia, 0, a.height - h); gb.putImageData(ib, 0, 0); }
+  }
+
   /* Un PDF escaneado: cada página se dibuja con PDF.js y se lee, hasta
-     MAX_PAGES. onPage(i, n) avisa qué página va. */
+     MAX_PAGES. Se dibuja una página antes de leer la anterior, para juntar
+     una línea partida entre las dos. onPage(i, n) avisa qué página va. */
   function readPdf(pdfjsLib, data, onPage) {
     return pdfjsLib.getDocument({ data: data, isEvalSupported: false, disableFontFace: true }).promise.then(function (pdf) {
-      var n = Math.min(pdf.numPages, MAX_PAGES), texts = [], chain = Promise.resolve();
+      var n = Math.min(pdf.numPages, MAX_PAGES), texts = [], held = null, chain = Promise.resolve();
+      function draw(i) {
+        return pdf.getPage(i).then(function (pg) {
+          var base = pg.getViewport({ scale: 1 });
+          var vp = pg.getViewport({ scale: Math.min(PAGE_SCALE, Math.sqrt(MAX_PIXELS / (base.width * base.height))) });
+          var c = root.document.createElement("canvas");
+          c.width = Math.ceil(vp.width); c.height = Math.ceil(vp.height);
+          var g = c.getContext("2d");
+          g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height);
+          /* "print": sin requestAnimationFrame, que se detiene si la pestaña
+             queda en segundo plano (por ejemplo, al volver a Zoho) */
+          return pg.render({ canvasContext: g, viewport: vp, intent: "print" }).promise.then(function () {
+            pg.cleanup();
+            return c;
+          });
+        });
+      }
+      function read(i, c) {
+        if (onPage) { onPage(i, n); }
+        return pngOf(c).then(recognize).then(function (t) { texts.push(t); });
+      }
       function page(i) {
         return function () {
-          if (onPage) { onPage(i, n); }
-          return pdf.getPage(i).then(function (pg) {
-            var base = pg.getViewport({ scale: 1 });
-            var vp = pg.getViewport({ scale: Math.min(PAGE_SCALE, Math.sqrt(MAX_PIXELS / (base.width * base.height))) });
-            var c = root.document.createElement("canvas");
-            c.width = Math.ceil(vp.width); c.height = Math.ceil(vp.height);
-            var g = c.getContext("2d");
-            g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height);
-            /* "print": sin requestAnimationFrame, que se detiene si la pestaña
-               queda en segundo plano (por ejemplo, al volver a Zoho) */
-            return pg.render({ canvasContext: g, viewport: vp, intent: "print" }).promise.then(function () {
-              pg.cleanup();
-              return pngOf(c);
-            });
-          }).then(recognize).then(function (t) { texts.push(t); });
+          return draw(i).then(function (c) {
+            var prev = held;
+            held = c;
+            if (!prev) { return; }
+            joinPages(prev, c);
+            return read(i - 1, prev);
+          });
         };
       }
       for (var i = 1; i <= n; i++) { chain = chain.then(page(i)); }
+      chain = chain.then(function () { if (held) { return read(n, held); } });
       return chain.then(function () {
         pdf.destroy();
         return { text: texts.join("\n\n"), pages: n, total: pdf.numPages };
@@ -259,7 +357,7 @@
   }
 
   var api = {
-    LANGS: LANGS, MAX_PAGES: MAX_PAGES, needsOcr: needsOcr, makeEngine: makeEngine,
+    LANGS: LANGS, MAX_PAGES: MAX_PAGES, needsOcr: needsOcr, makeEngine: makeEngine, joinCut: joinCut,
     supported: supported, readImage: readImage, readPdf: readPdf
   };
   root.QA = root.QA || {};
