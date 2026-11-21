@@ -19,7 +19,7 @@ test("la copia local (sw.js) lleva la misma versión y archivos que existen", ()
   shell.filter((f) => f !== "./").forEach((f) => assert.ok(exists(f), "falta " + f));
   /* todo lo que carga la página debe estar en la copia local */
   const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
-  (html.match(/(?:src|href)="(?!#|data:)([^"]+)"/g) || []).map((m) => m.replace(/^.*?="|"$/g, ""))
+  (html.match(/(?:src|href)="(?!#|data:|qagency-toolbox-update:)([^"]+)"/g) || []).map((m) => m.replace(/^.*?="|"$/g, ""))
     .forEach((f) => assert.ok(shell.includes(f), f + " no está en SHELL"));
   const css = fs.readFileSync(path.join(root, "css/app.css"), "utf8");
   (css.match(/url\("\.\.\/([^"]+)"\)/g) || []).map((m) => m.replace(/^url\("\.\.\/|"\)$/g, ""))
@@ -104,6 +104,31 @@ test("el actualizador: misma fuente que la página, revisa la versión del paque
   const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
   ["updateBar", "updateText", "btnUpdateClose"].forEach((id) => assert.match(html, new RegExp('id="' + id + '"')));
   assert.ok(fs.readFileSync(path.join(root, "js", "app.js"), "utf8").includes('fetch(C.UPDATE_URL, { cache: "no-store", credentials: "omit"'));
+});
+
+test("el botón Actualizar de la barra abre el actualizador con un enlace propio que no le pasa nada", () => {
+  const win = (f) => fs.readFileSync(path.join(root, "tools", "windows", f), "utf8");
+  const inst = win("instalar.ps1");
+  const scheme = C.UPDATE_LINK.split(":")[0];
+  assert.equal(C.UPDATE_LINK, "qagency-toolbox-update:run");
+  /* el instalador registra el enlace para el usuario, sin permisos de administrador */
+  assert.ok(inst.includes('"HKCU:\\Software\\Classes\\' + scheme + '"'), "registra el enlace en HKCU");
+  assert.match(inst, /URL Protocol/);
+  assert.match(inst, /shell\\open\\command/);
+  /* el comando corre el actualizador instalado y no recibe la dirección (%1) */
+  const cmd = inst.match(/\$comandoActualizar = (.+)/);
+  assert.ok(cmd, "arma el comando del enlace");
+  assert.match(cmd[1], /actualizar\.ps1/);
+  assert.doesNotMatch(inst, /%1/, "el enlace no le pasa nada al actualizador");
+  /* desinstalar quita el enlace; el acceso del Escritorio ya no hace falta */
+  assert.match(inst.slice(inst.indexOf("if ($Quitar)"), inst.indexOf("exit 0")), /\$claveEnlace/);
+  const desde = inst.indexOf("$accesosActualizar = @(");
+  const lista = inst.slice(desde, inst.indexOf("\n)", desde));
+  assert.doesNotMatch(lista, /Desktop/, "ya no crea Actualizar en el Escritorio");
+  assert.match(inst, /\$actualizarEscritorio/, "quita el Actualizar del Escritorio de las versiones anteriores");
+  /* la barra de arriba tiene el botón, que abre ese enlace */
+  const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
+  assert.match(html, new RegExp('id="btnUpdateApp"[^>]*href="' + C.UPDATE_LINK + '"'));
 });
 
 test("el enlace de firma avisa que es solo para datos de prueba hasta el BAA", () => {

@@ -9,6 +9,9 @@
      nada más). La política de seguridad de index.html solo permite esta
      dirección, y el actualizador de Windows usa el mismo repositorio. */
   var UPDATE_URL = "https://raw.githubusercontent.com/therealedo/qagency-toolbox/main/package.json";
+  /* El instalador de Windows registra este enlace: lo abre el botón
+     Actualizar de arriba y corre el actualizador instalado. */
+  var UPDATE_LINK = "qagency-toolbox-update:run";
 
   /* Equipo por defecto: vacío. El código es público, así que los nombres y
      los NPN del equipo no van aquí: cada persona importa en Ajustes el archivo
@@ -389,7 +392,7 @@
   };
 
   var api = {
-    VERSION: VERSION, UPDATE_URL: UPDATE_URL, TEAM: TEAM, OFFICES: OFFICES, OFFICE_NAMES: OFFICE_NAMES, CARRIERS: CARRIERS, TASKS: TASKS, PAYMENT: PAYMENT,
+    VERSION: VERSION, UPDATE_URL: UPDATE_URL, UPDATE_LINK: UPDATE_LINK, TEAM: TEAM, OFFICES: OFFICES, OFFICE_NAMES: OFFICE_NAMES, CARRIERS: CARRIERS, TASKS: TASKS, PAYMENT: PAYMENT,
     TASK_TAGS: TASK_TAGS, OBS_TAGS: OBS_TAGS, TASK_RULES: TASK_RULES,
     CHANNELS: CHANNELS, MODALIDADES: MODALIDADES, LINES: LINES, LINE_TASK_CATS: LINE_TASK_CATS,
     PAY_METHODS: PAY_METHODS, CANCEL_REASONS: CANCEL_REASONS, CANCEL_TYPES: CANCEL_TYPES, PARENTESCOS: PARENTESCOS, ESTATUS: ESTATUS, MKPL_DOCS: MKPL_DOCS
