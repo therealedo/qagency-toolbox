@@ -2109,6 +2109,7 @@
   /* El código de firma que va con cada pedido: la clave de DocuSeal no está
      en ninguna computadora, la pone la pasarela del servidor cuando el
      código es de una de las oficinas. */
+  var signCodeTimer = 0;
   function signCode() { return FM.officeCode(settings.signCodes, settings.oficina, C.OFFICES); }
 
   /* lo que dice la página cuando falta el código, el servidor no lo acepta,
@@ -2142,14 +2143,15 @@
   function helperFetch(path, body, binary) {
     var opt = { method: body === undefined ? "GET" : "POST", cache: "no-store", credentials: "omit", referrerPolicy: "no-referrer" };
     if (body !== undefined) {
-      opt.headers = { "Content-Type": "application/json", "X-Helper-Token": helper.token, "X-Office-Code": signCode() };
+      var sentCode = signCode();
+      opt.headers = { "Content-Type": "application/json", "X-Helper-Token": helper.token, "X-Office-Code": sentCode };
       opt.body = JSON.stringify(body);
     }
     return fetch(C.HELPER_URL + path, opt).then(function (r) {
       if (!r.ok) {
         return r.json().catch(function () { return {}; }).then(function (j) {
           /* el servidor no aceptó el código: no se vuelve a probar hasta que cambie */
-          if (j && j.error === "codigo") { helper.badCode = signCode(); helper.error = "codigo"; helper.ok = false; }
+          if (j && j.error === "codigo") { helper.badCode = sentCode; helper.error = "codigo"; helper.ok = false; }
           var e = new Error((j && j.error) || "http " + r.status); e.info = j || {}; throw e;
         });
       }
@@ -2226,6 +2228,9 @@
 
   function sendError(e) {
     var info = (e && e.info) || {};
+    if (info.error === "docuseal" && info.detail === "pasarela") {
+      return "El servidor de firma todavía no tiene lista su clave de DocuSeal. Avisa a quien administra el servidor de firmas.";
+    }
     if (info.error === "docuseal") {
       return "El servidor de firma no aceptó el envío (" + info.status + ")" + (info.detail ? ": " + String(info.detail).slice(0, 500) + "." :
         ". Revisa el número de la plantilla y que su firmante se llame «Cliente» (y, en el SOA, el segundo «Agente»).");
@@ -3801,7 +3806,10 @@
       var o = e.target.dataset.signCode;
       if (!o) { return; }
       settings.signCodes[o] = U.collapse(e.target.value);
-      saveSettings(); checkHelper();
+      saveSettings();
+      /* se revisa con el servidor al terminar de escribir, no en cada tecla */
+      clearTimeout(signCodeTimer);
+      signCodeTimer = setTimeout(checkHelper, 800);
     });
     $("signTplRows").addEventListener("input", function (e) {
       var k = e.target.dataset.signTpl;
@@ -3857,7 +3865,7 @@
         if (tpls.length) { extra.push(tpls.length + (tpls.length === 1 ? " plantilla" : " plantillas") + " de firma"); }
         if (codes.length) { extra.push(codes.length === 1 ? "el código de firma" : "los códigos de firma"); }
         toast("Equipo importado: " + r.team.length + (r.team.length === 1 ? " persona" : " personas") +
-          (extra.length ? ", " + extra.join(" y ") + "." : "."));
+          (extra.length ? (extra.length === 1 ? " y " : ", ") + extra.join(" y ") + "." : "."));
       }, function () { input.value = ""; toast("No se pudo leer el archivo."); });
     });
     $("teamExport").addEventListener("click", function () {

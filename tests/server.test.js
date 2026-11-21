@@ -66,6 +66,16 @@ test("la pasarela solo deja pasar, con la clave, los pedidos del ayudante y con 
   assert.ok(!allowed("POST", "/api/submissions/42"));
   assert.ok(!allowed("GET", "/api/submissions/42/documents/x"));
   assert.ok(!allowed("PUT", "/api/users/1"));
+  /* Caddy matches the decoded path but DocuSeal gets the raw one, so a raw
+     URI with %, /. or // is refused before any route (and before the key) */
+  assert.ok(c.includes("@raro vars_regexp {http.request.uri} (%|/[.]|//)"));
+  assert.ok(c.includes('respond @raro `{"error":"ruta"}` 400'));
+  assert.ok(c.indexOf("respond @raro") < c.indexOf("reverse_proxy @enviar"));
+  const raro = new RegExp(c.match(/@raro vars_regexp \{http\.request\.uri\} (\S+)/)[1]);
+  ["/api/templates/5%2F%2e%2e%2F%2e%2e%2Fsubmitters%2F7", "/api/submissions/1%2F..%2F..%2Ftemplates%2F2", "//api/submissions",
+    "/api/templates/../submissions/1", "/api/submissions/./1", "/api/submissions?q=%2E"].forEach((u) => assert.ok(raro.test(u), u));
+  ["/api/submissions", "/api/submissions?limit=25&after=12&status=pending", "/api/submissions/42/documents?merge=true",
+    "/api/submitters/7"].forEach((u) => assert.ok(!raro.test(u), u));
   /* the helper's calls are all in that list */
   const helper = fs.readFileSync(path.join(__dirname, "..", "tools", "windows", "signing-helper.ps1"), "utf8");
   const calls = [...helper.matchAll(/Invoke-DocuSeal "(\w+)" \(?"([^"]+)"/g)].map((x) => [x[1], x[2]]);
@@ -107,6 +117,8 @@ test("el servidor lee el Caddyfile, guarda la clave aparte y la pide sin mostrar
   assert.ok(startup.includes("printf '%s {\\n\\treverse_proxy app:3000\\n}\\n' \"$HOST\" > Caddyfile"));
   assert.ok(startup.indexOf("caddy validate") < startup.indexOf("docker compose up -d"));
   assert.ok(script.includes('if ! grep -q "header_regexp X-Office-Code" Caddyfile; then'));
+  /* the server script comes by stdin: nothing it runs may read the rest of it */
+  assert.ok(script.includes("google_metadata_script_runner startup </dev/null"));
   /* an existing machine gets this version's startup script */
   assert.ok(script.includes("gcloud compute instances add-metadata"));
   /* the key is typed hidden, checked, and goes through stdin, never argv or a file */

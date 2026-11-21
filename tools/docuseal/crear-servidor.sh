@@ -107,6 +107,11 @@ CA="$(leer CODIGO_ATH)"
 if [[ "$CLAVE" =~ ^[A-Za-z0-9_-]{16,200}$ && "$CQ" =~ ^[A-Za-z0-9_-]{32,128}$ && "$CA" =~ ^[A-Za-z0-9_-]{32,128}$ && "$CQ" != "$CA" ]]; then
   OFICINA="@oficina header_regexp X-Office-Code ^(?:$CQ|$CA)\$
 		route @oficina {
+			# Caddy compara la ruta ya decodificada y DocuSeal recibe la
+			# original: con %, /. o // podrian no ser la misma ruta.
+			@raro vars_regexp {http.request.uri} (%|/[.]|//)
+			header @raro Content-Type application/json
+			respond @raro \`{\"error\":\"ruta\"}\` 400
 			request_header -X-Office-Code
 			request_header X-Auth-Token \"$CLAVE\"
 			@enviar {
@@ -257,7 +262,7 @@ if [ "$NUEVOS" = 1 ] || [ -z "$CQ" ]; then CQ="$(nuevo)"; fi
 if [ "$NUEVOS" = 1 ] || [ -z "$CA" ]; then CA="$(nuevo)"; fi
 printf 'DOCUSEAL_KEY=%s\nCODIGO_QAGENCY=%s\nCODIGO_ATH=%s\n' "$CLAVE" "$CQ" "$CA" > pasarela.env.nuevo
 mv pasarela.env.nuevo pasarela.env
-if ! google_metadata_script_runner startup >/dev/null 2>&1; then
+if ! google_metadata_script_runner startup </dev/null >/dev/null 2>&1; then
   echo "La clave quedo guardada, pero el servidor no pudo reiniciar la pasarela. Corra el script otra vez."
   exit 4
 fi

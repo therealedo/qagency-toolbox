@@ -182,7 +182,8 @@ test("firma con DocuSeal: se crea el enlace (sin email), el servidor de prueba s
 test("firma: cada pedido al ayudante lleva el código de la oficina, que viene en el archivo del equipo", () => {
   const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
   const app = fs.readFileSync(path.join(root, "js", "app.js"), "utf8");
-  assert.ok(app.includes('"X-Helper-Token": helper.token, "X-Office-Code": signCode()'));
+  assert.ok(app.includes('var sentCode = signCode();'));
+  assert.ok(app.includes('"X-Helper-Token": helper.token, "X-Office-Code": sentCode'));
   assert.ok(app.includes("FM.officeCode(settings.signCodes, settings.oficina, C.OFFICES)"));
   assert.match(html, /<div class="signlinks" id="signCodeRows"><\/div>/);
   assert.match(app, /inp\.type = "password"; inp\.spellcheck = false; inp\.autocomplete = "off";/, "el código no se ve en pantalla");
@@ -191,6 +192,15 @@ test("firma: cada pedido al ayudante lleva el código de la oficina, que viene e
   assert.match(app, /Falta el código de firma de la oficina/);
   assert.match(app, /El servidor de firma no aceptó el código de la oficina/);
   assert.doesNotMatch(html + app, /Clave de firma\.bat|sin-clave|sin-servidor/);
+  /* a rejected code is remembered as the one that was sent, not the one typed since */
+  assert.ok(app.includes('"X-Office-Code": sentCode'));
+  assert.ok(app.includes("helper.badCode = sentCode;"));
+  /* the server is asked when the code is done being typed, not on every key */
+  assert.ok(app.includes("clearTimeout(signCodeTimer);") && app.includes("signCodeTimer = setTimeout(checkHelper, 800);"));
+  /* the gateway without its key says so instead of a bare 503 */
+  assert.match(app, /info\.detail === "pasarela"/);
+  /* importing a team file with only templates keeps its old message */
+  assert.ok(app.includes('(extra.length === 1 ? " y " : ", ") + extra.join(" y ")'));
 });
 
 test("el paquete de Windows va firmado con la llave que el actualizador acepta", () => {
