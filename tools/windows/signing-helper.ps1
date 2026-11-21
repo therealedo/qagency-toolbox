@@ -144,7 +144,7 @@ function Read-Json($bytes) {
 # Por que SignWell rechazo un envio: el texto va a la herramienta (para
 # que se vea que corregir); al registro solo los nombres de las claves.
 $keyOk = '^[A-Za-z0-9_.\[\]-]{1,80}$'
-function Get-SignWellError($res) {
+function Get-SignWellError($res, [byte[]]$bytes) {
   $keys = New-Object System.Collections.ArrayList
   $invalid = New-Object System.Collections.ArrayList
   $parts = New-Object System.Collections.ArrayList
@@ -164,6 +164,15 @@ function Get-SignWellError($res) {
   }
   $detail = ($parts.ToArray() -join " ")
   if ($invalid.Count) { $detail = ($detail + " (" + ($invalid.ToArray() -join ", ") + ")").Trim() }
+  # Otra forma: un message suelto, o un cuerpo que no es JSON.
+  if (-not $detail) {
+    if ($res -and $res.message -is [string]) { $detail = $res.message }
+    elseif ($null -eq $res -and $bytes -and $bytes.Length) { $detail = [Text.Encoding]::UTF8.GetString($bytes) }
+    $detail = ($detail -replace '\s+', ' ').Trim()
+    if ($res -and -not $keys.Count -and -not $invalid.Count) {
+      foreach ($p in $res.PSObject.Properties) { if ($p.Name -match $keyOk) { [void]$keys.Add($p.Name) } }
+    }
+  }
   if ($detail.Length -gt 500) { $detail = $detail.Substring(0, 500) }
   return @{ detail = $detail; keys = [object[]](@($invalid.ToArray()) + @($keys.ToArray())) }
 }
@@ -312,7 +321,7 @@ function Handle($ctx) {
       try { $r = Invoke-SignWell "POST" "/document_templates/documents" $doc } catch { Write-Log "send sin conexion"; Send-Response $ctx 502 @{ error = "conexion" }; return }
       $res = Read-Json $r.bytes
       if ($r.code -lt 200 -or $r.code -ge 300 -or -not $res -or -not ([string]$res.id -match $idOk)) {
-        $why = Get-SignWellError $res
+        $why = Get-SignWellError $res $r.bytes
         Write-Log ("send http " + $r.code + $(if ($why.keys.Count) { " claves=" + ($why.keys -join ",") } else { "" }))
         $out = @{ error = "signwell"; status = $r.code }
         if ($why.detail) { $out.detail = $why.detail }

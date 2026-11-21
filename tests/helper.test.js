@@ -275,7 +275,10 @@ test("ayudante de firma: el historial llega de a partes, lo más nuevo primero, 
 test("ayudante de firma: si SignWell rechaza el envío, la herramienta ve por qué; el registro solo los nombres de las claves", { skip: !WIN, timeout: 60000 }, async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "qa-helper-"));
   let reply = [400, { errors: { message: "The request contains invalid key values.", invalid_keys: ["language", "bad key!"] } }];
-  const sw = http.createServer((req, res) => { req.resume(); req.on("end", () => { res.writeHead(reply[0], { "Content-Type": "application/json" }); res.end(JSON.stringify(reply[1])); }); });
+  const sw = http.createServer((req, res) => { req.resume(); req.on("end", () => {
+    res.writeHead(reply[0], { "Content-Type": "application/json" });
+    res.end(typeof reply[1] === "string" ? reply[1] : JSON.stringify(reply[1]));
+  }); });
   await new Promise((r) => sw.listen(0, "127.0.0.1", r));
   let helper;
   try {
@@ -288,7 +291,14 @@ test("ayudante de firma: si SignWell rechaza el envío, la herramienta ve por qu
     reply = [422, { errors: { template_fields: ["DateField value must be in Iso8601 format."], custom_requester_name: "is too long (maximum is 100 characters)" } }];
     const r422 = await post(helper.port, "/send", SEND);
     assert.equal(r422.json.detail, "template_fields: DateField value must be in Iso8601 format. custom_requester_name: is too long (maximum is 100 characters)");
+    /* otras formas: un message suelto, o un cuerpo que no es JSON */
+    reply = [400, { message: "Template not found", status: 400 }];
+    assert.equal((await post(helper.port, "/send", SEND)).json.detail, "Template not found");
+    reply = [400, "Bad   Request\n"];
+    assert.equal((await post(helper.port, "/send", SEND)).json.detail, "Bad Request");
     const log = fs.readFileSync(path.join(dir, "registro.log"), "utf8");
+    assert.match(log, /send http 400 claves=message,status\b/);
+    assert.ok(!log.includes("Template not found") && !log.includes("Bad Request"));
     assert.match(log, /send http 400 claves=language\b/);
     assert.match(log, /send http 422 claves=template_fields,custom_requester_name\b/);
     assert.ok(!log.includes("Iso8601") && !log.includes("invalid key values"), "el registro no lleva el texto de SignWell");
