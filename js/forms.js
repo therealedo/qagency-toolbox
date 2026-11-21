@@ -349,6 +349,34 @@
     });
   }
 
+  /* renderPreview: dibuja cada página del PDF (ya lleno) en un canvas de
+     cssWidth píxeles de ancho, con los campos como saldrán impresos.
+     Devuelve los canvas: quien llama los pone en la página de una vez, así
+     la vista previa no parpadea mientras se escribe. */
+  function renderPreview(pdfjsLib, bytes, cssWidth, dpr) {
+    var ratio = dpr || 1;
+    return pdfjsLib.getDocument({ data: bytes, isEvalSupported: false }).promise.then(function (pdf) {
+      var chain = Promise.resolve([]);
+      function addPage(n) {
+        chain = chain.then(function (list) {
+          return pdf.getPage(n).then(function (page) {
+            var base = page.getViewport({ scale: 1 });
+            var vp = page.getViewport({ scale: (cssWidth / base.width) * ratio });
+            var canvas = root.document.createElement("canvas");
+            canvas.width = Math.floor(vp.width);
+            canvas.height = Math.floor(vp.height);
+            canvas.style.aspectRatio = base.width + " / " + base.height;
+            return page.render({ canvasContext: canvas.getContext("2d"), viewport: vp,
+              annotationMode: pdfjsLib.AnnotationMode ? pdfjsLib.AnnotationMode.ENABLE : undefined }).promise
+              .then(function () { list.push(canvas); return list; });
+          });
+        });
+      }
+      for (var n = 1; n <= pdf.numPages; n++) { addPage(n); }
+      return chain.then(function (list) { pdf.destroy(); return list; }, function (e) { pdf.destroy(); throw e; });
+    });
+  }
+
   /* --------------------------------------------- valor en el campo padre --
      Cuando un campo tiene sus lugares aparte (la Fecha del Consent, en dos
      páginas), PDF.js guarda el valor en cada lugar pero no en el campo. Si
@@ -474,7 +502,7 @@
     SIGN_PLACEHOLDER: SIGN_PLACEHOLDER, buildSendPayload: buildSendPayload, signedStatus: signedStatus,
     signActions: signActions, signDashboard: signDashboard, signDate: signDate,
     SIGN_HISTORY_STEP: SIGN_HISTORY_STEP, SIGN_HISTORY_MAX: SIGN_HISTORY_MAX, nextHistoryLimit: nextHistoryLimit,
-    templateBytes: templateBytes, fillPdf: fillPdf
+    templateBytes: templateBytes, fillPdf: fillPdf, renderPreview: renderPreview
   };
   root.QA = root.QA || {};
   root.QA.forms = api;

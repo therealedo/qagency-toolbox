@@ -120,8 +120,6 @@
     base: {},      /* valor que trajo un documento, para saber qué cambió */
     files: [],
     edited: freshEdited(),
-    /* valores del Consent o del SOA que se cambiaron a mano, por formulario */
-    signEdits: {},
     /* la hora ya se puso: "doc" con el primer documento, "user" a mano */
     horaFrom: "",
     /* campos de MUST_CHOOSE que el agente ya eligió o confirmó */
@@ -1750,25 +1748,46 @@
 
   /* --------------------------------------------- Consent y SOA para firmar --
      En Obamacare Pendiente, el Consent; en Medicare, el SOA. La plantilla
-     sale de la oficina de Ajustes y del idioma del cliente. Los valores se
-     llenan con la nota y se pueden cambiar; lo cambiado a mano se queda hasta
-     «Volver a los datos de la nota». El PDF se llena aquí mismo con PDF.js y
-     se descarga (el SOA, sin llenar: solo el nombre y el teléfono del
-     beneficiario, para Cliq y el SMS); el enlace de firma solo se arma, no
-     se envía nada. */
+     sale de la oficina de Ajustes y del idioma del cliente. Todos los
+     valores salen de la nota (no se cambian aquí: se corrigen arriba), y el
+     documento se ve en pantalla tal como saldrá, llenado aquí mismo con
+     PDF.js. Se descarga igual (el SOA, sin llenar: el nombre y el teléfono
+     del beneficiario son para Cliq y el SMS); el enlace de firma solo se
+     arma, no se envía nada. */
   var signKind = "";
 
-  function signValues(d, kind) { return Object.assign(FM.values(kind, d), S.signEdits[kind] || {}); }
+  function signValues(d, kind) { return FM.values(kind, d); }
 
-  function buildSignGrid(kind) {
-    var grid = $("signGrid");
-    grid.textContent = "";
-    FM.FIELDS[kind].forEach(function (x) {
-      var wrap = el("div", "fld" + (x.w ? " " + x.w : ""));
-      var lab = el("label", "field-label", x.l); lab.htmlFor = "sg_" + x.k;
-      var inp = el("input"); inp.type = "text"; inp.id = "sg_" + x.k; inp.dataset.signK = x.k; inp.spellcheck = false;
-      wrap.appendChild(lab); wrap.appendChild(inp);
-      grid.appendChild(wrap);
+  /* La vista previa se vuelve a dibujar solo cuando cambia algo de lo que
+     lleva el PDF, un momento después de dejar de escribir. Si mientras tanto
+     cambió otra vez, lo viejo se descarta. */
+  var preview = { sig: "", timer: 0, run: 0 };
+  function previewMessage(text) {
+    var box = $("signPreview");
+    box.textContent = "";
+    box.appendChild(el("p", "sign-preview-msg", text));
+  }
+  function schedulePreview(key, map) {
+    var sig = key + "|" + JSON.stringify(map);
+    if (sig === preview.sig) { return; }
+    preview.sig = sig;
+    clearTimeout(preview.timer);
+    preview.timer = setTimeout(function () { drawPreview(key, map); }, 350);
+  }
+  function drawPreview(key, map) {
+    var run = ++preview.run, box = $("signPreview"), bytes = FM.templateBytes(key);
+    if (!bytes || !window.pdfjsLib) { previewMessage("Esta copia de la herramienta no trae la plantilla de " + FM.TEMPLATES[key].label + "."); return; }
+    var width = Math.max(320, (box.clientWidth || 700) - 20);
+    FM.fillPdf(window.pdfjsLib, bytes, map).then(function (out) {
+      return run === preview.run ? FM.renderPreview(window.pdfjsLib, out, width, Math.min(window.devicePixelRatio || 1, 2)) : null;
+    }).then(function (pages) {
+      if (!pages || run !== preview.run) { return; }
+      box.textContent = "";
+      pages.forEach(function (c, i) { c.setAttribute("aria-label", "Página " + (i + 1)); box.appendChild(c); });
+    }, function () {
+      if (run !== preview.run) { return; }
+      preview.sig = "";
+      previewMessage("No se pudo mostrar el documento.");
     });
   }
 
@@ -1968,14 +1987,9 @@
     }
     /* el SOA no lleva datos: se descarga la plantilla tal cual */
     $("signDownload").textContent = kind === "soa" ? "Descargar PDF" : "Descargar PDF lleno";
-    if (signKind !== kind) { buildSignGrid(kind); signKind = kind; }
-    var v = signValues(d, kind), edits = S.signEdits[kind] || {};
-    FM.FIELDS[kind].forEach(function (x) {
-      var inp = $("sg_" + x.k);
-      if (document.activeElement !== inp) { inp.value = v[x.k] || ""; }
-      inp.closest(".fld").classList.toggle("is-edited", x.k in edits);
-    });
-    $("signReset").hidden = !Object.keys(edits).length;
+    signKind = kind;
+    var v = signValues(d, kind);
+    schedulePreview(key, FM.fieldMap(key, v));
 
     var phone = kind === "soa" ? v.beneficiaryPhone : S.f.clienteTel, email = S.f.clienteEmail;
     /* los mensajes internos (Cliq) nombran al cliente como en Zoho: "Apellido, Nombre" */
@@ -3521,14 +3535,6 @@
     });
 
     /* Consent y SOA para firmar */
-    $("signGrid").addEventListener("input", function (e) {
-      var k = e.target.dataset.signK;
-      if (!k || !signKind) { return; }
-      (S.signEdits[signKind] = S.signEdits[signKind] || {})[k] = e.target.value;
-      S.dirty = true;
-      renderSign(data());
-    });
-    $("signReset").addEventListener("click", function () { delete S.signEdits[signKind]; renderSign(data()); });
     $("signDownload").addEventListener("click", function () { downloadSign(this); });
     $("signSend").addEventListener("click", function () { sendForSignature(this); });
     $("firmasList").addEventListener("click", onFirmasClick);
@@ -3553,7 +3559,7 @@
       });
     });
     $("signSmsOpen").addEventListener("click", function () {
-      this.href = N.smsLink(signKind === "soa" ? $("sg_beneficiaryPhone").value : S.f.clienteTel, $("signSms").value);
+      this.href = N.smsLink(signKind === "soa" ? signValues(data(), "soa").beneficiaryPhone : S.f.clienteTel, $("signSms").value);
     });
     $("signEmailOpen").addEventListener("click", function () { this.href = N.mailtoLink(S.f.clienteEmail, $("signEmail").value); });
     document.addEventListener("keydown", function (e) {
@@ -3590,7 +3596,7 @@
     /* nueva nota */
     $("btnNew").addEventListener("click", function () {
       if (hasClientData() && S.dirty && !window.confirm("La nota actual no se ha copiado. ¿Empezar una nueva?")) { return; }
-      S.f = freshFields(); S.auto = {}; S.rank = {}; S.base = {}; S.files = []; S.signEdits = {}; S.horaFrom = ""; S.chosen = {};
+      S.f = freshFields(); S.auto = {}; S.rank = {}; S.base = {}; S.files = []; S.horaFrom = ""; S.chosen = {};
       $("taskId").dataset.line = "";
       S.edited = freshEdited(); S.dirty = false;
       S.outcome = L().outcomes[0].id;

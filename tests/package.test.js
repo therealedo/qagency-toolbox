@@ -276,3 +276,17 @@ test("al actualizar, el instalador no se detiene a pedir la clave, aunque lo lla
   /* el ayudante no queda trabado en la carpeta del .zip */
   assert.match(inst, /Start-Process -FilePath \$powershell -WindowStyle Hidden -WorkingDirectory \$destino/);
 });
+
+test("el Consent y el SOA para firmar se ven en pantalla tal como saldrán, sin campos para editar", () => {
+  const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
+  const app = fs.readFileSync(path.join(root, "js", "app.js"), "utf8");
+  const FM = require("../js/forms.js");
+  const sec = html.slice(html.indexOf('id="sec-firma"'), html.indexOf("</section>", html.indexOf('id="sec-firma"')));
+  /* la vista previa reemplaza la grilla de campos editables */
+  assert.match(sec, /id="signPreview"/);
+  assert.doesNotMatch(sec, /id="signGrid"|id="signReset"/);
+  /* los valores salen solo de la nota: no hay cambios a mano que se queden */
+  assert.doesNotMatch(app, /signEdits|Volver a los datos de la nota/);
+  /* la misma función dibuja la vista previa y la prueba en el navegador */
+  assert.equal(typeof FM.renderPreview, "function");
+});
