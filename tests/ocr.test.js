@@ -80,6 +80,87 @@ test("OCR: un PDF escaneado se lee hasta 20 páginas, lo que trae el App Summary
   assert.ok(O.MAX_PAGES >= 20, "MAX_PAGES = " + O.MAX_PAGES);
 });
 
+/* Una línea partida entre dos páginas (el App Summary impreso desde
+   HealthCare.gov). scan-page-break.json.gz es texto inventado dibujado y
+   cortado como en el PDF: el final de una página y el principio de la
+   siguiente, en escala de grises. */
+function rgba(width, height, gray) {
+  const data = new Uint8ClampedArray(width * height * 4);
+  for (let i = 0; i < width * height; i++) { data.fill(gray[i], i * 4, i * 4 + 3); data[i * 4 + 3] = 255; }
+  return { width, height, data };
+}
+function png(img) {
+  const { width, height, data } = img, raw = Buffer.alloc((width + 1) * height);
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) { raw[y * (width + 1) + 1 + x] = data[(y * width + x) * 4]; }
+  }
+  const chunk = (type, body) => {
+    const len = Buffer.alloc(4), crc = Buffer.alloc(4), typed = Buffer.concat([Buffer.from(type), body]);
+    len.writeUInt32BE(body.length); crc.writeUInt32BE(zlib.crc32(typed));
+    return Buffer.concat([len, typed, crc]);
+  };
+  const head = Buffer.alloc(13);
+  head.writeUInt32BE(width, 0); head.writeUInt32BE(height, 4); head[8] = 8;
+  return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk("IHDR", head),
+    chunk("IDAT", zlib.deflateSync(raw)), chunk("IEND", Buffer.alloc(0))]);
+}
+function pageBreak() {
+  const f = JSON.parse(zlib.gunzipSync(fs.readFileSync(path.join(__dirname, "fixtures", "scan-page-break.json.gz"))));
+  const page = (p) => rgba(f.width, p.height, Buffer.from(p.gray, "base64"));
+  return { prev: page(f.prev), next: page(f.next) };
+}
+
+test("OCR: una cantidad partida entre dos páginas se lee entera ($20,000.00, no $20.000.00)", async () => {
+  const e = await reader(), { prev, next } = pageBreak();
+  assert.equal(O.joinCut(prev, next), true);
+  const top = e.read(png(prev)), rest = e.read(png(next));
+  assert.match(top, /Estimated income next year \(2027\)\n\$20,000\.00/);
+  /* el pedazo que quedó en la página siguiente ya no sale como basura */
+  assert.equal(rest.trim(), "Review additional information");
+});
+
+/* páginas de prueba: cada línea es una franja de "tinta" de x0 a x1 */
+function page(height, lines) {
+  const width = 200, gray = Buffer.alloc(width * height, 255);
+  lines.forEach(([top, rows, x0, x1]) => {
+    rows.forEach((frac, r) => {
+      const n = Math.round((x1 - x0) * frac);
+      gray.fill(0, (top + r) * width + x0, (top + r) * width + x0 + n);
+    });
+  });
+  return rgba(width, height, gray);
+}
+const LINE = [0.2, 0.7, 0.9, 0.8, 0.8, 0.8, 0.8, 0.8, 0.9, 0.7, 0.2];   /* una línea entera: bordes con poca tinta */
+const snapshot = (img) => Buffer.from(img.data).toString("base64");
+
+test("OCR: junta la mitad de abajo de una línea cortada y la borra de la página siguiente", () => {
+  const prev = page(60, [[5, LINE, 20, 150], [25, LINE.slice(0, 8), 20, 150]]);
+  const next = page(60, [[15, LINE.slice(8), 20, 150], [35, LINE, 20, 150]]);
+  assert.equal(O.joinCut(prev, next), true);
+  /* la línea de prev ahora sigue en las filas 33 a 35, con la tinta de next */
+  const ink = (img, y) => img.data[(y * img.width + 20) * 4] === 0;
+  assert.ok(ink(prev, 33) && ink(prev, 35) && !ink(prev, 36));
+  assert.ok(!ink(next, 15) && !ink(next, 17) && ink(next, 36));
+});
+
+test("OCR: dos líneas enteras, una al final de una página y otra al principio de la siguiente, no se tocan", () => {
+  const cases = [
+    /* líneas normales: terminan y empiezan con poca tinta */
+    [page(60, [[5, LINE, 20, 150], [25, LINE, 20, 150]]), page(60, [[15, LINE, 20, 150]])],
+    /* letras de base y tope planos (TOTAL / TEST): las dos partes suman dos líneas */
+    [page(60, [[5, LINE, 20, 150], [25, LINE.slice(1, -1).concat([0.8]), 20, 150]]), page(60, [[15, [0.8].concat(LINE.slice(1, -1)), 20, 150]])],
+    /* una línea cortada, pero lo de la página siguiente está en otra columna */
+    [page(60, [[5, LINE, 20, 90], [25, LINE.slice(0, 8), 20, 90]]), page(60, [[15, LINE.slice(8), 120, 190]])],
+    /* una raya al final de la página no es una línea de texto */
+    [page(60, [[5, LINE, 20, 150], [25, [1, 1], 20, 150]]), page(60, [[15, [1, 1], 20, 150]])]
+  ];
+  cases.forEach(([prev, next], i) => {
+    const before = [snapshot(prev), snapshot(next)];
+    assert.equal(O.joinCut(prev, next), false, "caso " + i);
+    assert.deepEqual([snapshot(prev), snapshot(next)], before, "caso " + i);
+  });
+});
+
 /* Cotizaciones de HealthSherpa (capturas de la cotización pública, con un
    hogar inventado): el OCR da las palabras con su posición y se lee cada plan
    de la pantalla con su compañía y la prima que paga el cliente. */

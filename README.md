@@ -255,7 +255,7 @@ A document only fills what is empty or what a weaker document filled; what you t
 
 ### Scans and screenshots
 
-Scanned PDFs (the first 20 pages, enough for the App Summary of a large family), images (PNG, JPG, WebP, BMP, GIF) and screenshots pasted with Ctrl + V on the **Nota** tab are read with OCR, in Spanish and English, inside the browser and without internet. The text goes through the same reader as a PDF with text, so the same fields are filled. Each one takes a few seconds (the first one of the session a little longer), and the file shows *leído con OCR, revísalo*: OCR can misread a letter or a digit, so check those fields with care.
+Scanned PDFs (the first 20 pages, enough for the App Summary of a large family), images (PNG, JPG, WebP, BMP, GIF) and screenshots pasted with Ctrl + V on the **Nota** tab are read with OCR, in Spanish and English, inside the browser and without internet. A line that a printed page cut in two (the top half at the end of one page, the bottom half at the start of the next, as in a browser-printed App Summary) is joined back before it is read, so an amount like *$20,000.00* is not misread. The text goes through the same reader as a PDF with text, so the same fields are filled. Each one takes a few seconds (the first one of the session a little longer), and the file shows *leído con OCR, revísalo*: OCR can misread a letter or a digit, so check those fields with care.
 
 OCR needs Chrome or Edge up to date. In a browser that cannot run it, scans and images are listed without data and the fields are typed by hand. **Pegar texto** is the fallback when a PDF will not open.
 
