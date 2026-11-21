@@ -49,7 +49,8 @@ html = html.replace(/<link rel="manifest"[^>]*>\n?/, "");
 });
 html = html.split('src="assets/mark.png"').join('src="' + dataUri("assets/mark.png", "image/png") + '"');
 
-const leftovers = html.match(/(?:src|href)="(?!data:|#)[^"]+"/g);
+/* el enlace del botón Actualizar no es un archivo: lo abre Windows */
+const leftovers = html.match(/(?:src|href)="(?!data:|#|qagency-toolbox-update:)[^"]+"/g);
 if (leftovers) {
   console.error("Quedaron referencias a archivos externos:", leftovers);
   process.exit(1);

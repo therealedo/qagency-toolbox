@@ -2938,6 +2938,14 @@
     }
     $("btnReload").addEventListener("click", function () { location.reload(); });
     $("btnUpdateClose").addEventListener("click", function () { $("updateBar").hidden = true; });
+    /* instalada (abierta como archivo): el botón Actualizar abre el enlace
+       que registró el instalador y Windows corre el actualizador */
+    if (location.protocol === "file:") {
+      $("btnUpdateApp").hidden = false;
+      $("btnUpdateApp").addEventListener("click", function () {
+        toast("Se abre el actualizador. Si el navegador pregunta, elige Abrir. Cuando termine, cierra la herramienta y vuelve a abrirla.");
+      });
+    }
     /* abierta sin su ícono: otro perfil del navegador, sin los ajustes */
     if (U.launchCheck(location) === "otro") { $("profileBar").hidden = false; }
     $("profileExport").addEventListener("click", function () { $("teamExport").click(); });
@@ -2956,7 +2964,9 @@
       .then(function (pkg) {
         var v = pkg && typeof pkg.version === "string" ? pkg.version : "";
         if (!U.newerVersion(v, C.VERSION)) { return; }
-        $("updateText").textContent = "Hay una versión nueva (" + v + "). Cierra la herramienta y abre «Actualizar Q Agency Toolbox» en el Escritorio o en el menú Inicio.";
+        $("updateText").textContent = "Hay una versión nueva (" + v + "). Pulsa «Actualizar» arriba; cuando termine, cierra la herramienta y vuelve a abrirla.";
+        $("btnUpdateApp").classList.add("has-update");
+        $("btnUpdateText").textContent = "Actualizar a " + v;
         $("btnReload").hidden = true;
         $("btnUpdateClose").hidden = false;
         $("updateBar").hidden = false;
