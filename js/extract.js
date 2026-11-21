@@ -642,19 +642,32 @@
         var c = nameCell(doc.lines[j]);
         if (!c) { continue; }
         if (PLAN_STOP.test(c) || datesIn(c).length || c.length > 110 || !/[A-Za-z]/.test(c)) { break; }
-        var chunk = [c];
+        var chunk = [c], top = j;
         /* continuación de un paréntesis más arriba: los beneficios en su
            propia línea ("($35 PCP Visits / Rewards)") o partidos entre los
-           botones ("Change plans", "Go to my plan benefits") */
+           botones ("Change plans", "Go to my plan benefits"), también cuando
+           quedan cortados con "…" sin cerrar ("Visits / $5 Labs …") */
         var tail = c.charAt(0) === "(";
-        if (tail || (c.indexOf(")") >= 0 && c.indexOf("(") < 0)) {
+        if (tail || (c.indexOf("(") < 0 && (c.indexOf(")") >= 0 || /\$\d/.test(c)))) {
           var open = [];
           for (var k = j - 1; k >= 0 && k >= j - 6; k--) {
             var up = nameCell(doc.lines[k]);
             if (up === null) { continue; }
             if (!up || PLAN_STOP.test(up)) { break; }
             open.unshift(up);
-            if (tail || up.indexOf("(") >= 0) { chunk = open.concat(chunk); break; }
+            if (tail || up.indexOf("(") >= 0) { chunk = open.concat(chunk); top = k; break; }
+          }
+        }
+        /* antes del paréntesis solo queda el código del plan ("27M07-01C"):
+           el nombre está en la línea de arriba ("myBlue Essentials Silver") */
+        var pre = chunk[0].split("(")[0].trim();
+        if (chunk[0].indexOf("(") > 0 && /^[A-Z0-9][A-Z0-9\-]*$/.test(pre) && /\d/.test(pre)) {
+          for (var a = top - 1; a >= 0 && a >= top - 3; a--) {
+            var above = nameCell(doc.lines[a]);
+            if (above === null) { continue; }
+            if (above && !PLAN_STOP.test(above) && !datesIn(above).length && /[a-z]{3}/i.test(above) &&
+                above.indexOf("(") < 0 && !/\$\d/.test(above)) { chunk.unshift(above); }
+            break;
           }
         }
         parts = chunk;
