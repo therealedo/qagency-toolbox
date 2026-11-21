@@ -147,15 +147,16 @@
   }
 
   /* Estado civil: casado o casada si en el hogar hay un cónyuge; si no, el que
-     leyó el App Summary (dicho o interpretado). Sin ninguno, se deja para
-     escribirlo. */
+     leyó el App Summary (dicho o interpretado). Un caso hecho a mano, sin
+     cónyuge y sin documento que lo diga, es soltero, como un hogar leído sin
+     cónyuge. */
   var CIVIL = {
     casado: ["Married", "Casado", "Casada"], soltero: ["Single", "Soltero", "Soltera"], divorciado: ["Divorced", "Divorciado", "Divorciada"],
     viudo: ["Widowed", "Viudo", "Viuda"], separado: ["Separated", "Separado", "Separada"]
   };
   function maritalOf(d) {
     var married = N.personas(d).some(function (p) { return !p.titular && p.parentesco === "Cónyuge"; });
-    var w = CIVIL[married ? "casado" : val(d.estadoCivil)];
+    var w = CIVIL[married ? "casado" : (val(d.estadoCivil) || "soltero")];
     if (!w) { return ""; }
     return d.idioma === "en" ? w[0] : (d.genero === "a" ? w[2] : w[1]);
   }
