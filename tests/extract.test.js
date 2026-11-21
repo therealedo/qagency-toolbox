@@ -499,6 +499,12 @@ const OC_DOCS = {
   "OC My Plans & Programs Menu Fragment": { type: "oc_plans", net: "plans", fields: {
     plan: "UHC Bronze Standard", prima: "$328.40", appId: "4412345684", miembros: "PEDRO RUIZ",
     nombres: "PEDRO", apellidos: "RUIZ", efectiva: "01/01/2027", estado: "Active", compania: "UNITED HEALTHCARE", anio: "2027" } },
+  /* el nombre parte su código a la línea de abajo ("myBlue Essentials Silver"
+     / "27M07-01C ($0 Deductible /") y los beneficios quedan cortados con "…",
+     sin cerrar el paréntesis: la última línea ("Visits / $5 Labs …") no es el plan */
+  "OC My Plans & Programs Wrapped Code": { type: "oc_plans", net: "plans", fields: {
+    plan: "myBlue Essentials Silver 27M07-01C", prima: "$190.00", appId: "4412345691", miembros: "MORGAN WHITAKER\nWESLEY WHITAKER",
+    nombres: "MORGAN", apellidos: "WHITAKER", efectiva: "01/01/2027", estado: "Active", compania: "FLORIDA BLUE", anio: "2027" } },
   /* la guía que viene detrás de la carta habla de documentos: nadie los pidió */
   "OC Eligibility Notice": { type: "oc_elig", net: "eligibility", fields: {
     appId: "4412345678", anio: "2027", nombres: "LAURA", apellidos: "RAMOS", ingreso: "$31,200.00" } },
