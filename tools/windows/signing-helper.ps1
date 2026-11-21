@@ -126,6 +126,14 @@ function Get-Role($sub, [string]$role) {
   foreach ($s in @($sub.submitters)) { if ([string]$s.role -eq $role) { return $s } }
   return $null
 }
+# Un envio hecho por la herramienta: su firmante Cliente con los datos que
+# dicen que formulario es y con que nombre va al Network.
+function Test-Ours($sub) {
+  $c = Get-Role $sub "Cliente"
+  if (-not $c -or -not $c.metadata) { return $false }
+  $m = $c.metadata
+  return ((@("consent", "soa") -contains [string]$m.qa_kind) -and ([string]$m.qa_net -match '^[a-z]{1,20}$') -and ([string]$m.qa_file).Trim() -ne "")
+}
 function Get-Status($sub) {
   $c = Get-Role $sub "Cliente"
   $a = Get-Role $sub "Agente"
@@ -307,8 +315,11 @@ function Handle($ctx) {
       Send-Response $ctx 200 ([ordered]@{ id = $id; link = $link })
     }
     "/list" {
-      # Los $limit mas nuevos del equipo y, ademas, todo lo que espera una
-      # firma (aunque sea viejo). more: si hay mas viejos que pedir.
+      # Los $limit mas nuevos que envio la herramienta y, ademas, todo lo que
+      # espera una firma (aunque sea viejo). more: si hay mas viejos que
+      # pedir; con la lista llena se pide uno mas para saberlo. Lo que no
+      # envio la herramienta (sin sus datos o sin el firmante Cliente) no
+      # se lista: no tiene carpeta ni nombre en el Network.
       $limit = 25
       if ($null -ne $b.limit) {
         if (-not (($b.limit -is [int]) -or ($b.limit -is [long])) -or $b.limit -lt 1 -or $b.limit -gt 1000) { Send-Response $ctx 400 @{ error = "limit" }; return }
@@ -318,21 +329,22 @@ function Handle($ctx) {
       $newest = New-Object System.Collections.ArrayList
       $after = ""
       $more = $false
-      while ($newest.Count -lt $limit) {
+      while (-not $more) {
         $want = [Math]::Min(100, $limit - $newest.Count + 1)
         $page = Get-Page ("limit=" + $want + $after)
         if ($null -eq $page) { Send-Response $ctx 502 @{ error = "conexion" }; return }
         foreach ($s in $page) {
+          if (-not (Test-Ours $s)) { continue }
           if ($newest.Count -ge $limit) { $more = $true; break }
           [void]$newest.Add($s)
         }
-        if ($page.Count -lt $want -or $more) { break }
+        if ($page.Count -lt $want) { break }
         $after = "&after=" + $page[$page.Count - 1].id
       }
       foreach ($s in $newest) { $byId[[string]$s.id] = $s }
       $pending = Get-Page "status=pending&limit=100"
       if ($null -eq $pending) { Send-Response $ctx 502 @{ error = "conexion" }; return }
-      foreach ($s in $pending) { $byId[[string]$s.id] = $s }
+      foreach ($s in $pending) { if (Test-Ours $s) { $byId[[string]$s.id] = $s } }
       $docs = @($byId.Values | Sort-Object { [long]$_.id } -Descending | ForEach-Object { Get-Doc $_ })
       Send-Response $ctx 200 ([ordered]@{ docs = [object[]]$docs; more = $more })
     }

@@ -362,6 +362,40 @@ test("ayudante de firma: el historial llega de a partes, lo más nuevo primero, 
   }
 });
 
+test("ayudante de firma: «hay más» también justo en 100 o 200, y solo se listan los envíos de la herramienta", { skip: !WIN, timeout: 60000 }, async () => {
+  const dir = setup();
+  const ds = await fakeDocuSeal();
+  const meta = { qa_kind: "consent", qa_line: "oc", qa_net: "consent", qa_file: "Prueba, Ana - OC_Consent.pdf" };
+  const add = (id, role, metadata) => {
+    ds.subs[id] = { template: 1, created: "2026-11-21T14:00:00.000Z", archived: null, submitters: [{ id: 5000 + id, role, name: "Ana Prueba",
+      email: "ana@example.com", slug: "s" + id, metadata, values: [], opened: null, completed: "2026-11-21T16:00:00.000Z", declined: null }] };
+  };
+  for (let i = 1; i <= 200; i++) { add(i, "Cliente", meta); }
+  let helper;
+  try {
+    helper = await startHelper(dir, ds.port);
+    const port = helper.port;
+    const hundred = (await post(port, "/list", { limit: 100 })).json;
+    assert.deepEqual([hundred.docs.length, hundred.more], [100, true], "quedan 100 más viejos");
+    const twoHundred = (await post(port, "/list", { limit: 200 })).json;
+    assert.deepEqual([twoHundred.docs.length, twoHundred.more], [200, false], "no queda nada");
+    /* lo que no envió la herramienta (sin sus datos, o sin el firmante Cliente) no se lista */
+    add(201, "Cliente", {});
+    add(202, "Signer", meta);
+    add(203, "Cliente", Object.assign({}, meta, { qa_kind: "otro" }));
+    const newest = (await post(port, "/list", { limit: 25 })).json;
+    assert.equal(newest.docs.length, 25);
+    assert.equal(newest.docs[0].id, "200");
+    assert.equal(newest.docs.some((x) => ["201", "202", "203"].includes(x.id)), false);
+    const again = (await post(port, "/list", { limit: 200 })).json;
+    assert.deepEqual([again.docs.length, again.more], [200, false]);
+  } finally {
+    await stopHelper(helper);
+    ds.server.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("ayudante de firma: si el servidor rechaza el envío, la herramienta ve por qué; el registro no", { skip: !WIN, timeout: 60000 }, async () => {
   const dir = setup();
   const ds = await fakeDocuSeal({ reject: [422, { error: "Template not found" }] });

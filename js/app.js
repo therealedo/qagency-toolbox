@@ -2034,7 +2034,11 @@
   function sentLink(kind, d) {
     var file = FM.downloadName(d, kind), email = U.collapse(S.f.clienteEmail).toLowerCase();
     var same = function (x) { return x.fileName === file && String(x.email || "").toLowerCase() === email; };
-    if (helper.sent && helper.sent.kind === kind && same(helper.sent)) { return helper.sent.link; }
+    if (helper.sent && helper.sent.kind === kind && same(helper.sent)) {
+      /* ya firmó el cliente (o terminó sin firmar): el enlace ya no sirve */
+      var now = helper.docs.filter(function (x) { return x.id === helper.sent.id; })[0];
+      return !now || ["sent", "viewed"].indexOf(String(now.status).toLowerCase()) >= 0 ? helper.sent.link : "";
+    }
     var doc = (helper.ok ? helper.docs : []).filter(function (x) {
       var m = x.meta || {};
       return m.kind === kind && FM.signLink(x.link) && same({ fileName: m.fileName, email: x.email });
@@ -2202,7 +2206,8 @@
     helperFetch("/send", r.body).then(function (res) {
       flashButton(btn);
       if (res && FM.signLink(res.link)) {
-        helper.sent = { kind: kind, fileName: r.body.meta.fileName, email: r.body.recipient.email.toLowerCase(), link: FM.signLink(res.link) };
+        helper.sent = { id: String(res.id || ""), kind: kind, fileName: r.body.meta.fileName, email: r.body.recipient.email.toLowerCase(),
+          link: FM.signLink(res.link) };
       }
       renderSign(data());
       toast("Enlace de firma del " + title + " listo: mándaselo al cliente por SMS o email. Su estado se ve en Firmas.");
@@ -2245,6 +2250,8 @@
   function autoSaveSigned(doc) {
     var id = doc.id, meta = doc.meta || {}, name = signedName(doc);
     if (helper.busy[id] || helper.tried[id] || !canSave) { return; }
+    /* sin formulario ni carpeta no se sabe dónde va: no se guarda solo */
+    if (!FIRMAS_KIND[meta.kind] || !meta.netKey || !meta.fileName) { return; }
     helper.tried[id] = true;
     var dir = N.netDirFor(netDirs, meta.line || S.line, meta.netKey).dir;
     if (!dir) { helper.note[id] = "Falta elegir la carpeta del Network en Ajustes: usa Guardar o Descargar."; renderFirmas(); return; }
@@ -2310,7 +2317,7 @@
     btn.disabled = true;
     helperFetch("/delete", { id: doc.id }).then(function () {
       helper.docs = helper.docs.filter(function (x) { return x.id !== doc.id; });
-      if (helper.sent && helper.sent.link === doc.link) { helper.sent = null; }
+      if (helper.sent && helper.sent.id === doc.id) { helper.sent = null; }
       renderFirmas();
       renderSign(data());
       toast((cancel ? "Envío cancelado: " : "Borrado de Firmas: ") + name + ".");
