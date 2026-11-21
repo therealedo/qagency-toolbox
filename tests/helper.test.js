@@ -272,6 +272,33 @@ test("ayudante de firma: el historial llega de a partes, lo más nuevo primero, 
   }
 });
 
+test("ayudante de firma: si SignWell rechaza el envío, la herramienta ve por qué; el registro solo los nombres de las claves", { skip: !WIN, timeout: 60000 }, async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "qa-helper-"));
+  let reply = [400, { errors: { message: "The request contains invalid key values.", invalid_keys: ["language", "bad key!"] } }];
+  const sw = http.createServer((req, res) => { req.resume(); req.on("end", () => { res.writeHead(reply[0], { "Content-Type": "application/json" }); res.end(JSON.stringify(reply[1])); }); });
+  await new Promise((r) => sw.listen(0, "127.0.0.1", r));
+  let helper;
+  try {
+    writeKey(dir);
+    fs.writeFileSync(path.join(dir, "token.txt"), TOKEN);
+    helper = await startHelper(dir, sw.address().port);
+    const r400 = await post(helper.port, "/send", SEND);
+    assert.deepEqual([r400.status, r400.json], [502, { error: "signwell", status: 400,
+      detail: "The request contains invalid key values. (language)" }]);
+    reply = [422, { errors: { template_fields: ["DateField value must be in Iso8601 format."], custom_requester_name: "is too long (maximum is 100 characters)" } }];
+    const r422 = await post(helper.port, "/send", SEND);
+    assert.equal(r422.json.detail, "template_fields: DateField value must be in Iso8601 format. custom_requester_name: is too long (maximum is 100 characters)");
+    const log = fs.readFileSync(path.join(dir, "registro.log"), "utf8");
+    assert.match(log, /send http 400 claves=language\b/);
+    assert.match(log, /send http 422 claves=template_fields,custom_requester_name\b/);
+    assert.ok(!log.includes("Iso8601") && !log.includes("invalid key values"), "el registro no lleva el texto de SignWell");
+  } finally {
+    await stopHelper(helper);
+    sw.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("ayudante de firma: un documentos.json ilegible se aparta, no se pisa", { skip: !WIN, timeout: 60000 }, async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "qa-helper-"));
   const sw = await fakeSignWell();

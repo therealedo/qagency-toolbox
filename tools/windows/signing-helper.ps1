@@ -141,6 +141,33 @@ function Read-Json($bytes) {
   try { return ([Text.Encoding]::UTF8.GetString($bytes) | ConvertFrom-Json) } catch { return $null }
 }
 
+# Por que SignWell rechazo un envio: el texto va a la herramienta (para
+# que se vea que corregir); al registro solo los nombres de las claves.
+$keyOk = '^[A-Za-z0-9_.\[\]-]{1,80}$'
+function Get-SignWellError($res) {
+  $keys = New-Object System.Collections.ArrayList
+  $invalid = New-Object System.Collections.ArrayList
+  $parts = New-Object System.Collections.ArrayList
+  $e = $null
+  if ($res) { $e = $res.errors; if ($null -eq $e) { $e = $res.error } }
+  if ($e -is [string]) { [void]$parts.Add($e) }
+  elseif ($null -ne $e) {
+    foreach ($p in $e.PSObject.Properties) {
+      if ($p.Name -eq "message") { [void]$parts.Insert(0, [string]$p.Value); continue }
+      if ($p.Name -eq "invalid_keys") { foreach ($k in @($p.Value)) { if ([string]$k -match $keyOk) { [void]$invalid.Add([string]$k) } }; continue }
+      if ($p.Name -notmatch $keyOk) { continue }
+      [void]$keys.Add($p.Name)
+      $v = $p.Value
+      $txt = if ($v -is [string]) { $v } elseif ($v -is [array]) { (@($v) | ForEach-Object { [string]$_ }) -join " " } else { ConvertTo-Json -InputObject $v -Compress -Depth 4 }
+      [void]$parts.Add($p.Name + ": " + $txt)
+    }
+  }
+  $detail = ($parts.ToArray() -join " ")
+  if ($invalid.Count) { $detail = ($detail + " (" + ($invalid.ToArray() -join ", ") + ")").Trim() }
+  if ($detail.Length -gt 500) { $detail = $detail.Substring(0, 500) }
+  return @{ detail = $detail; keys = [object[]](@($invalid.ToArray()) + @($keys.ToArray())) }
+}
+
 function Get-Meta($doc) {
   $m = $doc.metadata
   if ($null -eq $m) { return @{} }
@@ -285,8 +312,11 @@ function Handle($ctx) {
       try { $r = Invoke-SignWell "POST" "/document_templates/documents" $doc } catch { Write-Log "send sin conexion"; Send-Response $ctx 502 @{ error = "conexion" }; return }
       $res = Read-Json $r.bytes
       if ($r.code -lt 200 -or $r.code -ge 300 -or -not $res -or -not ([string]$res.id -match $idOk)) {
-        Write-Log ("send http " + $r.code)
-        Send-Response $ctx 502 @{ error = "signwell"; status = $r.code }; return
+        $why = Get-SignWellError $res
+        Write-Log ("send http " + $r.code + $(if ($why.keys.Count) { " claves=" + ($why.keys -join ",") } else { "" }))
+        $out = @{ error = "signwell"; status = $r.code }
+        if ($why.detail) { $out.detail = $why.detail }
+        Send-Response $ctx 502 $out; return
       }
       $id = [string]$res.id
       if (-not (Find-Doc $id)) { [void]$docs.Add((New-Entry $id ((Get-Date).ToUniversalTime().ToString("o")) $false "")); Save-Docs }

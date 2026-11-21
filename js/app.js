@@ -2150,7 +2150,10 @@
 
   function sendError(e) {
     var info = (e && e.info) || {};
-    if (info.error === "signwell") { return "SignWell no aceptó el envío (" + info.status + "). Revisa el ID de la plantilla y que su firmante se llame «" + FM.SIGN_PLACEHOLDER + "»."; }
+    if (info.error === "signwell") {
+      return "SignWell no aceptó el envío (" + info.status + ")" + (info.detail ? ": " + String(info.detail).slice(0, 500) + "." :
+        ". Revisa el ID de la plantilla y que su firmante se llame «" + FM.SIGN_PLACEHOLDER + "».");
+    }
     if (info.error === "datos") { return "El ayudante de firma rechazó los datos: revisa el nombre y el email del cliente."; }
     if (info.error === "conexion") { return "No hubo conexión con SignWell. Intenta de nuevo en un momento."; }
     if (info.error === "sin-clave") { return "Falta la clave de SignWell en esta computadora: agrégala con «Clave de firma.bat»."; }
