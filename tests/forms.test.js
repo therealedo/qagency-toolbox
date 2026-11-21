@@ -389,6 +389,14 @@ test("tablero Firmas: cuenta por grupo, filtra y deja el orden del ayudante", ()
   assert.deepEqual(F.signDashboard([], "all"), { counts: { pending: 0, signed: 0, unsigned: 0, all: 0, toSave: 0 }, rows: [] });
 });
 
+test("tablero Firmas: «Ver más» sube de a 25 y nunca pasa el tope del ayudante (1000)", () => {
+  assert.equal(F.SIGN_HISTORY_MAX, 1000);
+  assert.equal(F.nextHistoryLimit(25), 50);
+  assert.equal(F.nextHistoryLimit(975), 1000);
+  assert.equal(F.nextHistoryLimit(990), 1000);
+  assert.equal(F.nextHistoryLimit(1000), 1000);
+});
+
 test("tablero Firmas: fechas de SignWell como MM/DD/AAAA", () => {
   assert.equal(F.signDate("2026-11-20T12:00:00Z"), "11/20/2026");
   assert.equal(F.signDate("2026-03-05T12:00:00.0000000Z"), "03/05/2026");

@@ -269,6 +269,11 @@
     return { counts: counts, rows: rows };
   }
 
+  /* «Ver más del historial» pide 25 más, hasta el tope que acepta el
+     ayudante (/list rechaza un límite mayor). */
+  var SIGN_HISTORY_STEP = 25, SIGN_HISTORY_MAX = 1000;
+  function nextHistoryLimit(limit) { return Math.min(SIGN_HISTORY_MAX, (Number(limit) || 0) + SIGN_HISTORY_STEP); }
+
   /* Fecha ISO de SignWell (o del ayudante) como MM/DD/AAAA, en la hora local. */
   function signDate(iso) {
     var t = iso ? new Date(iso) : null;
@@ -468,6 +473,7 @@
     fieldMap: fieldMap, cliqText: cliqText, signFields: signFields, signingUrl: signingUrl, signTexts: signTexts, downloadName: downloadName,
     SIGN_PLACEHOLDER: SIGN_PLACEHOLDER, buildSendPayload: buildSendPayload, signedStatus: signedStatus,
     signActions: signActions, signDashboard: signDashboard, signDate: signDate,
+    SIGN_HISTORY_STEP: SIGN_HISTORY_STEP, SIGN_HISTORY_MAX: SIGN_HISTORY_MAX, nextHistoryLimit: nextHistoryLimit,
     templateBytes: templateBytes, fillPdf: fillPdf
   };
   root.QA = root.QA || {};

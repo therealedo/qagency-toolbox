@@ -2053,8 +2053,7 @@
      permiso, y si no, quedan Guardar y Descargar. Los documentos se quedan
      en SignWell: son el historial del tablero Firmas, donde también se
      cancela uno enviado por error y se borra uno que no se firmó. */
-  var HISTORY_STEP = 25;
-  var helper = { token: "", up: false, ok: false, testMode: true, docs: [], total: 0, limit: HISTORY_STEP, filter: "all",
+  var helper = { token: "", up: false, ok: false, testMode: true, docs: [], total: 0, limit: FM.SIGN_HISTORY_STEP, filter: "all",
     pdfs: {}, busy: {}, tried: {}, savePending: {}, downloaded: {}, note: {} };
 
   function loadHelper() {
@@ -2104,8 +2103,10 @@
         /* guardado, pero el ayudante no lo pudo marcar: se reintenta */
         if (helper.savePending[doc.id]) { markSaved(doc, ""); } else { autoSaveSigned(doc); }
       });
-    }).catch(function () {
-      helper.up = false; helper.ok = false;
+    }).catch(function (e) {
+      /* sin respuesta: el ayudante no está. Si respondió con un error, sigue
+         abierto y la lista queda como estaba. */
+      if (!e || !e.info) { helper.up = false; helper.ok = false; }
       renderFirmas();
       renderSign(data());
     });
@@ -2357,7 +2358,7 @@
     empty.textContent = docs.length ? "No hay documentos en este grupo." :
       "Todavía no hay documentos enviados a firmar desde esta computadora. Se envían desde la sección Consent o SOA de la nota.";
     var shown = docs.filter(isClosedDoc).length, more = $("firmasMore");
-    more.hidden = !helper.ok || helper.total <= shown;
+    more.hidden = !helper.ok || helper.total <= shown || helper.limit >= FM.SIGN_HISTORY_MAX;
     more.textContent = "Ver más del historial (" + Math.max(0, helper.total - shown) + " más)";
   }
 
@@ -3526,7 +3527,7 @@
       renderFirmas();
     });
     $("firmasMore").addEventListener("click", function () {
-      helper.limit += HISTORY_STEP;
+      helper.limit = FM.nextHistoryLimit(helper.limit);
       checkHelper(false);
     });
     $("sheetPrint").addEventListener("click", printSheet);
