@@ -166,18 +166,18 @@
           </div>
           <div class="sign-block" id="signSendBox">
             <div class="out-sub">
-              <h3>Enviar a firmar (SignWell)</h3>
-              <button type="button" class="btn small primary" id="signSend" hidden>Enviar para firmar</button>
+              <h3>Enviar a firmar</h3>
+              <button type="button" class="btn small primary" id="signSend" hidden>Crear enlace de firma</button>
             </div>
-            <p class="sign-warn" id="signSendWarn" role="note" hidden><strong>Modo de prueba.</strong> Usa solo datos de prueba: Q Agency todavía no tiene un acuerdo de privacidad (BAA) con SignWell, y el documento de prueba no vale legalmente.</p>
+            <p class="sign-warn" id="signSendWarn" role="note"><strong>Servidor de prueba.</strong> Usa solo datos de prueba hasta que Q Agency tenga su propio servidor de firma con el acuerdo de privacidad (BAA).</p>
             <p class="muted sign-hint" id="signSendStatus"></p>
           </div>
           <div class="sign-block" id="signLinkBox" hidden>
             <div class="out-sub">
-              <h3>Enviar enlace de firma</h3>
+              <h3>Enlace de firma del cliente</h3>
               <button type="button" class="btn small" id="copySignUrl" data-label="Copiar enlace">Copiar enlace</button>
             </div>
-            <p class="sign-warn" id="signWarn" role="note"><strong>Solo con datos de prueba.</strong> El enlace lleva los datos del cliente en la dirección y pasa por SignWell. No lo envíes a clientes reales hasta que Q Agency firme un acuerdo de privacidad (BAA) con SignWell; mientras tanto, usa el PDF.</p>
+            <p class="sign-warn" id="signWarn" role="note"><strong>Solo con datos de prueba.</strong> No lo envíes a clientes reales hasta que el servidor de firma de Q Agency tenga el acuerdo de privacidad (BAA); mientras tanto, usa el PDF.</p>
             <input type="text" class="mono" id="signUrl" readonly spellcheck="false" aria-label="Enlace de firma">
             <div class="out-sub">
               <h3>SMS</h3>
@@ -311,13 +311,13 @@
   </section>
 
   <!-- ========================================================== FIRMAS -->
-  <!-- Lo enviado a firmar con el ayudante de firma: lo que espera la firma, lo firmado (el historial, que queda en SignWell) y lo que no se firmó -->
+  <!-- Lo enviado a firmar por el equipo con el ayudante de firma: lo que espera la firma, lo firmado (el historial, que queda en el servidor de firma) y lo que no se firmó -->
   <section class="view" id="view-firmas" aria-labelledby="firmasTitle" hidden>
     <div class="firmas">
       <div class="firmas-head">
         <div>
           <h1 id="firmasTitle">Firmas</h1>
-          <p>Los Consent y SOA enviados a firmar desde esta computadora. Cuando el cliente firma, el PDF se guarda solo en su carpeta del Network y queda aquí, en el historial.</p>
+          <p>Los Consent y SOA que el equipo envió a firmar. Cuando el cliente firma, el PDF se guarda solo en su carpeta del Network y queda aquí, en el historial; el SOA lo firma después el agente con «Firmar (agente)».</p>
         </div>
         <button type="button" class="btn small" id="firmasRefresh">Revisar ahora</button>
       </div>
@@ -425,7 +425,7 @@
       <button type="button" class="btn small" id="teamExport">Exportar equipo</button>
       <input type="file" id="teamFile" accept=".json,application/json" hidden>
     </div>
-    <p class="muted">Los nombres y los NPN del equipo no vienen en la herramienta: se guardan solo en este navegador. «Exportar equipo» crea el archivo para pasárselo a otra persona de la oficina; lleva también los enlaces de SignWell.</p>
+    <p class="muted">Los nombres y los NPN del equipo no vienen en la herramienta: se guardan solo en este navegador. «Exportar equipo» crea el archivo para pasárselo a otra persona de la oficina; lleva también los números de las plantillas de firma.</p>
 
     <h3>Carpetas del Network</h3>
     <div class="netdirs" id="netDirBox"></div>
@@ -433,12 +433,8 @@
     <p class="sign-warn" id="netDirLost" role="status" hidden></p>
     <p class="muted" id="netDirNA" hidden>Este navegador no permite guardar en carpetas. Usa Chrome o Edge.</p>
 
-    <h3>Enlaces de firma (SignWell)</h3>
-    <p class="muted">Opcional. Pega el enlace de la plantilla (Template Link) de SignWell de cada formulario. Con el enlace, la sección del Consent o del SOA arma el enlace de firma con los datos del cliente y el SMS y el email para enviarlo. La herramienta no se conecta a SignWell.</p>
-    <div class="signlinks" id="signLinkRows"></div>
-
-    <h3>Envío a firmar (API de SignWell)</h3>
-    <p class="muted">Pega el ID de cada plantilla de SignWell (Template ID). Con el ayudante de firma instalado, la sección del Consent o del SOA envía el formulario al email del cliente; cuando firma, el PDF se guarda solo en el Network. El firmante de cada plantilla debe llamarse «Cliente» y sus campos usar los mismos IDs que el enlace.</p>
+    <h3>Envío a firmar (DocuSeal)</h3>
+    <p class="muted">Escribe el número de cada plantilla de DocuSeal: es el que sale en su dirección (…/templates/5). Con el ayudante de firma instalado, la sección del Consent o del SOA crea el enlace de firma del cliente, sin enviarle ningún email; cuando firma, el PDF se guarda solo en el Network. El firmante de cada plantilla se llama «Cliente»; el del agente en el SOA, «Agente».</p>
     <div class="signlinks" id="signTplRows"></div>
 
     <h3>Formato de la nota</h3>

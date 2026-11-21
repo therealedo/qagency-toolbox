@@ -29,9 +29,7 @@
     var def = {
       v: SETTINGS_VERSION, autor: "", team: clone(C.TEAM), oficina: C.OFFICES[0], telefonos: {},
       botonRojo: true, sinAcentos: false, theme: "", line: "oc",
-      /* enlace de la plantilla de SignWell de cada formulario (FM.TEMPLATES) */
-      signLinks: {},
-      /* ID de la plantilla de SignWell de cada formulario, para el envío por la API */
+      /* número de la plantilla de DocuSeal de cada formulario (FM.TEMPLATES) */
       signTemplates: {},
       /* nombre de cada carpeta del Network elegida, para avisar cuál falta
          si el navegador deja de tenerla */
@@ -48,7 +46,6 @@
     if (!C.LINES[def.line]) { def.line = "oc"; }
     if (C.OFFICES.indexOf(def.oficina) < 0) { def.oficina = C.OFFICES[0]; }
     if (!def.telefonos || typeof def.telefonos !== "object") { def.telefonos = {}; }
-    if (!def.signLinks || typeof def.signLinks !== "object") { def.signLinks = {}; }
     if (!def.signTemplates || typeof def.signTemplates !== "object") { def.signTemplates = {}; }
     if (!def.netDirNames || typeof def.netDirNames !== "object") { def.netDirNames = {}; }
     return def;
@@ -1996,12 +1993,13 @@
     $("signCliq").value = FM.cliqText(kind, N.zohoName(S.f) || (kind === "soa" ? v.beneficiaryName : v.clientName), email, phone);
     fitHeight($("signCliq"));
     renderSignSend(kind, d, v, key, T);
-    var link = U.collapse(settings.signLinks[key]), url = FM.signingUrl(link, kind, v);
+    /* el enlace de firma sale al enviarlo: no se manda ningún email, el
+       agente se lo pasa al cliente por SMS o email */
+    var url = sentLink(kind, d);
     $("signLinkBox").hidden = !url;
-    $("signLinkHint").hidden = !!url;
+    $("signLinkHint").hidden = !!url || !helper.ok;
     if (!url) {
-      $("signLinkHint").textContent = link ? "El enlace de SignWell de «" + T.label + "» en Ajustes no es válido: debe empezar con https://."
-        : "Para enviar un enlace de firma, agrega en Ajustes el enlace de SignWell de «" + T.label + "».";
+      $("signLinkHint").textContent = "Al enviarlo a firmar, aquí sale el enlace para mandárselo al cliente por SMS o email.";
       return;
     }
     var t = FM.signTexts(kind, d, url);
@@ -2030,28 +2028,36 @@
     }, function () { toast("No se pudo llenar el PDF."); }).then(function () { btn.disabled = false; });
   }
 
-  /* los enlaces de los formularios que existen, para el archivo del equipo */
-  function formLinks() {
-    var out = {};
-    Object.keys(FM.TEMPLATES).forEach(function (k) { if (settings.signLinks[k]) { out[k] = settings.signLinks[k]; } });
-    return out;
+  /* El enlace del cliente para este documento: el del envío que se acaba de
+     hacer o, después, el de Firmas (el más nuevo con el mismo archivo y el
+     mismo email), mientras espera la firma. */
+  function sentLink(kind, d) {
+    var file = FM.downloadName(d, kind), email = U.collapse(S.f.clienteEmail).toLowerCase();
+    var same = function (x) { return x.fileName === file && String(x.email || "").toLowerCase() === email; };
+    if (helper.sent && helper.sent.kind === kind && same(helper.sent)) { return helper.sent.link; }
+    var doc = (helper.ok ? helper.docs : []).filter(function (x) {
+      var m = x.meta || {};
+      return m.kind === kind && FM.signLink(x.link) && same({ fileName: m.fileName, email: x.email });
+    })[0];
+    return doc ? FM.signLink(doc.link) : "";
   }
-  /* igual, los IDs de las plantillas de SignWell para el envío por la API */
+
+  /* los números de las plantillas de DocuSeal, para el archivo del equipo */
   function formTemplateIds() {
     var out = {};
     Object.keys(FM.TEMPLATES).forEach(function (k) { if (settings.signTemplates[k]) { out[k] = settings.signTemplates[k]; } });
     return out;
   }
 
-  /* Ajustes: el ID de la plantilla de SignWell de cada formulario */
+  /* Ajustes: el número de la plantilla de DocuSeal de cada formulario */
   function renderSignTemplates() {
     var box = $("signTplRows");
     box.textContent = "";
     Object.keys(FM.TEMPLATES).forEach(function (k) {
       var lab = el("label", "mini");
       lab.appendChild(el("span", null, FM.TEMPLATES[k].label));
-      var inp = el("input"); inp.type = "text"; inp.spellcheck = false; inp.autocomplete = "off";
-      inp.placeholder = "ID de la plantilla"; inp.value = settings.signTemplates[k] || ""; inp.dataset.signTpl = k;
+      var inp = el("input"); inp.type = "text"; inp.inputMode = "numeric"; inp.spellcheck = false; inp.autocomplete = "off";
+      inp.placeholder = "Número de la plantilla"; inp.value = settings.signTemplates[k] || ""; inp.dataset.signTpl = k;
       lab.appendChild(inp);
       box.appendChild(lab);
     });
@@ -2059,16 +2065,24 @@
 
   /* ------------------------------------------------- ayudante de firma --
      El envío a firmar pasa por signing-helper.ps1, que corre en esta
-     computadora (127.0.0.1) con la clave de SignWell: la página nunca la ve.
+     computadora (127.0.0.1) con la clave de DocuSeal: la página nunca la ve.
      El instalador deja junto a la herramienta helper-config.js con el token
      que el ayudante pide; ninguna página web puede leer ese archivo. Cada
      minuto se pregunta qué documentos ya se firmaron: un firmado se guarda
      solo en su carpeta del Network cuando esa carpeta ya está elegida y con
      permiso, y si no, quedan Guardar y Descargar. Los documentos se quedan
-     en SignWell: son el historial del tablero Firmas, donde también se
-     cancela uno enviado por error y se borra uno que no se firmó. */
-  var helper = { token: "", up: false, ok: false, testMode: true, docs: [], total: 0, limit: FM.SIGN_HISTORY_STEP, filter: "all",
-    pdfs: {}, busy: {}, tried: {}, savePending: {}, downloaded: {}, note: {} };
+     en el servidor de firma: son el historial de todo el equipo en el
+     tablero Firmas, donde también firma el agente el SOA, se cancela uno
+     enviado por error y se borra uno que no se firmó. */
+  var helper = { token: "", up: false, ok: false, error: "", docs: [], more: false, limit: FM.SIGN_HISTORY_STEP, filter: "all",
+    sent: null, pdfs: {}, busy: {}, tried: {}, savePending: {}, downloaded: {}, note: {} };
+
+  /* lo que dice la página cuando el ayudante no tiene la clave o el servidor */
+  function helperProblem() {
+    return helper.error === "sin-servidor"
+      ? "Falta la dirección del servidor de firma en esta computadora: agrégala con «Clave de firma.bat» del paquete de Windows."
+      : "Falta la clave de firma en esta computadora: agrégala con «Clave de firma.bat» del paquete de Windows.";
+  }
 
   function loadHelper() {
     if (location.protocol !== "file:" || !window.fetch) { return; }
@@ -2079,8 +2093,8 @@
       try { delete window.QA_HELPER; } catch (e) { window.QA_HELPER = undefined; }
       if (!c || !/^[0-9a-f]{64}$/.test(String(c.token || ""))) { return; }
       helper.token = c.token;
-      if (viewFromHash() === "firmas") { setView("firmas"); } else { renderFirmas(); checkHelper(true); }
-      setInterval(function () { checkHelper(false); }, 60000);
+      if (viewFromHash() === "firmas") { setView("firmas"); } else { renderFirmas(); checkHelper(); }
+      setInterval(function () { checkHelper(); }, 60000);
     };
     s.onerror = function () { s.remove(); };
     document.head.appendChild(s);
@@ -2102,14 +2116,14 @@
     });
   }
 
-  function checkHelper(refresh) {
+  function checkHelper() {
     if (!helper.token) { return; }
     helperFetch("/health").then(function (h) {
-      helper.up = true; helper.ok = !!h.ok; helper.testMode = h.testMode !== false;
-      return helper.ok ? helperFetch("/list", { refresh: !!refresh, limit: helper.limit }) : { docs: [], total: 0 };
+      helper.up = true; helper.ok = !!h.ok; helper.error = String(h.error || "");
+      return helper.ok ? helperFetch("/list", { limit: helper.limit }) : { docs: [], more: false };
     }).then(function (r) {
       helper.docs = Array.isArray(r.docs) ? r.docs : [];
-      helper.total = Number(r.total) || 0;
+      helper.more = !!r.more;
       renderFirmas();
       renderSign(data());
       helper.docs.forEach(function (doc) {
@@ -2126,37 +2140,40 @@
     });
   }
 
+  /* «Enviado por» en Firmas: quien usa la herramienta (o, sin él, el agente del NPN) */
   function requesterName() {
-    var p = people(), who = (p.agent && p.agent.name) || (p.me && p.me.name) || "";
+    var p = people(), who = (p.me && p.me.name) || (p.agent && p.agent.name) || "";
     return U.titleCase(who);
   }
 
+  /* el teléfono del agente del SOA: el Directo del agente del NPN en Ajustes > Equipo */
   function signSendPayload(kind, d, v, key) {
-    return FM.buildSendPayload(kind, d, v, { templateId: settings.signTemplates[key], requester: requesterName() });
+    var ag = people().agent;
+    return FM.buildSendPayload(kind, d, v, { templateId: settings.signTemplates[key], requester: requesterName(), agentTel: (ag && ag.tel) || "" });
   }
 
   /* El bloque «Enviar a firmar» de la sección: qué falta, o el botón. */
   function renderSignSend(kind, d, v, key, T) {
     var btn = $("signSend"), msg = "";
     btn.hidden = true;
-    $("signSendWarn").hidden = true;
     if (!helper.token) {
       msg = "Para enviar a firmar desde aquí, instala la herramienta con el paquete de Windows: trae el ayudante de firma.";
     } else if (!helper.up) {
       msg = "El ayudante de firma no responde. Se abre solo al iniciar sesión en Windows; si sigue así, vuelve a instalar la herramienta.";
     } else if (!helper.ok) {
-      msg = "Falta la clave de SignWell en esta computadora: agrégala con «Clave de firma.bat» del paquete de Windows.";
+      msg = helperProblem();
     } else {
       var r = signSendPayload(kind, d, v, key);
       if (!r.ok) {
-        var what = { plantilla: "el ID de la plantilla «" + T.label + "» en Ajustes", email: "el email del cliente", nombre: "el nombre del cliente" };
+        var what = { plantilla: "el número de la plantilla «" + T.label + "» en Ajustes", email: "el email del cliente", nombre: "el nombre del cliente",
+          agente: "el agente del NPN" };
         msg = "Para enviarlo falta " + r.missing.map(function (m) { return what[m]; }).join(", ") + ".";
       } else {
         btn.hidden = false;
-        $("signSendWarn").hidden = !helper.testMode;
-        msg = (helper.testMode ? "" : "Modo real: el cliente recibe el documento para firmar de verdad. ") +
-          "Se envía al email " + r.body.recipient.email + ", en " + (r.body.language === "en" ? "inglés" : "español") +
-          ". Cuando el cliente firme, el PDF se guarda solo en el Network (" + r.body.meta.fileName + "). Su estado se ve en Firmas.";
+        msg = "Se crea el enlace de firma de " + r.body.recipient.name + " (" + r.body.recipient.email + "); no se le envía ningún email: " +
+          "el enlace sale aquí para mandárselo por SMS o email. " + (kind === "soa"
+          ? "Cuando el cliente firme, " + r.body.agent.name + " firma desde Firmas con sus datos ya llenos, y el PDF se guarda solo en el Network ("
+          : "Cuando el cliente firme, el PDF se guarda solo en el Network (") + r.body.meta.fileName + ").";
       }
     }
     $("signSendStatus").textContent = msg;
@@ -2164,13 +2181,13 @@
 
   function sendError(e) {
     var info = (e && e.info) || {};
-    if (info.error === "signwell") {
-      return "SignWell no aceptó el envío (" + info.status + ")" + (info.detail ? ": " + String(info.detail).slice(0, 500) + "." :
-        ". Revisa el ID de la plantilla y que su firmante se llame «" + FM.SIGN_PLACEHOLDER + "».");
+    if (info.error === "docuseal") {
+      return "El servidor de firma no aceptó el envío (" + info.status + ")" + (info.detail ? ": " + String(info.detail).slice(0, 500) + "." :
+        ". Revisa el número de la plantilla y que su firmante se llame «Cliente» (y, en el SOA, el segundo «Agente»).");
     }
-    if (info.error === "datos") { return "El ayudante de firma rechazó los datos: revisa el nombre y el email del cliente."; }
-    if (info.error === "conexion") { return "No hubo conexión con SignWell. Intenta de nuevo en un momento."; }
-    if (info.error === "sin-clave") { return "Falta la clave de SignWell en esta computadora: agrégala con «Clave de firma.bat»."; }
+    if (info.error === "datos") { return "El ayudante de firma rechazó los datos: revisa el nombre y el email del cliente y el agente del NPN."; }
+    if (info.error === "conexion") { return "No hubo conexión con el servidor de firma. Intenta de nuevo en un momento."; }
+    if (info.error === "sin-clave" || info.error === "sin-servidor") { helper.error = info.error; return helperProblem(); }
     return "No se pudo enviar a firmar. Revisa que el ayudante de firma esté abierto.";
   }
 
@@ -2180,12 +2197,16 @@
     var key = FM.templateKey(kind, d.oficina, S.f.idioma), r = signSendPayload(kind, d, signValues(d, kind), key);
     if (!r.ok) { return; }
     var title = kind === "soa" ? "SOA" : "Consent";
-    if (!window.confirm("¿Enviar el " + title + " a " + r.body.recipient.email + " para firmar" + (helper.testMode ? " (modo de prueba)" : "") + "?")) { return; }
+    if (!window.confirm("¿Crear el enlace de firma del " + title + " de " + r.body.recipient.name + "?")) { return; }
     btn.disabled = true;
-    helperFetch("/send", r.body).then(function () {
+    helperFetch("/send", r.body).then(function (res) {
       flashButton(btn);
-      toast(title + " enviado a firmar a " + r.body.recipient.email + ". Su estado se ve en Firmas.");
-      checkHelper(false);
+      if (res && FM.signLink(res.link)) {
+        helper.sent = { kind: kind, fileName: r.body.meta.fileName, email: r.body.recipient.email.toLowerCase(), link: FM.signLink(res.link) };
+      }
+      renderSign(data());
+      toast("Enlace de firma del " + title + " listo: mándaselo al cliente por SMS o email. Su estado se ve en Firmas.");
+      checkHelper();
     }, function (e) { toast(sendError(e)); }).then(function () { btn.disabled = false; });
   }
 
@@ -2200,13 +2221,13 @@
     return helperFetch("/pdf", { id: id }, true).then(function (buf) { return (helper.pdfs[id] = new Uint8Array(buf)); });
   }
 
-  /* Ya está en el Network: el ayudante lo marca como guardado (no se borra
-     de SignWell). Si es el documento de la nota abierta, se marca Network. */
+  /* Ya está en el Network: el ayudante lo marca como guardado para todo el
+     equipo (no se borra del servidor). Si es el documento de la nota
+     abierta, se marca Network. */
   function markSaved(doc, msg) {
     var id = doc.id, meta = doc.meta || {};
     helper.savePending[id] = true;
     return helperFetch("/saved", { id: id }).then(function () {
-      if (!doc.saved) { helper.total += 1; }
       doc.saved = true;
       delete helper.savePending[id]; delete helper.pdfs[id]; delete helper.downloaded[id]; delete helper.note[id];
       var d = data();
@@ -2279,23 +2300,44 @@
   }
 
   /* Cancelar uno que espera la firma, o borrar uno que no se firmó: se
-     borra en SignWell y sale de Firmas. Un firmado no llega aquí. */
+     archiva en el servidor de firma y sale de Firmas. Un firmado no llega aquí. */
   function deleteSigned(doc, btn, cancel) {
     var name = signedName(doc);
     var q = cancel
-      ? "¿Cancelar el envío de «" + name + "»" + (doc.email ? " a " + doc.email : "") + "? El cliente ya no podrá firmarlo y se borra de SignWell."
-      : "¿Borrar «" + name + "» de SignWell? No se puede deshacer.";
+      ? "¿Cancelar el envío de «" + name + "»" + (doc.email ? " a " + doc.email : "") + "? El enlace deja de servir y sale de Firmas."
+      : "¿Borrar «" + name + "» de Firmas? No se puede deshacer.";
     if (!window.confirm(q)) { return; }
     btn.disabled = true;
     helperFetch("/delete", { id: doc.id }).then(function () {
       helper.docs = helper.docs.filter(function (x) { return x.id !== doc.id; });
-      if (!cancel) { helper.total = Math.max(0, helper.total - 1); }
+      if (helper.sent && helper.sent.link === doc.link) { helper.sent = null; }
       renderFirmas();
-      toast((cancel ? "Envío cancelado: " : "Borrado de SignWell: ") + name + ".");
+      renderSign(data());
+      toast((cancel ? "Envío cancelado: " : "Borrado de Firmas: ") + name + ".");
     }, function (e) {
       var info = (e && e.info) || {};
-      if (info.error === "firmado") { toast("El cliente ya lo firmó, así que no se " + (cancel ? "canceló" : "borró") + ". Queda en Firmados."); checkHelper(true); return; }
-      toast("No se pudo " + (cancel ? "cancelar" : "borrar") + " en SignWell. Revisa la conexión e intenta de nuevo.");
+      if (info.error === "firmado") { toast("Ya está firmado, así que no se " + (cancel ? "canceló" : "borró") + ". Queda en Firmados."); checkHelper(); return; }
+      toast("No se pudo " + (cancel ? "cancelar" : "borrar") + " en el servidor de firma. Revisa la conexión e intenta de nuevo.");
+    }).then(function () { if (btn.isConnected) { btn.disabled = false; } });
+  }
+
+  /* El agente firma el SOA: el ayudante llena y bloquea sus datos (la fecha
+     de la cita es el día en que firmó el cliente) y da su enlace. La pestaña
+     se abre con el clic, para que el navegador no la bloquee. */
+  function agentSign(doc, btn) {
+    var w = window.open("", "_blank");
+    if (w) { w.opener = null; }
+    btn.disabled = true;
+    helperFetch("/agent", { id: doc.id }).then(function (r) {
+      var link = FM.signLink(r && r.link);
+      if (!link) { throw { info: {} }; }
+      if (w) { w.location.href = link; } else { toast("El navegador bloqueó la pestaña: vuelve a pulsar «Firmar»."); }
+    }).catch(function (e) {
+      if (w) { w.close(); }
+      var info = (e && e.info) || {};
+      if (info.error === "firmado") { toast("Este SOA ya está firmado por el agente."); checkHelper(); return; }
+      if (info.error === "cliente") { toast("El cliente todavía no firmó: el agente firma después."); checkHelper(); return; }
+      toast("No se pudo abrir la firma del agente. Revisa que el ayudante de firma esté abierto.");
     }).then(function () { if (btn.isConnected) { btn.disabled = false; } });
   }
 
@@ -2317,8 +2359,7 @@
 
     var state = $("firmasState"), msg = "";
     if (!helper.up) { msg = "El ayudante de firma no responde. Se abre solo al iniciar sesión en Windows; si sigue así, vuelve a instalar la herramienta."; }
-    else if (!helper.ok) { msg = "Falta la clave de SignWell en esta computadora: agrégala con «Clave de firma.bat» del paquete de Windows."; }
-    else if (helper.testMode) { msg = "Modo de prueba: lo que se envía desde esta computadora es de prueba en SignWell."; }
+    else if (!helper.ok) { msg = helperProblem(); }
     state.textContent = msg;
     state.hidden = !msg;
 
@@ -2343,6 +2384,7 @@
       var when = el("div", "firmas-when");
       var sent = FM.signDate(doc.sent || doc.created), upd = FM.signDate(doc.updated);
       when.appendChild(el("span", "", sent ? "Enviado " + sent : "Enviado"));
+      if (doc.agent) { when.appendChild(el("span", "firmas-sub", "Enviado por " + doc.agent)); }
       if (upd && upd !== sent) { when.appendChild(el("span", "firmas-sub", "Último cambio " + upd)); }
       li.appendChild(when);
 
@@ -2360,6 +2402,8 @@
         acts.appendChild(b);
       }
       FM.signActions(doc).forEach(function (a) {
+        if (a === "agent") { act("Firmar (agente)", "agent", "primary"); }
+        if (a === "link") { act("Copiar enlace", "link"); }
         if (a === "save" && canSave) { act("Guardar", "save", "primary"); }
         if (a === "download") { act("Descargar", "download"); }
         if (a === "cancel") { act("Cancelar envío", "cancel", "ghost"); }
@@ -2373,10 +2417,10 @@
     var empty = $("firmasEmpty");
     empty.hidden = !!dash.rows.length || !helper.ok;
     empty.textContent = docs.length ? "No hay documentos en este grupo." :
-      "Todavía no hay documentos enviados a firmar desde esta computadora. Se envían desde la sección Consent o SOA de la nota.";
-    var shown = docs.filter(isClosedDoc).length, more = $("firmasMore");
-    more.hidden = !helper.ok || helper.total <= shown || helper.limit >= FM.SIGN_HISTORY_MAX;
-    more.textContent = "Ver más del historial (" + Math.max(0, helper.total - shown) + " más)";
+      "Todavía no hay documentos enviados a firmar. Se envían desde la sección Consent o SOA de la nota.";
+    var more = $("firmasMore");
+    more.hidden = !helper.ok || !helper.more || helper.limit >= FM.SIGN_HISTORY_MAX;
+    more.textContent = "Ver más del historial";
   }
 
   function onFirmasClick(e) {
@@ -2385,27 +2429,15 @@
     var doc = helper.docs.filter(function (x) { return x.id === b.dataset.id; })[0];
     if (!doc) { return; }
     var act = b.dataset.firmaAct, name = signedName(doc);
-    if (act === "save") { saveSignedManually(doc, b); }
+    if (act === "agent") { agentSign(doc, b); }
+    else if (act === "link") { copyText(FM.signLink(doc.link), function () { flashButton(b); toast("Enlace de firma copiado: " + name + "."); }); }
+    else if (act === "save") { saveSignedManually(doc, b); }
     else if (act === "download") { downloadSigned(doc, b); }
     else if (act === "cancel") { deleteSigned(doc, b, true); }
     else if (act === "delete") { deleteSigned(doc, b, false); }
     else if (act === "ack") {
       if (window.confirm("¿Ya guardaste «" + name + "» en el Network?")) { markSaved(doc, "Listo: " + name + " quedó como guardado."); }
     }
-  }
-
-  /* Ajustes: un enlace de plantilla de SignWell por formulario */
-  function renderSignLinks() {
-    var box = $("signLinkRows");
-    box.textContent = "";
-    Object.keys(FM.TEMPLATES).forEach(function (k) {
-      var lab = el("label", "mini");
-      lab.appendChild(el("span", null, FM.TEMPLATES[k].label));
-      var inp = el("input"); inp.type = "text"; inp.inputMode = "url"; inp.spellcheck = false;
-      inp.placeholder = "https://www.signwell.com/…"; inp.value = settings.signLinks[k] || ""; inp.dataset.signLink = k;
-      lab.appendChild(inp);
-      box.appendChild(lab);
-    });
   }
 
   function renderTaskOptions(d) {
@@ -3137,7 +3169,7 @@
       if (a.dataset.view === currentView) { a.setAttribute("aria-current", "page"); } else { a.removeAttribute("aria-current"); }
     });
     if (currentView === "tasks") { renderTasks(); }
-    else if (currentView === "firmas") { renderFirmas(); checkHelper(true); }
+    else if (currentView === "firmas") { renderFirmas(); checkHelper(); }
     else { markRail(); }
     window.scrollTo(0, 0);
   }
@@ -3262,7 +3294,6 @@
     renderOfficeTels();
     $("optRojo").checked = settings.botonRojo;
     $("optAcentos").checked = settings.sinAcentos;
-    renderSignLinks();
     renderSignTemplates();
     $("installHelp").textContent = installHelp();
     $("versionTag").textContent = "Versión " + C.VERSION;
@@ -3538,7 +3569,7 @@
     $("signDownload").addEventListener("click", function () { downloadSign(this); });
     $("signSend").addEventListener("click", function () { sendForSignature(this); });
     $("firmasList").addEventListener("click", onFirmasClick);
-    $("firmasRefresh").addEventListener("click", function () { checkHelper(true); });
+    $("firmasRefresh").addEventListener("click", function () { checkHelper(); });
     $("firmasFilter").addEventListener("click", function (e) {
       var b = e.target.closest("[data-filter]");
       if (!b) { return; }
@@ -3547,7 +3578,7 @@
     });
     $("firmasMore").addEventListener("click", function () {
       helper.limit = FM.nextHistoryLimit(helper.limit);
-      checkHelper(false);
+      checkHelper();
     });
     $("sheetPrint").addEventListener("click", printSheet);
     $("sheetSave").addEventListener("click", saveSheet);
@@ -3716,12 +3747,6 @@
       settings.telefonos[o] = U.collapse(e.target.value);
       saveSettings(); refresh();
     });
-    $("signLinkRows").addEventListener("input", function (e) {
-      var k = e.target.dataset.signLink;
-      if (!k) { return; }
-      settings.signLinks[k] = U.collapse(e.target.value);
-      saveSettings();
-    });
     $("signTplRows").addEventListener("input", function (e) {
       var k = e.target.dataset.signTpl;
       if (!k) { return; }
@@ -3764,21 +3789,19 @@
         var current = settings.team.filter(function (t) { return t.name; });
         if (current.length && !window.confirm("¿Reemplazar el equipo de este navegador por el del archivo (" + r.team.length + " personas)?")) { return; }
         settings.team = r.team;
-        /* los enlaces del archivo reemplazan los mismos formularios; los
+        /* las plantillas del archivo reemplazan los mismos formularios; las
            que el archivo no trae se quedan como estaban */
-        var links = Object.keys(r.signLinks).filter(function (k) { return FM.TEMPLATES[k]; });
-        links.forEach(function (k) { settings.signLinks[k] = r.signLinks[k]; });
-        Object.keys(r.signTemplates).filter(function (k) { return FM.TEMPLATES[k]; })
-          .forEach(function (k) { settings.signTemplates[k] = r.signTemplates[k]; });
-        saveSettings(); renderTeam(); renderSignLinks(); renderSignTemplates(); refresh();
+        var tpls = Object.keys(r.signTemplates).filter(function (k) { return FM.TEMPLATES[k]; });
+        tpls.forEach(function (k) { settings.signTemplates[k] = r.signTemplates[k]; });
+        saveSettings(); renderTeam(); renderSignTemplates(); refresh();
         toast("Equipo importado: " + r.team.length + (r.team.length === 1 ? " persona" : " personas") +
-          (links.length ? " y " + links.length + (links.length === 1 ? " enlace" : " enlaces") + " de SignWell." : "."));
+          (tpls.length ? " y " + tpls.length + (tpls.length === 1 ? " plantilla" : " plantillas") + " de firma." : "."));
       }, function () { input.value = ""; toast("No se pudo leer el archivo."); });
     });
     $("teamExport").addEventListener("click", function () {
       if (!settings.team.some(function (t) { return t.name; })) { toast("No hay nadie en el equipo para exportar."); return; }
       var a = el("a");
-      a.href = URL.createObjectURL(new Blob([U.teamFile(settings.team, formLinks(), formTemplateIds())], { type: "application/json" }));
+      a.href = URL.createObjectURL(new Blob([U.teamFile(settings.team, {}, formTemplateIds())], { type: "application/json" }));
       a.download = "QAgency-Equipo.json";
       document.body.appendChild(a); a.click(); a.remove();
       setTimeout(function () { URL.revokeObjectURL(a.href); }, 60000);

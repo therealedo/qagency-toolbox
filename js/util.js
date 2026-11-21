@@ -340,7 +340,7 @@
       signTemplates: Array.isArray(data) ? {} : cleanTemplateIds(data.signTemplates) };
   }
 
-  /* Los IDs de las plantillas de SignWell (envío por la API) también son de
+  /* Los números de las plantillas de firma (DocuSeal) también son de
      la oficina. Solo letras, números, - y _. */
   function cleanTemplateIds(ids) {
     var out = {};
@@ -353,7 +353,7 @@
     return out;
   }
 
-  /* Los enlaces de las plantillas de SignWell van en el mismo archivo: son de
+  /* Los enlaces de plantilla de versiones anteriores (SignWell) se siguen leyendo: son de
      la oficina, no de cada persona. Solo se guardan enlaces https. */
   function cleanLinks(links) {
     var out = {};

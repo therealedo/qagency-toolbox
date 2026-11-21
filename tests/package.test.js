@@ -165,6 +165,20 @@ test("el enlace de firma avisa que es solo para datos de prueba hasta el BAA", (
   assert.match(box, /BAA/);
 });
 
+test("firma con DocuSeal: se crea el enlace (sin email), el servidor de prueba se avisa y Firmas es del equipo", () => {
+  const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
+  const app = fs.readFileSync(path.join(root, "js", "app.js"), "utf8");
+  const send = html.match(/<div class="sign-block" id="signSendBox">[\s\S]*?<div class="sign-block" id="signLinkBox"/)[0];
+  assert.match(send, /id="signSend"[^>]*>Crear enlace de firma</);
+  assert.match(send, /<p class="sign-warn" id="signSendWarn" role="note">/, "el aviso del servidor de prueba siempre se ve");
+  assert.match(send, /Usa solo datos de prueba/);
+  assert.doesNotMatch(html + app, /SignWell|signLinkRows|signLinks|signingUrl/);
+  assert.doesNotMatch(app, /testMode|helper\.total/, "DocuSeal no tiene modo de prueba ni total");
+  assert.match(app, /helperFetch\("\/agent", \{ id: doc\.id \}\)/, "el agente firma el SOA desde Firmas");
+  assert.match(app, /"Enviado por " \+ doc\.agent/);
+  assert.match(html, /placeholder|Número de la plantilla|\/templates\/5/);
+});
+
 test("el paquete de Windows va firmado con la llave que el actualizador acepta", () => {
   const S = require("../tools/sign.js");
   const ps = fs.readFileSync(path.join(root, "tools", "windows", "actualizar.ps1"), "utf8");
