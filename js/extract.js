@@ -1164,10 +1164,16 @@
     return out.join(", ");
   }
 
-  /* "beatriz.diaz@example.com"; uno mal leído por el OCR no pasa */
+  /* "beatriz.diaz@example.com"; uno mal leído por el OCR no pasa, salvo la
+     "@" leída como O, Q, © o ® delante de un correo conocido: en un email en
+     minúsculas sin "@" esa letra solo puede ser la "@" ("rodri92Ogmail.com") */
+  var WEBMAIL = "(?:gmail|yahoo|hotmail|outlook|icloud|aol|live|msn|ymail)\\.com";
+  var OCR_AT = new RegExp("(^|[\\s:<(])([a-z0-9][a-z0-9._%+-]*)[OQ©®](" + WEBMAIL + ")(?=$|[\\s>),;])");
   function vEmail(t) {
     var m = String(t || "").match(/(^|[\s:<(])([A-Za-z0-9][A-Za-z0-9._%+-]*@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,})(?=$|[\s>),;])/);
-    return m ? m[2].toLowerCase() : "";
+    if (m) { return m[2].toLowerCase(); }
+    m = String(t || "").match(OCR_AT);
+    return m ? m[2] + "@" + m[3] : "";
   }
 
   /* "Mobile: (305) 555-0147", "305.555.0147", "+1 305-555-0147" -> "(305) 555-0147" */

@@ -651,6 +651,22 @@ test("App Summary leído con OCR: un teléfono o email mal leído no se llena", 
   assert.equal(r.fields.clienteTel, undefined);
 });
 
+/* el OCR lee la "@" como una O mayúscula (o Q, ©, ®): delante de un correo
+   conocido (gmail.com…) solo puede ser la "@" */
+test("App Summary leído con OCR: la @ leída como O delante de gmail.com se recupera", () => {
+  const withEmail = (e) => X.extract(fixture("OC App Summary OCR").replace("«abcde   Cexample.com", e), "a.pdf", "oc").fields.clienteEmail;
+  assert.equal(withEmail("laura92Ogmail.com"), "laura92@gmail.com");
+  assert.equal(withEmail("laura.ramosQyahoo.com"), "laura.ramos@yahoo.com");
+  assert.equal(withEmail("laura_r©hotmail.com"), "laura_r@hotmail.com");
+  /* sin una letra que pase por la @, o con otro dominio, no se adivina */
+  assert.equal(withEmail("laura92gmail.com"), undefined);
+  assert.equal(withEmail("laura0gmail.com"), undefined);
+  assert.equal(withEmail("lauraOexample.com"), undefined);
+  assert.equal(withEmail("LauraOgmail.com"), undefined);
+  /* uno bien leído sigue igual */
+  assert.equal(withEmail("laura92@gmail.com"), "laura92@gmail.com");
+});
+
 test("App Summary: el número gratuito del Mercado no es el teléfono del cliente", () => {
   const r = X.extract("HealthCare.gov\nReview your application\nApplication ID: 4412345678\nFull name\nBeatriz Diaz\n" +
     "Phone\n1-800-318-2596\n", "App Summary.pdf", "oc");
