@@ -1707,7 +1707,7 @@
     /* SMS de una app enviada (Obamacare, Medicare o Suplementario) y email
        de una app de Obamacare o de Suplementario, o con la cotización de
        Obamacare si revisará los planes: en español o en inglés */
-    var quote = isOC("pendiente") && !!S.f.revisaPlanes && !!N.buildEmail(d, 1);
+    var quote = (isOC("pendiente") && !!S.f.revisaPlanes && !!N.buildEmail(d, 1)) || isSupp("cotizacion");
     var smsLang = O().id === "enviada", email = isOC("enviada") || isSupp("enviada") || quote;
     each(document.querySelectorAll("[data-lang-seg]"), function (seg) {
       /* el Consent y el SOA siempre: su plantilla sale del idioma */

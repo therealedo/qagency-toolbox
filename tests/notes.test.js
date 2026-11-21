@@ -807,7 +807,8 @@ test("email Suplementario: aplicación enviada en español e inglés", () => {
   assert.equal(N.buildEmail(d, 2), "");
   assert.doesNotMatch(N.buildEmail(Object.assign({}, d, { poliza: "" }), 1), /ID #/);
   assert.match(N.buildEmail(Object.assign({}, d, { compania: "UHC" }), 1), /\nCompañía UnitedHealthcare\n/);
-  assert.equal(N.buildEmail(make({ line: "supp", outcome: "cotizacion" }), 1), "");
+  /* la cotización tiene su propio email (abajo) */
+  assert.match(N.buildEmail(make({ line: "supp", outcome: "cotizacion" }), 1), /^Estimado Beatriz\n\nSe envía cotización/);
 });
 
 test("SMS: cuenta caracteres y mensajes", () => {
@@ -1035,7 +1036,7 @@ test("copiar siguiente: el orden salta lo que la situación no muestra", () => {
   const order = (extra) => N.copyOrder(make(extra));
   assert.deepEqual(order({ line: "oc", outcome: "enviada", gestion: "nueva" }), ["note", "task", "report", "sms", "email1", "email2"]);
   assert.deepEqual(order({ line: "supp", outcome: "enviada", gestion: "nueva" }), ["note", "task", "report", "sms", "email1"]);
-  assert.deepEqual(order({ line: "supp", outcome: "cotizacion" }), ["note", "task", "sms"]);
+  assert.deepEqual(order({ line: "supp", outcome: "cotizacion" }), ["note", "task", "sms", "email1"]);
   assert.deepEqual(order({ line: "mc", outcome: "sincambio" }), ["note", "task", "report"]);
   assert.deepEqual(order({ line: "oc", outcome: "pendiente" }), ["note", "task"]);
 });
@@ -1523,4 +1524,52 @@ test("email: el saludo lleva el primer nombre del titular, o Cliente si no hay n
   assert.match(N.buildEmail(supp, 1), /^Estimado Cliente\n/);
   const cot = make({ line: "oc", outcome: "pendiente", revisaPlanes: true, nombres: "LUIS", planes: [{ compania: "Ambetter", plan: "Silver", prima: "10" }] });
   assert.match(N.buildEmail(cot, 1), /^Estimado Luis\n/);
+});
+
+/* El email de la cotización de Suplementario, como las plantillas de la
+   agencia de Accidente y de Hospital, en español y en inglés: solo el texto,
+   para pegarlo. */
+test("email Suplementario: cotización de Accidente y de Hospital, en español e inglés", () => {
+  const d = make({ line: "supp", outcome: "cotizacion", producto: "Accident", genero: "a", compania: "UHC",
+    plan: "Accident Protection Plus", prima: "24.5", firmaNombre: "IRMA MORA" });
+  assert.equal(N.buildEmail(d, 1), [
+    "Estimada Beatriz",
+    "",
+    "Se envía cotización del Plan de Accidente Accident Protection Plus de la compañía UnitedHealthcare",
+    "Prima Mensual Estimada: $24.50",
+    "Envío Brochure con los detalles y beneficios del plan (Ver adjunto)",
+    "",
+    "¡Los mejores ahorros son nuestras mejores opciones!",
+    "",
+    "Cualquier duda u observación se puede comunicar con nosotros de inmediato y hacer su aplicación.",
+    "",
+    "Saludos,",
+    "Irma Mora"
+  ].join("\n"));
+  assert.equal(N.buildEmail(Object.assign({}, d, { idioma: "en" }), 1), [
+    "Dear Beatriz",
+    "",
+    "Here is your quote for the Accident Plan Accident Protection Plus from UnitedHealthcare",
+    "Estimated Monthly Premium: $24.50",
+    "Attached is a brochure with the plan's details and benefits (see attachment)",
+    "",
+    "The best savings are our best options!",
+    "",
+    "If you have any questions or comments, contact us right away to start your application.",
+    "",
+    "Best regards,",
+    "Irma Mora"
+  ].join("\n"));
+  const h = make({ line: "supp", outcome: "cotizacion", producto: "Hospital", compania: "UHC", firmaNombre: "IRMA MORA" });
+  assert.equal(N.buildEmail(h, 1).split("\n")[2], "Se envía cotización del Plan de Hospital de la compañía UnitedHealthcare");
+  assert.equal(N.buildEmail(Object.assign({}, h, { idioma: "en" }), 1).split("\n")[2],
+    "Here is your quote for the Hospital Plan from UnitedHealthcare");
+  /* sin prima no va la línea de la prima; otro producto se nombra como en el SMS */
+  assert.ok(!/Prima Mensual/.test(N.buildEmail(h, 1)));
+  assert.equal(N.buildEmail(make({ line: "supp", outcome: "cotizacion", producto: "Dental", compania: "Cigna", plan: "Dental Plus" }), 1).split("\n")[2],
+    "Se envía cotización del seguro dental Dental Plus de la compañía Cigna");
+  assert.equal(N.buildEmail(make({ line: "supp", outcome: "cotizacion", producto: "Dental", idioma: "en", compania: "Cigna", plan: "Dental Plus" }), 1).split("\n")[2],
+    "Here is your quote for the dental insurance Dental Plus from Cigna");
+  /* una sola parte */
+  assert.equal(N.buildEmail(d, 2), "");
 });
