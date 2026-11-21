@@ -7,7 +7,8 @@
   "use strict";
 
   var LANGS = ["spa", "eng"];
-  var MAX_PAGES = 6;          /* páginas de un PDF escaneado que se leen */
+  var MAX_PAGES = 20;         /* páginas de un PDF escaneado que se leen: un App
+                                 Summary lleva unas 2 por persona */
   var PAGE_SCALE = 3;         /* unos 216 dpi: buena lectura sin ser lento */
   var MAX_PIXELS = 12e6;      /* tope de tamaño de cada imagen que se lee */
   var IDLE_MS = 120000;       /* el worker se cierra tras 2 min sin uso */

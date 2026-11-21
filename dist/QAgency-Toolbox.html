@@ -1613,7 +1613,7 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
 (function (root) {
   "use strict";
 
-  var VERSION = "1.25.2";
+  var VERSION = "1.25.3";
   /* De aquí la herramienta instalada lee el número de la última versión (y
      nada más). La política de seguridad de index.html solo permite esta
      dirección, y el actualizador de Windows usa el mismo repositorio. */
@@ -6999,7 +6999,8 @@ window.QA_OCR_LANG.eng = "H4sICDJv42QAA2VuZy50cmFpbmVkZGF0YQDM/IWXXceVwI0evHQuM2
   "use strict";
 
   var LANGS = ["spa", "eng"];
-  var MAX_PAGES = 6;          /* páginas de un PDF escaneado que se leen */
+  var MAX_PAGES = 20;         /* páginas de un PDF escaneado que se leen: un App
+                                 Summary lleva unas 2 por persona */
   var PAGE_SCALE = 3;         /* unos 216 dpi: buena lectura sin ser lento */
   var MAX_PIXELS = 12e6;      /* tope de tamaño de cada imagen que se lee */
   var IDLE_MS = 120000;       /* el worker se cierra tras 2 min sin uso */

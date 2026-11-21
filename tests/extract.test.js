@@ -513,6 +513,18 @@ const OC_DOCS = {
     direccion: "Fort Myers, FL 33901-", plataforma: "MKPL", genero: "a", idioma: "en", estadoCivil: "soltero",
     personas: [{ nombre: "LAURA RAMOS", titular: true, dob: "02/17/1941", estatus: "ciudadano", ingreso: "$31,200.00", dependiente: false },
       { nombre: "DIEGO", parentesco: "Hijo/a", ingreso: "$0.00", dependiente: true }] } },
+  /* escaneo de 10 páginas de una familia de 5, leído entero con OCR: los tres
+     hijos son dependientes sin cobertura, también los dos de las últimas
+     páginas */
+  "OC App Summary OCR Family": { type: "oc_app", net: "appsummary", fields: {
+    appId: "4412345690", anio: "2027", nombres: "MORGAN", apellidos: "WHITAKER", ingreso: "$0.00", dob: "11/03/1993",
+    direccion: "100 SW 1st St, Cape Coral, FL 33990-1234", clienteEmail: "morgan.w@example.com", clienteTel: "(239) 555-0142",
+    plataforma: "MKPL", agente: "ANA GOMEZ RUIZ", npn: "12345678", idioma: "en", genero: "a", estadoCivil: "casado",
+    personas: [{ nombre: "MORGAN WHITAKER", titular: true, dob: "11/03/1993", estatus: "ciudadano", ingreso: "$0.00", cobertura: true, dependiente: false },
+      { nombre: "WESLEY WHITAKER", parentesco: "Cónyuge", dob: "08/07/1995", estatus: "ciudadano", ingreso: "$48,000.00", sexo: "o", cobertura: true, dependiente: false },
+      { nombre: "IVY ROSE WHITAKER", parentesco: "Hijo/a", dob: "06/02/2022", ingreso: "$0.00", sexo: "a", cobertura: false, dependiente: true },
+      { nombre: "OWEN WHITAKER", parentesco: "Hijo/a", dob: "05/19/2017", ingreso: "$0.00", sexo: "o", cobertura: false, dependiente: true },
+      { nombre: "LIAM WHITAKER", parentesco: "Hijo/a", dob: "09/27/2012", ingreso: "$0.00", sexo: "o", cobertura: false, dependiente: true }] } },
   /* el resumen impreso de HealthSherpa: el agente arriba en una tabla (su
      email no es el del cliente), el hogar y el ingreso anual en tablas, y el
      SEP por el evento que sí pasó ("moved on or after") */
