@@ -2844,7 +2844,7 @@
       if (dob) { applied += N.mergeHousehold(S.f, [{ titular: true, dob: dob }], rank); }
       if (ing) { applied += N.mergeHousehold(S.f, [{ titular: true, ingreso: ing }], rank, true); }
       if (special.hogar) { S.f.hogarDoc = special.hogar; }
-      if (special.docs) { applied += N.mergeDocs(S.f, special.docs, sent); }
+      if (special.docs) { applied += N.mergeDocs(S.f, special.docs, sent, S.files); }
     }
     /* Medicare: un documento con prima prende el interruptor de la prima */
     if (S.line === "mc" && fields.prima && U.moneyNumber(fields.prima) > 0 && !S.f.tienePrima) { S.f.tienePrima = true; S.auto.tienePrima = true; }
