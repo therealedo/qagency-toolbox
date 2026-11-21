@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <!-- Nada sale de esta página: sin conexiones externas, sin fuentes ni scripts remotos. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' data: blob: file: 'wasm-unsafe-eval'; connect-src https://raw.githubusercontent.com/therealedo/qagency-toolbox/main/package.json; object-src 'none'; base-uri 'self'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' data: blob: file: 'wasm-unsafe-eval'; connect-src https://raw.githubusercontent.com/therealedo/qagency-toolbox/main/package.json http://127.0.0.1:47815; object-src 'none'; base-uri 'self'; form-action 'none'">
 <meta name="color-scheme" content="light dark">
 <meta name="theme-color" content="#F4F6FA" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0B1730" media="(prefers-color-scheme: dark)">
@@ -38,6 +38,11 @@
     <a href="#tasks" data-view="tasks">
       <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><path d="m4 6 1.5 1.5L8 5M4 13l1.5 1.5L8 12M11 6.5h5M11 13.5h5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
       Tasks
+    </a>
+    <a href="#firmas" data-view="firmas" id="navFirmas" hidden>
+      <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><path d="M3.5 15.5c2-1 3-4.5 4.5-4.5s.5 3 2 3 2-2 3-2 1 1.5 3.5 1.5M4 18h12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Firmas
+      <span class="views-badge" id="firmasBadge" hidden></span>
     </a>
   </nav>
 
@@ -147,10 +152,10 @@
             <div class="seg seg-mini" data-lang-seg role="radiogroup" aria-label="Idioma del formulario"></div>
           </div>
           <p class="muted sign-template" id="signTemplate"></p>
-          <div class="grid" id="signGrid"></div>
+          <p class="muted sign-hint" id="signPreviewHint">Así saldrá el documento. Todo viene de la nota: para cambiar un dato, corrígelo arriba.</p>
+          <div class="sheet-frame sign-frame"><div class="sign-preview" id="signPreview" aria-label="Vista previa del documento"></div></div>
           <div class="sign-actions">
             <button type="button" class="btn primary" id="signDownload">Descargar PDF lleno</button>
-            <button type="button" class="link-btn" id="signReset" hidden>Volver a los datos de la nota</button>
           </div>
           <div class="sign-block">
             <div class="out-sub">
@@ -159,12 +164,20 @@
             </div>
             <textarea class="mono one-line" id="signCliq" rows="2" readonly spellcheck="false" aria-label="Texto para Zoho Cliq"></textarea>
           </div>
+          <div class="sign-block" id="signSendBox">
+            <div class="out-sub">
+              <h3>Enviar a firmar</h3>
+              <button type="button" class="btn small primary" id="signSend" hidden>Crear enlace de firma</button>
+            </div>
+            <p class="sign-warn" id="signSendWarn" role="note"><strong>Servidor de prueba.</strong> Usa solo datos de prueba hasta que Q Agency tenga su propio servidor de firma con el acuerdo de privacidad (BAA).</p>
+            <p class="muted sign-hint" id="signSendStatus"></p>
+          </div>
           <div class="sign-block" id="signLinkBox" hidden>
             <div class="out-sub">
-              <h3>Enviar enlace de firma</h3>
+              <h3>Enlace de firma del cliente</h3>
               <button type="button" class="btn small" id="copySignUrl" data-label="Copiar enlace">Copiar enlace</button>
             </div>
-            <p class="sign-warn" id="signWarn" role="note"><strong>Solo con datos de prueba.</strong> El enlace lleva los datos del cliente en la dirección y pasa por SignWell. No lo envíes a clientes reales hasta que Q Agency firme un acuerdo de privacidad (BAA) con SignWell; mientras tanto, usa el PDF.</p>
+            <p class="sign-warn" id="signWarn" role="note"><strong>Solo con datos de prueba.</strong> No lo envíes a clientes reales hasta que el servidor de firma de Q Agency tenga el acuerdo de privacidad (BAA); mientras tanto, usa el PDF.</p>
             <input type="text" class="mono" id="signUrl" readonly spellcheck="false" aria-label="Enlace de firma">
             <div class="out-sub">
               <h3>SMS</h3>
@@ -297,6 +310,32 @@
     </div>
   </section>
 
+  <!-- ========================================================== FIRMAS -->
+  <!-- Lo enviado a firmar por el equipo con el ayudante de firma: lo que espera la firma, lo firmado (el historial, que queda en el servidor de firma) y lo que no se firmó -->
+  <section class="view" id="view-firmas" aria-labelledby="firmasTitle" hidden>
+    <div class="firmas">
+      <div class="firmas-head">
+        <div>
+          <h1 id="firmasTitle">Firmas</h1>
+          <p>Los Consent y SOA que el equipo envió a firmar. Cuando el cliente firma, el PDF se guarda solo en su carpeta del Network y queda aquí, en el historial; el SOA lo firma después el agente con «Firmar (agente)».</p>
+        </div>
+        <button type="button" class="btn small" id="firmasRefresh">Revisar ahora</button>
+      </div>
+      <p class="firmas-state" id="firmasState" role="status" hidden></p>
+      <div class="seg seg-fit firmas-filter" id="firmasFilter" role="group" aria-label="Mostrar">
+        <button type="button" data-filter="all" class="on" aria-pressed="true">Todos <span class="n"></span></button>
+        <button type="button" data-filter="pending" aria-pressed="false">Esperan la firma <span class="n"></span></button>
+        <button type="button" data-filter="signed" aria-pressed="false">Firmados <span class="n"></span></button>
+        <button type="button" data-filter="unsigned" aria-pressed="false">Sin firmar <span class="n"></span></button>
+      </div>
+      <div class="card firmas-card">
+        <ul class="firmas-list" id="firmasList" aria-label="Documentos enviados a firmar"></ul>
+        <p class="firmas-empty" id="firmasEmpty" hidden></p>
+      </div>
+      <button type="button" class="btn small firmas-more" id="firmasMore" hidden>Ver más del historial</button>
+    </div>
+  </section>
+
   <!-- =========================================================== TASKS -->
   <section class="view" id="view-tasks" aria-labelledby="tasksTitle" hidden>
     <div class="tasks">
@@ -386,7 +425,7 @@
       <button type="button" class="btn small" id="teamExport">Exportar equipo</button>
       <input type="file" id="teamFile" accept=".json,application/json" hidden>
     </div>
-    <p class="muted">Los nombres y los NPN del equipo no vienen en la herramienta: se guardan solo en este navegador. «Exportar equipo» crea el archivo para pasárselo a otra persona de la oficina; lleva también los enlaces de SignWell.</p>
+    <p class="muted">Los nombres y los NPN del equipo no vienen en la herramienta: se guardan solo en este navegador. «Exportar equipo» crea el archivo para pasárselo a otra persona de la oficina; lleva también los números de las plantillas de firma.</p>
 
     <h3>Carpetas del Network</h3>
     <div class="netdirs" id="netDirBox"></div>
@@ -394,9 +433,9 @@
     <p class="sign-warn" id="netDirLost" role="status" hidden></p>
     <p class="muted" id="netDirNA" hidden>Este navegador no permite guardar en carpetas. Usa Chrome o Edge.</p>
 
-    <h3>Enlaces de firma (SignWell)</h3>
-    <p class="muted">Opcional. Pega el enlace de la plantilla (Template Link) de SignWell de cada formulario. Con el enlace, la sección del Consent o del SOA arma el enlace de firma con los datos del cliente y el SMS y el email para enviarlo. La herramienta no se conecta a SignWell.</p>
-    <div class="signlinks" id="signLinkRows"></div>
+    <h3>Envío a firmar (DocuSeal)</h3>
+    <p class="muted">Escribe el número de cada plantilla de DocuSeal: es el que sale en su dirección (…/templates/5). Con el ayudante de firma instalado, la sección del Consent o del SOA crea el enlace de firma del cliente, sin enviarle ningún email; cuando firma, el PDF se guarda solo en el Network. El firmante de cada plantilla se llama «Cliente»; el del agente en el SOA, «Agente».</p>
+    <div class="signlinks" id="signTplRows"></div>
 
     <h3>Formato de la nota</h3>
     <label class="check"><input type="checkbox" id="optRojo"><span>Agregar «Se reporta en el botón rojo» cuando es una aplicación enviada</span></label>

@@ -336,10 +336,24 @@
     if (!list) { return { error: TEAM_BAD }; }
     var team = cleanTeam(list);
     if (!team.length) { return { error: "El archivo del equipo no tiene ninguna persona con nombre." }; }
-    return { team: team, signLinks: Array.isArray(data) ? {} : cleanLinks(data.signLinks) };
+    return { team: team, signLinks: Array.isArray(data) ? {} : cleanLinks(data.signLinks),
+      signTemplates: Array.isArray(data) ? {} : cleanTemplateIds(data.signTemplates) };
   }
 
-  /* Los enlaces de las plantillas de SignWell van en el mismo archivo: son de
+  /* Los números de las plantillas de firma (DocuSeal) también son de
+     la oficina. Solo letras, números, - y _. */
+  function cleanTemplateIds(ids) {
+    var out = {};
+    if (!ids || typeof ids !== "object" || Array.isArray(ids)) { return out; }
+    Object.keys(ids).forEach(function (k) {
+      if (!/^[a-z0-9_-]{1,40}$/i.test(k) || typeof ids[k] !== "string") { return; }
+      var id = collapse(ids[k]);
+      if (/^[A-Za-z0-9_-]{1,100}$/.test(id)) { out[k] = id; }
+    });
+    return out;
+  }
+
+  /* Los enlaces de plantilla de versiones anteriores (SignWell) se siguen leyendo: son de
      la oficina, no de cada persona. Solo se guardan enlaces https. */
   function cleanLinks(links) {
     var out = {};
@@ -352,10 +366,11 @@
     return out;
   }
 
-  function teamFile(team, signLinks) {
+  function teamFile(team, signLinks, signTemplates) {
     var file = { app: TEAM_APP, version: 1, team: cleanTeam(team || []) };
-    var links = cleanLinks(signLinks);
+    var links = cleanLinks(signLinks), ids = cleanTemplateIds(signTemplates);
     if (Object.keys(links).length) { file.signLinks = links; }
+    if (Object.keys(ids).length) { file.signTemplates = ids; }
     return JSON.stringify(file, null, 2) + "\n";
   }
 

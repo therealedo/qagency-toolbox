@@ -195,3 +195,17 @@ test("archivo del equipo: lleva los enlaces de SignWell, sin el nombre ni la ofi
   assert.deepEqual(U.parseTeam(U.teamFile(team)).signLinks, {});
   assert.deepEqual(U.parseTeam(JSON.stringify(team)).signLinks, {});
 });
+
+test("archivo del equipo: lleva también los IDs de las plantillas de SignWell (envío por la API), solo letras, números, - y _", () => {
+  const team = [{ name: "Laura Gomez", ini: "LG", npn: "12345678" }];
+  const ids = { "consent-qa-es": " a1B2-c3_d4 ", "soa-en": "", "soa-es": "x y", raro: "<script>" };
+  const file = U.teamFile(team, {}, ids);
+  const data = JSON.parse(file);
+  assert.deepEqual(data.signTemplates, { "consent-qa-es": "a1B2-c3_d4" });
+  assert.equal(data.signLinks, undefined);
+  assert.deepEqual(U.parseTeam(file).signTemplates, { "consent-qa-es": "a1B2-c3_d4" });
+  /* un archivo de antes, sin IDs, sigue sirviendo y sale igual que antes */
+  assert.deepEqual(U.parseTeam(U.teamFile(team)).signTemplates, {});
+  assert.deepEqual(U.parseTeam(JSON.stringify(team)).signTemplates, {});
+  assert.equal(U.teamFile(team, { soa_en: "https://www.signwell.com/abc" }), U.teamFile(team, { soa_en: "https://www.signwell.com/abc" }, {}));
+});

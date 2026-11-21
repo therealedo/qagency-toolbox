@@ -74,11 +74,14 @@ test("al actualizar, el instalador mantiene el navegador del acceso directo que 
   assert.ok(ps.includes("(chrome|msedge|brave)\\.exe$"), "solo si sigue siendo uno de los navegadores conocidos");
 });
 
-test("la página solo puede pedir el número de versión: el OCR solo agrega 'wasm-unsafe-eval'", () => {
+test("la página solo puede pedir el número de versión y hablar con el ayudante de firma local: el OCR solo agrega 'wasm-unsafe-eval'", () => {
   const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
   const csp = html.match(/Content-Security-Policy" content="([^"]+)"/)[1];
   assert.equal(C.UPDATE_URL, "https://raw.githubusercontent.com/therealedo/qagency-toolbox/main/package.json");
-  assert.equal(csp, "default-src 'self' 'unsafe-inline' data: blob: file: 'wasm-unsafe-eval'; connect-src " + C.UPDATE_URL + "; object-src 'none'; base-uri 'self'; form-action 'none'");
+  assert.equal(C.HELPER_URL, "http://127.0.0.1:47815");
+  assert.equal(csp, "default-src 'self' 'unsafe-inline' data: blob: file: 'wasm-unsafe-eval'; connect-src " + C.UPDATE_URL + " " + C.HELPER_URL + "; object-src 'none'; base-uri 'self'; form-action 'none'");
+  /* el mismo puerto que abre el ayudante */
+  assert.match(fs.readFileSync(path.join(root, "tools", "windows", "signing-helper.ps1"), "utf8"), /\[int\]\$Port = 47815/);
   /* el motor y los modelos del OCR van dentro de la herramienta */
   ["vendor/tesseract/ocr-loader.js", "vendor/tesseract/ocr-wasm.js", "vendor/tesseract/ocr-lang-spa.js",
     "vendor/tesseract/ocr-lang-eng.js", "js/ocr.js"].forEach((f) => assert.ok(html.includes('<script src="' + f + '"></script>'), f));
@@ -162,6 +165,20 @@ test("el enlace de firma avisa que es solo para datos de prueba hasta el BAA", (
   assert.match(box, /BAA/);
 });
 
+test("firma con DocuSeal: se crea el enlace (sin email), el servidor de prueba se avisa y Firmas es del equipo", () => {
+  const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
+  const app = fs.readFileSync(path.join(root, "js", "app.js"), "utf8");
+  const send = html.match(/<div class="sign-block" id="signSendBox">[\s\S]*?<div class="sign-block" id="signLinkBox"/)[0];
+  assert.match(send, /id="signSend"[^>]*>Crear enlace de firma</);
+  assert.match(send, /<p class="sign-warn" id="signSendWarn" role="note">/, "el aviso del servidor de prueba siempre se ve");
+  assert.match(send, /Usa solo datos de prueba/);
+  assert.doesNotMatch(html + app, /SignWell|signLinkRows|signLinks|signingUrl/);
+  assert.doesNotMatch(app, /testMode|helper\.total/, "DocuSeal no tiene modo de prueba ni total");
+  assert.match(app, /helperFetch\("\/agent", \{ id: doc\.id \}\)/, "el agente firma el SOA desde Firmas");
+  assert.match(app, /"Enviado por " \+ doc\.agent/);
+  assert.match(html, /placeholder|Número de la plantilla|\/templates\/5/);
+});
+
 test("el paquete de Windows va firmado con la llave que el actualizador acepta", () => {
   const S = require("../tools/sign.js");
   const ps = fs.readFileSync(path.join(root, "tools", "windows", "actualizar.ps1"), "utf8");
@@ -229,4 +246,69 @@ test("las anclas viejas de la barra de tareas se apuntan al perfil propio", () =
   assert.match(ps, /\$abreNavegador = \$s\.TargetPath -match '\\\\\(chrome\|msedge\|brave\)\(_proxy\)\?\\\.exe\$'/);
   assert.match(ps, /if \(\$abreNavegador -and /);
   assert.match(ps, /Apuntar-Acceso \$s/);
+});
+
+test("el instalador pone el ayudante de firma: token propio, helper-config.js, arranque al iniciar sesión; desinstalar lo quita", () => {
+  const win = (f) => fs.readFileSync(path.join(root, "tools", "windows", f), "utf8");
+  const inst = win("instalar.ps1"), helper = win("signing-helper.ps1");
+  /* el puerto de helper-config.js es el que abre el ayudante */
+  const port = helper.match(/\[int\]\$Port = (\d+)/)[1];
+  assert.match(inst, new RegExp("window\.QA_HELPER = \{ port: " + port + ", token: "));
+  /* token de 32 bytes al azar, que se mantiene al actualizar */
+  assert.match(inst, /RandomNumberGenerator\]::Create\(\)\.GetBytes\(\$b\)/);
+  assert.match(inst, /if \(\$tok -notmatch '\^\[0-9a-f\]\{64\}\$'\)/);
+  /* la clave se pide oculta y se guarda con DPAPI, nunca en texto plano */
+  assert.match(inst, /Read-Host -AsSecureString/);
+  assert.match(inst, /\$s \| ConvertFrom-SecureString \| Set-Content/);
+  assert.doesNotMatch(inst, /AsPlainText/);
+  assert.match(inst, /GetFolderPath\("Startup"\)/);
+  /* desinstalar detiene el ayudante y borra su acceso de inicio (firma\ está dentro de $destino) */
+  const quitar = inst.slice(inst.indexOf("if ($Quitar) {"), inst.indexOf("if ($Clave) {"));
+  assert.match(quitar, /Detener-Ayudante/);
+  assert.match(quitar, /\$accesoAyudante/);
+  assert.match(quitar, /Remove-Item \$destino -Recurse -Force/);
+  /* los envíos viven en el servidor de firmas: desinstalar no tiene nada que avisar de documentos.json */
+  assert.doesNotMatch(quitar, /documentos\.json|pendientes\.json/);
+  /* la clave va con la dirección del servidor: solo https y sin ruta, la misma regla que el ayudante */
+  const pedir = inst.slice(inst.indexOf("function Pedir-Clave"), inst.indexOf("if ($Quitar) {"));
+  assert.match(pedir, /Pedir-Servidor/);
+  const rule = "'^https://[A-Za-z0-9.-]+(:\\d{1,5})?/?$'";
+  assert.ok(inst.includes(rule), "el instalador revisa el servidor con " + rule);
+  assert.ok(helper.includes(rule), "el ayudante revisa el servidor con " + rule);
+  assert.match(inst, /ajustes\.json/);
+  assert.match(inst, /server\s*=/);
+  assert.doesNotMatch(inst, /SignWell/);
+  assert.doesNotMatch(helper, /SignWell/);
+  /* el actualizador no se detiene a pedir la clave; Clave de firma.bat sí la pide */
+  assert.match(win("actualizar.ps1"), /instalar\.ps1"\) -SinPreguntar/);
+  assert.match(win("Clave de firma.bat"), /instalar\.ps1" -Clave/);
+  const build = fs.readFileSync(path.join(root, "tools", "build.js"), "utf8");
+  assert.match(build, /tools\/windows\/signing-helper\.ps1/);
+  assert.match(build, /tools\/windows\/Clave de firma\.bat/);
+});
+
+test("al actualizar, el instalador no se detiene a pedir la clave, aunque lo llame un actualizador viejo sin -SinPreguntar", () => {
+  const inst = fs.readFileSync(path.join(root, "tools", "windows", "instalar.ps1"), "utf8");
+  /* la única llamada a Pedir-Clave fuera de -Clave exige una instalación nueva */
+  const calls = inst.split(/\r?\n/).filter((l) => /\bPedir-Clave\b/.test(l) && !/function Pedir-Clave/.test(l));
+  const outsideClave = calls.filter((l) => !/^\s{2}Pedir-Clave$/.test(l));
+  assert.equal(outsideClave.length, 1);
+  assert.match(outsideClave[0], /-not \$SinPreguntar -and -not \$habiaAcceso/);
+  assert.ok(inst.indexOf("$habiaAcceso = $true") < inst.indexOf("-not $habiaAcceso"), "se sabe si había instalación antes de preguntar");
+  /* el ayudante no queda trabado en la carpeta del .zip */
+  assert.match(inst, /Start-Process -FilePath \$powershell -WindowStyle Hidden -WorkingDirectory \$destino/);
+});
+
+test("el Consent y el SOA para firmar se ven en pantalla tal como saldrán, sin campos para editar", () => {
+  const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
+  const app = fs.readFileSync(path.join(root, "js", "app.js"), "utf8");
+  const FM = require("../js/forms.js");
+  const sec = html.slice(html.indexOf('id="sec-firma"'), html.indexOf("</section>", html.indexOf('id="sec-firma"')));
+  /* la vista previa reemplaza la grilla de campos editables */
+  assert.match(sec, /id="signPreview"/);
+  assert.doesNotMatch(sec, /id="signGrid"|id="signReset"/);
+  /* los valores salen solo de la nota: no hay cambios a mano que se queden */
+  assert.doesNotMatch(app, /signEdits|Volver a los datos de la nota/);
+  /* la misma función dibuja la vista previa y la prueba en el navegador */
+  assert.equal(typeof FM.renderPreview, "function");
 });

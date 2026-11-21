@@ -170,7 +170,7 @@ main:focus { outline: none; }
 
 .top-tools { display: flex; align-items: center; justify-content: flex-end; gap: 6px; min-width: 0; }
 #btnNew { margin-right: 6px; }
-body[data-view="tasks"] #btnNew { display: none; }
+body[data-view="tasks"] #btnNew, body[data-view="firmas"] #btnNew { display: none; }
 .who { display: flex; align-items: center; gap: 8px; min-width: 0; margin-right: 4px; }
 .who span { font-size: 12.5px; color: var(--ink-3); white-space: nowrap; }
 .who select { width: auto; min-width: 0; max-width: 220px; min-height: 34px; }
@@ -674,8 +674,13 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
 .sign-block textarea + .out-sub, .sign-block input + .out-sub { margin-top: 6px; }
 .sign-block input[readonly] { background: var(--inset); border-color: var(--line); }
 .sign-hint { margin-top: 12px; }
-.fld.is-edited input[type="text"] { border-color: var(--brand); }
+/* Consent y SOA: el documento lleno, como papel (claro también en modo oscuro) */
+.sheet-frame.sign-frame { margin-top: 10px; max-height: 70vh; overflow: auto; }
+.sign-preview { display: grid; gap: 10px; padding: 10px; background: #E9EDF3; min-height: 120px; }
+.sign-preview canvas { display: block; width: 100%; height: auto; background: #FFFFFF; box-shadow: 0 1px 3px rgba(17, 27, 46, .18); }
+.sign-preview .sign-preview-msg { margin: auto; color: #51627A; font-size: 13px; text-align: center; }
 .signlinks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; }
+/* documentos enviados a firmar (ayudante de firma) */
 @media (max-width: 560px) { .signlinks { grid-template-columns: minmax(0, 1fr); } }
 
 .privacy { font-size: 12.5px; color: var(--ink-3); padding: 2px 4px 0; }
@@ -776,6 +781,45 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
 #prefixBox { padding: 0; font-size: 13px; }
 
 .dock { display: none; }
+
+/* ------------------------------------------------------------------- firmas */
+
+.views-badge {
+  min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px;
+  background: var(--warn-soft); color: var(--warn); border: 1px solid currentColor;
+  font-size: 11px; font-weight: 700; line-height: 16px; text-align: center;
+}
+.firmas { display: flex; flex-direction: column; gap: 14px; max-width: 1100px; margin: 0 auto; padding: 24px 24px 96px; }
+.firmas-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.firmas-head h1 { font-size: 24px; font-weight: 680; letter-spacing: -.02em; }
+.firmas-head p { margin-top: 4px; color: var(--ink-3); font-size: 13.5px; max-width: 70ch; }
+.firmas-state { margin: 0; padding: 10px 14px; border-radius: 10px; background: var(--warn-soft); color: var(--warn); font-size: 13px; font-weight: 550; }
+.firmas-filter .n { color: var(--ink-3); font-weight: 500; }
+.firmas-card { padding: 0; overflow: hidden; }
+.firmas-list { list-style: none; margin: 0; padding: 0; }
+.firmas-row {
+  display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1.5fr) 200px;
+  gap: 4px 16px; align-items: center; padding: 12px 16px; border-top: 1px solid var(--line);
+}
+.firmas-row:first-child { border-top: 0; }
+.firmas-who, .firmas-when, .firmas-status { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.firmas-who strong { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.firmas-file, .firmas-sub { font-size: 12.5px; color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.firmas-when { font-size: 13px; }
+.firmas-status .firmas-sub { white-space: normal; }
+.firmas-pill { align-self: flex-start; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 650; background: var(--inset); color: var(--ink-2); }
+.firmas-row.is-signed .firmas-pill { background: var(--brand-soft); color: var(--brand-ink); }
+.firmas-row.is-unsigned .firmas-pill { background: var(--warn-soft); color: var(--warn); }
+.firmas-acts { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.firmas-empty { margin: 0; padding: 22px 16px; color: var(--ink-3); font-size: 13.5px; text-align: center; }
+.firmas-more { align-self: center; }
+@media (max-width: 760px) {
+  .firmas { padding: 16px 16px 96px; }
+  .firmas-head { flex-direction: column; }
+  .firmas-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .firmas-who { grid-column: 1 / -1; }
+  .firmas-acts { grid-column: 1 / -1; justify-content: flex-start; }
+}
 
 /* -------------------------------------------------------------------- tasks */
 
@@ -939,6 +983,7 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
 
 @media (max-width: 460px) {
   .views a svg { display: none; }
+  .views a { padding: 0 9px; }
   #btnTheme { display: none; }
 }
 

@@ -4,11 +4,14 @@
 (function (root) {
   "use strict";
 
-  var VERSION = "1.24.1";
+  var VERSION = "1.25.0";
   /* De aquí la herramienta instalada lee el número de la última versión (y
      nada más). La política de seguridad de index.html solo permite esta
      dirección, y el actualizador de Windows usa el mismo repositorio. */
   var UPDATE_URL = "https://raw.githubusercontent.com/therealedo/qagency-toolbox/main/package.json";
+  /* El ayudante de firma (tools/windows/signing-helper.ps1) escucha en este
+     puerto de 127.0.0.1; la política de seguridad deja llegar solo ahí. */
+  var HELPER_URL = "http://127.0.0.1:47815";
   /* El instalador de Windows registra este enlace: lo abre el botón
      Actualizar de arriba y corre el actualizador instalado. */
   var UPDATE_LINK = "qagency-toolbox-update:run";
@@ -392,7 +395,7 @@
   };
 
   var api = {
-    VERSION: VERSION, UPDATE_URL: UPDATE_URL, UPDATE_LINK: UPDATE_LINK, TEAM: TEAM, OFFICES: OFFICES, OFFICE_NAMES: OFFICE_NAMES, CARRIERS: CARRIERS, TASKS: TASKS, PAYMENT: PAYMENT,
+    VERSION: VERSION, UPDATE_URL: UPDATE_URL, HELPER_URL: HELPER_URL, UPDATE_LINK: UPDATE_LINK, TEAM: TEAM, OFFICES: OFFICES, OFFICE_NAMES: OFFICE_NAMES, CARRIERS: CARRIERS, TASKS: TASKS, PAYMENT: PAYMENT,
     TASK_TAGS: TASK_TAGS, OBS_TAGS: OBS_TAGS, TASK_RULES: TASK_RULES,
     CHANNELS: CHANNELS, MODALIDADES: MODALIDADES, LINES: LINES, LINE_TASK_CATS: LINE_TASK_CATS,
     PAY_METHODS: PAY_METHODS, CANCEL_REASONS: CANCEL_REASONS, CANCEL_TYPES: CANCEL_TYPES, PARENTESCOS: PARENTESCOS, ESTATUS: ESTATUS, MKPL_DOCS: MKPL_DOCS

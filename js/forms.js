@@ -1,8 +1,8 @@
 /* Q Agency Toolbox — formularios para firmar.
    El Consent de Obamacare y el SOA de Medicare se llenan con los datos de la
    nota: se elige la plantilla (oficina e idioma), se arma el valor de cada
-   campo del PDF, el texto para pedirlo en Cliq y el enlace de firma de
-   SignWell con su SMS y su email. Todo esto son funciones puras, que se
+   campo del PDF, el texto para pedirlo en Cliq y lo que se envía a firmar
+   por DocuSeal, con el SMS y el email del enlace. Todo esto son funciones puras, que se
    prueban solas; el PDF se llena con el PDF.js de la herramienta (fillPdf),
    sin conexiones. Las plantillas viajan dentro de la herramienta, en
    vendor/forms/ (tools/vendor-forms.js). */
@@ -83,16 +83,40 @@
     ]
   };
 
-  /* IDs de los campos en las plantillas de SignWell (los escribió el usuario
-     en SignWell): el enlace los llena con los mismos datos. El SOA de
-     SignWell solo tiene la firma y la fecha del cliente (la parte del agente
-     se llena y se firma después), así que su enlace va sin datos. */
-  var SIGN_IDS = {
-    consent: [["client_name", "clientName"], ["client_name_sign", "clientName"], ["consent_date", "date"], ["agent_name", "agentName"],
-      ["agent_npn", "npn"], ["plan", "plan"], ["premium", "premium"], ["marital_status", "marital"], ["income", "income"],
-      ["tax_people", "taxPeople"], ["covered_people", "coveredPeople"]],
-    soa: []
+  /* La sección del agente del SOA en las plantillas de DocuSeal: el nombre
+     de cada campo (el teléfono, sus tres grupos de casillas: área, prefijo y
+     número) y el de la fecha de la cita, que el ayudante llena con el día en
+     que firmó el cliente. Se llenan y quedan bloqueados justo antes de que
+     firme el agente; lo que no tiene dato queda para que lo escriba él. */
+  var SOA_AGENT = {
+    "soa-es": {
+      dateField: "Fecha de la cita",
+      fields: [
+        ["agentName", "Nombre del Representante de Ventas con Licencia nombre y apellidos"],
+        ["npn", "ID del Representante de Ventas con Licencia"],
+        ["agentPhone", ["Teléfono del Representante (área)", "Teléfono del Representante (prefijo)", "Teléfono del Representante (número)"]],
+        ["beneficiaryName", "Nombre del beneficiario nombre y apellidos"],
+        ["beneficiaryPhone", ["Teléfono del beneficiario (área)", "Teléfono del beneficiario (prefijo)", "Teléfono del beneficiario (número)"]],
+        ["address", "Direccion del beneficiario"],
+        ["contactMethod", "Método de contacto inicial"],
+        ["plans", "Planes que el Representante de Ventas con Licencia explicará durante la reunión"]
+      ]
+    },
+    "soa-en": {
+      dateField: "Date Appointment will be Completed",
+      fields: [
+        ["agentName", SOA_EN_FIELDS.agentName],
+        ["npn", SOA_EN_FIELDS.npn],
+        ["agentPhone", ["Licensed Sales Representative Phone Area", "Licensed Sales Representative Phone Prefix", "Licensed Sales Representative Phone Line"]],
+        ["beneficiaryName", SOA_EN_FIELDS.beneficiaryName],
+        ["beneficiaryPhone", SOA_EN_FIELDS.beneficiaryPhone],
+        ["address", "Beneficiary Address"],
+        ["contactMethod", SOA_EN_FIELDS.contactMethod],
+        ["plans", SOA_EN_FIELDS.plans]
+      ]
+    }
   };
+  var CONTACT_DEFAULT = "Book of Business";
 
   /* Consent en Obamacare Pendiente (cotización); SOA en las situaciones de
      Medicare que guardan un SOA en el Network. */
@@ -178,20 +202,43 @@
            (to.length ? " " + to.join(" y ") : "") + " pls @Support QAgency";
   }
 
-  /* ----------------------------------------------------- enlace de firma --
-     El enlace de la plantilla (Template Link) de SignWell más los datos como
-     parámetros, con el ID de cada campo. Sin un enlace http(s) no hay enlace. */
-  function signingUrl(base, kind, v) {
-    var b = val(base);
-    if (!/^https?:\/\/\S+$/i.test(b)) { return ""; }
-    var hash = "", h = b.indexOf("#");
-    if (h >= 0) { hash = b.slice(h); b = b.slice(0, h); }
-    var q = (SIGN_IDS[kind] || []).filter(function (x) { return val(v[x[1]]); }).map(function (x) {
-      return encodeURIComponent(x[0]) + "=" + encodeURIComponent(val(v[x[1]]));
+  /* ------------------------------------------- campos para DocuSeal --
+     { nombre del campo, valor } en el orden de la plantilla y sin los vacíos. */
+  function fieldList(map) {
+    return Object.keys(map).map(function (name) { return { name: name, value: map[name] }; });
+  }
+
+  /* Un teléfono de EE. UU. en sus tres grupos de casillas (3, 3 y 4
+     dígitos). Sin 10 dígitos (con o sin el 1 delante) no se llena. */
+  function phoneParts(v) {
+    var d = String(v || "").replace(/\D/g, "");
+    if (d.length === 11 && d.charAt(0) === "1") { d = d.slice(1); }
+    return d.length === 10 ? [d.slice(0, 3), d.slice(3, 6), d.slice(6)] : null;
+  }
+
+  /* Lo que el agente firma en el SOA: su nombre, su NPN y su teléfono (el
+     Directo de Ajustes > Equipo), el beneficiario, la dirección, cómo llegó
+     (Book of Business) y la compañía que eligió el cliente. */
+  function soaAgentValues(d, agentTel) {
+    return {
+      agentName: U.titleCase(d.agente), npn: val(d.npn), agentPhone: val(agentTel),
+      beneficiaryName: fullName(d), beneficiaryPhone: val(d.clienteTel), address: val(d.direccion),
+      contactMethod: CONTACT_DEFAULT, plans: N.carrierName("mc", d.compania)
+    };
+  }
+
+  function soaAgentFields(key, av) {
+    var out = [];
+    ((SOA_AGENT[key] || {}).fields || []).forEach(function (f) {
+      if (Array.isArray(f[1])) {
+        var parts = phoneParts(av[f[0]]);
+        if (parts) { f[1].forEach(function (name, i) { out.push({ name: name, value: parts[i] }); }); }
+        return;
+      }
+      var value = val(av[f[0]]);
+      if (value) { out.push({ name: f[1], value: value }); }
     });
-    if (!q.length) { return b + hash; }
-    var sep = b.indexOf("?") < 0 ? "?" : (/[?&]$/.test(b) ? "" : "&");
-    return b + sep + q.join("&") + hash;
+    return out;
   }
 
   /* SMS y email con el enlace, en el idioma del cliente (de usted), firmados
@@ -223,11 +270,107 @@
     };
   }
 
+  /* Estado de un documento enviado a firmar (lo que dice el ayudante, en
+     minúsculas; agent: el cliente del SOA ya firmó y falta el agente). done: ya está firmado y se puede guardar. final: ya no va
+     a cambiar. */
+  /* group: en qué parte del tablero Firmas va. pending: espera la firma;
+     signed: firmado; unsigned: terminó sin firmar. */
+  var SIGNED_STATUS = {
+    completed: { label: "Firmado", done: true, final: true, group: "signed" },
+    declined: { label: "El cliente no lo firmó", done: false, final: true, group: "unsigned" },
+    expired: { label: "Venció sin firmar", done: false, final: true, group: "unsigned" },
+    agent: { label: "Firmó el cliente: falta que firme el agente", done: false, final: false, group: "pending" },
+    viewed: { label: "El cliente lo abrió, falta firmar", done: false, final: false, group: "pending" }
+  };
+  function signedStatus(status) {
+    var s = SIGNED_STATUS[String(status || "").toLowerCase()];
+    return s ? { label: s.label, done: s.done, final: s.final, group: s.group } : { label: "Esperando la firma", done: false, final: false, group: "pending" };
+  }
+
+  /* Qué se puede hacer con un documento del tablero: copiar el enlace del
+     cliente mientras espera su firma, firmar el agente cuando ya firmó el
+     cliente del SOA, y cancelar. Un firmado nunca se borra: es el historial. */
+  function signActions(doc) {
+    var st = signedStatus(doc && doc.status);
+    if (st.group === "signed") { return doc.saved ? ["download"] : ["save", "download"]; }
+    if (st.group === "unsigned") { return ["delete"]; }
+    if (String(doc.status).toLowerCase() === "agent") { return ["agent", "cancel"]; }
+    return signLink(doc.link) ? ["link", "cancel"] : ["cancel"];
+  }
+
+  /* Un enlace de firma que la página puede mostrar, copiar o abrir: solo
+     http(s), sin espacios ni comillas. Lo demás no es un enlace. */
+  function signLink(u) {
+    var s = String(u || "");
+    return /^https?:\/\/[^\s"'<>]+$/i.test(s) ? s : "";
+  }
+
+  /* Cuántos hay de cada grupo (toSave: firmados que falta guardar en el
+     Network) y las filas del filtro elegido, en el orden del ayudante. */
+  function signDashboard(docs, filter) {
+    var counts = { pending: 0, signed: 0, unsigned: 0, all: 0, toSave: 0 };
+    var rows = (docs || []).filter(function (doc) {
+      var g = signedStatus(doc.status).group;
+      counts[g]++; counts.all++;
+      if (g === "signed" && !doc.saved) { counts.toSave++; }
+      return ["pending", "signed", "unsigned"].indexOf(filter) < 0 || g === filter;
+    });
+    return { counts: counts, rows: rows };
+  }
+
+  /* «Ver más del historial» pide 25 más, hasta el tope que acepta el
+     ayudante (/list rechaza un límite mayor). */
+  var SIGN_HISTORY_STEP = 25, SIGN_HISTORY_MAX = 1000;
+  function nextHistoryLimit(limit) { return Math.min(SIGN_HISTORY_MAX, (Number(limit) || 0) + SIGN_HISTORY_STEP); }
+
+  /* Fecha ISO del servidor de firma (o del ayudante) como MM/DD/AAAA, en la hora local. */
+  function signDate(iso) {
+    var t = iso ? new Date(iso) : null;
+    if (!t || isNaN(t.getTime())) { return ""; }
+    var two = function (n) { return (n < 10 ? "0" : "") + n; };
+    return two(t.getMonth() + 1) + "/" + two(t.getDate()) + "/" + t.getFullYear();
+  }
+
   /* El PDF lleno se descarga con el nombre del Consent o del SOA del Network. */
   function downloadName(d, kind) {
     var k = kind === "soa" ? "soa" : "consent";
     var f = N.buildFileNames(d).filter(function (x) { return x.k === k; })[0];
     return (f ? f.name : k.toUpperCase()) + ".pdf";
+  }
+
+  /* --------------------------------------------- envío por DocuSeal --
+     Lo que la herramienta le pasa al ayudante de firma (signing-helper.ps1),
+     que guarda la clave de DocuSeal y hace la llamada: los datos van en un
+     cuerpo JSON, nunca en un enlace. El firmante del cliente se llama
+     «Cliente» en cada plantilla. El Consent va con todos sus campos llenos
+     (el cliente solo firma); el SOA, sin campos del cliente, y con los del
+     agente (agent), que el ayudante llena cuando el cliente ya firmó. meta
+     viaja con el envío y dice con qué nombre y en qué carpeta del Network se
+     guarda el PDF firmado. Sin el número de la plantilla, sin un email
+     válido, sin el nombre del cliente o, en el SOA, sin el agente del NPN no
+     hay envío: { ok: false, missing: [...] }. */
+  function buildSendPayload(kind, d, v, opts) {
+    var o = opts || {}, soa = kind === "soa";
+    var templateId = val(o.templateId), email = val(d.clienteEmail), name = val(soa ? v.beneficiaryName : v.clientName);
+    var missing = [];
+    if (!/^\d{1,12}$/.test(templateId)) { missing.push("plantilla"); }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { missing.push("email"); }
+    if (!name) { missing.push("nombre"); }
+    if (soa && !val(d.agente)) { missing.push("agente"); }
+    if (missing.length) { return { ok: false, missing: missing }; }
+    var oficina = val(d.oficina) || C.OFFICES[0], k = soa ? "soa" : "consent", key = templateKey(k, oficina, d.idioma);
+    var body = {
+      templateId: templateId,
+      recipient: { name: name, email: email },
+      fields: soa ? [] : fieldList(fieldMap(key, v)),
+      requester: val(o.requester) || C.OFFICE_NAMES[oficina] || oficina,
+      meta: { kind: k, line: val(d.line), netKey: k, fileName: downloadName(d, k) }
+    };
+    if (soa) {
+      var av = soaAgentValues(d, o.agentTel);
+      body.agent = { name: av.agentName, dateField: SOA_AGENT[key].dateField, fields: soaAgentFields(key, av) };
+    }
+    return { ok: true, body: body };
   }
 
   /* --------------------------------------------- solo en el navegador --
@@ -258,6 +401,34 @@
         pdf.destroy();
         return setFieldValues(out, parents);
       });
+    });
+  }
+
+  /* renderPreview: dibuja cada página del PDF (ya lleno) en un canvas de
+     cssWidth píxeles de ancho, con los campos como saldrán impresos.
+     Devuelve los canvas: quien llama los pone en la página de una vez, así
+     la vista previa no parpadea mientras se escribe. */
+  function renderPreview(pdfjsLib, bytes, cssWidth, dpr) {
+    var ratio = dpr || 1;
+    return pdfjsLib.getDocument({ data: bytes, isEvalSupported: false }).promise.then(function (pdf) {
+      var chain = Promise.resolve([]);
+      function addPage(n) {
+        chain = chain.then(function (list) {
+          return pdf.getPage(n).then(function (page) {
+            var base = page.getViewport({ scale: 1 });
+            var vp = page.getViewport({ scale: (cssWidth / base.width) * ratio });
+            var canvas = root.document.createElement("canvas");
+            canvas.width = Math.floor(vp.width);
+            canvas.height = Math.floor(vp.height);
+            canvas.style.aspectRatio = base.width + " / " + base.height;
+            return page.render({ canvasContext: canvas.getContext("2d"), viewport: vp,
+              annotationMode: pdfjsLib.AnnotationMode ? pdfjsLib.AnnotationMode.ENABLE : undefined }).promise
+              .then(function () { list.push(canvas); return list; });
+          });
+        });
+      }
+      for (var n = 1; n <= pdf.numPages; n++) { addPage(n); }
+      return chain.then(function (list) { pdf.destroy(); return list; }, function (e) { pdf.destroy(); throw e; });
     });
   }
 
@@ -380,10 +551,13 @@
   }
 
   var api = {
-    TEMPLATES: TEMPLATES, FIELDS: FIELDS, SIGN_IDS: SIGN_IDS, SOA_EN_FIELDS: SOA_EN_FIELDS,
+    TEMPLATES: TEMPLATES, FIELDS: FIELDS, SOA_EN_FIELDS: SOA_EN_FIELDS, SOA_AGENT: SOA_AGENT,
     formKind: formKind, templateKey: templateKey, consentValues: consentValues, soaValues: soaValues, values: values,
-    fieldMap: fieldMap, cliqText: cliqText, signingUrl: signingUrl, signTexts: signTexts, downloadName: downloadName,
-    templateBytes: templateBytes, fillPdf: fillPdf
+    fieldMap: fieldMap, cliqText: cliqText, signTexts: signTexts, downloadName: downloadName,
+    soaAgentValues: soaAgentValues, signLink: signLink, buildSendPayload: buildSendPayload, signedStatus: signedStatus,
+    signActions: signActions, signDashboard: signDashboard, signDate: signDate,
+    SIGN_HISTORY_STEP: SIGN_HISTORY_STEP, SIGN_HISTORY_MAX: SIGN_HISTORY_MAX, nextHistoryLimit: nextHistoryLimit,
+    templateBytes: templateBytes, fillPdf: fillPdf, renderPreview: renderPreview
   };
   root.QA = root.QA || {};
   root.QA.forms = api;

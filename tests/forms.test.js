@@ -1,6 +1,6 @@
 /* Comprueba el llenado del Consent (Obamacare) y del SOA (Medicare): qué
    plantilla se usa según la oficina y el idioma, qué valor va en cada campo
-   del PDF, el texto para Cliq y el enlace de firma de SignWell. */
+   del PDF, el texto para Cliq y lo que se envía a firmar. */
 "use strict";
 
 const test = require("node:test");
@@ -188,29 +188,6 @@ test("Cliq: Enviar CONSENT / SOA, sin el email o el teléfono que falte", () => 
 
 /* ------------------------------------------------------- enlace de firma -- */
 
-test("enlace de firma: los IDs de SignWell en orden, codificados y sin los vacíos", () => {
-  const url = F.signingUrl("https://www.signwell.com/new_doc/abc123/", "consent", Object.assign({}, consent, { clientName: "José Pérez", marital: "" }));
-  assert.equal(url, "https://www.signwell.com/new_doc/abc123/?client_name=Jos%C3%A9%20P%C3%A9rez&client_name_sign=Jos%C3%A9%20P%C3%A9rez" +
-    "&consent_date=02%2F01%2F2026&agent_name=Ana%20Torres&agent_npn=10000001&plan=Ambetter%20Silver%20Value&premium=%2445.00" +
-    "&income=%2432%2C000&tax_people=3&covered_people=2");
-});
-
-test("enlace de firma: el SOA solo lo firma el cliente, así que su enlace no lleva datos", () => {
-  assert.equal(F.signingUrl("https://www.signwell.com/new_doc/abc123/", "soa", soa), "https://www.signwell.com/new_doc/abc123/");
-  assert.equal(F.signingUrl("https://example.com/t?ref=1#x", "soa", soa), "https://example.com/t?ref=1#x");
-});
-
-test("enlace de firma: con ? ya en el enlace se agrega con &; sin un enlace válido no hay enlace", () => {
-  const v = { date: "02/01/2026" };
-  assert.equal(F.signingUrl("https://example.com/t?ref=1", "consent", v), "https://example.com/t?ref=1&consent_date=02%2F01%2F2026");
-  assert.equal(F.signingUrl("https://example.com/t?", "consent", v), "https://example.com/t?consent_date=02%2F01%2F2026");
-  assert.equal(F.signingUrl("https://example.com/t#x", "consent", v), "https://example.com/t?consent_date=02%2F01%2F2026#x");
-  assert.equal(F.signingUrl("  https://example.com/t  ", "consent", {}), "https://example.com/t");
-  assert.equal(F.signingUrl("", "consent", v), "");
-  assert.equal(F.signingUrl("www.signwell.com/x", "consent", v), "");
-  assert.equal(F.signingUrl("javascript:alert(1)", "consent", v), "");
-});
-
 test("enlace de firma: SMS y email en el idioma del cliente, de usted y firmados por la oficina", () => {
   const url = "https://example.com/t?a=1";
   const es = F.signTexts("consent", make({ oficina: "QAgency" }), url);
@@ -239,12 +216,9 @@ test("archivo: el PDF lleno se llama como el Consent o el SOA del Network", () =
     "Diaz, Beatriz - Medicare_SOA 2026 JAN.pdf");
 });
 
-test("campos de la pantalla: cada valor tiene su etiqueta; el Consent, su ID de SignWell", () => {
+test("campos de la pantalla: cada valor tiene su etiqueta", () => {
   assert.deepEqual(F.FIELDS.consent.map((x) => x.k), Object.keys(consent));
   assert.deepEqual(F.FIELDS.soa.map((x) => x.k), Object.keys(soaNote));
-  assert.deepEqual(F.SIGN_IDS.consent.map((x) => x[0]), ["client_name", "client_name_sign", "consent_date", "agent_name", "agent_npn",
-    "plan", "premium", "marital_status", "income", "tax_people", "covered_people"]);
-  assert.deepEqual(F.SIGN_IDS.soa, []);
 });
 
 /* ------------------------------------------------ PDF lleno (con PDF.js) -- */
@@ -321,4 +295,179 @@ test("PDF lleno: sin campos con varios lugares, el PDF sale como lo guarda PDF.j
 test("SOA: la dirección de Medicare no va al formulario", () => {
   const d = Object.assign({}, base, { line: "mc", direccion: "1200 Sample Blvd, Naples, FL 34100" });
   assert.doesNotMatch(JSON.stringify(F.soaValues(d)), /Sample Blvd/);
+});
+
+/* Envío a firmar por DocuSeal (a través del ayudante local): el cuerpo que
+   la herramienta le pasa al ayudante. Los datos van en JSON, nunca en un enlace. */
+const pairs = (map) => Object.keys(map).map((name) => ({ name: name, value: map[name] }));
+
+test("envío: el Consent va con el número de la plantilla, el cliente y cada campo del PDF ya lleno, y adónde va en el Network", () => {
+  const d = make({ line: "oc", clienteEmail: " bea@example.com " });
+  const v = Object.assign({}, consent, { marital: "" });
+  const r = F.buildSendPayload("consent", d, v, { templateId: " 12 ", requester: "Luis Gomez" });
+  assert.equal(r.ok, true);
+  assert.deepEqual(r.body, {
+    templateId: "12",
+    recipient: { name: "Beatriz Diaz", email: "bea@example.com" },
+    fields: pairs(F.fieldMap("consent-qa-es", v)),
+    requester: "Luis Gomez",
+    meta: { kind: "consent", line: "oc", netKey: "consent", fileName: F.downloadName(d, "consent") }
+  });
+  const byName = Object.fromEntries(r.body.fields.map((f) => [f.name, f.value]));
+  assert.equal(byName["Yo SrSra"], "Beatriz Diaz");
+  assert.equal(byName["Fecha de la Firma"], "02/01/2026");
+  assert.equal(byName["Premium"], "$45.00");
+  assert.equal("Estatus marital" in byName, false, "lo vacío no se envía");
+  assert.equal(r.body.agent, undefined, "el Consent solo lo firma el cliente");
+});
+
+test("envío: el Consent usa los campos de la plantilla de la oficina y el idioma del cliente", () => {
+  const d = make({ line: "oc", idioma: "en", oficina: "ATH Insurance", clienteEmail: "bea@example.com" });
+  const r = F.buildSendPayload("consent", d, consent, { templateId: "3" });
+  assert.deepEqual(r.body.fields, pairs(F.fieldMap("consent-ath-en", consent)));
+  assert.equal(r.body.fields.some((f) => f.name === "Full Name"), true);
+  assert.equal(r.body.requester, "ATH Insurance");
+});
+
+test("envío: el SOA va sin campos del cliente, y lleva los del agente para llenarlos cuando el cliente firme", () => {
+  const d = make({ line: "mc", idioma: "en", clienteEmail: "bea@example.com", clienteTel: "1 (305) 555-0100",
+    direccion: "123 Main St, Miami, FL 33101", compania: "HUMANA" });
+  const r = F.buildSendPayload("soa", d, soaNote, { templateId: "6", requester: "Luis Gomez", agentTel: "(305) 555-0199" });
+  assert.equal(r.ok, true);
+  assert.deepEqual(r.body.fields, []);
+  assert.deepEqual(r.body.recipient, { name: "Beatriz Diaz", email: "bea@example.com" });
+  assert.deepEqual(r.body.meta, { kind: "soa", line: "mc", netKey: "soa", fileName: F.downloadName(d, "soa") });
+  assert.deepEqual(r.body.agent, {
+    name: "Ana Torres",
+    dateField: "Date Appointment will be Completed",
+    fields: [
+      { name: "Licensed Sales Representative Name", value: "Ana Torres" },
+      { name: "Licensed Sales Representative ID", value: "10000001" },
+      { name: "Licensed Sales Representative Phone Area", value: "305" },
+      { name: "Licensed Sales Representative Phone Prefix", value: "555" },
+      { name: "Licensed Sales Representative Phone Line", value: "0199" },
+      { name: "Beneficiary Name", value: "Beatriz Diaz" },
+      { name: "Beneficiary Phone Area", value: "305" },
+      { name: "Beneficiary Phone Prefix", value: "555" },
+      { name: "Beneficiary Phone Line", value: "0100" },
+      { name: "Beneficiary Address", value: "123 Main St, Miami, FL 33101" },
+      { name: "Initial Method of Contact", value: "Book of Business" },
+      { name: "Plans the Licensed Sales Representative Will Represent", value: "Humana" }
+    ]
+  });
+});
+
+test("envío: en el SOA en español lo que no tiene dato no se envía (el agente lo llena), y un teléfono sin 10 dígitos tampoco", () => {
+  const d = make({ line: "mc", clienteEmail: "bea@example.com", clienteTel: "555-0100" });
+  const r = F.buildSendPayload("soa", d, soaNote, { templateId: "5" });
+  assert.deepEqual(r.body.agent, {
+    name: "Ana Torres",
+    dateField: "Fecha de la cita",
+    fields: [
+      { name: "Nombre del Representante de Ventas con Licencia nombre y apellidos", value: "Ana Torres" },
+      { name: "ID del Representante de Ventas con Licencia", value: "10000001" },
+      { name: "Nombre del beneficiario nombre y apellidos", value: "Beatriz Diaz" },
+      { name: "Método de contacto inicial", value: "Book of Business" }
+    ]
+  });
+  const tel = F.buildSendPayload("soa", make({ line: "mc", clienteEmail: "bea@example.com", clienteTel: "3055550100" }), soaNote,
+    { templateId: "5", agentTel: "305 555 0199" }).body.agent.fields.map((f) => f.name + "=" + f.value);
+  assert.deepEqual(tel.filter((x) => /^Teléfono/.test(x)), ["Teléfono del Representante (área)=305", "Teléfono del Representante (prefijo)=555",
+    "Teléfono del Representante (número)=0199", "Teléfono del beneficiario (área)=305", "Teléfono del beneficiario (prefijo)=555",
+    "Teléfono del beneficiario (número)=0100"]);
+});
+
+test("envío: sin plantilla (un número), sin un email válido, sin nombre o, en el SOA, sin agente del NPN no hay envío", () => {
+  const ok = make({ line: "oc", clienteEmail: "bea@example.com" });
+  assert.deepEqual(F.buildSendPayload("consent", ok, consent, { templateId: "" }), { ok: false, missing: ["plantilla"] });
+  assert.deepEqual(F.buildSendPayload("consent", ok, consent, { templateId: "tpl-123" }), { ok: false, missing: ["plantilla"] });
+  assert.deepEqual(F.buildSendPayload("consent", ok, consent, { templateId: "1234567890123" }), { ok: false, missing: ["plantilla"] });
+  assert.deepEqual(F.buildSendPayload("consent", make({ clienteEmail: "bea@" }), consent, { templateId: "4" }), { ok: false, missing: ["email"] });
+  assert.deepEqual(F.buildSendPayload("soa", make({ agente: "" }), { beneficiaryName: " " }, {}),
+    { ok: false, missing: ["plantilla", "email", "nombre", "agente"] });
+  assert.equal(F.buildSendPayload("consent", make({ agente: "", clienteEmail: "bea@example.com" }), consent, { templateId: "4" }).ok, true,
+    "el Consent no necesita agente para enviarse");
+});
+
+test("enviados a firmar: qué dice cada estado y en qué grupo del tablero va", () => {
+  assert.deepEqual(F.signedStatus("completed"), { label: "Firmado", done: true, final: true, group: "signed" });
+  assert.deepEqual(F.signedStatus("Completed"), F.signedStatus("completed"));
+  assert.deepEqual(F.signedStatus("declined"), { label: "El cliente no lo firmó", done: false, final: true, group: "unsigned" });
+  assert.deepEqual(F.signedStatus("expired"), { label: "Venció sin firmar", done: false, final: true, group: "unsigned" });
+  assert.deepEqual(F.signedStatus("viewed"), { label: "El cliente lo abrió, falta firmar", done: false, final: false, group: "pending" });
+  assert.deepEqual(F.signedStatus("agent"), { label: "Firmó el cliente: falta que firme el agente", done: false, final: false, group: "pending" });
+  ["sent", "pending", "created", "unknown", "", undefined].forEach((s) =>
+    assert.deepEqual(F.signedStatus(s), { label: "Esperando la firma", done: false, final: false, group: "pending" }));
+});
+
+test("tablero Firmas: qué se puede hacer con cada documento; un firmado nunca se borra", () => {
+  assert.deepEqual(F.signActions({ status: "sent" }), ["cancel"]);
+  assert.deepEqual(F.signActions({ status: "sent", link: "https://firmas.example.com/s/abc" }), ["link", "cancel"]);
+  assert.deepEqual(F.signActions({ status: "viewed", link: "https://firmas.example.com/s/abc" }), ["link", "cancel"]);
+  assert.deepEqual(F.signActions({ status: "agent" }), ["agent", "cancel"]);
+  assert.deepEqual(F.signActions({ status: "completed", saved: false }), ["save", "download"]);
+  assert.deepEqual(F.signActions({ status: "completed", saved: true }), ["download"]);
+  ["expired", "declined"].forEach((s) => assert.deepEqual(F.signActions({ status: s }), ["delete"]));
+  assert.deepEqual(F.signActions({ status: "sent", link: "javascript:alert(1)" }), ["cancel"], "lo que no es un enlace no se copia");
+});
+
+test("enlace de firma: solo http(s), sin espacios ni comillas; lo demás no es un enlace", () => {
+  assert.equal(F.signLink("https://firmas.example.com/s/abc123"), "https://firmas.example.com/s/abc123");
+  assert.equal(F.signLink("http://127.0.0.1:3000/s/abc"), "http://127.0.0.1:3000/s/abc");
+  ["javascript:alert(1)", "https://x.com/s/a b", "https://x.com/\"onclick", "ftp://x.com/s/a", "", null, undefined, 5].forEach((u) =>
+    assert.equal(F.signLink(u), "", String(u)));
+});
+
+test("tablero Firmas: cuenta por grupo, filtra y deja el orden del ayudante", () => {
+  const docs = [{ id: "a", status: "sent" }, { id: "b", status: "completed", saved: false }, { id: "c", status: "expired" },
+    { id: "d", status: "completed", saved: true }, { id: "e", status: "viewed" }];
+  const all = F.signDashboard(docs, "all");
+  assert.deepEqual(all.counts, { pending: 2, signed: 2, unsigned: 1, all: 5, toSave: 1 });
+  assert.deepEqual(all.rows.map((x) => x.id), ["a", "b", "c", "d", "e"]);
+  assert.deepEqual(F.signDashboard(docs, "pending").rows.map((x) => x.id), ["a", "e"]);
+  assert.deepEqual(F.signDashboard(docs, "signed").rows.map((x) => x.id), ["b", "d"]);
+  assert.deepEqual(F.signDashboard(docs, "unsigned").rows.map((x) => x.id), ["c"]);
+  assert.deepEqual(F.signDashboard(docs, "otro").rows.map((x) => x.id), ["a", "b", "c", "d", "e"]);
+  assert.deepEqual(F.signDashboard([], "all"), { counts: { pending: 0, signed: 0, unsigned: 0, all: 0, toSave: 0 }, rows: [] });
+});
+
+test("tablero Firmas: «Ver más» sube de a 25 y nunca pasa el tope del ayudante (1000)", () => {
+  assert.equal(F.SIGN_HISTORY_MAX, 1000);
+  assert.equal(F.nextHistoryLimit(25), 50);
+  assert.equal(F.nextHistoryLimit(975), 1000);
+  assert.equal(F.nextHistoryLimit(990), 1000);
+  assert.equal(F.nextHistoryLimit(1000), 1000);
+});
+
+test("tablero Firmas: fechas del servidor como MM/DD/AAAA", () => {
+  assert.equal(F.signDate("2026-11-20T12:00:00Z"), "11/20/2026");
+  assert.equal(F.signDate("2026-03-05T12:00:00.0000000Z"), "03/05/2026");
+  ["", null, undefined, "ayer"].forEach((v) => assert.equal(F.signDate(v), ""));
+});
+
+test("vista previa: una imagen por página, al ancho pedido y con los campos llenos dibujados", async () => {
+  const made = [];
+  const rendered = [];
+  global.document = { createElement: (tag) => { const c = { tag, style: {}, getContext: () => ({ id: made.length }) }; made.push(c); return c; } };
+  let destroyed = false;
+  const pdfjs = {
+    AnnotationMode: { ENABLE: 1, ENABLE_FORMS: 2 },
+    getDocument: ({ data }) => ({ promise: Promise.resolve({
+      numPages: 2,
+      getPage: (n) => Promise.resolve({
+        getViewport: ({ scale }) => ({ width: 612 * scale, height: 792 * scale }),
+        render: (args) => { rendered.push({ n, mode: args.annotationMode, w: args.viewport.width }); return { promise: Promise.resolve() }; }
+      }),
+      destroy: () => { destroyed = true; }
+    }), data })
+  };
+  try {
+    const pages = await F.renderPreview(pdfjs, new Uint8Array([37, 80, 68, 70]), 306, 2);
+    assert.equal(pages.length, 2);
+    /* nítida en pantallas de alta densidad: el doble de píxeles, mismo tamaño en pantalla */
+    assert.deepEqual(pages.map((c) => [c.tag, c.width, c.height, c.style.aspectRatio]), [["canvas", 612, 792, "612 / 792"], ["canvas", 612, 792, "612 / 792"]]);
+    /* los campos se dibujan como saldrán impresos (no como cajas para escribir) */
+    assert.deepEqual(rendered.map((r) => [r.n, r.mode]), [[1, 1], [2, 1]]);
+    assert.ok(destroyed, "el documento se suelta al terminar");
+  } finally { delete global.document; }
 });
