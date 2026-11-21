@@ -118,7 +118,8 @@ test("el botón Actualizar de la barra abre el actualizador con un enlace propio
   /* el comando corre el actualizador instalado y no recibe la dirección (%1) */
   const cmd = inst.match(/\$comandoActualizar = (.+)/);
   assert.ok(cmd, "arma el comando del enlace");
-  assert.match(cmd[1], /actualizar\.ps1/);
+  const args = (inst.match(/\$argsActualizar = (.+)/) || [])[1] || "";
+  assert.match(cmd[1].replace("$argsActualizar", args), /actualizar\.ps1/);
   assert.doesNotMatch(inst, /%1/, "el enlace no le pasa nada al actualizador");
   /* desinstalar quita el enlace; el acceso del Escritorio ya no hace falta */
   assert.match(inst.slice(inst.indexOf("if ($Quitar)"), inst.indexOf("exit 0")), /\$claveEnlace/);
@@ -129,6 +130,28 @@ test("el botón Actualizar de la barra abre el actualizador con un enlace propio
   /* la barra de arriba tiene el botón, que abre ese enlace */
   const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
   assert.match(html, new RegExp('id="btnUpdateApp"[^>]*href="' + C.UPDATE_LINK + '"'));
+});
+
+test("el botón Actualizar corre el actualizador sin ventana de consola y avisa el resultado en un cuadro", () => {
+  const win = (f) => fs.readFileSync(path.join(root, "tools", "windows", f), "utf8");
+  const inst = win("instalar.ps1"), ps = win("actualizar.ps1");
+  /* el enlace lo abre sin consola (conhost --headless; en un Windows viejo, ventana oculta) */
+  const cmds = inst.match(/\$comandoActualizar = .+/g) || [];
+  assert.ok(cmds.length >= 1);
+  const args = (inst.match(/\$argsActualizar = (.+)/) || [])[1] || "";
+  cmds.forEach((c) => assert.match(c.replace("$argsActualizar", args), /actualizar\.ps1.*-Oculto/, "el enlace pide el modo oculto"));
+  assert.match(inst, /\$conhost = .*conhost\.exe/);
+  assert.ok(cmds.some((c) => /\$conhost.*--headless/.test(c)), "sin ventana con conhost --headless");
+  assert.ok(cmds.some((c) => /-WindowStyle Hidden/.test(c)), "ventana oculta donde no hay --headless");
+  /* oculto: no espera Enter y muestra el resultado en un cuadro de Windows */
+  assert.match(ps, /\[switch\]\$Oculto/);
+  assert.match(ps, /\.Popup\(/);
+  const terminar = ps.slice(ps.indexOf("function Terminar"), ps.indexOf("\n}", ps.indexOf("function Terminar")));
+  assert.match(terminar, /\$Oculto/, "Terminar avisa con el cuadro y no espera Enter");
+  /* cada salida deja su aviso: al día, sin internet, listo o el error */
+  ["Ya tienes la ultima version", "No se pudo consultar GitHub", "Listo:", "no esta instalado"].forEach((t) =>
+    assert.match(ps, new RegExp("Avisar \"[^\"]*" + t), "avisa: " + t));
+  assert.match(ps, /Avisar \$_\.Exception\.Message/, "avisa el error");
 });
 
 test("el enlace de firma avisa que es solo para datos de prueba hasta el BAA", () => {
