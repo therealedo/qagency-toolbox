@@ -401,6 +401,7 @@
     }
 
     var label = el(F.type === "seg" ? "div" : "label", "field-label", resolve(F.label));
+    label.title = resolve(F.label);
     if (F.type !== "seg") { label.htmlFor = id; }
     label.dataset.label = F.k;
     wrap.appendChild(label);
@@ -906,7 +907,7 @@
       var ok = el("button", "link-btn review-ok", "Están bien");
       ok.type = "button"; ok.hidden = true;
       ok.title = "Quita el dorado de esta sección: los datos leídos están bien";
-      ok.addEventListener("click", function () { confirmReviewed(G.id); });
+      ok.addEventListener("click", function () { confirmReviewed(G.id); reviewNext(G.id); });
       head.appendChild(ok);
       sec.appendChild(head);
       /* group-body anima la altura (filas 0fr ↔ 1fr); group-inner recorta el contenido */
@@ -971,6 +972,29 @@
         }
       }, instant ? 0 : OPEN_MS + 20);
     }
+  }
+  /* "Están bien" en una sección: abre la siguiente que tiene algo por revisar
+     o elegir y pone el cursor en su primer dato dorado (o por elegir). Sin
+     ninguna pendiente, el foco vuelve a la cabecera de la sección. */
+  function reviewNext(from) {
+    var shown = Array.prototype.filter.call($("form").querySelectorAll(".group"), function (g) { return !g.hidden; });
+    var at = shown.map(function (g) { return g.dataset.group; }).indexOf(from);
+    var order = shown.slice(at + 1).concat(shown.slice(0, Math.max(at, 0)));
+    var next = order.filter(function (g) { return +g.dataset.pending > 0; })[0];
+    if (!next) {
+      var own = $("sec-" + from), tog = own && own.querySelector(".group-toggle");
+      if (tog) { tog.focus(); }
+      return;
+    }
+    openSection(next.dataset.group);
+    /* medida cuando ya se cerró la de arriba: el título de la sección queda a la vista */
+    setTimeout(function () {
+      window.scrollTo({ top: window.scrollY + next.getBoundingClientRect().top - 72, behavior: reduceMotion && reduceMotion.matches ? "auto" : "smooth" });
+      var target = next.querySelector(".fld.is-auto:not([hidden]) input, .fld.is-auto:not([hidden]) select, .fld.is-auto:not([hidden]) textarea, " +
+        ".fld.is-auto:not([hidden]) .seg .on, .fld.is-auto:not([hidden]) .seg button, .fld.is-choose:not([hidden]) select, .fld.is-choose:not([hidden]) .seg button, " +
+        ".is-auto input, .is-auto select") || next.querySelector(".group-toggle");
+      if (target) { target.focus({ preventScroll: true }); }
+    }, OPEN_MS + 60);
   }
   function autoOpen() {
     var shown = Array.prototype.filter.call($("form").querySelectorAll(".group"), function (g) { return !g.hidden; });
@@ -1276,7 +1300,7 @@
       var visible = fieldVisible(F);
       wrap.hidden = !visible;
       var lab = wrap.querySelector("[data-label]");
-      if (lab && typeof F.label === "function") { lab.textContent = F.label(); }
+      if (lab && typeof F.label === "function") { lab.textContent = F.label(); lab.title = lab.textContent; }
       var hint = wrap.querySelector("[data-hint]");
       if (hint && typeof F.hint === "function") { hint.textContent = F.hint(); hint.hidden = !hint.textContent; }
       var ctl = $("f_" + F.k);
