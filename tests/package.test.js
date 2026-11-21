@@ -253,10 +253,18 @@ test("el instalador pone el ayudante de firma: token propio, helper-config.js, a
   assert.match(quitar, /Detener-Ayudante/);
   assert.match(quitar, /\$accesoAyudante/);
   assert.match(quitar, /Remove-Item \$destino -Recurse -Force/);
-  /* avisa si algo espera la firma o falta guardarlo (documentos.json, y pendientes.json de la versión 1) */
-  assert.match(quitar, /documentos\.json/);
-  assert.match(quitar, /-not \$i\.status -or \(\$i\.status -eq "completed" -and -not \$i\.saved\)/);
-  assert.match(quitar, /pendientes\.json/);
+  /* los envíos viven en el servidor de firmas: desinstalar no tiene nada que avisar de documentos.json */
+  assert.doesNotMatch(quitar, /documentos\.json|pendientes\.json/);
+  /* la clave va con la dirección del servidor: solo https y sin ruta, la misma regla que el ayudante */
+  const pedir = inst.slice(inst.indexOf("function Pedir-Clave"), inst.indexOf("if ($Quitar) {"));
+  assert.match(pedir, /Pedir-Servidor/);
+  const rule = "'^https://[A-Za-z0-9.-]+(:\\d{1,5})?/?$'";
+  assert.ok(inst.includes(rule), "el instalador revisa el servidor con " + rule);
+  assert.ok(helper.includes(rule), "el ayudante revisa el servidor con " + rule);
+  assert.match(inst, /ajustes\.json/);
+  assert.match(inst, /server\s*=/);
+  assert.doesNotMatch(inst, /SignWell/);
+  assert.doesNotMatch(helper, /SignWell/);
   /* el actualizador no se detiene a pedir la clave; Clave de firma.bat sí la pide */
   assert.match(win("actualizar.ps1"), /instalar\.ps1"\) -SinPreguntar/);
   assert.match(win("Clave de firma.bat"), /instalar\.ps1" -Clave/);

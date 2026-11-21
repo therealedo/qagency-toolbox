@@ -35,7 +35,7 @@ Assumptions (to confirm when they matter):
 | T1 | S1–S5, S11 (helper: DocuSeal client, settings, /health, /send consent + SOA) | inline | done: RED 6/6 fail on the SignWell helper, then GREEN helper 6/6, suite 303/303 | see T3 |
 | T2 | S7–S10 (helper: /list team-wide, /pdf, /saved, /delete) | inline | done (same run) | see T3 |
 | T3 | S6 (helper: /agent step with the lock rule) | inline | done (same run) | (this commit) |
-| T4 | S2 (installer: server URL + token prompt, ajustes.json, wording; package tests) | inline | pending | |
+| T4 | S2 (installer: server URL + token prompt, ajustes.json, wording; package tests) | inline | done: RED (package test: Quitar still read documentos.json), then GREEN 4/4; prompt probed with piped answers (http and a path rejected, bare name saved as https); suite 303/303 | (this commit) |
 | T5 | S5, S6 (page: payload with PDF field names, SOA agent values: agent phone by NPN, address, chosen company) | inline | pending | |
 | T6 | S4, S12 (page: link with Copiar/SMS, team-wide Firmas with Enviado por, agent Firmar, labels) | inline | pending | |
 | T7 | S13 + independent verification | inline + verifier | pending | |

@@ -3,8 +3,8 @@
 # abren en su propia ventana, con su icono. No necesita permisos de
 # administrador ni internet. Con -Quitar deshace todo.
 # (Los mensajes van sin acentos para que se lean bien en cualquier consola.)
-# Con -Clave solo pide (o cambia) la clave de la API de SignWell. El
-# actualizador lo llama con -SinPreguntar: no pide la clave.
+# Con -Clave solo pide (o cambia) la direccion del servidor de firmas y la
+# clave de su API. El actualizador lo llama con -SinPreguntar: no la pide.
 param([switch]$Quitar, [switch]$Clave, [switch]$SinPreguntar)
 
 $ErrorActionPreference = "Stop"
@@ -27,9 +27,10 @@ $actualizarEscritorio = Join-Path ([Environment]::GetFolderPath("Desktop")) "Act
 $claveEnlace = "HKCU:\Software\Classes\qagency-toolbox-update"
 
 # Ayudante de firma (signing-helper.ps1): escucha solo en 127.0.0.1, guarda
-# la clave de SignWell cifrada para este usuario de Windows (DPAPI) y arranca
-# al iniciar sesion. firma\ guarda la clave, el token que comparte con la
-# herramienta (helper-config.js) y los numeros de los documentos enviados.
+# la clave del servidor de firmas cifrada para este usuario de Windows (DPAPI)
+# y arranca al iniciar sesion. firma\ guarda la clave, la direccion del
+# servidor (ajustes.json) y el token que comparte con la herramienta
+# (helper-config.js). Los envios viven en el servidor.
 $firma = Join-Path $destino "firma"
 $ayudante = Join-Path $destino "signing-helper.ps1"
 $accesoAyudante = Join-Path ([Environment]::GetFolderPath("Startup")) "Ayudante de firma $nombre.lnk"
@@ -44,10 +45,38 @@ function Iniciar-Ayudante {
     Start-Process -FilePath $powershell -WindowStyle Hidden -WorkingDirectory $destino -ArgumentList "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$ayudante`""
   }
 }
+$ajustesFirma = Join-Path $firma "ajustes.json"
+function Leer-Servidor {
+  try { return [string](Get-Content -LiteralPath $ajustesFirma -Raw | ConvertFrom-Json).server } catch { return "" }
+}
+# La direccion del servidor de firmas: solo https y sin nada despues del
+# nombre (la misma regla que usa el ayudante).
+function Pedir-Servidor {
+  $actual = Leer-Servidor
+  Write-Host ""
+  Write-Host "Direccion del servidor de firmas, por ejemplo https://firmas.ejemplo.com"
+  if ($actual) { Write-Host "(Enter para mantener $actual):" } else { Write-Host "(Enter para omitir):" }
+  while ($true) {
+    $v = ([string](Read-Host)).Trim()
+    if (-not $v) {
+      if (-not $actual) { Write-Host "Sin servidor: la herramienta no enviara a firmar hasta que se agregue con 'Clave de firma.bat'." }
+      return
+    }
+    if ($v -notmatch '^[a-z]+://') { $v = "https://" + $v }
+    if ($v -match '^https://[A-Za-z0-9.-]+(:\d{1,5})?/?$') {
+      New-Item -ItemType Directory -Force -Path $firma | Out-Null
+      Set-Content -LiteralPath $ajustesFirma -Encoding ASCII -Value (ConvertTo-Json -InputObject @{ server = $v.TrimEnd("/") } -Compress)
+      Write-Host "Servidor guardado."
+      return
+    }
+    Write-Host "Esa direccion no sirve: tiene que empezar con https:// y no llevar nada despues del nombre. Otra vez (Enter para omitir):"
+  }
+}
 # La clave la pega quien instala; no se muestra ni se guarda en texto plano.
 function Pedir-Clave {
+  Pedir-Servidor
   Write-Host ""
-  Write-Host "Clave de la API de SignWell para enviar a firmar (Enter para omitir):"
+  Write-Host "Clave de la API del servidor de firmas (Enter para omitir):"
   $s = Read-Host -AsSecureString
   if ($s.Length -eq 0) {
     if (Test-Path (Join-Path $firma "clave.txt")) { Write-Host "Se mantiene la clave que ya habia." }
@@ -61,16 +90,6 @@ function Pedir-Clave {
 
 if ($Quitar) {
   Detener-Ayudante
-  $pend = Join-Path $firma "pendientes.json"
-  $docsJson = Join-Path $firma "documentos.json"
-  $sinGuardar = $false
-  if ((Test-Path $pend) -and ((Get-Content -LiteralPath $pend -Raw) -match '"')) { $sinGuardar = $true }
-  if (Test-Path $docsJson) {
-    try { foreach ($i in (Get-Content -LiteralPath $docsJson -Raw | ConvertFrom-Json)) { if (-not $i.status -or ($i.status -eq "completed" -and -not $i.saved)) { $sinGuardar = $true } } } catch { }
-  }
-  if ($sinGuardar) {
-    Write-Host "Aviso: habia documentos enviados a firmar que esperan la firma o sin guardar en el Network. Siguen en SignWell."
-  }
   foreach ($a in ($accesos + $accesosActualizar + @($accesoAyudante, $actualizarEscritorio))) { if (Test-Path $a) { Remove-Item $a -Force } }
   if (Test-Path $claveEnlace) { Remove-Item $claveEnlace -Recurse -Force }
   if (Test-Path $destino) { Remove-Item $destino -Recurse -Force }
@@ -229,16 +248,16 @@ if (Test-Path $ayudanteOrigen) {
     -Value ("window.QA_HELPER = { port: 47815, token: `"" + $tok + "`" };")
   # La clave se pide solo en una instalacion nueva: al actualizar (incluso con
   # un actualizador viejo, que no pasa -SinPreguntar) no se detiene a pedirla.
-  if (-not (Test-Path (Join-Path $firma "clave.txt"))) {
+  if (-not (Test-Path (Join-Path $firma "clave.txt")) -or -not (Leer-Servidor)) {
     if (-not $SinPreguntar -and -not $habiaAcceso) { Pedir-Clave }
-    else { Write-Host "Para enviar a firmar, agrega la clave de SignWell con 'Clave de firma.bat'." }
+    else { Write-Host "Para enviar a firmar, agrega el servidor de firmas y su clave con 'Clave de firma.bat'." }
   }
   $s = $shell.CreateShortcut($accesoAyudante)
   $s.TargetPath = $powershell
   $s.Arguments = "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$ayudante`""
   $s.WindowStyle = 7
   $s.WorkingDirectory = $destino
-  $s.Description = "Envia a firmar con SignWell desde $nombre"
+  $s.Description = "Envia a firmar desde $nombre"
   $s.Save()
   Iniciar-Ayudante
 }
