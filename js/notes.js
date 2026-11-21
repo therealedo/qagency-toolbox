@@ -1334,6 +1334,10 @@
     if (d.line === "oc" && O.id === "cancelada" && d.tipoCancel === "terminated" && !U.parseDate(d.fechaTermino)) {
       w.push("Falta la fecha de terminación de la cobertura (va en el nombre del archivo).");
     }
+    /* el SMS firma con el teléfono de la agencia del caso; sin él sale solo el directo */
+    if (!O.noSms && !val(d.telefono)) {
+      w.push("Falta el teléfono de la oficina de " + (val(d.oficina) || C.OFFICES[0]) + " en Ajustes: el SMS sale sin él.");
+    }
     if (noteText && SSN_RE.test(noteText)) { w.push("La nota parece contener un número de Seguro Social. Quítalo antes de pegarla."); }
     return w;
   }

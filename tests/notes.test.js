@@ -349,6 +349,17 @@ test("nota: Medicare sin cambios con el plan al final y solo el SOA", () => {
   assert.ok(!w.some((x) => /código Q|compañía|año del plan/.test(x)));
 });
 
+/* sin el teléfono de la agencia en Ajustes, el SMS sale sin la línea Oficina */
+test("avisos: falta el teléfono de la oficina de la agencia del caso", () => {
+  const re = /Falta el teléfono de la oficina de ATH Insurance en Ajustes/;
+  const d = make({ line: "oc", outcome: "enviada", oficina: "ATH Insurance", telefono: "", firmaNombre: "Laura Ibarra", firmaTel: "(239) 555-0100" });
+  assert.ok(N.warnings(d, "").some((x) => re.test(x)));
+  assert.ok(!/Oficina:/.test(N.buildSms(d)));
+  assert.ok(!N.warnings(Object.assign({}, d, { telefono: "(239) 555-0199" }), "").some((x) => /teléfono de la oficina/.test(x)));
+  /* una gestión sin SMS no lo necesita */
+  assert.ok(!N.warnings(make({ line: "mc", outcome: "sincambio", oficina: "ATH Insurance", telefono: "" }), "").some((x) => /teléfono de la oficina/.test(x)));
+});
+
 test("nota: suplementario como el template ACCIDENTE", () => {
   const note = N.buildNote(make({
     ini: "ER", line: "supp", outcome: "enviada", gestion: "nueva", producto: "Accident", genero: "a",
