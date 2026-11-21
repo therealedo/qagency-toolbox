@@ -126,11 +126,21 @@ test("valores del Consent: cliente, fecha de la nota, agente con NPN, hogar, ing
   assert.deepEqual(F.consentValues(make({ line: "oc", outcome: "pendiente", personas: familia, planes: planes })), consent);
 });
 
-test("valores del Consent: estado civil según el idioma y solo si hay cónyuge en el hogar", () => {
+test("valores del Consent: estado civil según el idioma; casado si hay cónyuge en el hogar", () => {
   const d = make({ line: "oc", outcome: "pendiente", personas: familia, planes: planes });
   assert.equal(F.consentValues(Object.assign({}, d, { genero: "o" })).marital, "Casado");
   assert.equal(F.consentValues(Object.assign({}, d, { idioma: "en" })).marital, "Married");
-  assert.equal(F.consentValues(Object.assign({}, d, { personas: [familia[0], familia[2]] })).marital, "");
+  assert.equal(F.consentValues(Object.assign({}, d, { personas: [familia[0], familia[2]] })).marital, "Soltera");
+});
+
+test("valores del Consent: un caso hecho a mano, sin cónyuge y sin documento, es soltero", () => {
+  /* solo el titular, sin App Summary que diga el estado civil */
+  const solo = make({ line: "oc", outcome: "pendiente", personas: [{ titular: true, taxes: true, cobertura: true }], planes: planes });
+  assert.equal(F.consentValues(Object.assign({}, solo, { genero: "o" })).marital, "Soltero");
+  assert.equal(F.consentValues(Object.assign({}, solo, { genero: "a" })).marital, "Soltera");
+  assert.equal(F.consentValues(Object.assign({}, solo, { idioma: "en" })).marital, "Single");
+  /* sin la lista de personas (nota recién empezada) también */
+  assert.equal(F.consentValues(make({ line: "oc", outcome: "pendiente", planes: planes, genero: "o" })).marital, "Soltero");
 });
 
 test("valores del Consent: sin cónyuge, el estado civil que leyó el App Summary, en el idioma y género del cliente", () => {
