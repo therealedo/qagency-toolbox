@@ -1613,7 +1613,7 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
 (function (root) {
   "use strict";
 
-  var VERSION = "1.25.7";
+  var VERSION = "1.25.8";
   /* De aquí la herramienta instalada lee el número de la última versión (y
      nada más). La política de seguridad de index.html solo permite esta
      dirección, y el actualizador de Windows usa el mismo repositorio. */
@@ -3173,7 +3173,9 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
     if (f.descartados.indexOf(row.src) < 0) { f.descartados.push(row.src); }
   }
 
-  function mergeDocs(f, list, sent) {
+  /* `files`: los archivos leídos; la casilla y el archivo de Docs Submitted
+     siguen a la fila del titular cuando por fin recibe su nombre. */
+  function mergeDocs(f, list, sent, files) {
     var added = 0, tit = (f.personas || [])[0], titName = tit && val(val(f.nombres) + val(f.apellidos)) ? personaLabel(f, tit) : "";
     list.forEach(function (x) {
       var persona = "", isTit = !!x.titular || !x.persona;
@@ -3184,8 +3186,17 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
         isTit = match === tit;
       }
       persona = persona || titName;
-      var dup = f.docs.filter(function (y) { return y.cat === x.cat && sameName(y.persona, persona); })[0];
+      /* dos filas del titular son la misma aunque una se leyó antes de saber
+         su nombre ("Upload documents" antes que la carta) */
+      var dup = f.docs.filter(function (y) { return y.cat === x.cat && (sameName(y.persona, persona) || (isTit && y.titular)); })[0];
       if (dup) {
+        if (isTit && persona && !val(dup.persona)) {
+          var keyBefore = docKey(dup);
+          dup.persona = persona;
+          moveDocKey(f, files, keyBefore, docKey(dup));
+          added++;
+        }
+        if (x.fecha && !dup.fecha) { dup.fecha = x.fecha; added++; }
         if (x.enviado && !dup.enviado) { dup.enviado = true; dup.doc = dup.doc || x.doc || ""; added++; }
         if (isTit) { dup.titular = true; }
         if (x.enviado) { sent.push(dup); }
@@ -10282,7 +10293,7 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
       if (dob) { applied += N.mergeHousehold(S.f, [{ titular: true, dob: dob }], rank); }
       if (ing) { applied += N.mergeHousehold(S.f, [{ titular: true, ingreso: ing }], rank, true); }
       if (special.hogar) { S.f.hogarDoc = special.hogar; }
-      if (special.docs) { applied += N.mergeDocs(S.f, special.docs, sent); }
+      if (special.docs) { applied += N.mergeDocs(S.f, special.docs, sent, S.files); }
     }
     /* Medicare: un documento con prima prende el interruptor de la prima */
     if (S.line === "mc" && fields.prima && U.moneyNumber(fields.prima) > 0 && !S.f.tienePrima) { S.f.tienePrima = true; S.auto.tienePrima = true; }
