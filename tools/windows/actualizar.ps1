@@ -9,10 +9,15 @@
 # se verifica con la llave publica de abajo. La llave privada no esta en
 # GitHub, asi que alguien que entre a esa cuenta no puede repartir un paquete
 # propio. Con -SoloRevisar descarga y verifica, pero no instala.
+# Con -Oculto (lo usa el boton Actualizar de la herramienta, que lo abre sin
+# ventana de consola) no espera Enter: el resultado sale en un cuadro de
+# Windows. -SegundosAviso cierra ese cuadro solo (para las pruebas).
 param(
   [string]$Fuente = "https://raw.githubusercontent.com/therealedo/qagency-toolbox/main",
   [switch]$SinPausa,
-  [switch]$SoloRevisar
+  [switch]$SoloRevisar,
+  [switch]$Oculto,
+  [int]$SegundosAviso = 0
 )
 
 $ErrorActionPreference = "Stop"
@@ -55,14 +60,28 @@ function Version-Del-Html([string]$archivo) {
   return Como-Version $m.Groups[1].Value
 }
 
+# El resultado que se avisa al final: en la consola sale de todas formas
+$script:aviso = ""
+function Avisar([string]$texto) {
+  Write-Host $texto
+  $script:aviso = if ($script:aviso) { $script:aviso + "`n" + $texto } else { $texto }
+}
+
 function Terminar([int]$codigo) {
-  if (-not $SinPausa) { Write-Host ""; Read-Host "Pulsa Enter para cerrar" | Out-Null }
+  if ($Oculto) {
+    # sin consola: un cuadro de Windows con el resultado (informacion o aviso),
+    # encima de todo (4096) para que no quede detras del navegador
+    try {
+      $icono = 4096 + $(if ($codigo -eq 0) { 64 } else { 48 })
+      (New-Object -ComObject WScript.Shell).Popup($script:aviso, $SegundosAviso, "Actualizar $nombre", $icono) | Out-Null
+    } catch { }
+  } elseif (-not $SinPausa) { Write-Host ""; Read-Host "Pulsa Enter para cerrar" | Out-Null }
   exit $codigo
 }
 
 if (-not (Test-Path $html)) {
-  Write-Host "$nombre no esta instalado en esta computadora."
-  Write-Host "Instalalo primero con Instalar.bat del paquete de Windows."
+  Avisar "$nombre no esta instalado en esta computadora."
+  Avisar "Instalalo primero con Instalar.bat del paquete de Windows."
   Terminar 1
 }
 
@@ -75,16 +94,16 @@ Write-Host "Version instalada: $local"
 try {
   $pkg = Invoke-RestMethod -UseBasicParsing -Uri "$Fuente/package.json" -Headers @{ "Cache-Control" = "no-cache" }
 } catch {
-  Write-Host "No se pudo consultar GitHub. Revisa la conexion a internet y vuelve a intentar."
+  Avisar "No se pudo consultar GitHub. Revisa la conexion a internet y vuelve a intentar."
   Terminar 1
 }
 $remota = Como-Version ([string]$pkg.version)
 if (-not $remota) {
-  Write-Host "GitHub no devolvio un numero de version valido. No se cambio nada."
+  Avisar "GitHub no devolvio un numero de version valido. No se cambio nada."
   Terminar 1
 }
 if ($local -and $remota -le $local) {
-  Write-Host "Ya tienes la ultima version ($local). No hace falta actualizar."
+  Avisar "Ya tienes la ultima version ($local). No hace falta actualizar."
   Terminar 0
 }
 
@@ -111,16 +130,18 @@ try {
   $vNuevo = Version-Del-Html $nuevo
   if ($vNuevo -ne $remota) { throw "El paquete de GitHub todavia es la version $vNuevo y no la $remota. No se cambio nada; prueba mas tarde." }
   if ($SoloRevisar) {
-    Write-Host "Paquete $remota verificado. No se instalo (-SoloRevisar)."
+    Avisar "Paquete $remota verificado. No se instalo (-SoloRevisar)."
   } else {
     & (Join-Path $carpeta "instalar.ps1")
     if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) { throw "La instalacion no termino. Prueba de nuevo o usa Instalar.bat del paquete." }
     Write-Host ""
-    Write-Host "Listo: $nombre $remota."
-    Write-Host "Si la herramienta estaba abierta, cierrala y vuelve a abrirla."
+    # lo que dijo el instalador no va en el cuadro: solo el resultado
+    $script:aviso = ""
+    Avisar "Listo: $nombre $remota."
+    Avisar "Si la herramienta estaba abierta, cierrala y vuelve a abrirla."
   }
 } catch {
-  Write-Host $_.Exception.Message
+  Avisar $_.Exception.Message
   $codigo = 1
 } finally {
   Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue

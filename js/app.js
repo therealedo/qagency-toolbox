@@ -2943,7 +2943,7 @@
     if (location.protocol === "file:") {
       $("btnUpdateApp").hidden = false;
       $("btnUpdateApp").addEventListener("click", function () {
-        toast("Se abre el actualizador. Si el navegador pregunta, elige Abrir. Cuando termine, cierra la herramienta y vuelve a abrirla.");
+        toast("Buscando la versión nueva… Si el navegador pregunta, elige Abrir. Un cuadro de Windows te avisa cuando termine.");
       });
     }
     /* abierta sin su ícono: otro perfil del navegador, sin los ajustes */

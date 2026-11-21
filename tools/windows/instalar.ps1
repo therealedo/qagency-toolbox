@@ -138,7 +138,16 @@ if (Test-Path $actualizador) {
   # Windows corre el actualizador instalado. El comando no recibe la
   # direccion del enlace: lo unico que puede hacer es buscar una version
   # nueva firmada e instalarla.
-  $comandoActualizar = "`"$powershell`" -NoProfile -ExecutionPolicy Bypass -File `"$(Join-Path $destino 'actualizar.ps1')`""
+  # Sin ventana de consola: conhost --headless (Windows 10 1809 o mas nuevo)
+  # la corre sin mostrarla, tambien donde la terminal por defecto es Windows
+  # Terminal. El actualizador avisa el resultado en un cuadro (-Oculto).
+  $conhost = Join-Path $env:SystemRoot "System32\conhost.exe"
+  $argsActualizar = "-NoProfile -ExecutionPolicy Bypass -File `"$(Join-Path $destino 'actualizar.ps1')`" -Oculto"
+  if ((Test-Path $conhost) -and [Environment]::OSVersion.Version.Build -ge 17763) {
+    $comandoActualizar = "`"$conhost`" --headless `"$powershell`" $argsActualizar"
+  } else {
+    $comandoActualizar = "`"$powershell`" -WindowStyle Hidden $argsActualizar"
+  }
   New-Item -Path $claveEnlace -Force | Out-Null
   Set-ItemProperty -Path $claveEnlace -Name "(default)" -Value "URL:Actualizar $nombre"
   Set-ItemProperty -Path $claveEnlace -Name "URL Protocol" -Value ""
