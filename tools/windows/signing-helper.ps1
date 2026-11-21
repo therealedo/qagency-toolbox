@@ -26,6 +26,11 @@ Add-Type -AssemblyName System.Net.Http
 
 $tokenFile = Join-Path $Dir "token.txt"
 $logFile = Join-Path $Dir "registro.log"
+# Esta computadora: cada envio lleva su numero (qa_pc) y Firmas lista solo
+# los de aqui. Lo guardado en el Network se anota aqui (solo numeros de
+# envio): DocuSeal no deja cambiar a un firmante que ya firmo.
+$equipoFile = Join-Path $Dir "equipo.txt"
+$guardadosFile = Join-Path $Dir "guardados.txt"
 New-Item -ItemType Directory -Force -Path $Dir | Out-Null
 
 # El registro dice que paso, nunca con que datos: ni cuerpos, ni nombres,
@@ -35,6 +40,21 @@ function Write-Log([string]$msg) {
 }
 
 $token = if (Test-Path -LiteralPath $tokenFile) { (Get-Content -LiteralPath $tokenFile -Raw).Trim() } else { "" }
+$equipo = if (Test-Path -LiteralPath $equipoFile) { (Get-Content -LiteralPath $equipoFile -Raw).Trim() } else { "" }
+if ($equipo -cnotmatch '^[0-9a-f]{32}$') {
+  $rnd = New-Object byte[] 16
+  [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($rnd)
+  $equipo = -join ($rnd | ForEach-Object { $_.ToString("x2") })
+  Set-Content -LiteralPath $equipoFile -Value $equipo -Encoding ASCII
+}
+function Read-Guardados {
+  $set = New-Object 'System.Collections.Generic.HashSet[string]'
+  if (Test-Path -LiteralPath $guardadosFile) {
+    foreach ($l in (Get-Content -LiteralPath $guardadosFile)) { if ($l.Trim() -match '^\d{1,12}$') { [void]$set.Add($l.Trim()) } }
+  }
+  return , $set
+}
+$script:guardados = Read-Guardados
 if ($token.Length -lt 32) { Write-Log "sin token: no se acepta nada"; $token = $null }
 
 if (-not $ApiBase) { $ApiBase = $Servidor + "/api" }
@@ -125,7 +145,8 @@ function Test-Ours($sub) {
   $c = Get-Role $sub "Cliente"
   if (-not $c -or -not $c.metadata) { return $false }
   $m = $c.metadata
-  return ((@("consent", "soa") -contains [string]$m.qa_kind) -and ([string]$m.qa_net -match '^[a-z]{1,20}$') -and ([string]$m.qa_file).Trim() -ne "")
+  return ((@("consent", "soa") -contains [string]$m.qa_kind) -and ([string]$m.qa_net -match '^[a-z]{1,20}$') -and ([string]$m.qa_file).Trim() -ne "" -and
+    [string]$m.qa_pc -ceq $equipo)
 }
 function Get-Status($sub) {
   $c = Get-Role $sub "Cliente"
@@ -148,7 +169,7 @@ function Get-Doc($sub) {
   $m = $c.metadata
   $st = Get-Status $sub
   $d = [ordered]@{
-    id = [string]$sub.id; status = $st; saved = ([string]$m.qa_saved -eq "1")
+    id = [string]$sub.id; status = $st; saved = ([string]$m.qa_saved -eq "1" -or $script:guardados.Contains([string]$sub.id))
     meta = @{ kind = [string]$m.qa_kind; line = [string]$m.qa_line; netKey = [string]$m.qa_net; fileName = [string]$m.qa_file }
     agent = [string]$m.qa_agent; name = [string]$c.name; email = [string]$c.email; created = [string]$sub.created_at
   }
@@ -157,8 +178,8 @@ function Get-Doc($sub) {
 }
 # Pide un envio. Devuelve @{ sub } o @{ code } (404 si no existe, 502 si el
 # servidor no contesto bien).
-function Fetch-Sub([string]$id) {
-  try { $r = Invoke-DocuSeal "GET" ("/submissions/" + $id) $null } catch { Write-Log ("envio " + $id + " sin conexion"); return @{ code = 502 } }
+function Fetch-Sub([string]$id, [string]$query = "") {
+  try { $r = Invoke-DocuSeal "GET" ("/submissions/" + $id + $query) $null } catch { Write-Log ("envio " + $id + " sin conexion"); return @{ code = 502 } }
   if ($r.code -eq 404) { return @{ code = 404 } }
   $sub = if ($r.code -eq 200) { Read-Json $r.bytes } else { $null }
   if (-not $sub -or $sub.archived_at) {
@@ -239,7 +260,7 @@ function Build-Submission($b) {
   if (-not ((Text-Ok $b.meta.fileName 200) -and ([string]$b.meta.line -match '^[a-z]{0,10}$') -and ([string]$b.meta.netKey -match '^[a-z]{1,20}$'))) { return $null }
   $fields = Read-Fields $b.fields
   if ($null -eq $fields) { return $null }
-  $meta = [ordered]@{ qa_kind = $b.meta.kind; qa_line = [string]$b.meta.line; qa_net = $b.meta.netKey; qa_file = $b.meta.fileName }
+  $meta = [ordered]@{ qa_kind = $b.meta.kind; qa_line = [string]$b.meta.line; qa_net = $b.meta.netKey; qa_file = $b.meta.fileName; qa_pc = $equipo }
   if (Text-Ok $b.requester 100) { $meta.qa_agent = $b.requester }
   $cliente = [ordered]@{ role = "Cliente"; name = $b.recipient.name; email = $b.recipient.email; order = 0; metadata = $meta
     fields = [object[]]@($fields | ForEach-Object { [ordered]@{ name = $_.name; default_value = $_.value; readonly = $true } }) }
@@ -323,6 +344,7 @@ function Handle($ctx) {
         if (-not (($b.limit -is [int]) -or ($b.limit -is [long])) -or $b.limit -lt 1 -or $b.limit -gt 1000) { Send-Response $ctx 400 @{ error = "limit" }; return }
         $limit = [int]$b.limit
       }
+      $script:guardados = Read-Guardados
       $byId = @{}
       $newest = New-Object System.Collections.ArrayList
       $after = ""
@@ -347,13 +369,13 @@ function Handle($ctx) {
       Send-Response $ctx 200 ([ordered]@{ docs = [object[]]$docs; more = $more })
     }
     "/pdf" {
-      $f = Fetch-Sub ([string]$b.id)
+      # Un solo PDF: el documento firmado y, al final, el certificado de
+      # DocuSeal (quien firmo, cuando y desde donde), sellado por el servidor.
+      $f = Fetch-Sub ([string]$b.id) "?include=combined_document_url"
       if (-not $f.sub) { Send-Response $ctx $f.code @{ error = $(if ($f.code -eq 404) { "id" } else { "conexion" }) }; return }
       if ((Get-Status $f.sub) -ne "completed") { Send-Response $ctx 409 @{ error = "no-firmado" }; return }
-      try { $r = Invoke-DocuSeal "GET" ("/submissions/" + $b.id + "/documents?merge=true") $null } catch { Send-Response $ctx 502 @{ error = "conexion" }; return }
-      $res = if ($r.code -eq 200) { Read-Json $r.bytes } else { $null }
-      $url = [string](@($res.documents) | Select-Object -First 1).url
-      if (-not ($url -match '^https?://')) { Server-Failure $ctx ("pdf " + $b.id) $r; return }
+      $url = [string]$f.sub.combined_document_url
+      if (-not ($url -match '^https?://')) { Write-Log ("pdf " + $b.id + " sin documento"); Send-Response $ctx 502 @{ error = "docuseal"; status = 502 }; return }
       try { $p = Get-File (New-Object System.Uri $url) } catch { Send-Response $ctx 502 @{ error = "conexion" }; return }
       if ($p.code -ne 200 -or $p.bytes.Length -lt 5 -or [Text.Encoding]::ASCII.GetString($p.bytes, 0, 5) -ne "%PDF-") {
         Write-Log ("pdf " + $b.id + " archivo http " + $p.code)
@@ -363,18 +385,15 @@ function Handle($ctx) {
       Send-Response $ctx 200 $null $p.bytes "application/pdf"
     }
     "/saved" {
-      # La herramienta ya guardo el PDF en el Network: queda marcado en el
-      # servidor, para que ninguna otra computadora lo vuelva a guardar.
+      # La herramienta ya guardo el PDF en el Network: se anota en esta
+      # computadora (DocuSeal no deja cambiar a un firmante que ya firmo).
       $f = Fetch-Sub ([string]$b.id)
       if (-not $f.sub) { Send-Response $ctx $f.code @{ error = $(if ($f.code -eq 404) { "id" } else { "conexion" }) }; return }
       if ((Get-Status $f.sub) -ne "completed") { Send-Response $ctx 409 @{ error = "no-firmado" }; return }
-      $c = Get-Role $f.sub "Cliente"
-      $meta = [ordered]@{}
-      if ($c.metadata) { foreach ($p in $c.metadata.PSObject.Properties) { $meta[$p.Name] = $p.Value } }
-      if ([string]$meta.qa_saved -ne "1") {
-        $meta.qa_saved = "1"
-        try { $r = Invoke-DocuSeal "PUT" ("/submitters/" + $c.id) @{ metadata = $meta } } catch { Send-Response $ctx 502 @{ error = "conexion" }; return }
-        if ($r.code -lt 200 -or $r.code -ge 300) { Server-Failure $ctx ("saved " + $b.id) $r; return }
+      $script:guardados = Read-Guardados
+      if (-not $script:guardados.Contains([string]$b.id)) {
+        try { Add-Content -LiteralPath $guardadosFile -Value ([string]$b.id) -Encoding ASCII } catch { Write-Log ("saved " + $b.id + " sin disco"); Send-Response $ctx 500 @{ error = "disco" }; return }
+        [void]$script:guardados.Add([string]$b.id)
       }
       Write-Log ("saved " + $b.id)
       Send-Response $ctx 200 @{ ok = $true }

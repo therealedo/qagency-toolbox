@@ -74,12 +74,12 @@ test("la pasarela solo deja pasar, con la clave, los pedidos del ayudante y con 
   const raro = new RegExp(c.match(/@raro vars_regexp \{http\.request\.uri\} (\S+)/)[1]);
   ["/api/templates/5%2F%2e%2e%2F%2e%2e%2Fsubmitters%2F7", "/api/submissions/1%2F..%2F..%2Ftemplates%2F2", "//api/submissions",
     "/api/templates/../submissions/1", "/api/submissions/./1", "/api/submissions?q=%2E"].forEach((u) => assert.ok(raro.test(u), u));
-  ["/api/submissions", "/api/submissions?limit=25&after=12&status=pending", "/api/submissions/42/documents?merge=true",
+  ["/api/submissions", "/api/submissions?limit=25&after=12&status=pending", "/api/submissions/42/documents?merge=true", "/api/submissions/42?include=combined_document_url",
     "/api/submitters/7"].forEach((u) => assert.ok(!raro.test(u), u));
   /* the helper's calls are all in that list */
   const helper = fs.readFileSync(path.join(__dirname, "..", "tools", "windows", "signing-helper.ps1"), "utf8");
   const calls = [...helper.matchAll(/Invoke-DocuSeal "(\w+)" \(?"([^"]+)"/g)].map((x) => [x[1], x[2]]);
-  assert.ok(calls.length >= 6);
+  assert.ok(calls.length >= 5);
   calls.forEach(([method, p]) => {
     const sample = ("/api" + p).replace(/\?.*$/, "").replace(/\/$/, "/42");
     assert.ok(allowed(method, sample), method + " " + p);

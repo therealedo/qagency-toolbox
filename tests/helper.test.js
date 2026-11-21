@@ -56,7 +56,7 @@ function fakeDocuSeal(opts) {
       const send = (code, obj) => { res.writeHead(code, { "Content-Type": "application/json" }); res.end(obj === undefined ? "" : JSON.stringify(obj)); };
       if (u.pathname.startsWith("/files/")) {
         files.push({ url: req.url, key: req.headers["x-auth-token"], code: req.headers["x-office-code"] });
-        if (o.redirectFile && u.pathname === "/files/merged.pdf") { res.writeHead(302, { Location: base() + "/files/blob.pdf?sig=1" }); return res.end(); }
+        if (o.redirectFile && u.pathname === "/files/combined.pdf") { res.writeHead(302, { Location: base() + "/files/blob.pdf?sig=1" }); return res.end(); }
         res.writeHead(200, { "Content-Type": "application/pdf" }); return res.end(PDF);
       }
       /* como la pasarela: solo con el código de la oficina, y el ayudante nunca manda una clave */
@@ -82,13 +82,20 @@ function fakeDocuSeal(opts) {
         const id = Number(m[1]);
         if (!subs[id]) { return send(404, { error: "Not found" }); }
         if (req.method === "GET" && m[2]) { return send(200, { id, documents: [{ name: "merged", url: base() + "/files/merged.pdf" }] }); }
-        if (req.method === "GET") { return send(200, view(id)); }
+        /* como DocuSeal: el PDF con el certificado al final, si se pide y ya se firmó todo */
+        if (req.method === "GET") {
+          const v = view(id);
+          if (v.status === "completed" && /combined_document_url/.test(u.searchParams.get("include") || "")) { v.combined_document_url = base() + "/files/combined.pdf"; }
+          return send(200, v);
+        }
         if (req.method === "DELETE") { subs[id].archived = "2026-11-21T20:00:00.000Z"; return send(200, { id, archived_at: subs[id].archived }); }
       }
       m = /^\/api\/submitters\/(\d+)$/.exec(u.pathname);
       if (m && req.method === "PUT") {
         const s = Object.values(subs).flatMap((x) => x.submitters).find((y) => y.id === Number(m[1]));
         if (!s) { return send(404, { error: "Not found" }); }
+        /* como DocuSeal: un firmante que ya firmó no se cambia */
+        if (s.completed) { return send(422, { error: "Submitter has already completed the submission." }); }
         const b = JSON.parse(body);
         if (b.metadata) { s.metadata = b.metadata; }
         for (const f of b.fields || []) { s.values = s.values.filter((v) => v.field !== f.name).concat([{ field: f.name, value: f.default_value, readonly: f.readonly }]); }
@@ -140,9 +147,12 @@ async function startHelper(dir, apiPort) {
 }
 async function stopHelper(h) { if (h) { h.child.kill(); await new Promise((r) => setTimeout(r, 500)); } }
 
+/* el número de esta computadora (equipo.txt): Firmas lista solo sus envíos */
+const PC = "0123456789abcdef0123456789abcdef";
 function setup() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "qa-helper-"));
   fs.writeFileSync(path.join(dir, "token.txt"), TOKEN);
+  fs.writeFileSync(path.join(dir, "equipo.txt"), PC);
   return dir;
 }
 
@@ -169,13 +179,13 @@ async function waitFor(fn) {
   return null;
 }
 
-test("ayudante de firma: solo la herramienta; envía sin correos; lista del servidor; PDF tal cual; guardado en el servidor; archiva solo lo no firmado", { skip: !WIN, timeout: 90000 }, async () => {
+test("ayudante de firma: solo la herramienta; envía sin correos; lista del servidor; PDF tal cual; guardado anotado en la computadora; archiva solo lo no firmado", { skip: !WIN, timeout: 90000 }, async () => {
   const dir = setup();
   const ds = await fakeDocuSeal();
   let helper;
   try {
     helper = await startHelper(dir, ds.port);
-    const port = helper.port;
+    let port = helper.port;
 
     assert.deepEqual((await call(port, "GET", "/health")).json, { ok: true, version: "4", error: null });
 
@@ -217,7 +227,7 @@ test("ayudante de firma: solo la herramienta; envía sin correos; lista del serv
     assert.deepEqual(created.body, {
       template_id: 1, send_email: false, order: "preserved",
       submitters: [{ role: "Cliente", name: "Beatriz Diaz", email: "bea@example.com", order: 0,
-        metadata: { qa_kind: "consent", qa_line: "oc", qa_net: "consent", qa_file: FILE, qa_agent: "Ana Torres" },
+        metadata: { qa_kind: "consent", qa_line: "oc", qa_net: "consent", qa_file: FILE, qa_pc: PC, qa_agent: "Ana Torres" },
         fields: [{ name: "Yo SrSra", default_value: "Beatriz Diaz", readonly: true }, { name: "Premium", default_value: "$45.00", readonly: true }] }]
     });
 
@@ -245,19 +255,27 @@ test("ayudante de firma: solo la herramienta; envía sin correos; lista del serv
     assert.equal(pdf.status, 200);
     assert.equal(pdf.headers["content-type"], "application/pdf");
     assert.ok(pdf.buf.equals(PDF), "el PDF firmado llega byte por byte");
-    assert.ok(ds.calls.some((c) => c.path === "/api/submissions/1/documents" && /merge=true/.test(c.url)));
-    assert.deepEqual(ds.files, [{ url: "/files/merged.pdf", key: undefined, code: undefined }], "el código no va al enlace del PDF");
+    /* el PDF lleva el certificado de DocuSeal al final (combined_document_url) */
+    assert.ok(ds.calls.some((c) => c.url === "/api/submissions/1?include=combined_document_url"));
+    assert.ok(!ds.calls.some((c) => /\/documents/.test(c.path)), "ya no se pide el PDF sin certificado");
+    assert.deepEqual(ds.files, [{ url: "/files/combined.pdf", key: undefined, code: undefined }], "el código no va al enlace del PDF");
 
-    /* un firmado no se archiva; guardarlo lo marca en el servidor para todo el equipo */
+    /* un firmado no se archiva; guardarlo se anota en esta computadora: DocuSeal
+       no deja cambiar a un firmante que ya firmó (el servidor de mentira tampoco) */
     const refused = await post(port, "/delete", { id: "1" });
     assert.deepEqual([refused.status, refused.json], [409, { error: "firmado" }]);
     assert.deepEqual((await post(port, "/saved", { id: "1" })).json, { ok: true });
-    const put = ds.calls.find((c) => c.method === "PUT");
-    assert.equal(put.path, "/api/submitters/" + ds.subs[1].submitters[0].id);
-    assert.deepEqual(put.body, { metadata: { qa_kind: "consent", qa_line: "oc", qa_net: "consent", qa_file: FILE, qa_agent: "Ana Torres", qa_saved: "1" } });
+    assert.deepEqual((await post(port, "/saved", { id: "1" })).json, { ok: true }, "dos veces no falla");
+    assert.ok(!ds.calls.some((c) => c.method === "PUT"), "nada se cambia en el servidor");
+    assert.deepEqual(fs.readFileSync(path.join(dir, "guardados.txt"), "utf8").split(/\r?\n/).filter(Boolean), ["1"]);
     assert.equal((await post(port, "/list")).json.docs[0].saved, true);
+    /* se mantiene al reiniciar el ayudante */
+    await stopHelper(helper);
+    helper = await startHelper(dir, ds.port);
+    assert.equal((await post(helper.port, "/list")).json.docs[0].saved, true);
 
     /* enviado por error: se archiva en el servidor y sale del tablero */
+    port = helper.port;
     const second = await post(port, "/send", SEND);
     assert.equal(second.json.id, "2");
     assert.equal((await post(port, "/delete", { id: "77" })).status, 404);
@@ -365,7 +383,7 @@ test("ayudante de firma: el historial llega de a partes, lo más nuevo primero, 
 test("ayudante de firma: «hay más» también justo en 100 o 200, y solo se listan los envíos de la herramienta", { skip: !WIN, timeout: 60000 }, async () => {
   const dir = setup();
   const ds = await fakeDocuSeal();
-  const meta = { qa_kind: "consent", qa_line: "oc", qa_net: "consent", qa_file: "Prueba, Ana - OC_Consent.pdf" };
+  const meta = { qa_kind: "consent", qa_line: "oc", qa_net: "consent", qa_file: "Prueba, Ana - OC_Consent.pdf", qa_pc: PC };
   const add = (id, role, metadata) => {
     ds.subs[id] = { template: 1, created: "2026-11-21T14:00:00.000Z", archived: null, submitters: [{ id: 5000 + id, role, name: "Ana Prueba",
       email: "ana@example.com", slug: "s" + id, metadata, values: [], opened: null, completed: "2026-11-21T16:00:00.000Z", declined: null }] };
@@ -379,14 +397,19 @@ test("ayudante de firma: «hay más» también justo en 100 o 200, y solo se lis
     assert.deepEqual([hundred.docs.length, hundred.more], [100, true], "quedan 100 más viejos");
     const twoHundred = (await post(port, "/list", { limit: 200 })).json;
     assert.deepEqual([twoHundred.docs.length, twoHundred.more], [200, false], "no queda nada");
-    /* lo que no envió la herramienta (sin sus datos, o sin el firmante Cliente) no se lista */
+    /* lo que no envió la herramienta (sin sus datos, o sin el firmante Cliente) no se lista,
+       ni lo que envió otra computadora (u otra versión, sin qa_pc) */
     add(201, "Cliente", {});
     add(202, "Signer", meta);
     add(203, "Cliente", Object.assign({}, meta, { qa_kind: "otro" }));
+    add(204, "Cliente", Object.assign({}, meta, { qa_pc: "fedcba9876543210fedcba9876543210" }));
+    const noPc = Object.assign({}, meta); delete noPc.qa_pc;
+    add(205, "Cliente", noPc);
+    add(206, "Cliente", Object.assign({}, meta, { qa_pc: PC.toUpperCase() }));
     const newest = (await post(port, "/list", { limit: 25 })).json;
     assert.equal(newest.docs.length, 25);
     assert.equal(newest.docs[0].id, "200");
-    assert.equal(newest.docs.some((x) => ["201", "202", "203"].includes(x.id)), false);
+    assert.equal(newest.docs.some((x) => ["201", "202", "203", "204", "205", "206"].includes(x.id)), false);
     const again = (await post(port, "/list", { limit: 200 })).json;
     assert.deepEqual([again.docs.length, again.more], [200, false]);
   } finally {
@@ -462,7 +485,29 @@ test("ayudante de firma: el código no viaja al enlace del PDF ni con una redire
     const pdf = await post(helper.port, "/pdf", { id: "1" });
     assert.equal(pdf.status, 200);
     assert.ok(pdf.buf.equals(PDF));
-    assert.deepEqual(ds.files, [{ url: "/files/merged.pdf", key: undefined, code: undefined }, { url: "/files/blob.pdf?sig=1", key: undefined, code: undefined }]);
+    assert.deepEqual(ds.files, [{ url: "/files/combined.pdf", key: undefined, code: undefined }, { url: "/files/blob.pdf?sig=1", key: undefined, code: undefined }]);
+  } finally {
+    await stopHelper(helper);
+    ds.server.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("ayudante de firma: cada computadora tiene su número, se crea una vez y va en cada envío", { skip: !WIN, timeout: 60000 }, async () => {
+  const dir = setup();
+  fs.rmSync(path.join(dir, "equipo.txt"));
+  const ds = await fakeDocuSeal();
+  let helper;
+  try {
+    helper = await startHelper(dir, ds.port);
+    const pc = fs.readFileSync(path.join(dir, "equipo.txt"), "utf8").trim();
+    assert.match(pc, /^[0-9a-f]{32}$/);
+    await stopHelper(helper);
+    helper = await startHelper(dir, ds.port);
+    assert.equal(fs.readFileSync(path.join(dir, "equipo.txt"), "utf8").trim(), pc, "no cambia al reiniciar");
+    await post(helper.port, "/send", SEND);
+    assert.equal(ds.calls.find((c) => c.method === "POST").body.submitters[0].metadata.qa_pc, pc);
+    assert.deepEqual((await post(helper.port, "/list")).json.docs.map((x) => x.id), ["1"]);
   } finally {
     await stopHelper(helper);
     ds.server.close();

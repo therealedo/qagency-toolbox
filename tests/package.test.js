@@ -165,7 +165,7 @@ test("el enlace de firma avisa que es solo para datos de prueba hasta el BAA", (
   assert.match(box, /BAA/);
 });
 
-test("firma con DocuSeal: se crea el enlace (sin email), el servidor de prueba se avisa y Firmas es del equipo", () => {
+test("firma con DocuSeal: se crea el enlace (sin email), el servidor de prueba se avisa y Firmas muestra lo de esta computadora", () => {
   const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
   const app = fs.readFileSync(path.join(root, "js", "app.js"), "utf8");
   const send = html.match(/<div class="sign-block" id="signSendBox">[\s\S]*?<div class="sign-block" id="signLinkBox"/)[0];
