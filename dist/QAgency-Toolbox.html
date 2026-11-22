@@ -1859,7 +1859,7 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
 (function (root) {
   "use strict";
 
-  var VERSION = "1.29.0";
+  var VERSION = "1.30.0";
   /* De aquí la herramienta instalada lee el número de la última versión (y
      nada más). La política de seguridad de index.html solo permite esta
      dirección, y el actualizador de Windows usa el mismo repositorio. */
@@ -5227,8 +5227,8 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
      hacia arriba, la línea base del texto). Encabezados: # / Code / Full
      Name / Date of Birth / Language / Subject / Due Date. Cada fila empieza
      con su número en la columna # y puede ocupar varias líneas (un Subject
-     largo). La franja de la fila va de la mitad del espacio con la de arriba
-     a la mitad del espacio con la de abajo, y a lo ancho de la tabla. */
+     largo). El resaltado cubre el alto del texto de la fila, como el que se
+     pone a mano en Edge, y va a lo ancho de la tabla. */
   function norm(s) {
     return String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, " ").trim().toUpperCase();
   }
@@ -5293,19 +5293,11 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
         r.name = cellText(all, h.name, h.after);
         /* la fecha de nacimiento distingue a dos personas con el mismo nombre */
         r.dob = cellText(all, h.after, h.afterDob);
-        r.top = top; r.bottom = bottom;
+        /* como el resaltado a mano de Edge: el alto del texto de la fila
+           (todas sus líneas), desde la columna # hasta pasar Due Date */
+        r.rect = [h.left, bottom - 0.5, h.right + 5, top + 1.5];
         delete r.lines;
         rows.push(r);
-        if (k) {
-          var prev = pageRows[k - 1], mid = (prev.bottom + r.top) / 2;
-          prev.y1 = mid; r.y2 = mid;
-        }
-      });
-      pageRows.forEach(function (r, k) {
-        if (!k) { r.y2 = Math.min(r.top + 2, h.y - 2 > r.top ? (h.y - 2 + r.top) / 2 : r.top + 2); }
-        if (k === pageRows.length - 1) { r.y1 = r.bottom - 1; }
-        r.rect = [h.left - 2, r.y1, h.right + 2, r.y2];
-        delete r.top; delete r.bottom; delete r.y1; delete r.y2;
       });
     });
     return rows;
