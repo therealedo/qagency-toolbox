@@ -27,7 +27,7 @@
   };
 
   var MBI_RE = /\b([1-9][AC-HJKMNP-RT-Y][AC-HJKMNP-RT-Y0-9]\d)[-\s]?([AC-HJKMNP-RT-Y][AC-HJKMNP-RT-Y0-9]\d)[-\s]?([AC-HJKMNP-RT-Y]{2}\d{2})\b/;
-  var HIOS_RE = /\b(\d{5}[A-Z]{2}\d{7})(?:-?\d{2})?\b/;
+  var HIOS_RE = /\b(\d{5}[A-Z]{2}\d{7})(?:-?(\d{2}))?\b/;
   var CONTRACT_RE = /\b([HRS]\d{4})\s?-\s?(\d{3})(?:\s?-\s?(\d{1,3}))?\b/;
   var MONEY_RE = /\$\s?(-?[\d,]+(?:\.\d{2})?)/;
 
@@ -713,7 +713,7 @@
         .replace(/\s+/g, " ").replace(/[\s,;\-–]+$/, "").trim();
       /* con "|", el plan es lo de antes del primero */
       if (name.indexOf("|") > 0) { name = name.split("|")[0].trim(); }
-      return { id: m[1], name: name.length > 4 ? name : "", at: i };
+      return { id: m[1] + (m[2] ? "-" + m[2] : ""), name: name.length > 4 ? name : "", at: i };
     }
     return null;
   }
@@ -749,6 +749,7 @@
     var f = {};
     var p = planAboveId(doc);
     if (p && p.name) { f.plan = p.name; }
+    if (p) { f.planId = p.id; }
     /* el teléfono de la compañía va debajo del Plan ID, junto a su nombre
        ("1-800-324-4973   Premium …" / "Blue Cross and Blue Shield of NC") */
     for (var t = p ? p.at + 1 : doc.lines.length; t < doc.lines.length && t <= p.at + 4; t++) {

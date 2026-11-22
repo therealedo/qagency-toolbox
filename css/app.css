@@ -693,6 +693,13 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
 .net-row .check { padding: 0; }
 .net-acts { display: flex; gap: 6px; }
 .net-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 10px; }
+/* adjuntos del email: un grupo por carpeta y el Summary of Benefits */
+.attach { display: grid; gap: 8px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); }
+.attach-head { margin: 0; font-size: 13px; font-weight: 650; color: var(--ink-2); }
+.attach-group { display: grid; gap: 6px; }
+.attach-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.attach-row select { min-width: 0; max-width: 100%; flex: 1 1 260px; }
+.attach .net-file { display: block; }
 .netdirs { display: grid; gap: 6px; }
 /* columnas fijas: los botones quedan alineados aunque los nombres midan distinto */
 .netdir-row { display: grid; grid-template-columns: 160px minmax(0, 1fr) auto minmax(52px, auto); align-items: center; gap: 10px; }

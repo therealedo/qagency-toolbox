@@ -1721,3 +1721,55 @@ test("email Suplementario: cotización de Accidente y de Hospital, en español e
   /* una sola parte */
   assert.equal(N.buildEmail(d, 2), "");
 });
+
+/* ---------------------------------------------- adjuntos y Summary of Benefits -- */
+
+test("Copiar adjuntos: solo My Plans & Programs, Eligibility, Docs Submitted y el pago, y solo los marcados", () => {
+  const d = make({ line: "oc", outcome: "enviada", compania: "Ambetter", efectiva: "01/01/2027", anio: "2027", fecha: "11/20/2026",
+    docs: [{ cat: "income", persona: "BEATRIZ DIAZ", fecha: "02/12/2027", enviado: true }],
+    net: { appsummary: true, consent: true, eligibility: true, plans: true, "docsub:income:BEATRIZ-DIAZ": true } });
+  const files = N.attachmentFiles(d);
+  assert.deepEqual(files.map((f) => f.k), ["eligibility", "plans", "docsub:income:BEATRIZ-DIAZ"]);
+  assert.ok(files.every((f) => /^Diaz, Beatriz - OC_.*\.pdf$/.test(f.name)), files.map((f) => f.name).join(" | "));
+  assert.equal(N.quotedNames(["a b.pdf", "c.pdf"]), "\"a b.pdf\" \"c.pdf\"");
+  /* el pago, si se guardó */
+  assert.ok(N.attachmentFiles(Object.assign({}, d, { net: { payment: true } }))[0].name.startsWith("Diaz, Beatriz - Payment Confirmation - OC_"));
+  /* nada fuera de App enviada de Obamacare */
+  assert.deepEqual(N.attachmentFiles(Object.assign({}, d, { outcome: "pendiente" })), []);
+  assert.deepEqual(N.attachmentFiles(Object.assign({}, d, { line: "mc" })), []);
+});
+
+test("SoB: nivel de costos compartidos sugerido por el ingreso y la línea de pobreza del año anterior", () => {
+  /* 2027 usa la de 2026: $15,960 por una persona, $5,680 por cada otra */
+  const csr = (ingreso, extra) => N.csrSuggest(make(Object.assign({ line: "oc", plan: "Clarity Silver", anio: "2027",
+    personas: [{ titular: true, taxes: true, cobertura: true, ingreso: String(ingreso) }] }, extra)));
+  assert.equal(N.fplFor(1, 2027, "FL"), 15960);
+  assert.equal(N.fplFor(3, 2027, ""), 15960 + 2 * 5680);
+  assert.equal(N.fplFor(1, 2026, "AK"), 19550);
+  assert.equal(csr(23940), "06");
+  assert.equal(csr(23941), "05");
+  assert.equal(csr(31920), "05");
+  assert.equal(csr(39900), "04");
+  assert.equal(csr(39901), "01");
+  assert.equal(csr(20000, { plan: "Clarity Bronze" }), "01");
+  assert.equal(N.csrSuggest(make({ line: "oc", plan: "Clarity Silver", anio: "2027" })), "");
+});
+
+test("SoB: el archivo se busca por el HIOS ID y el nivel, no por el nombre del plan", () => {
+  const names = ["SBC-49004FL0010031-01-2027.pdf", "SBC-49004FL0010031-05-2027.pdf", "SBC-49004FL0010031-06-2027.pdf",
+    "SBC-49004FL0010031-06-2026.pdf", "SBC-49004FL0010032-06-2027.pdf", "Clarity Silver.pdf"];
+  const d = make({ line: "oc", plan: "Clarity Silver", planId: "49004FL0010031", anio: "2027",
+    personas: [{ titular: true, taxes: true, cobertura: true, ingreso: "30000" }] });
+  const m = N.sobMatches(names, d);
+  assert.deepEqual(m.map((x) => x.name), ["SBC-49004FL0010031-01-2027.pdf", "SBC-49004FL0010031-05-2027.pdf", "SBC-49004FL0010031-06-2027.pdf"]);
+  assert.deepEqual(m.map((x) => x.label), ["Estándar", "CSR 87% AV", "CSR 94% AV"]);
+  /* $30,000 para uno es el 188%: -05 */
+  assert.equal(N.sobPick(m, d), "SBC-49004FL0010031-05-2027.pdf");
+  /* sin ingreso no se adivina */
+  assert.equal(N.sobPick(m, Object.assign({}, d, { personas: [] })), "");
+  /* si el documento traía el nivel, solo ese */
+  assert.deepEqual(N.sobMatches(names, Object.assign({}, d, { planId: "49004FL0010031-06" })).map((x) => x.name), ["SBC-49004FL0010031-06-2027.pdf"]);
+  /* un solo archivo del plan: ese */
+  assert.equal(N.sobPick(N.sobMatches(["49004FL0010032-06 2027.pdf"], Object.assign({}, d, { planId: "49004FL0010032" })), d), "49004FL0010032-06 2027.pdf");
+  assert.deepEqual(N.sobMatches(names, Object.assign({}, d, { planId: "" })), []);
+});

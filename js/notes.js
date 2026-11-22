@@ -647,6 +647,85 @@
     return !p || p === plain(val(d.nombres) + " " + val(d.apellidos)) || (p.indexOf(" ") < 0 && p === no.split(" ")[0]);
   }
 
+  /* ------------------------------------------------- adjuntos del email --
+     Copiar adjuntos copia los nombres de archivo del Network entre comillas,
+     para pegarlos en el cuadro «Nombre de archivo» de Windows. Solo My Plans
+     & Programs, Eligibility, Docs Submitted y el pago, y solo los marcados
+     (guardados); nunca el App Summary, el Consent ni la Hoja de cambios. */
+  var ATTACH_KINDS = { plans: true, eligibility: true, docsub: true, payment: true };
+  function attachmentFiles(d) {
+    if (d.line !== "oc" || outcomeOf(d).id !== "enviada") { return []; }
+    var names = {};
+    buildFileNames(d).forEach(function (f) { names[f.k] = f.name; });
+    return networkOf(d).filter(function (n) { return ATTACH_KINDS[kindOf(n.k)] && d.net && d.net[n.k] && names[n.k]; })
+      .map(function (n) { return { k: n.k, label: n.label, name: names[n.k] + ".pdf" }; });
+  }
+  function quotedNames(list) { return list.map(function (n) { return "\"" + n + "\""; }).join(" "); }
+
+  /* Línea de pobreza del año anterior al del plan (la que usa el Mercado),
+     con la tabla de Alaska o Hawaii si la dirección es de ahí. */
+  function fplFor(size, planYear, state) {
+    var years = Object.keys(C.FPL).map(Number).sort(function (a, b) { return a - b; });
+    var y = years.filter(function (x) { return x <= planYear - 1; }).pop() || years[0];
+    var row = C.FPL[y][state] || C.FPL[y].base;
+    return row[0] + row[1] * (Math.max(1, size) - 1);
+  }
+  function addressState(d) {
+    var m = upper(d.direccion).match(/\b([A-Z]{2})\s+\d{5}(?:-\d{4})?\b/);
+    return m ? m[1] : "";
+  }
+  function planYearOf(d) {
+    if (/^\d{4}$/.test(val(d.anio))) { return +val(d.anio); }
+    var ef = U.parseDate(d.efectiva);
+    return ef ? +ef.split("/")[2] : new Date().getFullYear();
+  }
+  function isSilver(plan) { return /\b(silver|plata)\b/i.test(val(plan)); }
+  /* Nivel de costos compartidos que se sugiere para el Summary of Benefits:
+     solo en un plan Plata, por el ingreso de los que van en los taxes frente
+     a la línea de pobreza (150% o menos -06, hasta 200% -05, hasta 250% -04).
+     Vacío si falta el ingreso: el agente elige. */
+  function csrSuggest(d) {
+    if (!isSilver(d.plan)) { return "01"; }
+    var inc = ingresoHogar(d), size = enTaxes(d).length;
+    if (inc === null || !size) { return ""; }
+    var pct = inc / fplFor(size, planYearOf(d), addressState(d)) * 100;
+    return pct <= 150 ? "06" : pct <= 200 ? "05" : pct <= 250 ? "04" : "01";
+  }
+  /* El Plan ID (HIOS) del caso, con el nivel si el documento lo traía */
+  function planHios(d) {
+    var m = upper(d.planId).replace(/\s+/g, "").match(/^(\d{5}[A-Z]{2}\d{7})(?:-?(\d{2}))?$/);
+    return m ? { id: m[1], variant: m[2] || "" } : null;
+  }
+  /* Los archivos de la carpeta de Summary of Benefits que son del plan, por
+     su HIOS ID y no por el nombre del plan (una misma Plata tiene un SoB por
+     nivel: SBC-49004FL0010031-05-2027, -06-2027). Si hay del año del plan,
+     solo esos. */
+  function sobMatches(names, d) {
+    var p = planHios(d);
+    if (!p) { return []; }
+    var re = new RegExp(p.id + "(?:[-_ ]?(\\d{2}))?(?!\\d)", "i");
+    var all = (names || []).map(function (name) {
+      var m = re.exec(name);
+      if (!m) { return null; }
+      var rest = name.slice(0, m.index) + " " + name.slice(m.index + m[0].length);
+      var y = (rest.match(/(?:^|\D)(20\d{2})(?!\d)/) || [])[1] || "";
+      return { name: name, variant: m[1] || "", year: y };
+    }).filter(Boolean);
+    var year = String(planYearOf(d));
+    if (all.some(function (x) { return x.year === year; })) { all = all.filter(function (x) { return !x.year || x.year === year; }); }
+    if (p.variant && all.some(function (x) { return x.variant === p.variant; })) { all = all.filter(function (x) { return x.variant === p.variant; }); }
+    return all.sort(function (a, b) { return a.variant === b.variant ? (a.name < b.name ? -1 : 1) : (a.variant < b.variant ? -1 : 1); })
+      .map(function (x) { x.label = C.CSR_VARIANTS[x.variant] || (x.variant ? "-" + x.variant : "Sin nivel"); return x; });
+  }
+  /* El archivo que se propone: el nivel que traía el documento, si no el
+     sugerido; con uno solo, ese. */
+  function sobPick(matches, d) {
+    if (matches.length === 1) { return matches[0].name; }
+    var p = planHios(d), want = (p && p.variant) || csrSuggest(d);
+    var hit = want && matches.filter(function (x) { return x.variant === want; })[0];
+    return hit ? hit.name : "";
+  }
+
   /* --------------------------------------------- documentos leídos (app) */
 
   function sameName(a, b) { return U.stripAccents(val(a)).toUpperCase() === U.stripAccents(val(b)).toUpperCase(); }
@@ -1558,6 +1637,8 @@
     personas: personas, docsOf: docsOf, pendingDocs: pendingDocs, planesOf: planesOf, networkOf: networkOf, docKey: docKey,
     mergeDocs: mergeDocs, rowSource: rowSource, discarded: discarded, discardRow: discardRow, mergeMembers: mergeMembers, mergeHousehold: mergeHousehold, samePerson: samePerson, moveDocKey: moveDocKey,
     enTaxes: enTaxes, conCobertura: conCobertura, ingresoHogar: ingresoHogar, ingresoSinContar: ingresoSinContar, limiteDeclarar: limiteDeclarar, moneyShort: moneyShort,
+    attachmentFiles: attachmentFiles, quotedNames: quotedNames, fplFor: fplFor, csrSuggest: csrSuggest, planHios: planHios,
+    sobMatches: sobMatches, sobPick: sobPick,
     NET_DIRS: NET_DIRS, netDirFor: netDirFor, docKinds: docKinds, kindOf: kindOf, oepStart: oepStart, needsSheet: needsSheet, officeFor: officeFor
   };
   root.QA = root.QA || {};
