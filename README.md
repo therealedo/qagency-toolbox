@@ -232,6 +232,15 @@ In **Ajustes → Carpetas del Network**, choose your folder in the NETW once und
 - **Ventana flotante** opens a small window that stays on top of Zoho, with the client's name and the same copy buttons (Chrome and Edge).
 - **Abrir en el teléfono** and **Abrir en el correo** open the SMS or the email with the text ready, when the titular's phone or email is filled in.
 
+### Daily task report
+
+The strip under the top bar holds the day's task report from Cliq (`<NAME> TASKS PENDING - UPDATE MM/DD/YYYY`). Drop the PDF on the window once in the morning (the app recognises it by its title and keeps it out of the case documents) or use **Elegir el reporte**. The strip shows the report's date, how many rows are highlighted and `No es el de hoy` when it is another day's.
+
+- **Copiar task** (also through **Copiar siguiente**) finds the case's row by its Q code (with or without the final `L`) or, without one, by the exact Zoho name (`Last, First`) and highlights it in that same file, with the same green highlight the report already uses. A toast says which row (`Fila 17 · Last, First: marcada.`). A client who is not on the report gets `No está en tu reporte.` and nothing changes; two rows with the same name show both, with their date of birth, to pick one.
+- For small notes that are not a case, type a Q code or `Last, First` in the strip: it shows the row first, and **Marcar** highlights it.
+- **Deshacer** removes the last highlight. The ✕ stops using the report.
+- The highlights are added at the end of the PDF without changing anything else, so the file can go back to Cliq as is. The first highlight asks the browser for permission to save the file; after Chrome restarts, **Permitir que se guarde** asks again. If the report is open in another program the save can fail: close it and try again. Chrome and Edge only.
+
 ## What it reads
 
 A document only fills what is empty or what a weaker document filled; what you type or correct is never overwritten. Three rules keep documents from mixing:
@@ -307,6 +316,7 @@ js/config.js            catalogs: team, offices, carriers, tasks, situations and
 js/notes.js             builds the note, task and report (pure functions)
 js/forms.js             Consent and SOA: template choice, PDF field values, Cliq line, signing link, API send payload
 js/extract.js           recognises documents and pulls the fields out
+js/report.js            daily task report: reads its rows and adds highlights to the same PDF
 js/ocr.js               reads scans and screenshots offline (OCR in a worker)
 js/app.js               the screen: note form, Tasks tab, settings, install
 js/util.js              dates, money, names

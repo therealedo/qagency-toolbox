@@ -18,6 +18,7 @@ const SHELL = [
   "js/notes.js",
   "js/forms.js",
   "js/sheetpdf.js",
+  "js/report.js",
   "js/extract.js",
   "js/ocr.js",
   "js/app.js",

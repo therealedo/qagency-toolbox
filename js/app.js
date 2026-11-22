@@ -5,7 +5,7 @@
 (function () {
   "use strict";
 
-  var C = window.QA.config, U = window.QA.util, N = window.QA.notes, X = window.QA.extract;
+  var C = window.QA.config, U = window.QA.util, N = window.QA.notes, X = window.QA.extract, R = window.QA.report;
   /* Consent y SOA para firmar (F ya nombra a los campos del formulario) */
   var FM = window.QA.forms;
   /* OCR sin internet para escaneos y capturas; null si no se cargó */
@@ -2725,6 +2725,8 @@
     if (!text.trim()) { return; }
     copyText(text, function () { flashButton(btn); }, win);
     if (key === "note") { S.dirty = false; }
+    /* el task copiado marca la fila del caso en el reporte del día */
+    if (key === "task") { reportFromCase(); }
   }
 
   /* ------------------------------------------------- copiar siguiente --
@@ -3165,9 +3167,13 @@
     return Promise.resolve();
   }
 
-  function handleFiles(list) {
-    var files = Array.prototype.slice.call(list || []);
-    if (!files.length) { return; }
+  function handleFiles(list, handles) {
+    var all = Array.prototype.slice.call(list || []);
+    if (!all.length) { return; }
+    /* el reporte del día va a su franja; lo demás es del caso */
+    takeReport(all, handles).then(function (files) { if (files.length) { readCaseFiles(files); } });
+  }
+  function readCaseFiles(files) {
     if (currentView !== "nota") { setView("nota"); }
     if (starting) { showStart(false); }
     var before = S.files.length;
@@ -3188,6 +3194,241 @@
         toast(total ? "Se llenaron " + total + (total === 1 ? " campo" : " campos") + (viaOcr ? " con OCR. Revísalos con cuidado" : ". Revísalos") + " antes de copiar."
                     : "No se encontraron datos en " + (added.length === 1 ? "el documento" : "los documentos") + ".");
       });
+  }
+
+  /* ----------------------------------------------------- reporte del día --
+     El PDF de Cliq «TASKS PENDING - UPDATE» se suelta una vez al día. El
+     navegador recuerda el archivo (IndexedDB guarda el permiso, como con las
+     carpetas) y cada marca se guarda en ese mismo archivo: después se sube a
+     Cliq tal cual. Al copiar el task se busca la fila del caso (código Q o
+     «Apellido, Nombre») y se resalta; si no está, no se toca nada. A mano:
+     un código o un nombre y «Marcar». «Deshacer» quita la última marca. */
+  function freshReport() { return { handle: null, title: null, rows: [], last: null, busy: false, allow: false, preview: [] }; }
+  var RP = freshReport();
+  var canReport = canSave && typeof window.showOpenFilePicker === "function";
+
+  function rowLabel(r) { return "Fila " + r.n + " · " + (r.name || r.code || "sin nombre"); }
+  function setReportMsg(text, kind) {
+    var m = $("reportMsg");
+    m.textContent = text || "";
+    m.className = "report-msg" + (kind ? " " + kind : "");
+    if (RP.loud && text) { toast("Reporte del día: " + text); }
+  }
+  function renderReport() {
+    var bar = $("reportBar");
+    bar.hidden = !canReport;
+    if (!canReport) { return; }
+    var loaded = !!(RP.title || RP.allow);
+    $("reportEmpty").hidden = loaded;
+    $("reportLoaded").hidden = !loaded;
+    if (!loaded) { return; }
+    var date = RP.title && RP.title.date;
+    $("reportTitle").textContent = "Reporte" + (date ? " del " + date : "");
+    $("reportTitle").title = RP.handle ? RP.handle.name : "";
+    var marked = RP.rows.filter(function (r) { return r.marked; }).length;
+    $("reportCount").textContent = RP.allow ? "" : marked + " de " + RP.rows.length + (RP.rows.length === 1 ? " fila marcada" : " filas marcadas");
+    var old = !RP.allow && date && date !== U.today();
+    $("reportOld").hidden = !old;
+    $("reportOld").textContent = old ? "No es el de hoy" : "";
+    $("reportAllow").hidden = !RP.allow;
+    $("reportFind").hidden = RP.allow;
+    $("reportUndo").hidden = !RP.last || RP.allow;
+    var box = $("reportChoices");
+    box.textContent = "";
+    if (RP.preview.length > 1) {
+      RP.preview.forEach(function (r) {
+        var b = el("button", "btn small", rowLabel(r) + (r.dob ? " (" + r.dob + ")" : "") + (r.marked ? " ✓" : ""));
+        b.type = "button"; b.dataset.reportRow = r.page + ":" + r.n;
+        box.appendChild(b);
+      });
+    }
+  }
+
+  function reportBytes() {
+    return RP.handle.getFile().then(function (f) { return f.arrayBuffer(); }).then(function (b) { return new Uint8Array(b); });
+  }
+  function readReportFile() {
+    return reportBytes().then(function (bytes) {
+      return R.readReport(window.pdfjsLib, bytes).then(function (rep) { return { bytes: bytes, rep: rep }; });
+    });
+  }
+  /* leer basta para mostrar las filas (un archivo soltado ya se puede
+     leer); guardar se pide al marcar, que siempre es un clic */
+  function reportPermission(ask, mode) {
+    mode = mode || "readwrite";
+    return RP.handle.queryPermission({ mode: mode }).then(function (p) {
+      if (p === "granted" || !ask) { return p; }
+      return RP.handle.requestPermission({ mode: mode });
+    });
+  }
+  /* abre el archivo del reporte (soltado, elegido o recordado) */
+  function useReport(handle, remember) {
+    var before = RP;
+    RP = freshReport();
+    RP.handle = handle;
+    setReportMsg("");
+    return reportPermission(false, "read").then(function (p) {
+      if (p !== "granted") { RP.allow = true; renderReport(); return; }
+      return readReportFile().then(function (res) {
+        if (!res.rep.title) { throw new Error("no-report"); }
+        RP.title = res.rep.title; RP.rows = res.rep.rows;
+        if (!RP.rows.length) { setReportMsg("No se encontraron filas en el reporte.", "warn"); }
+        renderReport();
+      });
+    }).then(function () {
+      if (remember) { return handleStore("readwrite", function (st) { return st.put(handle, "report"); }).catch(function () {}); }
+    }).catch(function (e) {
+      toast(e && e.message === "no-report" ? "«" + handle.name + "» no parece el reporte de tasks (TASKS PENDING - UPDATE)."
+                                           : "No se pudo abrir el reporte: " + ((e && (e.message || e.name)) || "error") + ".");
+      RP = before;
+      renderReport();
+    });
+  }
+  function restoreReport() {
+    renderReport();
+    if (!canReport) { return; }
+    var req;
+    handleStore("readonly", function (st) { req = st.get("report"); return req; })
+      .then(function () { if (req && req.result) { return useReport(req.result, false); } })
+      .catch(function () {});
+  }
+  function forgetReport() {
+    RP = freshReport();
+    setReportMsg("");
+    renderReport();
+    handleStore("readwrite", function (st) { return st.delete("report"); }).catch(function () {});
+  }
+  function pickReport() {
+    window.showOpenFilePicker({ id: "qa-report", types: [{ description: "PDF", accept: { "application/pdf": [".pdf"] } }] })
+      .then(function (hs) { if (hs && hs[0]) { return useReport(hs[0], true); } })
+      .catch(function () {});
+  }
+  /* el reporte entre los archivos soltados: por su título, no por el nombre del archivo */
+  function takeReport(files, handles) {
+    if (!canReport) { return Promise.resolve(files); }
+    return files.reduce(function (p, f, i) {
+      return p.then(function (keep) {
+        if (!/\.pdf$/i.test(f.name) && f.type !== "application/pdf") { keep.push(f); return keep; }
+        return f.arrayBuffer().then(function (b) { return R.peekTitle(window.pdfjsLib, new Uint8Array(b)); }).then(function (title) {
+          if (!title) { keep.push(f); return keep; }
+          var h = handles && handles[i];
+          return Promise.resolve(h).then(function (handle) {
+            if (handle && handle.kind === "file") { return useReport(handle, true); }
+            toast("Para marcar el reporte, suéltalo en la ventana o usa «Elegir el reporte».");
+          }).then(function () { return keep; });
+        }, function () { keep.push(f); return keep; });
+      });
+    }, Promise.resolve([]));
+  }
+  /* guarda en el mismo archivo y vuelve a leer las filas */
+  function writeReport(bytes) {
+    return RP.handle.createWritable().then(function (w) {
+      return w.write(bytes).then(function () { return w.close(); });
+    }).then(function () { return R.readReport(window.pdfjsLib, bytes); }).then(function (rep) {
+      RP.rows = rep.rows; RP.title = rep.title || RP.title;
+    });
+  }
+  function reportFail(e) {
+    if (e && e.name === "permiso") { setReportMsg("Sin permiso para guardar en el reporte.", "warn"); return; }
+    if (e && e.name === "fila") { setReportMsg("El reporte cambió: vuelve a soltarlo.", "warn"); return; }
+    var locked = e && /NoModificationAllowed|InvalidState|NotReadable/i.test(e.name || "");
+    setReportMsg(locked ? "No se pudo guardar: cierra el reporte si está abierto en otro programa y vuelve a intentar."
+                        : "No se pudo guardar en el reporte (" + ((e && (e.name || e.message)) || "error") + ").", "warn");
+  }
+  /* resalta la fila (la de ahora en el archivo: puede haber cambiado) */
+  function markRow(row) {
+    if (RP.busy || !RP.handle) { return Promise.resolve(); }
+    RP.busy = true;
+    return reportPermission(true).then(function (p) {
+      if (p !== "granted") { throw { name: "permiso" }; }
+      return readReportFile();
+    }).then(function (res) {
+      var cur = res.rep.rows.filter(function (r) { return r.page === row.page && r.n === row.n; })[0];
+      if (!cur) { throw { name: "fila" }; }
+      RP.rows = res.rep.rows;
+      if (cur.marked) { setReportMsg(rowLabel(cur) + ": ya estaba marcada.", "ok"); return; }
+      return R.addHighlights(res.bytes, [{ pageRef: cur.pageRef, rect: cur.rect }]).then(function (out) {
+        return writeReport(out.bytes).then(function () {
+          RP.last = { added: out.added, label: rowLabel(cur) };
+          setReportMsg(rowLabel(cur) + ": marcada.", "ok");
+        });
+      });
+    }).catch(reportFail).then(function () { RP.busy = false; RP.loud = false; RP.preview = []; renderReport(); });
+  }
+  function undoReport() {
+    if (RP.busy || !RP.last) { return; }
+    var last = RP.last;
+    RP.busy = true;
+    reportPermission(true).then(function (p) {
+      if (p !== "granted") { throw { name: "permiso" }; }
+      return reportBytes();
+    }).then(function (bytes) {
+      return last.added.reduce(function (p, mk) { return p.then(function (b) { return R.removeHighlight(b, mk); }); }, Promise.resolve(bytes));
+    }).then(writeReport).then(function () {
+      RP.last = null;
+      setReportMsg(last.label + ": se quitó la marca.");
+    }).catch(reportFail).then(function () { RP.busy = false; renderReport(); });
+  }
+  /* las filas que coinciden con el caso o con lo que se escribió */
+  function caseQuery() {
+    var q = U.collapse(S.f.codigoQ).replace(/^Q/i, "");
+    return { code: S.f.codigoTipo === "Q" && q ? "Q" + q : "", name: N.zohoName(S.f) };
+  }
+  function resolveReport(matches, auto) {
+    RP.preview = matches;
+    if (!matches.length) { setReportMsg("No está en tu reporte.", "warn"); renderReport(); return; }
+    if (matches.length > 1) { setReportMsg("Hay " + matches.length + " filas que coinciden: elige cuál marcar.", "warn"); renderReport(); return; }
+    var r = matches[0];
+    if (auto) { markRow(r); return; }
+    setReportMsg(rowLabel(r) + (r.dob ? " (" + r.dob + ")" : "") + (r.marked ? ": ya está marcada." : ""), r.marked ? "ok" : "");
+    renderReport();
+  }
+  /* al copiar el task (también con Copiar siguiente) */
+  function reportFromCase() {
+    if (!RP.title || RP.allow || !RP.rows.length) { return; }
+    var q = caseQuery();
+    if (!q.code && !q.name) { return; }
+    /* la franja puede quedar fuera de la vista: el resultado también va en un aviso */
+    RP.loud = true;
+    var rows = R.findRows(RP.rows, q);
+    resolveReport(rows, true);
+    if (rows.length !== 1) { RP.loud = false; }
+  }
+  function wireReport() {
+    $("reportPick").addEventListener("click", pickReport);
+    $("reportClose").addEventListener("click", forgetReport);
+    $("reportUndo").addEventListener("click", undoReport);
+    $("reportAllow").addEventListener("click", function () {
+      if (!RP.handle) { return; }
+      var h = RP.handle;
+      h.requestPermission({ mode: "readwrite" }).then(function (p) { if (p === "granted") { return useReport(h, false); } }).catch(function () {});
+    });
+    /* lo escrito a mano: muestra la fila antes de marcar */
+    $("reportQuery").addEventListener("input", function () {
+      var t = U.collapse(this.value);
+      if (!t) { RP.preview = []; setReportMsg(""); renderReport(); return; }
+      resolveReport(R.findRows(RP.rows, R.parseQuery(t)), false);
+    });
+    $("reportFind").addEventListener("submit", function (e) {
+      e.preventDefault();
+      var t = U.collapse($("reportQuery").value);
+      if (!t) { return; }
+      var rows = R.findRows(RP.rows, R.parseQuery(t));
+      if (rows.length === 1) { markRow(rows[0]).then(function () { $("reportQuery").value = ""; }); return; }
+      resolveReport(rows, false);
+    });
+    $("reportChoices").addEventListener("click", function (e) {
+      var b = e.target.closest("[data-report-row]");
+      if (!b) { return; }
+      var key = b.dataset.reportRow.split(":");
+      var r = RP.rows.filter(function (x) { return x.page === +key[0] && x.n === +key[1]; })[0];
+      if (r) { markRow(r).then(function () { $("reportQuery").value = ""; }); }
+    });
+    /* soltar el reporte en la franja */
+    var bar = $("reportBar");
+    bar.addEventListener("dragover", function () { bar.classList.add("drag"); });
+    bar.addEventListener("dragleave", function () { bar.classList.remove("drag"); });
+    bar.addEventListener("drop", function () { bar.classList.remove("drag"); });
   }
 
   /* --------------------------------------------------------------- tasks */
@@ -3958,7 +4199,12 @@
     window.addEventListener("drop", function (e) {
       if (!isFiles(e)) { return; }
       e.preventDefault(); depth = 0; veil.hidden = true;
-      handleFiles(e.dataTransfer.files);
+      /* el archivo con permiso para guardar (para el reporte del día): se
+         pide ahora, mientras dura el evento */
+      var handles = Array.prototype.map.call(e.dataTransfer.items || [], function (it) {
+        return it.kind === "file" && it.getAsFileSystemHandle ? it.getAsFileSystemHandle().catch(function () { return null; }) : null;
+      });
+      handleFiles(e.dataTransfer.files, handles);
     });
     /* una captura pegada con Ctrl + V en la vista de la nota se lee con OCR */
     document.addEventListener("paste", function (e) {
@@ -4193,6 +4439,8 @@
     bindTasks();
     setupInstall();
     loadNetDirs();
+    wireReport();
+    restoreReport();
     $("netDirBox").addEventListener("click", function (e) {
       var b = e.target.closest("button");
       if (!b) { return; }
