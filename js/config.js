@@ -39,14 +39,16 @@
      es el texto de la opción en el formulario, y van primero y en el orden
      oficial. Las demás se siguen reconociendo en los documentos y salen como
      «Otra», con su nombre. `state` pide el estado en dos letras: BCBS of GA. */
+  /* `tel`: el teléfono de Customer Service de la compañía (Obamacare), que va
+     en el email al cliente. Las que no lo tienen hacen avisar al agente. */
   var CARRIERS = {
     oc: [
-      { re: /florida\s*blue|blue\s*cross|bluecare|blueselect|blueoptions|myblue/i, name: "FLORIDA BLUE", display: "Florida Blue", short: "FB", option: "Florida Blue" },
-      { re: /ambetter|celtic|sunshine\s*health/i, name: "AMBETTER", display: "Ambetter", short: "Ambetter", option: "Ambetter" },
+      { re: /florida\s*blue|blue\s*cross|bluecare|blueselect|blueoptions|myblue/i, name: "FLORIDA BLUE", display: "Florida Blue", short: "FB", option: "Florida Blue", tel: "(800) 352-2583" },
+      { re: /ambetter|celtic|sunshine\s*health/i, name: "AMBETTER", display: "Ambetter", short: "Ambetter", option: "Ambetter", tel: "(877) 687-1169" },
       { re: /wellpoint/i, name: "WELLPOINT", display: "Wellpoint", short: "Wellpoint", option: "Wellpoint" },
-      { re: /unitedhealthcare|united\s*healthcare|\bUHC\b/i, name: "UNITED HEALTHCARE", display: "UnitedHealthcare", short: "UHC", option: "UHC" },
-      { re: /\boscar\b/i, name: "OSCAR", display: "Oscar", short: "Oscar", option: "Oscar" },
-      { re: /cigna/i, name: "CIGNA", display: "Cigna", short: "Cigna", option: "Cigna" },
+      { re: /unitedhealthcare|united\s*healthcare|\bUHC\b/i, name: "UNITED HEALTHCARE", display: "UnitedHealthcare", short: "UHC", option: "UHC", tel: "(888) 200-0405" },
+      { re: /\boscar\b/i, name: "OSCAR", display: "Oscar", short: "Oscar", option: "Oscar", tel: "(855) OSCAR-55" },
+      { re: /cigna/i, name: "CIGNA", display: "Cigna", short: "Cigna", option: "Cigna", tel: "(866) 494-2111" },
       { re: /molina/i, name: "MOLINA", display: "Molina", short: "Molina" },
       { re: /aetna/i, name: "AETNA CVS HEALTH", display: "Aetna CVS Health", short: "Aetna" },
       { re: /avmed/i, name: "AVMED", display: "AvMed", short: "AvMed" },

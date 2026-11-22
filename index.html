@@ -296,6 +296,14 @@
             <div class="seg seg-mini" data-lang-seg role="radiogroup" aria-label="Idioma del SMS y el email" hidden></div>
             <a class="link-btn" id="emailOpen" href="#" hidden>Abrir en el correo</a>
           </div>
+          <div class="email-part" id="emailSubjectPart" hidden>
+            <div class="out-sub">
+              <h3>Asunto</h3>
+              <button type="button" class="link-btn" id="emailSubjectRegen" hidden>Regenerar</button>
+              <button type="button" class="btn small" id="copyEmailSubject" data-label="Copiar">Copiar</button>
+            </div>
+            <textarea class="email-box email-line" id="emailSubject" rows="1" spellcheck="true" aria-label="Email para el cliente: asunto"></textarea>
+          </div>
           <div class="email-part">
             <div class="out-sub">
               <h3 id="emailHead1">1 · Documentos y plan</h3>
@@ -303,6 +311,22 @@
               <button type="button" class="btn small" id="copyEmail1" data-label="Copiar">Copiar</button>
             </div>
             <textarea class="email-box" id="email1" rows="6" spellcheck="true" aria-label="Email para el cliente, parte 1: documentos y plan"></textarea>
+          </div>
+          <div class="email-part" id="emailKeepPart" hidden>
+            <div class="out-sub">
+              <h3>Tener en cuenta</h3><span class="muted out-hint">Pégalas sobre las dos viñetas de la plantilla</span>
+              <button type="button" class="link-btn" id="emailKeepRegen" hidden>Regenerar</button>
+              <button type="button" class="btn small" id="copyEmailKeep" data-label="Copiar">Copiar</button>
+            </div>
+            <textarea class="email-box email-line" id="emailKeep" rows="1" spellcheck="true" aria-label="Email para el cliente: las dos líneas de Favor tener en cuenta"></textarea>
+          </div>
+          <div class="email-part" id="emailCsPart" hidden>
+            <div class="out-sub">
+              <h3>Customer Service</h3><span class="muted out-hint">El teléfono de la franja gris</span>
+              <button type="button" class="link-btn" id="emailCsRegen" hidden>Regenerar</button>
+              <button type="button" class="btn small" id="copyEmailCs" data-label="Copiar">Copiar</button>
+            </div>
+            <textarea class="email-box email-line" id="emailCs" rows="1" spellcheck="true" aria-label="Email para el cliente: teléfono de Customer Service de la compañía"></textarea>
           </div>
           <div class="email-part" id="emailPart2">
             <div class="out-sub">

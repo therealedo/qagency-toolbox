@@ -707,6 +707,50 @@ test("email Obamacare: parte 1 con la póliza y parte 2 con lo que pide el Merca
   assert.ok(C.MKPL_DOCS.every((c) => /^Pruebas de /.test(c.es) && /^Proof of /.test(c.en)), "las 11 en los dos idiomas");
 });
 
+test("email Obamacare: asunto, las dos líneas de Tener en cuenta y el teléfono de Customer Service", () => {
+  const d = make({ line: "oc", outcome: "enviada", gestion: "nueva", anio: "2027", compania: "Florida Blue", efectiva: "01/01/2027", prima: "85.4" });
+  const en = Object.assign({}, d, { idioma: "en" });
+  assert.equal(N.buildEmail(d, "subject"), "LE: APLICACION - OBAMACARE 2027");
+  assert.equal(N.buildEmail(en, "subject"), "LE: APPLICATION - OBAMACARE 2027");
+  assert.equal(N.buildEmail(Object.assign({}, d, { gestion: "renovacion" }), "subject"), "LE: APLICACION - OBAMACARE 2027");
+  assert.equal(N.buildEmail(Object.assign({}, d, { gestion: "cambio" }), "subject"), "LE: ACTUALIZACION - OBAMACARE 2027");
+  assert.equal(N.buildEmail(Object.assign({}, en, { gestion: "cambio" }), "subject"), "LE: UPDATE - OBAMACARE 2027");
+  /* sin año, el de la cobertura */
+  assert.equal(N.buildEmail(Object.assign({}, d, { anio: "" }), "subject"), "LE: APLICACION - OBAMACARE 2027");
+  assert.equal(N.buildEmail(d, "keep"), [
+    "Si su plan tiene prima a pagar, favor hacer el pago de la prima antes del 01/01/2027 llamando a (800) 352-2583",
+    "En caso de no recibir sus tarjetas a la fecha de inicio de la cobertura, debera comunicarse con FLORIDA BLUE para revisar el estatus del envío."
+  ].join("\n"));
+  assert.equal(N.buildEmail(en, "keep"), [
+    "If you have a monthly premium payment, please make sure you make your first payment before 01/01/2027 by calling (800) 352-2583",
+    "In case you have not received your Insurance cards by your effective date, you need to contact FLORIDA BLUE to verify your card's delivery status."
+  ].join("\n"));
+  assert.equal(N.buildEmail(d, "cs"), "(800) 352-2583");
+  const tel = (compania) => N.buildEmail(Object.assign({}, d, { compania }), "cs");
+  assert.equal(tel("Ambetter"), "(877) 687-1169");
+  assert.equal(tel("UnitedHealthcare"), "(888) 200-0405");
+  assert.equal(tel("Cigna"), "(866) 494-2111");
+  assert.equal(tel("Oscar"), "(855) OSCAR-55");
+  assert.match(N.buildEmail(Object.assign({}, d, { compania: "Ambetter" }), "keep"), /debera comunicarse con AMBETTER para revisar/);
+  /* sin teléfono conocido: Wellpoint, y Florida Blue fuera de Florida */
+  const falta = (extra) => N.warnings(Object.assign({}, d, extra), "").filter((x) => /falta el teléfono de la compañía/i.test(x));
+  assert.equal(tel("Wellpoint"), "");
+  assert.match(N.buildEmail(Object.assign({}, d, { compania: "Wellpoint" }), "keep"), /llamando a \.\.\.\.\.\.\.\.\.\.\.\n/);
+  assert.equal(falta({ compania: "Wellpoint" }).length, 1);
+  const ga = { direccion: "100 Peachtree St, Atlanta, GA 30301" };
+  assert.equal(N.buildEmail(Object.assign({}, d, ga), "cs"), "");
+  assert.equal(falta(ga).length, 1);
+  assert.equal(N.buildEmail(Object.assign({}, d, { direccion: "123 Main St, Miami, FL 33101" }), "cs"), "(800) 352-2583");
+  assert.equal(falta({}).length, 0);
+  assert.equal(falta({ compania: "" }).length, 0, "sin compañía no se avisa del teléfono");
+  /* solo en una app de Obamacare enviada */
+  ["subject", "keep", "cs"].forEach((p) => {
+    assert.equal(N.buildEmail(make({ line: "oc", outcome: "pendiente", compania: "Florida Blue" }), p), "", p);
+    assert.equal(N.buildEmail(make({ line: "supp", outcome: "enviada", compania: "Florida Blue" }), p), "", p);
+  });
+  assert.equal(falta({ outcome: "pendiente" }).length + falta({ outcome: "pendiente", compania: "Wellpoint" }).length, 0);
+});
+
 test("email de cotización: Obamacare pendiente que revisará los planes", () => {
   const blue = { compania: "Florida Blue", plan: "Blue Care Silver 1477C", prima: "0" };
   const d = make({ line: "oc", outcome: "pendiente", revisaPlanes: true, efectiva: "01/01/2027", planes: [blue] });
@@ -1060,7 +1104,11 @@ test("avisos: faltantes y Seguro Social en la nota", () => {
 
 test("copiar siguiente: el orden salta lo que la situación no muestra", () => {
   const order = (extra) => N.copyOrder(make(extra));
-  assert.deepEqual(order({ line: "oc", outcome: "enviada", gestion: "nueva" }), ["note", "task", "report", "sms", "email1", "email2"]);
+  assert.deepEqual(order({ line: "oc", outcome: "enviada", gestion: "nueva", compania: "Florida Blue" }),
+    ["note", "task", "report", "sms", "emailSubject", "email1", "emailKeep", "emailCs", "email2"]);
+  /* sin teléfono de la compañía no hay Customer Service que copiar */
+  assert.deepEqual(order({ line: "oc", outcome: "enviada", gestion: "nueva", compania: "Wellpoint" }),
+    ["note", "task", "report", "sms", "emailSubject", "email1", "emailKeep", "email2"]);
   assert.deepEqual(order({ line: "supp", outcome: "enviada", gestion: "nueva" }), ["note", "task", "report", "sms", "email1"]);
   assert.deepEqual(order({ line: "supp", outcome: "cotizacion" }), ["note", "task", "sms", "email1"]);
   assert.deepEqual(order({ line: "mc", outcome: "sincambio" }), ["note", "task", "report"]);
