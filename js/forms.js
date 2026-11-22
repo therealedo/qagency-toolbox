@@ -380,7 +380,8 @@
       recipient: { name: name, email: email },
       fields: soa ? [] : fieldList(fieldMap(key, v)),
       requester: val(o.requester) || C.OFFICE_NAMES[oficina] || oficina,
-      meta: { kind: k, line: val(d.line), netKey: k, fileName: downloadName(d, k) }
+      /* lang: el idioma de la página de firma (sus botones), el del cliente */
+      meta: { kind: k, line: val(d.line), netKey: k, fileName: downloadName(d, k), lang: TEMPLATES[key].lang }
     };
     if (soa) {
       var av = soaAgentValues(d, o.agentTel);
