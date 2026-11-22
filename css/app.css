@@ -177,6 +177,30 @@ body[data-view="tasks"] #btnNew, body[data-view="firmas"] #btnNew { display: non
 .who select { width: auto; min-width: 0; max-width: 220px; min-height: 34px; }
 .who select.needs { border-color: var(--gold); box-shadow: 0 0 0 3px var(--gold-soft); }
 
+/* reporte del día: una franja fija debajo de la barra de arriba */
+.report-bar {
+  display: flex; align-items: center; gap: 10px; padding: 6px 16px;
+  background: var(--surface, var(--bg)); border-bottom: 1px solid var(--line); font-size: 13px;
+}
+.report-bar.drag { background: var(--brand-soft); }
+.report-icon { color: var(--ok); display: inline-flex; flex: none; }
+.report-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; flex: 1; min-width: 0; }
+.report-hint { color: var(--muted, var(--ink-2)); flex: 1 1 240px; min-width: 0; }
+.report-count { color: var(--ink-2); }
+.report-old { color: var(--warn); background: var(--warn-soft); border-radius: 6px; padding: 1px 8px; font-weight: 600; }
+.report-find { display: flex; gap: 6px; margin-left: auto; }
+.report-find input { width: 210px; max-width: 46vw; padding: 4px 8px; font-size: 13px; }
+.report-msg { color: var(--ink-2); }
+.report-msg.ok { color: var(--ok); font-weight: 600; }
+.report-msg.warn { color: var(--warn); font-weight: 600; }
+.report-choices { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+.report-choices:empty, .report-msg:empty { display: none; }
+@media (max-width: 640px) {
+  .report-bar { padding: 6px 12px; align-items: flex-start; }
+  .report-find { margin-left: 0; width: 100%; }
+  .report-find input { flex: 1; width: auto; max-width: none; }
+}
+
 .update-bar {
   position: sticky; top: var(--top); z-index: 29;
   display: flex; align-items: center; justify-content: center; gap: 14px;

@@ -80,6 +80,30 @@
   <button type="button" class="btn small" id="profileExport">Exportar equipo</button>
 </div>
 
+<!-- Reporte del día: el PDF de Cliq (TASKS PENDING - UPDATE) se suelta una vez y la fila del cliente se resalta en ese mismo archivo al copiar el task -->
+<div class="report-bar" id="reportBar" hidden>
+  <span class="report-icon" aria-hidden="true"><svg viewBox="0 0 20 20" width="16" height="16"><path d="m12.5 3.5 4 4-7 7H5.5v-4zM3 17.5h14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+  <div class="report-row" id="reportEmpty">
+    <strong>Reporte del día</strong>
+    <span class="report-hint">Suelta aquí el PDF de Cliq (TASKS PENDING - UPDATE): al copiar el task se resalta la fila del cliente en ese mismo archivo.</span>
+    <button type="button" class="btn small" id="reportPick">Elegir el reporte</button>
+  </div>
+  <div class="report-row" id="reportLoaded" hidden>
+    <strong id="reportTitle">Reporte</strong>
+    <span class="report-count" id="reportCount"></span>
+    <span class="report-old" id="reportOld" hidden></span>
+    <button type="button" class="btn small primary" id="reportAllow" hidden>Permitir que se guarde</button>
+    <form class="report-find" id="reportFind" autocomplete="off">
+      <input type="text" id="reportQuery" placeholder="Q1234 o Apellido, Nombre" aria-label="Código Q o nombre (Apellido, Nombre) para marcar en el reporte" spellcheck="false">
+      <button type="submit" class="btn small" id="reportMark">Marcar</button>
+    </form>
+    <span class="report-msg" id="reportMsg" role="status" aria-live="polite"></span>
+    <span class="report-choices" id="reportChoices"></span>
+    <button type="button" class="link-btn" id="reportUndo" hidden>Deshacer</button>
+    <button type="button" class="icon-btn tiny" id="reportClose" title="Dejar de usar este reporte" aria-label="Dejar de usar este reporte">✕</button>
+  </div>
+</div>
+
 <main id="main" tabindex="-1">
 
   <!-- ============================================================ NOTA -->
@@ -569,6 +593,7 @@
 <script src="js/notes.js"></script>
 <script src="js/forms.js"></script>
 <script src="js/sheetpdf.js"></script>
+<script src="js/report.js"></script>
 <script src="js/extract.js"></script>
 <script src="vendor/tesseract/ocr-loader.js"></script>
 <script src="vendor/tesseract/ocr-wasm.js"></script>

@@ -6,7 +6,7 @@
    datos de los clientes nunca salen de la página. */
 "use strict";
 
-const VERSION = "1.29.0";
+const VERSION = "1.30.0";
 const CACHE = "qa-toolbox-" + VERSION;
 const SHELL = [
   "./",
@@ -18,6 +18,7 @@ const SHELL = [
   "js/notes.js",
   "js/forms.js",
   "js/sheetpdf.js",
+  "js/report.js",
   "js/extract.js",
   "js/ocr.js",
   "js/app.js",
