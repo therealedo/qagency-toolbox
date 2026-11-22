@@ -1859,7 +1859,7 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
 (function (root) {
   "use strict";
 
-  var VERSION = "1.30.0";
+  var VERSION = "1.31.0";
   /* De aquí la herramienta instalada lee el número de la última versión (y
      nada más). La política de seguridad de index.html solo permite esta
      dirección, y el actualizador de Windows usa el mismo repositorio. */
@@ -1896,9 +1896,15 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
      «Otra», con su nombre. `state` pide el estado en dos letras: BCBS of GA. */
   /* `tel`: el teléfono de Customer Service de la compañía (Obamacare), que va
      en el email al cliente. Las que no lo tienen hacen avisar al agente. */
+  /* Blue Cross Blue Shield de otro estado ("Blue Cross and Blue Shield of
+     NC", "BlueCross BlueShield of Texas"): BCBS of con su estado. La de
+     Florida es Florida Blue. */
+  var BCBS_OF = /\bBCBS\s+of\b|blue\s*cross\s*(?:and\s*|&\s*)?blue\s*shield\s+of\s+(?!florida\b|fl\b)/i;
+  var BCBS_STATE = /\b(?:BCBS|Blue\s*Cross\s*(?:and\s*|&\s*)?Blue\s*Shield)\s+of\s+([A-Z]{2})\b/i;
   var CARRIERS = {
     oc: [
       { re: /florida\s*blue|blue\s*cross|bluecare|blueselect|blueoptions|myblue/i, name: "FLORIDA BLUE", display: "Florida Blue", short: "FB", option: "Florida Blue", tel: "(800) 352-2583" },
+      { re: BCBS_OF, name: "BCBS OF", short: "BCBS of", display: "BCBS of", option: "BCBS of", state: BCBS_STATE },
       { re: /ambetter|celtic|sunshine\s*health/i, name: "AMBETTER", display: "Ambetter", short: "Ambetter", option: "Ambetter", tel: "(877) 687-1169" },
       { re: /wellpoint/i, name: "WELLPOINT", display: "Wellpoint", short: "Wellpoint", option: "Wellpoint" },
       { re: /unitedhealthcare|united\s*healthcare|\bUHC\b/i, name: "UNITED HEALTHCARE", display: "UnitedHealthcare", short: "UHC", option: "UHC", tel: "(888) 200-0405" },
@@ -1915,7 +1921,7 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
       { re: /unitedhealthcare|united\s*healthcare|\bUHC\b|\bAARP\b/i, name: "UNITED HEALTHCARE", short: "UHC", option: "UHC" },
       { re: /aetna/i, name: "AETNA", short: "Aetna", option: "Aetna" },
       { re: /florida\s*blue|blue\s*cross|bluemedicare/i, name: "FLORIDA BLUE", short: "FB", option: "Florida Blue" },
-      { re: /\bBCBS\s+of\b/i, name: "BCBS OF", short: "BCBS of", display: "BCBS of", option: "BCBS of", state: /\bBCBS\s+of\s+([A-Z]{2})\b/i },
+      { re: BCBS_OF, name: "BCBS OF", short: "BCBS of", display: "BCBS of", option: "BCBS of", state: BCBS_STATE },
       /* Healthspring ya no es parte de Cigna: "Cigna Healthspring" es Healthspring */
       { re: /(cigna[\s-]*)?health\s*spring/i, name: "HEALTHSPRING", short: "Healthspring", option: "Healthspring" },
       { re: /devoted/i, name: "DEVOTED HEALTH", short: "Devoted", option: "Devoted" },
@@ -2001,12 +2007,12 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
     { id: "li_plan", cat: "Life Insurance", text: "PLAN DE RETIRO", hint: "" },
 
     { id: "oc_inactive", cat: "Marketplace (OC)", text: "FOLLOW UP LEAD_INACTIVE CLIENT OC", hint: "Contactados para prospecto, para recuperar, work, Medicaid" },
-    { id: "oc_cs", cat: "Marketplace (OC)", text: "FOLLOW UP CUSTOMER SERVICE", extra: "payment", hint: "Cliente con app concretadas. Lleva al final la referencia de pago" },
+    { id: "oc_cs", cat: "Marketplace (OC)", text: "FOLLOW UP CUSTOMER SERVICE", extra: "payment", pay: true, hint: "Cliente con app concretadas. Lleva al final la referencia de pago" },
     { id: "oc_cs_dep", cat: "Marketplace (OC)", text: "FOLLOW UP CUSTOMER SERVICE DEP", hint: "Cliente solo dentro de la cobertura, no es principal en ningún plan adicional" },
     { id: "oc_quote", cat: "Marketplace (OC)", text: "MKPL QUOTE PENDING", hint: "Se realizó cotización" },
     { id: "oc_app_pending", cat: "Marketplace (OC)", text: "MKPL APP PENDING", hint: "Solo falta procesar: consent firmado" },
     { id: "oc_oe", cat: "Marketplace (OC)", text: "FOLLOW UP OPEN ENROLLMENT OC", hint: "Citas para OEP: cliente quiere renovar o new contactado interesado" },
-    { id: "oc_docs", cat: "Marketplace (OC)", text: "FOLLOW UP DOCS BY {docFecha}", extra: "docs", hint: "Lleva la fecha tope de los documentos" },
+    { id: "oc_docs", cat: "Marketplace (OC)", text: "FOLLOW UP DOCS BY {docFecha}", extra: "docs", pay: true, hint: "Lleva la fecha tope de los documentos y la referencia de pago" },
     { id: "oc_lost", cat: "Marketplace (OC)", text: "FOLLOW UP {metodo} OC {n}", extra: "contact", hint: "Se perdió contacto" },
     { id: "oc_consent", cat: "Marketplace (OC)", text: "FOLLOW UP CONSENT", hint: "" },
 
@@ -2043,7 +2049,7 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
   /* Reglas del documento TASK Q AGENCY, para mostrarlas junto al catálogo. */
   var TASK_RULES = [
     "Las observaciones adicionales van al final, después de la hora de referencia y sin paréntesis. Por ejemplo: URGENT.",
-    "En FOLLOW UP CUSTOMER SERVICE se agrega al final una referencia de pago: PAYMENT, NO PAYMENT, PAYMENT NOT VERIFIED o NO PREMIUM.",
+    "En FOLLOW UP CUSTOMER SERVICE y FOLLOW UP DOCS se agrega al final una referencia de pago: PAYMENT, NO PAYMENT, PAYMENT NOT VERIFIED o NO PREMIUM.",
     "Los tasks de Medicaid que solo son de revisión llevan REVIEW al final.",
     "En todos los casos, revisar el procedimiento de llamadas."
   ];
@@ -3022,7 +3028,7 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
     var T = taskById(d.taskId) || taskById(autoTaskId(d));
     if (!T) { return ""; }
     var tags = [];
-    if (T.extra === "payment" && has(O, "pago") && d.pagoEstado) { tags.push(d.pagoEstado); }
+    if (T.pay && has(O, "pago") && d.pagoEstado) { tags.push(d.pagoEstado); }
     if (T.review && d.review) { tags.push("REVIEW"); }
     /* etiquetas finales elegidas (CRONIC, URGENT), siempre en el mismo orden */
     var obs = Array.isArray(d.obsTags) ? d.obsTags : [];
@@ -3147,7 +3153,7 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
   function paymentLine(d) {
     if (d.pagoEstado !== "PAYMENT") { return d.pagoEstado ? "" : val(d.pagoMetodo); }
     var monto = U.parseMoney(d.pagoMonto) || U.parseMoney(d.prima);
-    var fecha = U.parseDate(d.pagoFecha);
+    var fecha = U.parseDate(d.pagoFecha) || U.parseDate(d.fecha) || U.today();
     return ["Realizado" + (monto ? " - " + monto : "") + (fecha ? " el " + fecha : ""),
             val(d.pagoMetodo), val(d.pagoConf) ? "Conf. " + val(d.pagoConf) : ""].filter(Boolean).join(" - ");
   }
@@ -3797,7 +3803,7 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
         if (pay) { parts.push(U.moneyNumber(pay) === 0 ? "No tiene pago mensual." : "Pago mensual: " + pay + "."); }
         if (ef) { parts.push("Su cobertura inicia el " + ef + "."); }
         if (d.pagoEstado === "NO PAYMENT") {
-          parts.push("Recuerde hacer su primer pago para activar la cobertura" + (U.parseDate(d.pagoFecha) ? " (fecha acordada: " + U.parseDate(d.pagoFecha) + ")" : "") + ".");
+          parts.push("Recuerde hacer su primer pago para activar la cobertura.");
         }
         var pend = d.line === "oc" ? pendingDocs(d) : [];
         if (pend.length) {
@@ -3904,9 +3910,12 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
       "En caso de no recibir sus tarjetas a la fecha de inicio de la cobertura, debera comunicarse con " + carrier + " para revisar el estatus del envío."
     ].join("\n");
   }
-  /* El teléfono de Customer Service de la compañía del caso. Florida Blue
+  /* El teléfono de Customer Service de la compañía del caso: el que trae My
+     Plans & Programs (o se escribió); si no, el de la lista. Florida Blue
      solo tiene el de Florida: con una dirección de otro estado no se sabe. */
   function carrierTel(d) {
+    var own = val(d.telCompania), digits = own.replace(/\D/g, "").replace(/^1(?=\d{10}$)/, "");
+    if (own) { return digits.length === 10 ? "(" + digits.slice(0, 3) + ") " + digits.slice(3, 6) + "-" + digits.slice(6) : own; }
     var e = carrierEntry("oc", val(d.compania));
     if (!e || !e.tel) { return ""; }
     var st = upper(d.direccion).match(/\b([A-Z]{2})\s+\d{5}(?:-\d{4})?\b/);
@@ -4082,7 +4091,7 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
       if (!val(d.anio)) { w.push("Reporte: falta el año del plan."); }
     }
     var T = taskById(d.taskId) || taskById(autoTaskId(d));
-    if (T && T.extra === "payment" && has(O, "pago") && !d.pagoEstado) {
+    if (T && T.pay && has(O, "pago") && !d.pagoEstado) {
       w.push("Task: falta la referencia de pago (PAYMENT, NO PAYMENT, PAYMENT NOT VERIFIED o NO PREMIUM).");
     }
     if (d.line === "oc" && O.id === "enviada") {
@@ -5845,15 +5854,38 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
      compañía Guardian */
   var GUARDIAN_PERSON = /\b(?:parent|legal)\s*(?:\/|or|and)?\s*(?:legal\s*)?guardian\b|\bguardian(?=\s*(?:['’`]s\b|if\b|\(|of\b|signature))|guardianship/gi;
 
+  /* Los estados por su nombre, para "BlueCross BlueShield of North Carolina" */
+  var STATES = {
+    alabama: "AL", alaska: "AK", arizona: "AZ", arkansas: "AR", california: "CA", colorado: "CO", connecticut: "CT", delaware: "DE",
+    florida: "FL", georgia: "GA", hawaii: "HI", idaho: "ID", illinois: "IL", indiana: "IN", iowa: "IA", kansas: "KS", kentucky: "KY",
+    louisiana: "LA", maine: "ME", maryland: "MD", massachusetts: "MA", michigan: "MI", minnesota: "MN", mississippi: "MS", missouri: "MO",
+    montana: "MT", nebraska: "NE", nevada: "NV", "new hampshire": "NH", "new jersey": "NJ", "new mexico": "NM", "new york": "NY",
+    "north carolina": "NC", "north dakota": "ND", ohio: "OH", oklahoma: "OK", oregon: "OR", pennsylvania: "PA", "rhode island": "RI",
+    "south carolina": "SC", "south dakota": "SD", tennessee: "TN", texas: "TX", utah: "UT", vermont: "VT", virginia: "VA",
+    washington: "WA", "west virginia": "WV", wisconsin: "WI", wyoming: "WY"
+  };
+  function stateAfter(entry, text) {
+    var m = text.match(entry.state);
+    if (m) { return m[1].toUpperCase(); }
+    var w = /\bof\s+([A-Za-z]+)(?:\s+([A-Za-z]+))?/i.exec(text);
+    if (!w) { return ""; }
+    return STATES[(w[1] + " " + (w[2] || "")).toLowerCase()] || STATES[w[1].toLowerCase()] || "";
+  }
+
+  /* La compañía que se nombra primero; si dos empiezan en el mismo lugar,
+     la más larga ("Blue Cross and Blue Shield of NC" antes que "Blue Cross").
+     BCBS of lleva su estado: "BCBS OF NC". */
   function carrierIn(line, text) {
     var list = C.CARRIERS[line] || [];
-    var best = null, bestAt = Infinity;
+    var best = null, bestAt = Infinity, bestLen = 0;
     text = String(text).replace(GUARDIAN_PERSON, "");
     for (var i = 0; i < list.length; i++) {
       var m = text.match(list[i].re);
-      if (m && m.index < bestAt) { best = list[i]; bestAt = m.index; }
+      if (m && (m.index < bestAt || (m.index === bestAt && m[0].length > bestLen))) { best = list[i]; bestAt = m.index; bestLen = m[0].length; }
     }
-    return best ? best.name : "";
+    if (!best) { return ""; }
+    var st = best.state ? stateAfter(best, text.slice(bestAt, bestAt + 80)) : "";
+    return st ? best.name + " " + st : best.name;
   }
 
   function setName(f, full) {
@@ -6285,6 +6317,18 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
             if (tail || up.indexOf("(") >= 0) { chunk = open.concat(chunk); top = k; break; }
           }
         }
+        /* beneficios separados por "|" en varias líneas, con el botón en
+           medio ("Blue Home Bronze Standard | $50 PCP" / "Go to my plan
+           benefits" / "| $25 Tier 1 Rx | HSA Eligible |" / "Integrated |
+           with Novant Health"): se sube mientras siga el "|" */
+        if (c.indexOf("|") >= 0) {
+          for (var q = j - 1; q >= 0 && q >= j - 6; q--) {
+            var pipe = nameCell(doc.lines[q]);
+            if (pipe === null) { continue; }
+            if (!pipe || PLAN_STOP.test(pipe) || pipe.indexOf("|") < 0) { break; }
+            chunk.unshift(pipe); top = q;
+          }
+        }
         /* antes del paréntesis solo queda el código del plan ("27M07-01C"):
            el nombre está en la línea de arriba ("myBlue Essentials Silver") */
         var pre = chunk[0].split("(")[0].trim();
@@ -6303,7 +6347,9 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
          sin cerrar); un paréntesis del nombre se queda: "myBlue Bronze (HSA) 2129" */
       var name = parts.join(" ").replace(/\s*\([^()]*[$\/][^()]*(\)|$)/g, "").replace(/\s*\([^()]*$/, "")
         .replace(/\s+/g, " ").replace(/[\s,;\-–]+$/, "").trim();
-      return { id: m[1], name: name.length > 4 ? name : "" };
+      /* con "|", el plan es lo de antes del primero */
+      if (name.indexOf("|") > 0) { name = name.split("|")[0].trim(); }
+      return { id: m[1], name: name.length > 4 ? name : "", at: i };
     }
     return null;
   }
@@ -6339,6 +6385,12 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
     var f = {};
     var p = planAboveId(doc);
     if (p && p.name) { f.plan = p.name; }
+    /* el teléfono de la compañía va debajo del Plan ID, junto a su nombre
+       ("1-800-324-4973   Premium …" / "Blue Cross and Blue Shield of NC") */
+    for (var t = p ? p.at + 1 : doc.lines.length; t < doc.lines.length && t <= p.at + 4; t++) {
+      var tel = /(?:^|\s)(?:1[-.\s]?)?\(?([2-9]\d{2})\)?[-.\s]?(\d{3})[-.\s](\d{4})(?=\s|$)/.exec(doc.lines[t]);
+      if (tel) { f.telCompania = "(" + tel[1] + ") " + tel[2] + "-" + tel[3]; break; }
+    }
     if (!f.plan) { f.plan = after(doc, [/\bPlan\s*name\b/i, /Nombre del plan/i, /\bSelected\s*plan\b/i], vText(90), 1); }
 
     /* Prima mensual: lo que paga el cliente; si no aparece, prima menos crédito */
@@ -6387,8 +6439,8 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
       f.efectiva = after(doc, [/\b(Coverage\s*)?start\s*date\b/i, /\bEffective\s*date\b/i, /Fecha de inicio/i, /Fecha efectiva/i], vDate, 1);
     }
 
-    var st = doc.flat.match(/(?:^|\n)\s*(?:status:\s*|estado:\s*)?(active|activo|pending|pendiente|unpaid binder|terminated|cancell?ed|canceled)\s*(?:\n|$)/i);
-    if (st) { f.estado = { activo: "Active", pendiente: "Pending" }[st[1].toLowerCase()] || U.titleCase(st[1]).replace("Binder", "binder"); }
+    var st = doc.flat.match(/(?:^|\n)\s*(?:status:\s*|estado:\s*)?(active|activo|initial enrollment|pending|pendiente|unpaid binder|terminated|cancell?ed|canceled)\s*(?:\n|$)/i);
+    if (st) { f.estado = { activo: "Active", pending: "Initial enrollment", pendiente: "Initial enrollment", "initial enrollment": "Initial enrollment" }[st[1].toLowerCase()] || U.titleCase(st[1]).replace("Binder", "binder"); }
     f.compania = carrierIn("oc", (f.plan || "") + "\n" + doc.flat);
     f.anio = planYear(doc) || (f.efectiva ? f.efectiva.slice(-4) : "");
     if (/healthsherpa/i.test(doc.flat)) { f.plataforma = "HealthSherpa"; }
@@ -8466,8 +8518,11 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
     { k: "planes", g: "plan", sec: "planes", type: "planeslist", w: "full", lines: ["oc"] },
     { k: "companiaSel", g: "plan", sec: "plan", type: "select", label: "Compañía", w: "w2", lines: ["oc", "mc"],
       options: carrierSelectOptions, when: function () { return !mcSin(); } },
-    { k: "bcbsEstado", g: "plan", sec: "plan", type: "text", label: "Estado de BCBS", ph: "GA", max: 2, upper: true, lines: ["mc"],
+    { k: "bcbsEstado", g: "plan", sec: "plan", type: "text", label: "Estado de BCBS", ph: "GA", max: 2, upper: true, lines: ["mc", "oc"],
       hint: "Dos letras", when: function (f) { return !mcSin() && needsState(f.companiaSel); } },
+    /* el teléfono de Customer Service que trae My Plans & Programs: va en el email */
+    { k: "telCompania", g: "plan", sec: "plan", type: "text", label: "Teléfono de la compañía", w: "w2", lines: ["oc"], ph: "(800) 352-2583",
+      hint: "Va en el email (Tener en cuenta y Customer Service)", when: function () { return isOC("enviada"); } },
     /* Suplementario escribe la compañía; Obamacare y Medicare, solo con «Otra» */
     { k: "compania", g: "plan", sec: "plan", type: "text", w: "w2",
       label: function () { return S.line === "supp" ? "Compañía" : "Nombre de la compañía"; },
@@ -8475,7 +8530,7 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
       when: function (f) { return !mcSin() && (S.line === "supp" || otherCarrier(f)); } },
     { k: "plan", g: "plan", sec: "plan", type: "text", label: "Nombre del plan", w: "w2",
       hint: function () { return S.line === "mc" ? "Con el contrato (H-PBP): Humana Gold Plus H1036-077 (HMO)" : ""; } },
-    { k: "estado", g: "plan", sec: "plan", type: "text", label: "Status", lines: ["oc"], list: ["Active", "Pending", "Unpaid binder", "Terminated"] },
+    { k: "estado", g: "plan", sec: "plan", type: "text", label: "Status", lines: ["oc"], list: ["Active", "Initial enrollment", "Unpaid binder", "Terminated"] },
     { k: "tienePrima", g: "plan", sec: "plan", type: "check", lines: ["mc"], label: "Tiene prima mensual (si no, Premium $0.00)",
       when: function () { return !mcSin(); } },
     { k: "prima", g: "plan", sec: "plan", type: "money", label: "Prima mensual",
@@ -8510,8 +8565,9 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
     { k: "pagoMonto", g: "pago", sec: "pago", type: "money", label: "Monto",
       when: function (f) { return f.pagoEstado === "PAYMENT" || f.pagoEstado === "NO PAYMENT"; } },
     { k: "pagoFecha", g: "pago", sec: "pago", type: "date",
-      label: function () { return S.f.pagoEstado === "NO PAYMENT" ? "El cliente paga el" : "Fecha del pago"; },
-      when: function (f) { return f.pagoEstado === "PAYMENT" || f.pagoEstado === "NO PAYMENT"; } },
+      label: "Fecha del pago", hint: "Vacía, va la fecha de la nota",
+      ph: function () { return U.parseDate(S.f.fecha) || U.today(); },
+      when: function (f) { return f.pagoEstado === "PAYMENT"; } },
     { k: "pagoMetodo", g: "pago", sec: "pago", type: "select", label: "Método",
       options: function () { return [{ v: "", l: "—" }].concat(C.PAY_METHODS.map(function (m) { return { v: m, l: m }; })); },
       when: function (f) { return f.pagoEstado === "PAYMENT"; } },

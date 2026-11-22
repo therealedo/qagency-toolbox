@@ -218,15 +218,38 @@
      compañía Guardian */
   var GUARDIAN_PERSON = /\b(?:parent|legal)\s*(?:\/|or|and)?\s*(?:legal\s*)?guardian\b|\bguardian(?=\s*(?:['’`]s\b|if\b|\(|of\b|signature))|guardianship/gi;
 
+  /* Los estados por su nombre, para "BlueCross BlueShield of North Carolina" */
+  var STATES = {
+    alabama: "AL", alaska: "AK", arizona: "AZ", arkansas: "AR", california: "CA", colorado: "CO", connecticut: "CT", delaware: "DE",
+    florida: "FL", georgia: "GA", hawaii: "HI", idaho: "ID", illinois: "IL", indiana: "IN", iowa: "IA", kansas: "KS", kentucky: "KY",
+    louisiana: "LA", maine: "ME", maryland: "MD", massachusetts: "MA", michigan: "MI", minnesota: "MN", mississippi: "MS", missouri: "MO",
+    montana: "MT", nebraska: "NE", nevada: "NV", "new hampshire": "NH", "new jersey": "NJ", "new mexico": "NM", "new york": "NY",
+    "north carolina": "NC", "north dakota": "ND", ohio: "OH", oklahoma: "OK", oregon: "OR", pennsylvania: "PA", "rhode island": "RI",
+    "south carolina": "SC", "south dakota": "SD", tennessee: "TN", texas: "TX", utah: "UT", vermont: "VT", virginia: "VA",
+    washington: "WA", "west virginia": "WV", wisconsin: "WI", wyoming: "WY"
+  };
+  function stateAfter(entry, text) {
+    var m = text.match(entry.state);
+    if (m) { return m[1].toUpperCase(); }
+    var w = /\bof\s+([A-Za-z]+)(?:\s+([A-Za-z]+))?/i.exec(text);
+    if (!w) { return ""; }
+    return STATES[(w[1] + " " + (w[2] || "")).toLowerCase()] || STATES[w[1].toLowerCase()] || "";
+  }
+
+  /* La compañía que se nombra primero; si dos empiezan en el mismo lugar,
+     la más larga ("Blue Cross and Blue Shield of NC" antes que "Blue Cross").
+     BCBS of lleva su estado: "BCBS OF NC". */
   function carrierIn(line, text) {
     var list = C.CARRIERS[line] || [];
-    var best = null, bestAt = Infinity;
+    var best = null, bestAt = Infinity, bestLen = 0;
     text = String(text).replace(GUARDIAN_PERSON, "");
     for (var i = 0; i < list.length; i++) {
       var m = text.match(list[i].re);
-      if (m && m.index < bestAt) { best = list[i]; bestAt = m.index; }
+      if (m && (m.index < bestAt || (m.index === bestAt && m[0].length > bestLen))) { best = list[i]; bestAt = m.index; bestLen = m[0].length; }
     }
-    return best ? best.name : "";
+    if (!best) { return ""; }
+    var st = best.state ? stateAfter(best, text.slice(bestAt, bestAt + 80)) : "";
+    return st ? best.name + " " + st : best.name;
   }
 
   function setName(f, full) {
@@ -658,6 +681,18 @@
             if (tail || up.indexOf("(") >= 0) { chunk = open.concat(chunk); top = k; break; }
           }
         }
+        /* beneficios separados por "|" en varias líneas, con el botón en
+           medio ("Blue Home Bronze Standard | $50 PCP" / "Go to my plan
+           benefits" / "| $25 Tier 1 Rx | HSA Eligible |" / "Integrated |
+           with Novant Health"): se sube mientras siga el "|" */
+        if (c.indexOf("|") >= 0) {
+          for (var q = j - 1; q >= 0 && q >= j - 6; q--) {
+            var pipe = nameCell(doc.lines[q]);
+            if (pipe === null) { continue; }
+            if (!pipe || PLAN_STOP.test(pipe) || pipe.indexOf("|") < 0) { break; }
+            chunk.unshift(pipe); top = q;
+          }
+        }
         /* antes del paréntesis solo queda el código del plan ("27M07-01C"):
            el nombre está en la línea de arriba ("myBlue Essentials Silver") */
         var pre = chunk[0].split("(")[0].trim();
@@ -676,7 +711,9 @@
          sin cerrar); un paréntesis del nombre se queda: "myBlue Bronze (HSA) 2129" */
       var name = parts.join(" ").replace(/\s*\([^()]*[$\/][^()]*(\)|$)/g, "").replace(/\s*\([^()]*$/, "")
         .replace(/\s+/g, " ").replace(/[\s,;\-–]+$/, "").trim();
-      return { id: m[1], name: name.length > 4 ? name : "" };
+      /* con "|", el plan es lo de antes del primero */
+      if (name.indexOf("|") > 0) { name = name.split("|")[0].trim(); }
+      return { id: m[1], name: name.length > 4 ? name : "", at: i };
     }
     return null;
   }
@@ -712,6 +749,12 @@
     var f = {};
     var p = planAboveId(doc);
     if (p && p.name) { f.plan = p.name; }
+    /* el teléfono de la compañía va debajo del Plan ID, junto a su nombre
+       ("1-800-324-4973   Premium …" / "Blue Cross and Blue Shield of NC") */
+    for (var t = p ? p.at + 1 : doc.lines.length; t < doc.lines.length && t <= p.at + 4; t++) {
+      var tel = /(?:^|\s)(?:1[-.\s]?)?\(?([2-9]\d{2})\)?[-.\s]?(\d{3})[-.\s](\d{4})(?=\s|$)/.exec(doc.lines[t]);
+      if (tel) { f.telCompania = "(" + tel[1] + ") " + tel[2] + "-" + tel[3]; break; }
+    }
     if (!f.plan) { f.plan = after(doc, [/\bPlan\s*name\b/i, /Nombre del plan/i, /\bSelected\s*plan\b/i], vText(90), 1); }
 
     /* Prima mensual: lo que paga el cliente; si no aparece, prima menos crédito */
@@ -760,8 +803,8 @@
       f.efectiva = after(doc, [/\b(Coverage\s*)?start\s*date\b/i, /\bEffective\s*date\b/i, /Fecha de inicio/i, /Fecha efectiva/i], vDate, 1);
     }
 
-    var st = doc.flat.match(/(?:^|\n)\s*(?:status:\s*|estado:\s*)?(active|activo|pending|pendiente|unpaid binder|terminated|cancell?ed|canceled)\s*(?:\n|$)/i);
-    if (st) { f.estado = { activo: "Active", pendiente: "Pending" }[st[1].toLowerCase()] || U.titleCase(st[1]).replace("Binder", "binder"); }
+    var st = doc.flat.match(/(?:^|\n)\s*(?:status:\s*|estado:\s*)?(active|activo|initial enrollment|pending|pendiente|unpaid binder|terminated|cancell?ed|canceled)\s*(?:\n|$)/i);
+    if (st) { f.estado = { activo: "Active", pending: "Initial enrollment", pendiente: "Initial enrollment", "initial enrollment": "Initial enrollment" }[st[1].toLowerCase()] || U.titleCase(st[1]).replace("Binder", "binder"); }
     f.compania = carrierIn("oc", (f.plan || "") + "\n" + doc.flat);
     f.anio = planYear(doc) || (f.efectiva ? f.efectiva.slice(-4) : "");
     if (/healthsherpa/i.test(doc.flat)) { f.plataforma = "HealthSherpa"; }
