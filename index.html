@@ -408,50 +408,108 @@
   </div>
 </div>
 
-<dialog id="dlgSettings" class="dlg">
+<dialog id="dlgSettings" class="dlg dlg-settings" aria-labelledby="setTitle">
   <form method="dialog" class="dlg-box">
     <div class="dlg-head">
-      <h2>Ajustes</h2>
+      <h2 id="setTitle">Ajustes</h2>
       <button type="submit" class="icon-btn" aria-label="Cerrar">✕</button>
     </div>
 
-    <h3>Oficina</h3>
-    <div class="office-row">
-      <div class="seg seg-fit" id="officeSeg" role="radiogroup" aria-label="Oficina"></div>
+    <div class="set-body">
+      <!-- una sección a la vez; debajo de cada nombre, cómo está, y un punto
+           ámbar cuando falta algo -->
+      <div class="set-nav" id="setNav" role="tablist" aria-label="Secciones de Ajustes" aria-orientation="vertical">
+        <button type="button" class="set-tab" role="tab" id="setTab-office" aria-controls="setPane-office" data-set-tab="office"><span class="set-tab-name">Oficina</span><span class="set-tab-state" data-set-state="office"></span></button>
+        <button type="button" class="set-tab" role="tab" id="setTab-team" aria-controls="setPane-team" data-set-tab="team"><span class="set-tab-name">Equipo</span><span class="set-tab-state" data-set-state="team"></span></button>
+        <button type="button" class="set-tab" role="tab" id="setTab-dirs" aria-controls="setPane-dirs" data-set-tab="dirs"><span class="set-tab-name">Carpetas</span><span class="set-tab-state" data-set-state="dirs"></span></button>
+        <button type="button" class="set-tab" role="tab" id="setTab-sign" aria-controls="setPane-sign" data-set-tab="sign"><span class="set-tab-name">Firma</span><span class="set-tab-state" data-set-state="sign"></span></button>
+        <button type="button" class="set-tab" role="tab" id="setTab-note" aria-controls="setPane-note" data-set-tab="note"><span class="set-tab-name">Nota</span><span class="set-tab-state" data-set-state="note"></span></button>
+        <button type="button" class="set-tab" role="tab" id="setTab-install" aria-controls="setPane-install" data-set-tab="install"><span class="set-tab-name">Instalación</span><span class="set-tab-state" data-set-state="install"></span></button>
+      </div>
+
+      <div class="set-panes">
+        <section class="set-pane" role="tabpanel" id="setPane-office" aria-labelledby="setTab-office" data-set-pane="office">
+          <div class="set-pane-head">
+            <h3>Oficina</h3>
+            <p class="muted">La oficina de la nota y el teléfono de cada agencia, que sale en el SMS del cliente.</p>
+          </div>
+          <div class="office-row">
+            <div class="seg seg-fit" id="officeSeg" role="radiogroup" aria-label="Oficina"></div>
+          </div>
+          <div class="office-row" id="officeTels"></div>
+          <details class="set-help">
+            <summary>Cómo se usa</summary>
+            <p class="muted">El nombre de la oficina y su teléfono salen en el SMS para el cliente. Si el agente cuyo NPN se usa tiene su agencia elegida en Equipo, el Consent, el SMS y el email salen de esa agencia, con el teléfono de esa agencia.</p>
+          </details>
+        </section>
+
+        <section class="set-pane" role="tabpanel" id="setPane-team" aria-labelledby="setTab-team" data-set-pane="team" hidden>
+          <div class="set-pane-head">
+            <h3>Equipo</h3>
+            <p class="muted">Las personas de la oficina: sus iniciales, NPN, teléfonos y agencia.</p>
+          </div>
+          <div class="team-actions">
+            <button type="button" class="btn small" id="teamAdd">Agregar persona</button>
+            <button type="button" class="btn small" id="teamImport">Importar equipo</button>
+            <button type="button" class="btn small" id="teamExport">Exportar equipo</button>
+            <input type="file" id="teamFile" accept=".json,application/json" hidden>
+          </div>
+          <p class="muted team-empty" id="teamEmpty" hidden>El equipo está vacío. Importa el archivo del equipo (QAgency-Equipo.json) que comparte la oficina, o agrega a las personas una por una.</p>
+          <div class="team" id="teamRows"></div>
+          <details class="set-help">
+            <summary>Qué va en cada columna</summary>
+            <p class="muted">Las iniciales de notas encabezan la nota y el task. Las de agente son las que salen entre paréntesis en el reporte, si son distintas. El NPN solo hace falta para quien figura como agente escritor. El teléfono directo sale en el SMS de Obamacare, debajo de la firma de quien habló con el cliente. El Tel. SOA es el teléfono personal del agente, el que tiene la compañía: va en el SOA en lugar del directo, y sin él el SOA no se envía.</p>
+            <p class="muted">Los nombres y los NPN del equipo no vienen en la herramienta: se guardan solo en este navegador. «Exportar equipo» crea el archivo para pasárselo a otra persona de la oficina; lleva también los números de las plantillas de firma y los códigos de firma de las oficinas, así que compártelo solo dentro de la oficina.</p>
+          </details>
+        </section>
+
+        <section class="set-pane" role="tabpanel" id="setPane-dirs" aria-labelledby="setTab-dirs" data-set-pane="dirs" hidden>
+          <div class="set-pane-head">
+            <h3>Carpetas del Network</h3>
+            <p class="muted">Dónde se guardan los PDF y la Hoja de cambios. Con la General basta.</p>
+          </div>
+          <p class="sign-warn" id="netDirLost" role="status" hidden></p>
+          <div class="netdirs" id="netDirBox"></div>
+          <p class="muted" id="netDirNA" hidden>Este navegador no permite guardar en carpetas. Usa Chrome o Edge.</p>
+          <details class="set-help" id="netDirHelp">
+            <summary>Cómo se usa</summary>
+            <p class="muted">Elige tu folder del NETW en General. Si una línea guarda sus documentos en otra carpeta (por ejemplo una para OC y otra para MA), elígela en su fila; las líneas sin carpeta propia usan la general. Dentro de cada línea, «Carpeta por documento» deja mandar un tipo de archivo a otra carpeta (por ejemplo la Hoja de cambios a «OC/OEP - Hoja de Cambios»); los que no tienen una propia usan la de su línea. Los PDF que sueltes se guardan con su nombre de archivo desde la sección Network, y la Hoja de cambios con «Guardar en la carpeta». Si ya existe un archivo con ese nombre, se pregunta antes de reemplazarlo.</p>
+          </details>
+        </section>
+
+        <section class="set-pane" role="tabpanel" id="setPane-sign" aria-labelledby="setTab-sign" data-set-pane="sign" hidden>
+          <div class="set-pane-head">
+            <h3>Envío a firmar (DocuSeal)</h3>
+            <p class="muted">El número de cada plantilla y el código de firma de cada oficina. Los dos vienen en el archivo del equipo.</p>
+          </div>
+          <h4 class="set-sub">Plantillas</h4>
+          <div class="signlinks" id="signTplRows"></div>
+          <h4 class="set-sub">Códigos de firma</h4>
+          <div class="signlinks" id="signCodeRows"></div>
+          <details class="set-help">
+            <summary>Cómo se usa</summary>
+            <p class="muted">El número de cada plantilla es el que sale en su dirección de DocuSeal (…/templates/5). Con el ayudante de firma instalado, la sección del Consent o del SOA crea el enlace de firma del cliente, sin enviarle ningún email; cuando firma, el PDF se guarda solo en el Network. El firmante de cada plantilla se llama «Cliente»; el del agente en el SOA, «Agente».</p>
+            <p class="muted">El código de firma de cada oficina lo genera el servidor de firmas: con él, el servidor pone su clave y ninguna computadora la guarda. Es secreto: el archivo del equipo se comparte solo dentro de la oficina.</p>
+          </details>
+        </section>
+
+        <section class="set-pane" role="tabpanel" id="setPane-note" aria-labelledby="setTab-note" data-set-pane="note" hidden>
+          <div class="set-pane-head">
+            <h3>Formato de la nota</h3>
+            <p class="muted">Cómo se escribe la nota que se copia.</p>
+          </div>
+          <label class="check"><input type="checkbox" id="optRojo"><span>Agregar «Se reporta en el botón rojo» cuando es una aplicación enviada</span></label>
+          <label class="check"><input type="checkbox" id="optAcentos"><span>Escribir la nota sin acentos ni ñ</span></label>
+        </section>
+
+        <section class="set-pane" role="tabpanel" id="setPane-install" aria-labelledby="setTab-install" data-set-pane="install" hidden>
+          <div class="set-pane-head">
+            <h3>Instalación</h3>
+          </div>
+          <p class="muted" id="installHelp"></p>
+        </section>
+      </div>
     </div>
-    <div class="office-row" id="officeTels"></div>
-    <p class="muted">El nombre de la oficina y su teléfono salen en el SMS para el cliente. Si el agente cuyo NPN se usa tiene su agencia elegida en Equipo, el Consent, el SMS y el email salen de esa agencia, con el teléfono de esa agencia.</p>
-
-    <h3>Equipo</h3>
-    <p class="muted">Las iniciales de notas encabezan la nota y el task. Las de agente son las que salen entre paréntesis en el reporte, si son distintas. El NPN solo hace falta para quien figura como agente escritor. El teléfono directo sale en el SMS de Obamacare, debajo de la firma de quien habló con el cliente. El Tel. SOA es el teléfono personal del agente, el que tiene la compañía: va en el SOA en lugar del directo, y sin él el SOA no se envía.</p>
-    <p class="muted team-empty" id="teamEmpty" hidden>El equipo está vacío. Importa el archivo del equipo (QAgency-Equipo.json) que comparte la oficina, o agrega a las personas una por una.</p>
-    <div class="team" id="teamRows"></div>
-    <div class="team-actions">
-      <button type="button" class="btn small" id="teamAdd">Agregar persona</button>
-      <button type="button" class="btn small" id="teamImport">Importar equipo</button>
-      <button type="button" class="btn small" id="teamExport">Exportar equipo</button>
-      <input type="file" id="teamFile" accept=".json,application/json" hidden>
-    </div>
-    <p class="muted">Los nombres y los NPN del equipo no vienen en la herramienta: se guardan solo en este navegador. «Exportar equipo» crea el archivo para pasárselo a otra persona de la oficina; lleva también los números de las plantillas de firma y los códigos de firma de las oficinas, así que compártelo solo dentro de la oficina.</p>
-
-    <h3>Carpetas del Network</h3>
-    <div class="netdirs" id="netDirBox"></div>
-    <p class="muted" id="netDirHelp">Elige tu folder del NETW en General. Si una línea guarda sus documentos en otra carpeta (por ejemplo una para OC y otra para MA), elígela en su fila; las líneas sin carpeta propia usan la general. Dentro de cada línea, «Carpeta por documento» deja mandar un tipo de archivo a otra carpeta (por ejemplo la Hoja de cambios a «OC/OEP - Hoja de Cambios»); los que no tienen una propia usan la de su línea. Los PDF que sueltes se guardan con su nombre de archivo desde la sección Network, y la Hoja de cambios con «Guardar en la carpeta». Si ya existe un archivo con ese nombre, se pregunta antes de reemplazarlo.</p>
-    <p class="sign-warn" id="netDirLost" role="status" hidden></p>
-    <p class="muted" id="netDirNA" hidden>Este navegador no permite guardar en carpetas. Usa Chrome o Edge.</p>
-
-    <h3>Envío a firmar (DocuSeal)</h3>
-    <p class="muted">Escribe el número de cada plantilla de DocuSeal: es el que sale en su dirección (…/templates/5). Con el ayudante de firma instalado, la sección del Consent o del SOA crea el enlace de firma del cliente, sin enviarle ningún email; cuando firma, el PDF se guarda solo en el Network. El firmante de cada plantilla se llama «Cliente»; el del agente en el SOA, «Agente».</p>
-    <div class="signlinks" id="signTplRows"></div>
-    <p class="muted">El código de firma de cada oficina lo genera el servidor de firmas y viene en el archivo del equipo: con él, el servidor pone su clave y ninguna computadora la guarda. Es secreto: el archivo del equipo se comparte solo dentro de la oficina.</p>
-    <div class="signlinks" id="signCodeRows"></div>
-
-    <h3>Formato de la nota</h3>
-    <label class="check"><input type="checkbox" id="optRojo"><span>Agregar «Se reporta en el botón rojo» cuando es una aplicación enviada</span></label>
-    <label class="check"><input type="checkbox" id="optAcentos"><span>Escribir la nota sin acentos ni ñ</span></label>
-
-    <h3>Instalación</h3>
-    <p class="muted" id="installHelp"></p>
 
     <div class="dlg-foot">
       <span class="muted" id="versionTag"></span>
