@@ -511,8 +511,14 @@
       return cs.length && cs.every(function (c) { return !/[\d$:\/]/.test(c.text) && vName(c.text); }) ? cs : null;
     };
     var last = g > 0 ? isNames(doc.lines[g - 1]) : null;
-    if (!last) { return []; }
     var firsts = g > 1 ? isNames(doc.lines[g - 2]) : null;
+    /* debajo del nombre puede ir solo la inicial del apellido ("FRANK" /
+       "S"): la persona es su nombre, que es como se reconoce en el hogar */
+    var initials = !last && g > 0 && cellsAt(doc.lines[g - 1]);
+    if (initials && initials.length && initials.every(function (c) { return /^[A-Za-zÁÉÍÓÚÑ]\.?$/.test(c.text); })) {
+      return firsts && firsts.length === initials.length ? firsts.map(function (c) { return { name: c.text, col: c.col }; }) : [];
+    }
+    if (!last) { return []; }
     if (firsts && firsts.length === last.length) {
       return firsts.map(function (c, k) { return { name: c.text + " " + last[k].text, col: c.col }; });
     }
