@@ -48,6 +48,17 @@ test("Eligibility Notice: los documentos que pide el Mercado, con persona y fech
   ]);
 });
 
+/* Debajo del nombre solo va la inicial del apellido ("PEDRO / R"): el punto
+   de cada columna dice a quién se le piden los documentos. */
+test("Aviso de elegibilidad con iniciales: documentos para cada persona con su punto", () => {
+  const r = read("OC Eligibility Notice Initials");
+  assert.equal(r.type, "oc_elig");
+  assert.deepEqual(r.fields.docs, [
+    { cat: "immigration", persona: "PEDRO", fecha: "02/25/2027" },
+    { cat: "immigration", persona: "MARISOL", fecha: "02/25/2027" }
+  ]);
+});
+
 /* El aviso de la agencia pone los nombres en dos filas: nombres y apellidos. */
 const eligPage = (rows) => X.itemsToText([
   textItem("Primary contact", 39, 700), textItem("Marketplace Eligibility Notice", 300, 700),
