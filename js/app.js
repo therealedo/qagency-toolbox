@@ -36,7 +36,9 @@
       signCodes: {},
       /* nombre de cada carpeta del Network elegida, para avisar cuál falta
          si el navegador deja de tenerla */
-      netDirNames: {}
+      netDirNames: {},
+      /* la carpeta de Summary of Benefits (solo se lee) */
+      sobDirName: ""
     };
     try {
       var saved = JSON.parse(localStorage.getItem(STORE) || "null");
@@ -296,6 +298,8 @@
       when: function (f) { return !mcSin() && (S.line === "supp" || otherCarrier(f)); } },
     { k: "plan", g: "plan", sec: "plan", type: "text", label: "Nombre del plan", w: "w2",
       hint: function () { return S.line === "mc" ? "Con el contrato (H-PBP): Humana Gold Plus H1036-077 (HMO)" : ""; } },
+    { k: "planId", g: "plan", sec: "plan", type: "text", label: "Plan ID", lines: ["oc"], ph: "49004FL0010031", upper: true, max: 17,
+      hint: "Busca el Summary of Benefits", when: function () { return isOC("enviada"); } },
     { k: "estado", g: "plan", sec: "plan", type: "text", label: "Status", lines: ["oc"], list: ["Active", "Initial enrollment", "Unpaid binder", "Terminated"] },
     { k: "tienePrima", g: "plan", sec: "plan", type: "check", lines: ["mc"], label: "Tiene prima mensual (si no, Premium $0.00)",
       when: function () { return !mcSin(); } },
@@ -936,6 +940,8 @@
         var where = el("span", "muted"); where.id = "netWhere";
         foot.appendChild(where);
         inner.appendChild(foot);
+        var att = el("div", "attach"); att.id = "attachBox"; att.hidden = true;
+        inner.appendChild(att);
       }
       sec.appendChild(body);
       form.appendChild(sec);
@@ -1365,7 +1371,190 @@
     });
   }
 
+  /* ------------------------------------------------- adjuntos del email --
+     Zoho no acepta archivos arrastrados desde la herramienta: «Copiar
+     adjuntos» copia los nombres de lo guardado en el Network, entre
+     comillas, para pegarlos en «Nombre de archivo» al adjuntar. Un grupo por
+     carpeta, porque Windows pega los de una carpeta a la vez. El Summary of
+     Benefits sale de su propia carpeta (Ajustes), que solo se lee. */
+  var SOB = { dir: null, names: null, where: {}, planId: "", pick: "", busy: false, sig: "" };
+  var SOB_STORE = "sob";
+  function loadSobDir() {
+    renderSobDir();
+    if (!canSave) { return; }
+    handleStore("readonly", function (st) { return st.get(SOB_STORE); }).then(function (req) {
+      if (req && req.result) { SOB.dir = req.result; }
+    }).catch(function () {}).then(function () {
+      renderSobDir(); renderAttach();
+      listSob(false);
+    });
+  }
+  function renderSobDir() {
+    $("sobDirBox").hidden = !canSave; $("sobDirHead").hidden = !canSave; $("sobDirHelp").hidden = !canSave;
+    $("sobDirName").textContent = SOB.dir ? (SOB.dir.name || "Elegida") : (settings.sobDirName ? "Elígela otra vez («" + settings.sobDirName + "»)" : "Sin elegir");
+    $("sobDirClear").hidden = !SOB.dir;
+  }
+  function pickSobDir() {
+    return window.showDirectoryPicker({ id: "qa-sob", mode: "read" }).then(function (h) {
+      SOB.dir = h; SOB.names = null; SOB.sig = "";
+      settings.sobDirName = h.name; saveSettings();
+      renderSobDir();
+      handleStore("readwrite", function (st) { return st.put(h, SOB_STORE); }).catch(function (e) {
+        toast("La carpeta «" + h.name + "» se usará ahora, pero el navegador no la pudo recordar (" + ((e && e.name) || "error") + ").");
+      });
+      return listSob(true);
+    });
+  }
+  function clearSobDir() {
+    SOB.dir = null; SOB.names = null; SOB.sig = "";
+    settings.sobDirName = ""; saveSettings();
+    renderSobDir(); renderAttach();
+    handleStore("readwrite", function (st) { return st.delete(SOB_STORE); }).catch(function () {});
+  }
+  /* los PDF de la carpeta y de sus subcarpetas (dos niveles), con la
+     subcarpeta de cada uno para decir dónde está */
+  function readPdfNames(dir) {
+    var names = [], where = {};
+    function walk(d, path, level) {
+      var it = d.values(), subs = [];
+      function next() {
+        return it.next().then(function (r) {
+          if (r.done) { return Promise.all(subs); }
+          var h = r.value;
+          if (h.kind === "file" && /\.pdf$/i.test(h.name)) { names.push(h.name); where[h.name] = path; }
+          else if (h.kind === "directory" && level < 2) { subs.push(walk(h, path ? path + "/" + h.name : h.name, level + 1)); }
+          return next();
+        });
+      }
+      return next();
+    }
+    return walk(dir, "", 0).then(function () { return { names: names, where: where }; });
+  }
+  /* leer la carpeta pide permiso la primera vez en la sesión (con un clic) */
+  function listSob(ask) {
+    var dir = SOB.dir;
+    if (!dir || SOB.busy) { return Promise.resolve(); }
+    SOB.busy = true;
+    return dir.queryPermission({ mode: "read" }).then(function (p) {
+      return p === "granted" || !ask ? p : dir.requestPermission({ mode: "read" });
+    }).then(function (p) {
+      if (p !== "granted") { return; }
+      return readPdfNames(dir).then(function (r) { SOB.names = r.names; SOB.where = r.where; });
+    }).catch(function () {
+      SOB.names = null;
+      if (ask) { toast("No se pudo leer la carpeta de Summary of Benefits. Elígela otra vez en Ajustes."); }
+    }).then(function () { SOB.busy = false; SOB.sig = ""; renderAttach(); });
+  }
+  function attachGroups(d) {
+    var groups = [], byKey = {};
+    N.attachmentFiles(d).forEach(function (f) {
+      var t = N.netDirFor(netDirs, "oc", f.k);
+      if (!byKey[t.key]) { byKey[t.key] = { key: t.key, dir: t.dir, files: [] }; groups.push(byKey[t.key]); }
+      byKey[t.key].files.push(f);
+    });
+    return groups;
+  }
+  function renderAttach() {
+    var box = $("attachBox");
+    if (!box) { return; }
+    var on = isOC("enviada");
+    box.hidden = !on;
+    if (!on) { return; }
+    var d = data(), groups = attachGroups(d), hios = N.planHios(d);
+    var planId = hios ? hios.id + (hios.variant ? "-" + hios.variant : "") : "";
+    if (planId !== SOB.planId) { SOB.planId = planId; SOB.pick = ""; }
+    var matches = hios && SOB.names ? N.sobMatches(SOB.names, d) : [];
+    var suggest = N.csrSuggest(d);
+    if (SOB.pick && !matches.some(function (m) { return m.name === SOB.pick; })) { SOB.pick = ""; }
+    var pick = SOB.pick || N.sobPick(matches, d);
+    /* se rehace solo si cambió algo: así no se cierra la lista mientras se elige */
+    var sig = JSON.stringify([groups.map(function (g) { return [g.key, g.dir && g.dir.name, g.files.map(function (f) { return f.name; })]; }),
+      planId, !!SOB.dir, SOB.names && SOB.names.length, SOB.busy, matches.map(function (m) { return m.name; }), pick, suggest, canSave]);
+    if (sig === SOB.sig) { return; }
+    SOB.sig = sig;
+    box.textContent = "";
+    box.appendChild(el("p", "attach-head", "Adjuntos del email"));
+    box.appendChild(el("p", "hint", "En Zoho, al adjuntar, pega en «Nombre de archivo» de la carpeta que corresponde. Solo My Plans & Programs, Eligibility, Docs Submitted, el pago y el Summary of Benefits."));
+    if (!groups.length) {
+      box.appendChild(el("p", "muted", "Marca arriba lo que guardaste en el Network (My Plans & Programs, Eligibility, Docs Submitted, el pago) para copiar sus nombres."));
+    }
+    groups.forEach(function (g, i) {
+      var wrap = el("div", "attach-group"), row = el("div", "attach-row");
+      var b = el("button", "btn small", groups.length > 1 ? "Copiar adjuntos " + (i + 1) : "Copiar adjuntos");
+      b.type = "button"; b.dataset.attachGroup = String(i); b.dataset.label = b.textContent;
+      row.appendChild(b);
+      row.appendChild(el("span", "muted", (g.dir ? "Carpeta: " + (g.dir.name || "elegida") : "Carpeta del Network") +
+        " · " + g.files.length + (g.files.length === 1 ? " archivo" : " archivos")));
+      wrap.appendChild(row);
+      wrap.appendChild(el("code", "net-file", N.quotedNames(g.files.map(function (f) { return f.name; }))));
+      box.appendChild(wrap);
+    });
+    var sob = el("div", "attach-group");
+    var srow = el("div", "attach-row");
+    sob.appendChild(srow);
+    if (!hios) {
+      srow.appendChild(el("span", "muted", "Summary of Benefits: escribe el Plan ID en Plan (lo trae My Plans & Programs)."));
+    } else if (!canSave) {
+      srow.appendChild(el("span", "muted", "Summary of Benefits: este navegador no puede leer carpetas. Usa Chrome o Edge."));
+    } else if (!SOB.dir) {
+      srow.appendChild(el("span", "muted", "Summary of Benefits: elige su carpeta en Ajustes › Carpetas."));
+    } else if (!SOB.names) {
+      var find = el("button", "btn small", SOB.busy ? "Buscando…" : "Buscar el Summary of Benefits");
+      find.type = "button"; find.dataset.attach = "sob-list"; find.disabled = SOB.busy;
+      srow.appendChild(find);
+      srow.appendChild(el("span", "muted", "Plan ID " + planId + " en «" + (SOB.dir.name || "la carpeta") + "»"));
+    } else if (!matches.length) {
+      srow.appendChild(el("span", "muted", "No hay un Summary of Benefits con el Plan ID " + planId + " en «" + (SOB.dir.name || "la carpeta") + "»."));
+      var again = el("button", "link-btn", "Buscar otra vez"); again.type = "button"; again.dataset.attach = "sob-list";
+      srow.appendChild(again);
+    } else {
+      var sel = el("select"); sel.id = "attachSob"; sel.setAttribute("aria-label", "Summary of Benefits del plan");
+      if (!pick) { var none = el("option", null, "Elige el nivel"); none.value = ""; sel.appendChild(none); }
+      matches.forEach(function (m) {
+        var o = el("option", null, m.label + (m.variant && m.variant === suggest && matches.length > 1 ? " (sugerido)" : "") + " · " + m.name);
+        o.value = m.name; sel.appendChild(o);
+      });
+      sel.value = pick;
+      srow.appendChild(sel);
+      var cp = el("button", "btn small", "Copiar SoB"); cp.type = "button"; cp.dataset.attach = "sob-copy"; cp.dataset.label = "Copiar SoB";
+      cp.disabled = !pick;
+      srow.appendChild(cp);
+      var notes = [];
+      if (pick && SOB.where[pick]) { notes.push("Está en la subcarpeta «" + SOB.where[pick] + "»."); }
+      if (matches.length > 1 && !hios.variant && !SOB.pick) {
+        notes.push(suggest && suggest !== "01" ? "Sugerido por el ingreso del hogar frente a la línea de pobreza: revísalo con la Eligibility antes de copiar."
+          : suggest === "01" ? "Por el ingreso no le toca CSR: revísalo con la Eligibility antes de copiar."
+          : "Falta el ingreso del hogar: elige el nivel con la Eligibility.");
+      }
+      if (notes.length) { sob.appendChild(el("p", "hint", notes.join(" "))); }
+    }
+    box.appendChild(sob);
+  }
+  function wireAttach() {
+    $("attachBox").addEventListener("click", function (e) {
+      var b = e.target.closest("button");
+      if (!b) { return; }
+      if (b.dataset.attachGroup) {
+        var g = attachGroups(data())[+b.dataset.attachGroup];
+        if (g) { copyText(N.quotedNames(g.files.map(function (f) { return f.name; })), function () { flashButton(b); }); }
+      } else if (b.dataset.attach === "sob-list") {
+        SOB.names = null; listSob(true);
+      } else if (b.dataset.attach === "sob-copy") {
+        var name = ($("attachSob") || {}).value;
+        if (name) { copyText("\"" + name + "\"", function () { flashButton(b); }); }
+      }
+    });
+    $("attachBox").addEventListener("change", function (e) {
+      if (e.target.id === "attachSob") { SOB.pick = e.target.value; SOB.sig = ""; renderAttach(); }
+    });
+    $("sobDirPick").addEventListener("click", function () {
+      pickSobDir().catch(function (err) { if (!err || err.name !== "AbortError") { toast("No se pudo usar esa carpeta."); } });
+    });
+    $("sobDirClear").addEventListener("click", clearSobDir);
+  }
+
   function updateFileNames() {
+    renderAttach();
     var list = N.buildFileNames(data());
     /* las filas de Docs Submitted cambian con los documentos enviados */
     var rows = Array.prototype.map.call($("netGrid").querySelectorAll(".net-row"), function (r) {
@@ -4443,6 +4632,8 @@
     bindTasks();
     setupInstall();
     loadNetDirs();
+    wireAttach();
+    loadSobDir();
     wireReport();
     restoreReport();
     $("netDirBox").addEventListener("click", function (e) {

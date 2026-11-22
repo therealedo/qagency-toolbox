@@ -191,6 +191,25 @@
      orden en que se escriben: CRONIC URGENT. */
   var OBS_TAGS = ["CRONIC", "URGENT"];
 
+  /* HHS poverty guidelines (Federal Register): [one person, each additional
+     person]. Cost-sharing reductions for plan year Y use the guidelines of
+     Y - 1 (2027 coverage uses 2026). */
+  var FPL = {
+    2025: { base: [15650, 5500], AK: [19550, 6880], HI: [17990, 6330] },
+    2026: { base: [15960, 5680], AK: [19950, 7100], HI: [18360, 6530] }
+  };
+
+  /* The two digits after a silver plan's HIOS ID say its cost-sharing level:
+     the same plan has one Summary of Benefits per level. */
+  var CSR_VARIANTS = {
+    "01": "Estándar",
+    "02": "Sin costos compartidos (nativo americano)",
+    "03": "Costos limitados (nativo americano)",
+    "04": "CSR 73% AV",
+    "05": "CSR 87% AV",
+    "06": "CSR 94% AV"
+  };
+
   /* Reglas del documento TASK Q AGENCY, para mostrarlas junto al catálogo. */
   var TASK_RULES = [
     "Las observaciones adicionales van al final, después de la hora de referencia y sin paréntesis. Por ejemplo: URGENT.",
@@ -404,7 +423,7 @@
 
   var api = {
     VERSION: VERSION, UPDATE_URL: UPDATE_URL, HELPER_URL: HELPER_URL, UPDATE_LINK: UPDATE_LINK, TEAM: TEAM, OFFICES: OFFICES, OFFICE_NAMES: OFFICE_NAMES, CARRIERS: CARRIERS, TASKS: TASKS, PAYMENT: PAYMENT,
-    TASK_TAGS: TASK_TAGS, OBS_TAGS: OBS_TAGS, TASK_RULES: TASK_RULES,
+    TASK_TAGS: TASK_TAGS, OBS_TAGS: OBS_TAGS, TASK_RULES: TASK_RULES, FPL: FPL, CSR_VARIANTS: CSR_VARIANTS,
     CHANNELS: CHANNELS, MODALIDADES: MODALIDADES, LINES: LINES, LINE_TASK_CATS: LINE_TASK_CATS,
     PAY_METHODS: PAY_METHODS, CANCEL_REASONS: CANCEL_REASONS, CANCEL_TYPES: CANCEL_TYPES, PARENTESCOS: PARENTESCOS, ESTATUS: ESTATUS, MKPL_DOCS: MKPL_DOCS
   };
