@@ -711,6 +711,13 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
 .net-row .check { padding: 0; }
 .net-acts { display: flex; gap: 6px; }
 .net-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 10px; }
+/* adjuntos del email: un grupo por carpeta y el Summary of Benefits */
+.attach { display: grid; gap: 8px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); }
+.attach-head { margin: 0; font-size: 13px; font-weight: 650; color: var(--ink-2); }
+.attach-group { display: grid; gap: 6px; }
+.attach-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.attach-row select { min-width: 0; max-width: 100%; flex: 1 1 260px; }
+.attach .net-file { display: block; }
 .netdirs { display: grid; gap: 6px; }
 /* columnas fijas: los botones quedan alineados aunque los nombres midan distinto */
 .netdir-row { display: grid; grid-template-columns: 160px minmax(0, 1fr) auto minmax(52px, auto); align-items: center; gap: 10px; }
@@ -1736,6 +1743,16 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
           </div>
           <p class="sign-warn" id="netDirLost" role="status" hidden></p>
           <div class="netdirs" id="netDirBox"></div>
+          <h4 class="set-sub" id="sobDirHead">Summary of Benefits</h4>
+          <p class="muted" id="sobDirHelp">La carpeta con los Summary of Benefits, nombrados por el Plan ID (HIOS), por ejemplo SBC-49004FL0010031-05-2027.pdf. Solo se lee: la herramienta no escribe en ella. Sirve para «Copiar adjuntos» en la sección Network.</p>
+          <div class="netdirs" id="sobDirBox">
+            <div class="netdir-row">
+              <span class="netdir-line">Summary of Benefits</span>
+              <strong id="sobDirName">Sin elegir</strong>
+              <button class="btn small" type="button" id="sobDirPick" aria-label="Elegir la carpeta de Summary of Benefits">Elegir carpeta</button>
+              <button class="link-btn" type="button" id="sobDirClear" aria-label="Quitar la carpeta de Summary of Benefits" hidden>Quitar</button>
+            </div>
+          </div>
           <p class="muted" id="netDirNA" hidden>Este navegador no permite guardar en carpetas. Usa Chrome o Edge.</p>
           <details class="set-help" id="netDirHelp">
             <summary>Cómo se usa</summary>
@@ -1859,7 +1876,7 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
 (function (root) {
   "use strict";
 
-  var VERSION = "1.31.0";
+  var VERSION = "1.32.0";
   /* De aquí la herramienta instalada lee el número de la última versión (y
      nada más). La política de seguridad de index.html solo permite esta
      dirección, y el actualizador de Windows usa el mismo repositorio. */
@@ -2045,6 +2062,25 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
   /* Etiquetas finales que se eligen en la nota (selección múltiple), en el
      orden en que se escriben: CRONIC URGENT. */
   var OBS_TAGS = ["CRONIC", "URGENT"];
+
+  /* HHS poverty guidelines (Federal Register): [one person, each additional
+     person]. Cost-sharing reductions for plan year Y use the guidelines of
+     Y - 1 (2027 coverage uses 2026). */
+  var FPL = {
+    2025: { base: [15650, 5500], AK: [19550, 6880], HI: [17990, 6330] },
+    2026: { base: [15960, 5680], AK: [19950, 7100], HI: [18360, 6530] }
+  };
+
+  /* The two digits after a silver plan's HIOS ID say its cost-sharing level:
+     the same plan has one Summary of Benefits per level. */
+  var CSR_VARIANTS = {
+    "01": "Estándar",
+    "02": "Sin costos compartidos (nativo americano)",
+    "03": "Costos limitados (nativo americano)",
+    "04": "CSR 73% AV",
+    "05": "CSR 87% AV",
+    "06": "CSR 94% AV"
+  };
 
   /* Reglas del documento TASK Q AGENCY, para mostrarlas junto al catálogo. */
   var TASK_RULES = [
@@ -2259,7 +2295,7 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
 
   var api = {
     VERSION: VERSION, UPDATE_URL: UPDATE_URL, HELPER_URL: HELPER_URL, UPDATE_LINK: UPDATE_LINK, TEAM: TEAM, OFFICES: OFFICES, OFFICE_NAMES: OFFICE_NAMES, CARRIERS: CARRIERS, TASKS: TASKS, PAYMENT: PAYMENT,
-    TASK_TAGS: TASK_TAGS, OBS_TAGS: OBS_TAGS, TASK_RULES: TASK_RULES,
+    TASK_TAGS: TASK_TAGS, OBS_TAGS: OBS_TAGS, TASK_RULES: TASK_RULES, FPL: FPL, CSR_VARIANTS: CSR_VARIANTS,
     CHANNELS: CHANNELS, MODALIDADES: MODALIDADES, LINES: LINES, LINE_TASK_CATS: LINE_TASK_CATS,
     PAY_METHODS: PAY_METHODS, CANCEL_REASONS: CANCEL_REASONS, CANCEL_TYPES: CANCEL_TYPES, PARENTESCOS: PARENTESCOS, ESTATUS: ESTATUS, MKPL_DOCS: MKPL_DOCS
   };
@@ -3390,6 +3426,85 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
     return !p || p === plain(val(d.nombres) + " " + val(d.apellidos)) || (p.indexOf(" ") < 0 && p === no.split(" ")[0]);
   }
 
+  /* ------------------------------------------------- adjuntos del email --
+     Copiar adjuntos copia los nombres de archivo del Network entre comillas,
+     para pegarlos en el cuadro «Nombre de archivo» de Windows. Solo My Plans
+     & Programs, Eligibility, Docs Submitted y el pago, y solo los marcados
+     (guardados); nunca el App Summary, el Consent ni la Hoja de cambios. */
+  var ATTACH_KINDS = { plans: true, eligibility: true, docsub: true, payment: true };
+  function attachmentFiles(d) {
+    if (d.line !== "oc" || outcomeOf(d).id !== "enviada") { return []; }
+    var names = {};
+    buildFileNames(d).forEach(function (f) { names[f.k] = f.name; });
+    return networkOf(d).filter(function (n) { return ATTACH_KINDS[kindOf(n.k)] && d.net && d.net[n.k] && names[n.k]; })
+      .map(function (n) { return { k: n.k, label: n.label, name: names[n.k] + ".pdf" }; });
+  }
+  function quotedNames(list) { return list.map(function (n) { return "\"" + n + "\""; }).join(" "); }
+
+  /* Línea de pobreza del año anterior al del plan (la que usa el Mercado),
+     con la tabla de Alaska o Hawaii si la dirección es de ahí. */
+  function fplFor(size, planYear, state) {
+    var years = Object.keys(C.FPL).map(Number).sort(function (a, b) { return a - b; });
+    var y = years.filter(function (x) { return x <= planYear - 1; }).pop() || years[0];
+    var row = C.FPL[y][state] || C.FPL[y].base;
+    return row[0] + row[1] * (Math.max(1, size) - 1);
+  }
+  function addressState(d) {
+    var m = upper(d.direccion).match(/\b([A-Z]{2})\s+\d{5}(?:-\d{4})?\b/);
+    return m ? m[1] : "";
+  }
+  function planYearOf(d) {
+    if (/^\d{4}$/.test(val(d.anio))) { return +val(d.anio); }
+    var ef = U.parseDate(d.efectiva);
+    return ef ? +ef.split("/")[2] : new Date().getFullYear();
+  }
+  function isSilver(plan) { return /\b(silver|plata)\b/i.test(val(plan)); }
+  /* Nivel de costos compartidos que se sugiere para el Summary of Benefits:
+     solo en un plan Plata, por el ingreso de los que van en los taxes frente
+     a la línea de pobreza (150% o menos -06, hasta 200% -05, hasta 250% -04).
+     Vacío si falta el ingreso: el agente elige. */
+  function csrSuggest(d) {
+    if (!isSilver(d.plan)) { return "01"; }
+    var inc = ingresoHogar(d), size = enTaxes(d).length;
+    if (inc === null || !size) { return ""; }
+    var pct = inc / fplFor(size, planYearOf(d), addressState(d)) * 100;
+    return pct <= 150 ? "06" : pct <= 200 ? "05" : pct <= 250 ? "04" : "01";
+  }
+  /* El Plan ID (HIOS) del caso, con el nivel si el documento lo traía */
+  function planHios(d) {
+    var m = upper(d.planId).replace(/\s+/g, "").match(/^(\d{5}[A-Z]{2}\d{7})(?:-?(\d{2}))?$/);
+    return m ? { id: m[1], variant: m[2] || "" } : null;
+  }
+  /* Los archivos de la carpeta de Summary of Benefits que son del plan, por
+     su HIOS ID y no por el nombre del plan (una misma Plata tiene un SoB por
+     nivel: SBC-49004FL0010031-05-2027, -06-2027). Si hay del año del plan,
+     solo esos. */
+  function sobMatches(names, d) {
+    var p = planHios(d);
+    if (!p) { return []; }
+    var re = new RegExp(p.id + "(?:[-_ ]?(\\d{2}))?(?!\\d)", "i");
+    var all = (names || []).map(function (name) {
+      var m = re.exec(name);
+      if (!m) { return null; }
+      var rest = name.slice(0, m.index) + " " + name.slice(m.index + m[0].length);
+      var y = (rest.match(/(?:^|\D)(20\d{2})(?!\d)/) || [])[1] || "";
+      return { name: name, variant: m[1] || "", year: y };
+    }).filter(Boolean);
+    var year = String(planYearOf(d));
+    if (all.some(function (x) { return x.year === year; })) { all = all.filter(function (x) { return !x.year || x.year === year; }); }
+    if (p.variant && all.some(function (x) { return x.variant === p.variant; })) { all = all.filter(function (x) { return x.variant === p.variant; }); }
+    return all.sort(function (a, b) { return a.variant === b.variant ? (a.name < b.name ? -1 : 1) : (a.variant < b.variant ? -1 : 1); })
+      .map(function (x) { x.label = C.CSR_VARIANTS[x.variant] || (x.variant ? "-" + x.variant : "Sin nivel"); return x; });
+  }
+  /* El archivo que se propone: el nivel que traía el documento, si no el
+     sugerido; con uno solo, ese. */
+  function sobPick(matches, d) {
+    if (matches.length === 1) { return matches[0].name; }
+    var p = planHios(d), want = (p && p.variant) || csrSuggest(d);
+    var hit = want && matches.filter(function (x) { return x.variant === want; })[0];
+    return hit ? hit.name : "";
+  }
+
   /* --------------------------------------------- documentos leídos (app) */
 
   function sameName(a, b) { return U.stripAccents(val(a)).toUpperCase() === U.stripAccents(val(b)).toUpperCase(); }
@@ -4301,6 +4416,8 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
     personas: personas, docsOf: docsOf, pendingDocs: pendingDocs, planesOf: planesOf, networkOf: networkOf, docKey: docKey,
     mergeDocs: mergeDocs, rowSource: rowSource, discarded: discarded, discardRow: discardRow, mergeMembers: mergeMembers, mergeHousehold: mergeHousehold, samePerson: samePerson, moveDocKey: moveDocKey,
     enTaxes: enTaxes, conCobertura: conCobertura, ingresoHogar: ingresoHogar, ingresoSinContar: ingresoSinContar, limiteDeclarar: limiteDeclarar, moneyShort: moneyShort,
+    attachmentFiles: attachmentFiles, quotedNames: quotedNames, fplFor: fplFor, csrSuggest: csrSuggest, planHios: planHios,
+    sobMatches: sobMatches, sobPick: sobPick,
     NET_DIRS: NET_DIRS, netDirFor: netDirFor, docKinds: docKinds, kindOf: kindOf, oepStart: oepStart, needsSheet: needsSheet, officeFor: officeFor
   };
   root.QA = root.QA || {};
@@ -5329,7 +5446,8 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
   /* lo que escribe el agente a mano: un código Q o «Apellido, Nombre» */
   function parseQuery(text) {
     var t = String(text || "").trim();
-    return /^Q?\s*\d{3,}\s*L?$/i.test(t) ? { code: /^Q/i.test(t) ? t : "Q" + t } : { name: t };
+    /* Q10004, Q4097L, L0534 o solo los números (se les pone la Q) */
+    return /^[QL]?\s*\d{3,}\s*L?$/i.test(t) ? { code: /^[QL]/i.test(t) ? t : "Q" + t } : { name: t };
   }
 
   /* ------------------------------------------------- objetos del archivo -- */
@@ -5663,7 +5781,7 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
   };
 
   var MBI_RE = /\b([1-9][AC-HJKMNP-RT-Y][AC-HJKMNP-RT-Y0-9]\d)[-\s]?([AC-HJKMNP-RT-Y][AC-HJKMNP-RT-Y0-9]\d)[-\s]?([AC-HJKMNP-RT-Y]{2}\d{2})\b/;
-  var HIOS_RE = /\b(\d{5}[A-Z]{2}\d{7})(?:-?\d{2})?\b/;
+  var HIOS_RE = /\b(\d{5}[A-Z]{2}\d{7})(?:-?(\d{2}))?\b/;
   var CONTRACT_RE = /\b([HRS]\d{4})\s?-\s?(\d{3})(?:\s?-\s?(\d{1,3}))?\b/;
   var MONEY_RE = /\$\s?(-?[\d,]+(?:\.\d{2})?)/;
 
@@ -6349,7 +6467,7 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
         .replace(/\s+/g, " ").replace(/[\s,;\-–]+$/, "").trim();
       /* con "|", el plan es lo de antes del primero */
       if (name.indexOf("|") > 0) { name = name.split("|")[0].trim(); }
-      return { id: m[1], name: name.length > 4 ? name : "", at: i };
+      return { id: m[1] + (m[2] ? "-" + m[2] : ""), name: name.length > 4 ? name : "", at: i };
     }
     return null;
   }
@@ -6385,6 +6503,7 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
     var f = {};
     var p = planAboveId(doc);
     if (p && p.name) { f.plan = p.name; }
+    if (p) { f.planId = p.id; }
     /* el teléfono de la compañía va debajo del Plan ID, junto a su nombre
        ("1-800-324-4973   Premium …" / "Blue Cross and Blue Shield of NC") */
     for (var t = p ? p.at + 1 : doc.lines.length; t < doc.lines.length && t <= p.at + 4; t++) {
@@ -8270,7 +8389,9 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
       signCodes: {},
       /* nombre de cada carpeta del Network elegida, para avisar cuál falta
          si el navegador deja de tenerla */
-      netDirNames: {}
+      netDirNames: {},
+      /* la carpeta de Summary of Benefits (solo se lee) */
+      sobDirName: ""
     };
     try {
       var saved = JSON.parse(localStorage.getItem(STORE) || "null");
@@ -8530,6 +8651,8 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
       when: function (f) { return !mcSin() && (S.line === "supp" || otherCarrier(f)); } },
     { k: "plan", g: "plan", sec: "plan", type: "text", label: "Nombre del plan", w: "w2",
       hint: function () { return S.line === "mc" ? "Con el contrato (H-PBP): Humana Gold Plus H1036-077 (HMO)" : ""; } },
+    { k: "planId", g: "plan", sec: "plan", type: "text", label: "Plan ID", lines: ["oc"], ph: "49004FL0010031", upper: true, max: 17,
+      hint: "Busca el Summary of Benefits", when: function () { return isOC("enviada"); } },
     { k: "estado", g: "plan", sec: "plan", type: "text", label: "Status", lines: ["oc"], list: ["Active", "Initial enrollment", "Unpaid binder", "Terminated"] },
     { k: "tienePrima", g: "plan", sec: "plan", type: "check", lines: ["mc"], label: "Tiene prima mensual (si no, Premium $0.00)",
       when: function () { return !mcSin(); } },
@@ -9170,6 +9293,8 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
         var where = el("span", "muted"); where.id = "netWhere";
         foot.appendChild(where);
         inner.appendChild(foot);
+        var att = el("div", "attach"); att.id = "attachBox"; att.hidden = true;
+        inner.appendChild(att);
       }
       sec.appendChild(body);
       form.appendChild(sec);
@@ -9599,7 +9724,190 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
     });
   }
 
+  /* ------------------------------------------------- adjuntos del email --
+     Zoho no acepta archivos arrastrados desde la herramienta: «Copiar
+     adjuntos» copia los nombres de lo guardado en el Network, entre
+     comillas, para pegarlos en «Nombre de archivo» al adjuntar. Un grupo por
+     carpeta, porque Windows pega los de una carpeta a la vez. El Summary of
+     Benefits sale de su propia carpeta (Ajustes), que solo se lee. */
+  var SOB = { dir: null, names: null, where: {}, planId: "", pick: "", busy: false, sig: "" };
+  var SOB_STORE = "sob";
+  function loadSobDir() {
+    renderSobDir();
+    if (!canSave) { return; }
+    handleStore("readonly", function (st) { return st.get(SOB_STORE); }).then(function (req) {
+      if (req && req.result) { SOB.dir = req.result; }
+    }).catch(function () {}).then(function () {
+      renderSobDir(); renderAttach();
+      listSob(false);
+    });
+  }
+  function renderSobDir() {
+    $("sobDirBox").hidden = !canSave; $("sobDirHead").hidden = !canSave; $("sobDirHelp").hidden = !canSave;
+    $("sobDirName").textContent = SOB.dir ? (SOB.dir.name || "Elegida") : (settings.sobDirName ? "Elígela otra vez («" + settings.sobDirName + "»)" : "Sin elegir");
+    $("sobDirClear").hidden = !SOB.dir;
+  }
+  function pickSobDir() {
+    return window.showDirectoryPicker({ id: "qa-sob", mode: "read" }).then(function (h) {
+      SOB.dir = h; SOB.names = null; SOB.sig = "";
+      settings.sobDirName = h.name; saveSettings();
+      renderSobDir();
+      handleStore("readwrite", function (st) { return st.put(h, SOB_STORE); }).catch(function (e) {
+        toast("La carpeta «" + h.name + "» se usará ahora, pero el navegador no la pudo recordar (" + ((e && e.name) || "error") + ").");
+      });
+      return listSob(true);
+    });
+  }
+  function clearSobDir() {
+    SOB.dir = null; SOB.names = null; SOB.sig = "";
+    settings.sobDirName = ""; saveSettings();
+    renderSobDir(); renderAttach();
+    handleStore("readwrite", function (st) { return st.delete(SOB_STORE); }).catch(function () {});
+  }
+  /* los PDF de la carpeta y de sus subcarpetas (dos niveles), con la
+     subcarpeta de cada uno para decir dónde está */
+  function readPdfNames(dir) {
+    var names = [], where = {};
+    function walk(d, path, level) {
+      var it = d.values(), subs = [];
+      function next() {
+        return it.next().then(function (r) {
+          if (r.done) { return Promise.all(subs); }
+          var h = r.value;
+          if (h.kind === "file" && /\.pdf$/i.test(h.name)) { names.push(h.name); where[h.name] = path; }
+          else if (h.kind === "directory" && level < 2) { subs.push(walk(h, path ? path + "/" + h.name : h.name, level + 1)); }
+          return next();
+        });
+      }
+      return next();
+    }
+    return walk(dir, "", 0).then(function () { return { names: names, where: where }; });
+  }
+  /* leer la carpeta pide permiso la primera vez en la sesión (con un clic) */
+  function listSob(ask) {
+    var dir = SOB.dir;
+    if (!dir || SOB.busy) { return Promise.resolve(); }
+    SOB.busy = true;
+    return dir.queryPermission({ mode: "read" }).then(function (p) {
+      return p === "granted" || !ask ? p : dir.requestPermission({ mode: "read" });
+    }).then(function (p) {
+      if (p !== "granted") { return; }
+      return readPdfNames(dir).then(function (r) { SOB.names = r.names; SOB.where = r.where; });
+    }).catch(function () {
+      SOB.names = null;
+      if (ask) { toast("No se pudo leer la carpeta de Summary of Benefits. Elígela otra vez en Ajustes."); }
+    }).then(function () { SOB.busy = false; SOB.sig = ""; renderAttach(); });
+  }
+  function attachGroups(d) {
+    var groups = [], byKey = {};
+    N.attachmentFiles(d).forEach(function (f) {
+      var t = N.netDirFor(netDirs, "oc", f.k);
+      if (!byKey[t.key]) { byKey[t.key] = { key: t.key, dir: t.dir, files: [] }; groups.push(byKey[t.key]); }
+      byKey[t.key].files.push(f);
+    });
+    return groups;
+  }
+  function renderAttach() {
+    var box = $("attachBox");
+    if (!box) { return; }
+    var on = isOC("enviada");
+    box.hidden = !on;
+    if (!on) { return; }
+    var d = data(), groups = attachGroups(d), hios = N.planHios(d);
+    var planId = hios ? hios.id + (hios.variant ? "-" + hios.variant : "") : "";
+    if (planId !== SOB.planId) { SOB.planId = planId; SOB.pick = ""; }
+    var matches = hios && SOB.names ? N.sobMatches(SOB.names, d) : [];
+    var suggest = N.csrSuggest(d);
+    if (SOB.pick && !matches.some(function (m) { return m.name === SOB.pick; })) { SOB.pick = ""; }
+    var pick = SOB.pick || N.sobPick(matches, d);
+    /* se rehace solo si cambió algo: así no se cierra la lista mientras se elige */
+    var sig = JSON.stringify([groups.map(function (g) { return [g.key, g.dir && g.dir.name, g.files.map(function (f) { return f.name; })]; }),
+      planId, !!SOB.dir, SOB.names && SOB.names.length, SOB.busy, matches.map(function (m) { return m.name; }), pick, suggest, canSave]);
+    if (sig === SOB.sig) { return; }
+    SOB.sig = sig;
+    box.textContent = "";
+    box.appendChild(el("p", "attach-head", "Adjuntos del email"));
+    box.appendChild(el("p", "hint", "En Zoho, al adjuntar, pega en «Nombre de archivo» de la carpeta que corresponde. Solo My Plans & Programs, Eligibility, Docs Submitted, el pago y el Summary of Benefits."));
+    if (!groups.length) {
+      box.appendChild(el("p", "muted", "Marca arriba lo que guardaste en el Network (My Plans & Programs, Eligibility, Docs Submitted, el pago) para copiar sus nombres."));
+    }
+    groups.forEach(function (g, i) {
+      var wrap = el("div", "attach-group"), row = el("div", "attach-row");
+      var b = el("button", "btn small", groups.length > 1 ? "Copiar adjuntos " + (i + 1) : "Copiar adjuntos");
+      b.type = "button"; b.dataset.attachGroup = String(i); b.dataset.label = b.textContent;
+      row.appendChild(b);
+      row.appendChild(el("span", "muted", (g.dir ? "Carpeta: " + (g.dir.name || "elegida") : "Carpeta del Network") +
+        " · " + g.files.length + (g.files.length === 1 ? " archivo" : " archivos")));
+      wrap.appendChild(row);
+      wrap.appendChild(el("code", "net-file", N.quotedNames(g.files.map(function (f) { return f.name; }))));
+      box.appendChild(wrap);
+    });
+    var sob = el("div", "attach-group");
+    var srow = el("div", "attach-row");
+    sob.appendChild(srow);
+    if (!hios) {
+      srow.appendChild(el("span", "muted", "Summary of Benefits: escribe el Plan ID en Plan (lo trae My Plans & Programs)."));
+    } else if (!canSave) {
+      srow.appendChild(el("span", "muted", "Summary of Benefits: este navegador no puede leer carpetas. Usa Chrome o Edge."));
+    } else if (!SOB.dir) {
+      srow.appendChild(el("span", "muted", "Summary of Benefits: elige su carpeta en Ajustes › Carpetas."));
+    } else if (!SOB.names) {
+      var find = el("button", "btn small", SOB.busy ? "Buscando…" : "Buscar el Summary of Benefits");
+      find.type = "button"; find.dataset.attach = "sob-list"; find.disabled = SOB.busy;
+      srow.appendChild(find);
+      srow.appendChild(el("span", "muted", "Plan ID " + planId + " en «" + (SOB.dir.name || "la carpeta") + "»"));
+    } else if (!matches.length) {
+      srow.appendChild(el("span", "muted", "No hay un Summary of Benefits con el Plan ID " + planId + " en «" + (SOB.dir.name || "la carpeta") + "»."));
+      var again = el("button", "link-btn", "Buscar otra vez"); again.type = "button"; again.dataset.attach = "sob-list";
+      srow.appendChild(again);
+    } else {
+      var sel = el("select"); sel.id = "attachSob"; sel.setAttribute("aria-label", "Summary of Benefits del plan");
+      if (!pick) { var none = el("option", null, "Elige el nivel"); none.value = ""; sel.appendChild(none); }
+      matches.forEach(function (m) {
+        var o = el("option", null, m.label + (m.variant && m.variant === suggest && matches.length > 1 ? " (sugerido)" : "") + " · " + m.name);
+        o.value = m.name; sel.appendChild(o);
+      });
+      sel.value = pick;
+      srow.appendChild(sel);
+      var cp = el("button", "btn small", "Copiar SoB"); cp.type = "button"; cp.dataset.attach = "sob-copy"; cp.dataset.label = "Copiar SoB";
+      cp.disabled = !pick;
+      srow.appendChild(cp);
+      var notes = [];
+      if (pick && SOB.where[pick]) { notes.push("Está en la subcarpeta «" + SOB.where[pick] + "»."); }
+      if (matches.length > 1 && !hios.variant && !SOB.pick) {
+        notes.push(suggest && suggest !== "01" ? "Sugerido por el ingreso del hogar frente a la línea de pobreza: revísalo con la Eligibility antes de copiar."
+          : suggest === "01" ? "Por el ingreso no le toca CSR: revísalo con la Eligibility antes de copiar."
+          : "Falta el ingreso del hogar: elige el nivel con la Eligibility.");
+      }
+      if (notes.length) { sob.appendChild(el("p", "hint", notes.join(" "))); }
+    }
+    box.appendChild(sob);
+  }
+  function wireAttach() {
+    $("attachBox").addEventListener("click", function (e) {
+      var b = e.target.closest("button");
+      if (!b) { return; }
+      if (b.dataset.attachGroup) {
+        var g = attachGroups(data())[+b.dataset.attachGroup];
+        if (g) { copyText(N.quotedNames(g.files.map(function (f) { return f.name; })), function () { flashButton(b); }); }
+      } else if (b.dataset.attach === "sob-list") {
+        SOB.names = null; listSob(true);
+      } else if (b.dataset.attach === "sob-copy") {
+        var name = ($("attachSob") || {}).value;
+        if (name) { copyText("\"" + name + "\"", function () { flashButton(b); }); }
+      }
+    });
+    $("attachBox").addEventListener("change", function (e) {
+      if (e.target.id === "attachSob") { SOB.pick = e.target.value; SOB.sig = ""; renderAttach(); }
+    });
+    $("sobDirPick").addEventListener("click", function () {
+      pickSobDir().catch(function (err) { if (!err || err.name !== "AbortError") { toast("No se pudo usar esa carpeta."); } });
+    });
+    $("sobDirClear").addEventListener("click", clearSobDir);
+  }
+
   function updateFileNames() {
+    renderAttach();
     var list = N.buildFileNames(data());
     /* las filas de Docs Submitted cambian con los documentos enviados */
     var rows = Array.prototype.map.call($("netGrid").querySelectorAll(".net-row"), function (r) {
@@ -12677,6 +12985,8 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
     bindTasks();
     setupInstall();
     loadNetDirs();
+    wireAttach();
+    loadSobDir();
     wireReport();
     restoreReport();
     $("netDirBox").addEventListener("click", function (e) {
