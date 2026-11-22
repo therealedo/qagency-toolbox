@@ -41,9 +41,15 @@
      «Otra», con su nombre. `state` pide el estado en dos letras: BCBS of GA. */
   /* `tel`: el teléfono de Customer Service de la compañía (Obamacare), que va
      en el email al cliente. Las que no lo tienen hacen avisar al agente. */
+  /* Blue Cross Blue Shield de otro estado ("Blue Cross and Blue Shield of
+     NC", "BlueCross BlueShield of Texas"): BCBS of con su estado. La de
+     Florida es Florida Blue. */
+  var BCBS_OF = /\bBCBS\s+of\b|blue\s*cross\s*(?:and\s*|&\s*)?blue\s*shield\s+of\s+(?!florida\b|fl\b)/i;
+  var BCBS_STATE = /\b(?:BCBS|Blue\s*Cross\s*(?:and\s*|&\s*)?Blue\s*Shield)\s+of\s+([A-Z]{2})\b/i;
   var CARRIERS = {
     oc: [
       { re: /florida\s*blue|blue\s*cross|bluecare|blueselect|blueoptions|myblue/i, name: "FLORIDA BLUE", display: "Florida Blue", short: "FB", option: "Florida Blue", tel: "(800) 352-2583" },
+      { re: BCBS_OF, name: "BCBS OF", short: "BCBS of", display: "BCBS of", option: "BCBS of", state: BCBS_STATE },
       { re: /ambetter|celtic|sunshine\s*health/i, name: "AMBETTER", display: "Ambetter", short: "Ambetter", option: "Ambetter", tel: "(877) 687-1169" },
       { re: /wellpoint/i, name: "WELLPOINT", display: "Wellpoint", short: "Wellpoint", option: "Wellpoint" },
       { re: /unitedhealthcare|united\s*healthcare|\bUHC\b/i, name: "UNITED HEALTHCARE", display: "UnitedHealthcare", short: "UHC", option: "UHC", tel: "(888) 200-0405" },
@@ -60,7 +66,7 @@
       { re: /unitedhealthcare|united\s*healthcare|\bUHC\b|\bAARP\b/i, name: "UNITED HEALTHCARE", short: "UHC", option: "UHC" },
       { re: /aetna/i, name: "AETNA", short: "Aetna", option: "Aetna" },
       { re: /florida\s*blue|blue\s*cross|bluemedicare/i, name: "FLORIDA BLUE", short: "FB", option: "Florida Blue" },
-      { re: /\bBCBS\s+of\b/i, name: "BCBS OF", short: "BCBS of", display: "BCBS of", option: "BCBS of", state: /\bBCBS\s+of\s+([A-Z]{2})\b/i },
+      { re: BCBS_OF, name: "BCBS OF", short: "BCBS of", display: "BCBS of", option: "BCBS of", state: BCBS_STATE },
       /* Healthspring ya no es parte de Cigna: "Cigna Healthspring" es Healthspring */
       { re: /(cigna[\s-]*)?health\s*spring/i, name: "HEALTHSPRING", short: "Healthspring", option: "Healthspring" },
       { re: /devoted/i, name: "DEVOTED HEALTH", short: "Devoted", option: "Devoted" },
@@ -146,12 +152,12 @@
     { id: "li_plan", cat: "Life Insurance", text: "PLAN DE RETIRO", hint: "" },
 
     { id: "oc_inactive", cat: "Marketplace (OC)", text: "FOLLOW UP LEAD_INACTIVE CLIENT OC", hint: "Contactados para prospecto, para recuperar, work, Medicaid" },
-    { id: "oc_cs", cat: "Marketplace (OC)", text: "FOLLOW UP CUSTOMER SERVICE", extra: "payment", hint: "Cliente con app concretadas. Lleva al final la referencia de pago" },
+    { id: "oc_cs", cat: "Marketplace (OC)", text: "FOLLOW UP CUSTOMER SERVICE", extra: "payment", pay: true, hint: "Cliente con app concretadas. Lleva al final la referencia de pago" },
     { id: "oc_cs_dep", cat: "Marketplace (OC)", text: "FOLLOW UP CUSTOMER SERVICE DEP", hint: "Cliente solo dentro de la cobertura, no es principal en ningún plan adicional" },
     { id: "oc_quote", cat: "Marketplace (OC)", text: "MKPL QUOTE PENDING", hint: "Se realizó cotización" },
     { id: "oc_app_pending", cat: "Marketplace (OC)", text: "MKPL APP PENDING", hint: "Solo falta procesar: consent firmado" },
     { id: "oc_oe", cat: "Marketplace (OC)", text: "FOLLOW UP OPEN ENROLLMENT OC", hint: "Citas para OEP: cliente quiere renovar o new contactado interesado" },
-    { id: "oc_docs", cat: "Marketplace (OC)", text: "FOLLOW UP DOCS BY {docFecha}", extra: "docs", hint: "Lleva la fecha tope de los documentos" },
+    { id: "oc_docs", cat: "Marketplace (OC)", text: "FOLLOW UP DOCS BY {docFecha}", extra: "docs", pay: true, hint: "Lleva la fecha tope de los documentos y la referencia de pago" },
     { id: "oc_lost", cat: "Marketplace (OC)", text: "FOLLOW UP {metodo} OC {n}", extra: "contact", hint: "Se perdió contacto" },
     { id: "oc_consent", cat: "Marketplace (OC)", text: "FOLLOW UP CONSENT", hint: "" },
 
@@ -188,7 +194,7 @@
   /* Reglas del documento TASK Q AGENCY, para mostrarlas junto al catálogo. */
   var TASK_RULES = [
     "Las observaciones adicionales van al final, después de la hora de referencia y sin paréntesis. Por ejemplo: URGENT.",
-    "En FOLLOW UP CUSTOMER SERVICE se agrega al final una referencia de pago: PAYMENT, NO PAYMENT, PAYMENT NOT VERIFIED o NO PREMIUM.",
+    "En FOLLOW UP CUSTOMER SERVICE y FOLLOW UP DOCS se agrega al final una referencia de pago: PAYMENT, NO PAYMENT, PAYMENT NOT VERIFIED o NO PREMIUM.",
     "Los tasks de Medicaid que solo son de revisión llevan REVIEW al final.",
     "En todos los casos, revisar el procedimiento de llamadas."
   ];

@@ -7,6 +7,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const N = require("../js/notes.js");
 const C = require("../js/config.js");
+const X = require("../js/extract.js");
 
 const base = { ini: "LI", agenteIni: "LI", fecha: "02/01/2026", hora: "09:00", canal: "Call", nombres: "BEATRIZ", apellidos: "DIAZ", anio: "2026", codigoTipo: "Q" };
 const make = (extra) => Object.assign({}, base, extra);
@@ -114,6 +115,16 @@ test("task Obamacare: mientras el Mercado pida documentos, FOLLOW UP DOCS BY la 
   assert.equal(t([]), "DI: FOLLOW UP CUSTOMER SERVICE - VER NOTA 02/01/2026 (09:00)");
 });
 
+test("task FOLLOW UP DOCS: lleva la referencia de pago y las etiquetas al final, como Customer Service", () => {
+  const docs = [{ cat: "income", fecha: "03/01/2027" }];
+  ["PAYMENT", "NO PAYMENT", "PAYMENT NOT VERIFIED", "NO PREMIUM"].forEach((estado) => {
+    assert.equal(N.buildTask(make({ ini: "DI", line: "oc", outcome: "enviada", docs, pagoEstado: estado, obsTags: ["URGENT", "CRONIC"] })),
+      "DI: FOLLOW UP DOCS BY MAR/01/2027 - VER NOTA 02/01/2026 (09:00) " + estado + " CRONIC URGENT");
+  });
+  const w = N.warnings(make({ ini: "DI", line: "oc", outcome: "enviada", docs, prima: "25" }));
+  assert.ok(w.some((x) => /Task: falta la referencia de pago/.test(x)));
+});
+
 test("task: referencia de pago, dependiente y etiquetas al final", () => {
   const t = (extra) => N.buildTask(make(Object.assign({ ini: "DI", line: "oc", outcome: "enviada" }, extra)));
   assert.equal(t({}), "DI: FOLLOW UP CUSTOMER SERVICE - VER NOTA 02/01/2026 (09:00)");
@@ -192,7 +203,7 @@ test("nota: ingresos por persona, documentos pedidos y pago", () => {
   }));
   assert.match(note, /\nSus ingresos anuales son \$32,000 \(Beatriz \$25,000, Juan \$7,000\)\. Son 3 en los taxes \(Beatriz, Juan, Ana\) y 2 pidiendo cobertura \(Beatriz, Juan\)\.\n/);
   assert.match(note, /\nMKPL pide docs:\n- Ingresos \(Beatriz\) - fecha tope 02\/12\/2027 - Enviado: Pay stub\n- Estatus migratorio \(Juan\) - fecha tope 03\/01\/2027 - Pendiente\n/);
-  assert.match(note, /\nLa app se hizo en el MKPL\.\nPago: Realizado - \$25\.40 - Tarjeta CC\nAutoPay: On/);
+  assert.match(note, /\nLa app se hizo en el MKPL\.\nPago: Realizado - \$25\.40 el 02\/01\/2026 - Tarjeta CC\nAutoPay: On/);
 });
 
 test("nota: solo Pago confirmado escribe en la nota; los demás estados van solo en el task", () => {
@@ -207,7 +218,10 @@ test("nota: solo Pago confirmado escribe en la nota; los demás estados van solo
   const supp = (estado) => N.buildNote(make({ line: "supp", outcome: "enviada", gestion: "nueva", producto: "Accident",
     compania: "Allstate", prima: "12.89", pagoEstado: estado, pagoMetodo: "CC", autopay: "On" }));
   assert.doesNotMatch(supp("NO PAYMENT"), /\nPago:|\nAutoPay:/);
-  assert.match(supp("PAYMENT"), /\nPago: Realizado - \$12\.89 - CC\nAutoPay: On/);
+  assert.match(supp("PAYMENT"), /\nPago: Realizado - \$12\.89 el 02\/01\/2026 - CC\nAutoPay: On/);
+  /* sin fecha del pago va la de la nota; con fecha, la suya */
+  assert.match(N.buildNote(make({ line: "supp", outcome: "enviada", gestion: "nueva", producto: "Accident", compania: "Allstate",
+    prima: "12.89", pagoEstado: "PAYMENT", pagoMetodo: "CC", pagoFecha: "02/03/2026" })), /\nPago: Realizado - \$12\.89 el 02\/03\/2026 - CC/);
 });
 
 test("nota: Cambios lista lo que quedó distinto de los PDF", () => {
@@ -390,7 +404,7 @@ test("nota: suplementario como el template ACCIDENTE", () => {
     "Monthly Premium: $12.89",
     "Policy #: 2037288957",
     "Beneficiario: Sparling, Bryan (father)",
-    "Pago: Realizado - $12.89 - CC",
+    "Pago: Realizado - $12.89 el 02/01/2026 - CC",
     "AutoPay: On",
     "NPN: ER"
   ].join("\n"));
@@ -1021,7 +1035,7 @@ test("Docs submitted: sin documentos enviados, los archivos de Obamacare no camb
 /* ----------------------------------------------------------- compañías -- */
 
 test("compañías oficiales de Obamacare y Medicare, en el orden de la agencia", () => {
-  assert.deepEqual(N.carrierOptions("oc").map((o) => o.l), ["Florida Blue", "Ambetter", "Wellpoint", "UHC", "Oscar", "Cigna"]);
+  assert.deepEqual(N.carrierOptions("oc").map((o) => o.l), ["Florida Blue", "BCBS of", "Ambetter", "Wellpoint", "UHC", "Oscar", "Cigna"]);
   assert.deepEqual(N.carrierOptions("mc").map((o) => o.l),
     ["Humana", "UHC", "Aetna", "Florida Blue", "BCBS of", "Healthspring", "Devoted", "Freedom", "Simply"]);
 });
@@ -1041,6 +1055,30 @@ test("compañía leída de un documento: su opción oficial, o Otra con el nombr
   assert.equal(N.carrierFromChoice("mc", "BCBS OF", "ga"), "BCBS OF GA");
   assert.equal(N.carrierFromChoice("mc", "BCBS OF", ""), "BCBS OF");
   assert.equal(N.carrierFromChoice("oc", "AMBETTER", "GA"), "AMBETTER");
+});
+
+test("Obamacare fuera de Florida: Blue Cross Blue Shield de otro estado es BCBS of con su estado", () => {
+  assert.deepEqual(N.carrierChoice("oc", "BCBS OF NC"), { sel: "BCBS OF", state: "NC" });
+  assert.equal(N.carrierFromChoice("oc", "BCBS OF", "nc"), "BCBS OF NC");
+  assert.equal(N.carrierShort("oc", "BCBS OF NC"), "BCBS of NC");
+  assert.equal(N.carrierName("oc", "BCBS OF NC"), "BCBS of NC");
+  assert.equal(fileOf({ line: "oc", compania: "BCBS OF NC", efectiva: "01/01/2027" }, "plans"), "Diaz, Beatriz Elena - OC_My Plans & Programs BCBS of NC 2027 JAN");
+  /* leída de un documento */
+  const leida = (t) => X.extract("My plans & programs\nPlan ID: 11512NC0400099\n" + t + "\nYou pay $10.00/month", "document.pdf", "oc").fields.compania;
+  assert.equal(leida("Blue Cross and Blue Shield of NC"), "BCBS OF NC");
+  assert.equal(leida("Blue Cross Blue Shield of Texas"), "BCBS OF TX");
+  assert.equal(leida("BlueCross BlueShield of North Carolina"), "BCBS OF NC");
+  assert.equal(leida("Blue Cross and Blue Shield of Florida"), "FLORIDA BLUE", "la de Florida es Florida Blue");
+  assert.equal(leida("Florida Blue"), "FLORIDA BLUE");
+  /* el teléfono de la compañía que trae el documento va en el email, antes que el de la lista */
+  const d = make({ line: "oc", outcome: "enviada", gestion: "nueva", anio: "2027", compania: "BCBS OF NC", efectiva: "01/01/2027" });
+  assert.equal(N.buildEmail(d, "cs"), "");
+  assert.ok(N.warnings(d, "").some((x) => /falta el teléfono de la compañía \(BCBS of NC\)/.test(x)));
+  const conTel = Object.assign({}, d, { telCompania: "1-800-324-4973" });
+  assert.equal(N.buildEmail(conTel, "cs"), "(800) 324-4973");
+  assert.match(N.buildEmail(conTel, "keep"), /llamando a \(800\) 324-4973\nEn caso .* comunicarse con BCBS OF NC para/);
+  assert.ok(!N.warnings(conTel, "").some((x) => /teléfono de la compañía/.test(x)));
+  assert.equal(N.buildEmail(Object.assign({}, conTel, { compania: "Florida Blue", direccion: "1 Main St, Atlanta, GA 30301" }), "cs"), "(800) 324-4973");
 });
 
 test("BCBS of, Healthspring y Otra en la nota, el reporte y los archivos", () => {

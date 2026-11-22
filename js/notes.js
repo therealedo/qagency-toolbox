@@ -285,7 +285,7 @@
     var T = taskById(d.taskId) || taskById(autoTaskId(d));
     if (!T) { return ""; }
     var tags = [];
-    if (T.extra === "payment" && has(O, "pago") && d.pagoEstado) { tags.push(d.pagoEstado); }
+    if (T.pay && has(O, "pago") && d.pagoEstado) { tags.push(d.pagoEstado); }
     if (T.review && d.review) { tags.push("REVIEW"); }
     /* etiquetas finales elegidas (CRONIC, URGENT), siempre en el mismo orden */
     var obs = Array.isArray(d.obsTags) ? d.obsTags : [];
@@ -410,7 +410,7 @@
   function paymentLine(d) {
     if (d.pagoEstado !== "PAYMENT") { return d.pagoEstado ? "" : val(d.pagoMetodo); }
     var monto = U.parseMoney(d.pagoMonto) || U.parseMoney(d.prima);
-    var fecha = U.parseDate(d.pagoFecha);
+    var fecha = U.parseDate(d.pagoFecha) || U.parseDate(d.fecha) || U.today();
     return ["Realizado" + (monto ? " - " + monto : "") + (fecha ? " el " + fecha : ""),
             val(d.pagoMetodo), val(d.pagoConf) ? "Conf. " + val(d.pagoConf) : ""].filter(Boolean).join(" - ");
   }
@@ -1060,7 +1060,7 @@
         if (pay) { parts.push(U.moneyNumber(pay) === 0 ? "No tiene pago mensual." : "Pago mensual: " + pay + "."); }
         if (ef) { parts.push("Su cobertura inicia el " + ef + "."); }
         if (d.pagoEstado === "NO PAYMENT") {
-          parts.push("Recuerde hacer su primer pago para activar la cobertura" + (U.parseDate(d.pagoFecha) ? " (fecha acordada: " + U.parseDate(d.pagoFecha) + ")" : "") + ".");
+          parts.push("Recuerde hacer su primer pago para activar la cobertura.");
         }
         var pend = d.line === "oc" ? pendingDocs(d) : [];
         if (pend.length) {
@@ -1167,9 +1167,12 @@
       "En caso de no recibir sus tarjetas a la fecha de inicio de la cobertura, debera comunicarse con " + carrier + " para revisar el estatus del envío."
     ].join("\n");
   }
-  /* El teléfono de Customer Service de la compañía del caso. Florida Blue
+  /* El teléfono de Customer Service de la compañía del caso: el que trae My
+     Plans & Programs (o se escribió); si no, el de la lista. Florida Blue
      solo tiene el de Florida: con una dirección de otro estado no se sabe. */
   function carrierTel(d) {
+    var own = val(d.telCompania), digits = own.replace(/\D/g, "").replace(/^1(?=\d{10}$)/, "");
+    if (own) { return digits.length === 10 ? "(" + digits.slice(0, 3) + ") " + digits.slice(3, 6) + "-" + digits.slice(6) : own; }
     var e = carrierEntry("oc", val(d.compania));
     if (!e || !e.tel) { return ""; }
     var st = upper(d.direccion).match(/\b([A-Z]{2})\s+\d{5}(?:-\d{4})?\b/);
@@ -1345,7 +1348,7 @@
       if (!val(d.anio)) { w.push("Reporte: falta el año del plan."); }
     }
     var T = taskById(d.taskId) || taskById(autoTaskId(d));
-    if (T && T.extra === "payment" && has(O, "pago") && !d.pagoEstado) {
+    if (T && T.pay && has(O, "pago") && !d.pagoEstado) {
       w.push("Task: falta la referencia de pago (PAYMENT, NO PAYMENT, PAYMENT NOT VERIFIED o NO PREMIUM).");
     }
     if (d.line === "oc" && O.id === "enviada") {

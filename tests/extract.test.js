@@ -468,43 +468,50 @@ const OC_DOCS = {
   /* el plan es "Clarity Silver", no "Communication" (el menú de la izquierda) */
   "OC My Plans & Programs Ambetter": { type: "oc_plans", net: "plans", fields: {
     plan: "Clarity Silver", prima: "$1.40", appId: "4412345678", miembros: "LAURA RAMOS\nDIEGO RAMOS",
-    nombres: "LAURA", apellidos: "RAMOS", efectiva: "01/01/2027", estado: "Active", compania: "AMBETTER", anio: "2027" } },
+    nombres: "LAURA", apellidos: "RAMOS", efectiva: "01/01/2027", estado: "Active", compania: "AMBETTER", telCompania: "(800) 555-0100", anio: "2027" } },
   /* el plan es "Clarity Silver", no "Report a life" (el menú, en la línea del
      Plan ID); la fila del miembro parte el apellido y el año a la línea de abajo */
   "OC My Plans & Programs Wrapped": { type: "oc_plans", net: "plans", fields: {
     plan: "Clarity Silver", prima: "$16.91", appId: "4412345679", miembros: "MARTA LOPEZ VIDAL",
-    nombres: "MARTA", apellidos: "LOPEZ VIDAL", efectiva: "01/01/2027", estado: "Active", compania: "AMBETTER", anio: "2027" } },
+    nombres: "MARTA", apellidos: "LOPEZ VIDAL", efectiva: "01/01/2027", estado: "Active", compania: "AMBETTER", telCompania: "(800) 555-0100", anio: "2027" } },
   /* el nombre parte su paréntesis alrededor de los botones "Go to my plan
      benefits" y "Change plans": el plan es lo de antes del paréntesis */
   "OC My Plans & Programs Florida Blue": { type: "oc_plans", net: "plans", fields: {
     plan: "myBlue Silver 26M02-04C", prima: "$104.00", appId: "4412345680", miembros: "ROSA FUENTES MORA",
-    nombres: "ROSA", apellidos: "FUENTES MORA", efectiva: "12/01/2026", compania: "FLORIDA BLUE", anio: "2026" } },
+    nombres: "ROSA", apellidos: "FUENTES MORA", efectiva: "12/01/2026", estado: "Initial enrollment", compania: "FLORIDA BLUE", telCompania: "(800) 352-2583", anio: "2026" } },
   /* el titular es el de la esquina de arriba ("Ramon     Menu") aunque salga
      segundo en Members, donde su fila trae las fechas encima del nombre */
   "OC My Plans & Programs Second Member": { type: "oc_plans", net: "plans", fields: {
     plan: "Clarity Silver", prima: "$7.67", appId: "4412345681", miembros: "RAMON DE LA PAZ\nLUCIA SOTO VERA",
-    nombres: "RAMON", apellidos: "DE LA PAZ", efectiva: "01/01/2027", estado: "Active", compania: "AMBETTER", anio: "2027" } },
+    nombres: "RAMON", apellidos: "DE LA PAZ", efectiva: "01/01/2027", estado: "Active", compania: "AMBETTER", telCompania: "(800) 555-0100", anio: "2027" } },
   /* el plan comparte la línea con el menú ("Exemptions") y el botón, y sus
      beneficios van en la línea de abajo; "(HSA)" es parte del nombre */
   "OC My Plans & Programs Menu Beside Plan": { type: "oc_plans", net: "plans", fields: {
     plan: "myBlue Bronze (HSA) 2129", prima: "$204.52", appId: "4412345682", miembros: "ELSA MORA",
-    nombres: "ELSA", apellidos: "MORA", efectiva: "01/01/2027", compania: "FLORIDA BLUE", anio: "2027" } },
+    nombres: "ELSA", apellidos: "MORA", efectiva: "01/01/2027", estado: "Initial enrollment", compania: "FLORIDA BLUE", telCompania: "(800) 352-2583", anio: "2027" } },
   /* el nombre de arriba a la derecha ("jose miguel     Menu") dice dónde
      termina el nombre: Jose Miguel es el nombre y Pena el apellido */
   "OC My Plans & Programs Two First Names": { type: "oc_plans", net: "plans", fields: {
     plan: "Clarity Silver", prima: "$0.00", appId: "4412345683", miembros: "JOSE MIGUEL PENA",
-    nombres: "JOSE MIGUEL", apellidos: "PENA", efectiva: "01/01/2027", compania: "AMBETTER", anio: "2027" } },
+    nombres: "JOSE MIGUEL", apellidos: "PENA", efectiva: "01/01/2027", estado: "Initial enrollment", compania: "AMBETTER", telCompania: "(877) 687-1169", anio: "2027" } },
   /* encima del Plan ID queda "change", el final de "Report a life change"
      del menú; el plan parte "(HSA, $0 Insulin)" alrededor del botón */
   "OC My Plans & Programs Menu Fragment": { type: "oc_plans", net: "plans", fields: {
     plan: "UHC Bronze Standard", prima: "$328.40", appId: "4412345684", miembros: "PEDRO RUIZ",
-    nombres: "PEDRO", apellidos: "RUIZ", efectiva: "01/01/2027", estado: "Active", compania: "UNITED HEALTHCARE", anio: "2027" } },
+    nombres: "PEDRO", apellidos: "RUIZ", efectiva: "01/01/2027", estado: "Active", compania: "UNITED HEALTHCARE", telCompania: "(888) 200-0405", anio: "2027" } },
   /* el nombre parte su código a la línea de abajo ("myBlue Essentials Silver"
      / "27M07-01C ($0 Deductible /") y los beneficios quedan cortados con "…",
      sin cerrar el paréntesis: la última línea ("Visits / $5 Labs …") no es el plan */
   "OC My Plans & Programs Wrapped Code": { type: "oc_plans", net: "plans", fields: {
     plan: "myBlue Essentials Silver 27M07-01C", prima: "$190.00", appId: "4412345691", miembros: "MORGAN WHITAKER\nWESLEY WHITAKER",
-    nombres: "MORGAN", apellidos: "WHITAKER", efectiva: "01/01/2027", estado: "Active", compania: "FLORIDA BLUE", anio: "2027" } },
+    nombres: "MORGAN", apellidos: "WHITAKER", efectiva: "01/01/2027", estado: "Active", compania: "FLORIDA BLUE", telCompania: "(800) 352-2583", anio: "2027" } },
+  /* Blue Cross and Blue Shield of NC no es Florida Blue: es "BCBS of" con su
+     estado. El nombre sigue con beneficios separados por "|" en tres líneas
+     (con el botón en medio): el plan es lo de antes del primer "|". El
+     teléfono de la compañía va junto a su nombre. */
+  "OC My Plans & Programs BCBS NC Pipes": { type: "oc_plans", net: "plans", fields: {
+    plan: "Blue Home Bronze Standard", prima: "$101.41", appId: "4412345692", miembros: "DANA HOLLOWAY",
+    nombres: "DANA", apellidos: "HOLLOWAY", efectiva: "01/01/2027", estado: "Active", compania: "BCBS OF NC", telCompania: "(800) 324-4973", anio: "2027" } },
   /* la guía que viene detrás de la carta habla de documentos: nadie los pidió */
   "OC Eligibility Notice": { type: "oc_elig", net: "eligibility", fields: {
     appId: "4412345678", anio: "2027", nombres: "LAURA", apellidos: "RAMOS", ingreso: "$31,200.00" } },
