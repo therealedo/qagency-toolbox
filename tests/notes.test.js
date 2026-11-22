@@ -195,6 +195,21 @@ test("nota: ingresos por persona, documentos pedidos y pago", () => {
   assert.match(note, /\nLa app se hizo en el MKPL\.\nPago: Realizado - \$25\.40 - Tarjeta CC\nAutoPay: On/);
 });
 
+test("nota: solo Pago confirmado escribe en la nota; los demás estados van solo en el task", () => {
+  ["NO PAYMENT", "PAYMENT NOT VERIFIED", "NO PREMIUM"].forEach((estado) => {
+    const d = make({ ini: "DI", line: "oc", outcome: "enviada", plataforma: "MKPL", prima: "25.4",
+      pagoEstado: estado, pagoMonto: "25.4", pagoFecha: "02/10/2026", autopay: "On" });
+    const note = N.buildNote(d);
+    assert.doesNotMatch(note, /\nPago:/, estado);
+    assert.doesNotMatch(note, /\nAutoPay:/, estado);
+    assert.equal(N.buildTask(d), "DI: FOLLOW UP CUSTOMER SERVICE - VER NOTA 02/01/2026 (09:00) " + estado);
+  });
+  const supp = (estado) => N.buildNote(make({ line: "supp", outcome: "enviada", gestion: "nueva", producto: "Accident",
+    compania: "Allstate", prima: "12.89", pagoEstado: estado, pagoMetodo: "CC", autopay: "On" }));
+  assert.doesNotMatch(supp("NO PAYMENT"), /\nPago:|\nAutoPay:/);
+  assert.match(supp("PAYMENT"), /\nPago: Realizado - \$12\.89 - CC\nAutoPay: On/);
+});
+
 test("nota: Cambios lista lo que quedó distinto de los PDF", () => {
   const note = N.buildNote(make({
     line: "oc", outcome: "enviada", gestion: "renovacion", appId: "4412345678", hogarPdf: true,
