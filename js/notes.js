@@ -404,22 +404,15 @@
     return talk(d) + ".";
   }
 
+  /* Solo Pago confirmado escribe en la nota. Pendiente de pago, Pago no
+     verificado y Sin prima van solo en el nombre del task (NO PAYMENT,
+     PAYMENT NOT VERIFIED, NO PREMIUM). */
   function paymentLine(d) {
+    if (d.pagoEstado !== "PAYMENT") { return d.pagoEstado ? "" : val(d.pagoMetodo); }
     var monto = U.parseMoney(d.pagoMonto) || U.parseMoney(d.prima);
     var fecha = U.parseDate(d.pagoFecha);
-    switch (d.pagoEstado) {
-      case "PAYMENT":
-        return ["Realizado" + (monto ? " - " + monto : "") + (fecha ? " el " + fecha : ""),
-                val(d.pagoMetodo), val(d.pagoConf) ? "Conf. " + val(d.pagoConf) : ""].filter(Boolean).join(" - ");
-      case "NO PAYMENT":
-        return "Pendiente" + (monto ? " - prima de " + monto : "") + (fecha ? " - " + cliente(d) + " paga el " + fecha : "");
-      case "PAYMENT NOT VERIFIED":
-        return "No verificado - " + cliente(d) + " no contestó para confirmar";
-      case "NO PREMIUM":
-        return "No aplica - plan sin prima";
-      default:
-        return val(d.pagoMetodo);
-    }
+    return ["Realizado" + (monto ? " - " + monto : "") + (fecha ? " el " + fecha : ""),
+            val(d.pagoMetodo), val(d.pagoConf) ? "Conf. " + val(d.pagoConf) : ""].filter(Boolean).join(" - ");
   }
 
   /* el NPN se anota con las iniciales del agente, como en los templates; un
@@ -617,7 +610,7 @@
       add("Periodo", d.plazo);
       add("Beneficiario", d.beneficiario);
     }
-    if (has(O, "pago")) { add("Pago", paymentLine(d)); add("AutoPay", d.autopay); }
+    if (has(O, "pago")) { add("Pago", paymentLine(d)); if (d.pagoEstado === "PAYMENT") { add("AutoPay", d.autopay); } }
     agentRows(d, add);
   }
 
