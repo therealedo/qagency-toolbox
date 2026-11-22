@@ -323,7 +323,7 @@ test("envío: el Consent va con el número de la plantilla, el cliente y cada ca
     recipient: { name: "Beatriz Diaz", email: "bea@example.com" },
     fields: pairs(F.fieldMap("consent-qa-es", v)),
     requester: "Luis Gomez",
-    meta: { kind: "consent", line: "oc", netKey: "consent", fileName: F.downloadName(d, "consent") }
+    meta: { kind: "consent", line: "oc", netKey: "consent", fileName: F.downloadName(d, "consent"), lang: "es" }
   });
   const byName = Object.fromEntries(r.body.fields.map((f) => [f.name, f.value]));
   assert.equal(byName["Yo SrSra"], "Beatriz Diaz");
@@ -339,6 +339,8 @@ test("envío: el Consent usa los campos de la plantilla de la oficina y el idiom
   assert.deepEqual(r.body.fields, pairs(F.fieldMap("consent-ath-en", consent)));
   assert.equal(r.body.fields.some((f) => f.name === "Full Name"), true);
   assert.equal(r.body.requester, "ATH Insurance");
+  /* la página de firma (sus botones) en el idioma del cliente */
+  assert.equal(r.body.meta.lang, "en");
 });
 
 /* el SOA lleva el teléfono personal del agente (el que tiene la compañía), no
@@ -358,7 +360,7 @@ test("envío: el SOA va sin campos del cliente, y lleva los del agente para llen
   assert.equal(r.ok, true);
   assert.deepEqual(r.body.fields, []);
   assert.deepEqual(r.body.recipient, { name: "Beatriz Diaz", email: "bea@example.com" });
-  assert.deepEqual(r.body.meta, { kind: "soa", line: "mc", netKey: "soa", fileName: F.downloadName(d, "soa") });
+  assert.deepEqual(r.body.meta, { kind: "soa", line: "mc", netKey: "soa", fileName: F.downloadName(d, "soa"), lang: "en" });
   assert.deepEqual(r.body.agent, {
     name: "Ana Torres",
     dateField: "Date Appointment will be Completed",

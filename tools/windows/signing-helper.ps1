@@ -160,8 +160,15 @@ function Get-Status($sub) {
   if ($c.opened_at) { return "viewed" }
   return "sent"
 }
-function Get-Link($s) {
-  if ($s -and ([string]$s.slug) -match '^[A-Za-z0-9_-]{1,100}$') { return $SiteBase + "/s/" + $s.slug }
+# lang: el idioma del cliente. DocuSeal abre la pagina de firma (sus botones)
+# en el idioma de ?lang=; sin el, en el del navegador.
+function Add-Lang([string]$link, [string]$lang) {
+  if (-not $link -or $lang -cnotmatch '^(es|en)$') { return $link }
+  $sep = if ($link.Contains("?")) { "&" } else { "?" }
+  return $link + $sep + "lang=" + $lang
+}
+function Get-Link($s, [string]$lang = "") {
+  if ($s -and ([string]$s.slug) -match '^[A-Za-z0-9_-]{1,100}$') { return Add-Lang ($SiteBase + "/s/" + $s.slug) $lang }
   return $null
 }
 function Get-Doc($sub) {
@@ -173,7 +180,7 @@ function Get-Doc($sub) {
     meta = @{ kind = [string]$m.qa_kind; line = [string]$m.qa_line; netKey = [string]$m.qa_net; fileName = [string]$m.qa_file }
     agent = [string]$m.qa_agent; name = [string]$c.name; email = [string]$c.email; created = [string]$sub.created_at
   }
-  if (@("sent", "viewed") -contains $st) { $link = Get-Link $c; if ($link) { $d.link = $link } }
+  if (@("sent", "viewed") -contains $st) { $link = Get-Link $c ([string]$m.qa_lang); if ($link) { $d.link = $link } }
   return $d
 }
 # Pide un envio. Devuelve @{ sub } o @{ code } (404 si no existe, 502 si el
@@ -258,9 +265,13 @@ function Build-Submission($b) {
   if (-not ((Text-Ok $b.recipient.name 200) -and (Email-Ok $b.recipient.email))) { return $null }
   if (@("consent", "soa") -notcontains $b.meta.kind) { return $null }
   if (-not ((Text-Ok $b.meta.fileName 200) -and ([string]$b.meta.line -match '^[a-z]{0,10}$') -and ([string]$b.meta.netKey -match '^[a-z]{1,20}$'))) { return $null }
+  # sin idioma (una herramienta anterior) el enlace va como antes
+  $lang = [string]$b.meta.lang
+  if ($lang -ne "" -and $lang -cnotmatch '^(es|en)$') { return $null }
   $fields = Read-Fields $b.fields
   if ($null -eq $fields) { return $null }
   $meta = [ordered]@{ qa_kind = $b.meta.kind; qa_line = [string]$b.meta.line; qa_net = $b.meta.netKey; qa_file = $b.meta.fileName; qa_pc = $equipo }
+  if ($lang) { $meta.qa_lang = $lang }
   if (Text-Ok $b.requester 100) { $meta.qa_agent = $b.requester }
   $cliente = [ordered]@{ role = "Cliente"; name = $b.recipient.name; email = $b.recipient.email; order = 0; metadata = $meta
     fields = [object[]]@($fields | ForEach-Object { [ordered]@{ name = $_.name; default_value = $_.value; readonly = $true } }) }
@@ -329,7 +340,8 @@ function Handle($ctx) {
       if ($r.code -ge 200 -and $r.code -lt 300 -and $res) { foreach ($s in @($res)) { if ([string]$s.role -eq "Cliente") { $c = $s } } }
       if (-not $c -or -not ([string]$c.submission_id -match $idOk)) { Server-Failure $ctx "send" $r; return }
       $id = [string]$c.submission_id
-      $link = if (([string]$c.embed_src) -match '^https?://') { [string]$c.embed_src } else { Get-Link $c }
+      $lang = [string]$b.meta.lang
+      $link = if (([string]$c.embed_src) -match '^https?://') { Add-Lang ([string]$c.embed_src) $lang } else { Get-Link $c $lang }
       Write-Log ("send " + $id + " " + $b.meta.kind)
       Send-Response $ctx 200 ([ordered]@{ id = $id; link = $link })
     }
@@ -436,7 +448,7 @@ function Handle($ctx) {
         try { $r = Invoke-DocuSeal "PUT" ("/submitters/" + $a.id) @{ fields = [object[]]$put.ToArray() } } catch { Send-Response $ctx 502 @{ error = "conexion" }; return }
         if ($r.code -lt 200 -or $r.code -ge 300) { Server-Failure $ctx ("agent " + $b.id) $r; return }
       }
-      $link = Get-Link $a
+      $link = Get-Link $a ([string]$c.metadata.qa_lang)
       if (-not $link) { Send-Response $ctx 502 @{ error = "docuseal"; status = 200 }; return }
       Write-Log ("agent " + $b.id)
       Send-Response $ctx 200 @{ link = $link }

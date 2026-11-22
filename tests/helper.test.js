@@ -161,7 +161,7 @@ const SEND = {
   templateId: "1", recipient: { name: "Beatriz Diaz", email: "bea@example.com" },
   fields: [{ name: "Yo SrSra", value: "Beatriz Diaz" }, { name: "Premium", value: "$45.00" }],
   requester: "Ana Torres",
-  meta: { kind: "consent", line: "oc", netKey: "consent", fileName: FILE }
+  meta: { kind: "consent", line: "oc", netKey: "consent", fileName: FILE, lang: "es" }
 };
 const META = { kind: "consent", line: "oc", netKey: "consent", fileName: FILE };
 const SOA_FILE = "Diaz, Beatriz - Medicare_Humana_SOA 2026 NOV.pdf";
@@ -208,7 +208,8 @@ test("ayudante de firma: solo la herramienta; envía sin correos; lista del serv
 
     /* datos inválidos no salen */
     for (const wrong of [{ recipient: { name: "B", email: "no" } }, { templateId: "tpl-1" }, { fields: [{ name: "", value: "x" }] },
-      { meta: Object.assign({}, SEND.meta, { kind: "otro" }) }]) {
+      { meta: Object.assign({}, SEND.meta, { kind: "otro" }) }, { meta: Object.assign({}, SEND.meta, { lang: "fr" }) },
+      { meta: Object.assign({}, SEND.meta, { lang: "es&x=1" }) }]) {
       assert.equal((await post(port, "/send", Object.assign({}, SEND, wrong))).status, 400);
     }
     assert.equal(ds.calls.length, 0);
@@ -217,7 +218,8 @@ test("ayudante de firma: solo la herramienta; envía sin correos; lista del serv
     const sent = await post(port, "/send", SEND);
     assert.equal(sent.status, 200);
     assert.equal(sent.headers["access-control-allow-origin"], "null");
-    assert.deepEqual(sent.json, { id: "1", link: "http://127.0.0.1:" + ds.port + "/s/slug2" });
+    /* la página de firma se abre en el idioma del cliente (DocuSeal lee ?lang=) */
+    assert.deepEqual(sent.json, { id: "1", link: "http://127.0.0.1:" + ds.port + "/s/slug2?lang=es" });
     const created = ds.calls.find((c) => c.method === "POST");
     assert.equal(created.code, CODE);
     assert.equal(created.key, undefined, "el ayudante no tiene clave");
@@ -227,7 +229,7 @@ test("ayudante de firma: solo la herramienta; envía sin correos; lista del serv
     assert.deepEqual(created.body, {
       template_id: 1, send_email: false, order: "preserved",
       submitters: [{ role: "Cliente", name: "Beatriz Diaz", email: "bea@example.com", order: 0,
-        metadata: { qa_kind: "consent", qa_line: "oc", qa_net: "consent", qa_file: FILE, qa_pc: PC, qa_agent: "Ana Torres" },
+        metadata: { qa_kind: "consent", qa_line: "oc", qa_net: "consent", qa_file: FILE, qa_pc: PC, qa_lang: "es", qa_agent: "Ana Torres" },
         fields: [{ name: "Yo SrSra", default_value: "Beatriz Diaz", readonly: true }, { name: "Premium", default_value: "$45.00", readonly: true }] }]
     });
 
@@ -237,7 +239,7 @@ test("ayudante de firma: solo la herramienta; envía sin correos; lista del serv
     /* el tablero: lo del servidor, con quién lo envió y el enlace mientras espera */
     const list1 = (await post(port, "/list")).json;
     assert.deepEqual(list1, { docs: [{ id: "1", status: "sent", saved: false, meta: META, agent: "Ana Torres",
-      name: "Beatriz Diaz", email: "bea@example.com", created: "2026-11-21T14:01:00.000Z", link: "http://127.0.0.1:" + ds.port + "/s/slug2" }], more: false });
+      name: "Beatriz Diaz", email: "bea@example.com", created: "2026-11-21T14:01:00.000Z", link: "http://127.0.0.1:" + ds.port + "/s/slug2?lang=es" }], more: false });
 
     /* antes de firmar: sin PDF, sin guardado, sin paso del agente */
     assert.equal((await post(port, "/pdf", { id: "1" })).status, 409);
@@ -305,6 +307,8 @@ test("ayudante de firma: SOA con dos firmas; los datos del agente se llenan y bl
     assert.equal((await post(port, "/send", Object.assign({}, SOA, { agent: undefined }))).status, 400, "un SOA sin agente no sale");
     const sent = await post(port, "/send", SOA);
     assert.equal(sent.status, 200);
+    /* sin idioma (una herramienta anterior): el enlace de siempre */
+    assert.match(sent.json.link, /\/s\/slug\d+$/);
     const body = ds.calls.find((c) => c.method === "POST").body;
     assert.equal(body.order, "preserved");
     assert.deepEqual(body.submitters.map((s) => [s.role, s.order]), [["Cliente", 0], ["Agente", 1]]);
@@ -343,6 +347,10 @@ test("ayudante de firma: SOA con dos firmas; los datos del agente se llenan y bl
     await post(port, "/send", SEND);
     ds.subs[2].submitters[0].completed = "2026-11-22T01:00:00.000Z";
     assert.deepEqual((await post(port, "/agent", { id: "2" })).json, { error: "no-soa" });
+    /* el agente firma en el mismo idioma que el cliente */
+    await post(port, "/send", Object.assign({}, SOA, { meta: Object.assign({}, SOA.meta, { lang: "en" }) }));
+    ds.subs[3].submitters[0].completed = "2026-11-22T02:00:00.000Z";
+    assert.match((await post(port, "/agent", { id: "3" })).json.link, /\/s\/slug\d+\?lang=en$/);
   } finally {
     await stopHelper(helper);
     ds.server.close();
