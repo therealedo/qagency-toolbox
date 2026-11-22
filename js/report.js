@@ -125,7 +125,8 @@
   /* lo que escribe el agente a mano: un código Q o «Apellido, Nombre» */
   function parseQuery(text) {
     var t = String(text || "").trim();
-    return /^Q?\s*\d{3,}\s*L?$/i.test(t) ? { code: /^Q/i.test(t) ? t : "Q" + t } : { name: t };
+    /* Q10004, Q4097L, L0534 o solo los números (se les pone la Q) */
+    return /^[QL]?\s*\d{3,}\s*L?$/i.test(t) ? { code: /^[QL]/i.test(t) ? t : "Q" + t } : { name: t };
   }
 
   /* ------------------------------------------------- objetos del archivo -- */

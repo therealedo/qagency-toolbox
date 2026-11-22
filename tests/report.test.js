@@ -123,6 +123,9 @@ test("reporte: busca por código Q (con o sin la L) y si no, por el nombre exact
   assert.deepEqual(R.parseQuery(" q10004 "), { code: "q10004" });
   assert.deepEqual(R.parseQuery("10004"), { code: "Q10004" });
   assert.deepEqual(R.parseQuery("Testa, Ana"), { name: "Testa, Ana" });
+  /* un código que empieza con L (L0534) también es un código, no un nombre */
+  assert.deepEqual(R.parseQuery("L0534"), { code: "L0534" });
+  assert.deepEqual(R.parseQuery("l0534"), { code: "l0534" });
 });
 
 for (const [label, opts] of [["sin comprimir", {}], ["con la página comprimida en un /ObjStm", { packed: [2, 3, 5] }]]) {
