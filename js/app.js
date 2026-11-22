@@ -1234,6 +1234,7 @@
      eran y, si lo hubo, el error al leerlas, para elegirlas otra vez */
   function renderLostDirs(errs) {
     var names = settings.netDirNames, box = $("netDirLost");
+    queueSettingsNav();
     var lost = allDirKeys().filter(function (k) { return names[k] && !netDirs[k]; });
     box.hidden = !lost.length;
     if (!lost.length) { return; }
@@ -1298,6 +1299,7 @@
     each(box.querySelectorAll("[data-net-dir-line]"), function (d) {
       if (N.docKinds(d.dataset.netDirLine).some(function (x) { return netDirs[d.dataset.netDirLine + ":" + x.k]; })) { d.open = true; }
     });
+    queueSettingsNav();
   }
   /* la carpeta de un archivo de la línea de ahora (o de la que se diga: un
      documento firmado puede ser de otra nota), por su clase, la línea o la
@@ -3452,6 +3454,7 @@
       row.appendChild(x);
       box.appendChild(row);
     });
+    queueSettingsNav();
   }
 
   function installHelp() {
@@ -3464,9 +3467,71 @@
     return "En el menú del navegador elige «Instalar Q Agency Toolbox» (o «Instalar página como aplicación»). Queda con su propio ícono y funciona sin internet.";
   }
 
+  /* Ajustes en pestañas: una sección a la vista y, debajo de cada nombre,
+     cómo está; las que necesitan algo llevan un punto ámbar */
+  var settingsTab = "office";
+  function showSettingsTab(tab, focus) {
+    settingsTab = tab;
+    each($("setNav").querySelectorAll("[data-set-tab]"), function (b) {
+      var on = b.dataset.setTab === tab;
+      b.setAttribute("aria-selected", on ? "true" : "false");
+      b.tabIndex = on ? 0 : -1;
+      if (on && focus) { b.focus(); }
+    });
+    each(document.querySelectorAll("[data-set-pane]"), function (p) { p.hidden = p.dataset.setPane !== tab; });
+    document.querySelector(".set-panes").scrollTop = 0;
+  }
+  function settingsStates() {
+    var tels = C.OFFICES.filter(function (o) { return !U.collapse(settings.telefonos[o] || ""); });
+    var team = settings.team.filter(function (t) { return t.name; });
+    var noSoa = team.filter(function (t) { return t.npn && !t.telSoa; });
+    var tpls = Object.keys(FM.TEMPLATES), tplOn = tpls.filter(function (k) { return settings.signTemplates[k]; });
+    var noCode = C.OFFICES.filter(function (o) { return !settings.signCodes[o]; });
+    var dirs = allDirKeys().filter(function (k) { return netDirs[k]; });
+    var lost = allDirKeys().filter(function (k) { return settings.netDirNames[k] && !netDirs[k]; });
+    var opts = [];
+    if (settings.botonRojo) { opts.push("Botón rojo"); }
+    if (settings.sinAcentos) { opts.push("Sin acentos"); }
+    return {
+      office: tels.length ? { t: tels.length === 1 ? "Falta el teléfono de " + tels[0] : "Faltan los teléfonos", warn: true } : { t: settings.oficina },
+      team: !team.length ? { t: "Vacío", warn: true }
+        : noSoa.length ? { t: "Falta el Tel. SOA" + (noSoa.length > 1 ? " de " + noSoa.length : ""), warn: true }
+        : { t: team.length + (team.length === 1 ? " persona" : " personas") },
+      dirs: !canSave ? { t: "No disponible" } : lost.length ? { t: "Elegir otra vez", warn: true }
+        : !dirs.length ? { t: "Sin elegir", warn: true } : { t: dirs.length === 1 ? "1 elegida" : dirs.length + " elegidas" },
+      sign: !tplOn.length ? { t: "Sin configurar" }
+        : noCode.length ? { t: noCode.length === 1 ? "Falta el código de " + noCode[0] : "Faltan los códigos", warn: true }
+        : { t: tplOn.length + " de " + tpls.length + " plantillas" },
+      note: { t: opts.length ? opts.join(" · ") : "Normal" },
+      install: { t: "Versión " + C.VERSION }
+    };
+  }
+  function renderSettingsNav() {
+    if (!$("dlgSettings").open) { return; }
+    var st = settingsStates();
+    each($("setNav").querySelectorAll("[data-set-tab]"), function (b) {
+      var s = st[b.dataset.setTab] || { t: "" };
+      b.querySelector("[data-set-state]").textContent = s.t;
+      b.classList.toggle("warn", !!s.warn);
+      b.title = s.t;
+    });
+    /* el Tel. SOA que falta, marcado en la fila del agente */
+    each($("teamRows").querySelectorAll('[data-col="telSoa"]'), function (i) {
+      var t = settings.team[+i.dataset.team];
+      i.classList.toggle("need", !!(t && t.npn && !t.telSoa));
+    });
+  }
+  var settingsNavTimer = 0;
+  function queueSettingsNav() {
+    clearTimeout(settingsNavTimer);
+    settingsNavTimer = setTimeout(renderSettingsNav, 0);
+  }
+
   function openSettings() {
     fillSettings();
+    showSettingsTab(settingsTab);
     $("dlgSettings").showModal();
+    renderSettingsNav();
   }
   /* un teléfono por agencia: el SMS usa el de la agencia que lo firma, que
      puede ser la del agente del NPN y no la elegida arriba */
@@ -3489,6 +3554,7 @@
     renderSignCodes();
     $("installHelp").textContent = installHelp();
     $("versionTag").textContent = "Versión " + C.VERSION;
+    renderSettingsNav();
   }
 
   /* Otra ventana de la herramienta (abierta dos veces, o una vieja que
@@ -3935,6 +4001,22 @@
       if (currentView === "tasks") { renderTasks(); }
     });
     $("btnSettings").addEventListener("click", openSettings);
+    $("setNav").addEventListener("click", function (e) {
+      var b = e.target.closest("[data-set-tab]");
+      if (b) { showSettingsTab(b.dataset.setTab); }
+    });
+    $("setNav").addEventListener("keydown", function (e) {
+      var keys = { ArrowDown: 1, ArrowRight: 1, ArrowUp: -1, ArrowLeft: -1 };
+      var tabs = Array.prototype.map.call($("setNav").querySelectorAll("[data-set-tab]"), function (b) { return b.dataset.setTab; });
+      var i = tabs.indexOf(settingsTab), n;
+      if (keys[e.key]) { n = (i + keys[e.key] + tabs.length) % tabs.length; }
+      else if (e.key === "Home") { n = 0; }
+      else if (e.key === "End") { n = tabs.length - 1; }
+      else { return; }
+      e.preventDefault();
+      showSettingsTab(tabs[n], true);
+    });
+    ["input", "change", "click"].forEach(function (t) { $("dlgSettings").addEventListener(t, queueSettingsNav); });
     $("btnTheme").addEventListener("click", function () {
       var dark = settings.theme ? settings.theme === "dark" : window.matchMedia("(prefers-color-scheme: dark)").matches;
       settings.theme = dark ? "light" : "dark";
