@@ -720,6 +720,10 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
 .out-sub h3 { font-size: 13px; font-weight: 600; color: var(--ink-2); margin: 0 auto 0 0; }
 .email-box { min-height: 92px; line-height: 1.55; background: var(--inset); border-color: var(--line); resize: none; overflow: hidden; }
 .email-box:focus { background: var(--field); }
+/* asunto y Customer Service: una línea; Tener en cuenta: dos */
+.email-box.email-line { min-height: 0; }
+.out-hint { font-size: 12px; margin-right: auto; }
+.out-sub h3:has(+ .out-hint) { margin-right: 0; }
 .people-hint { margin: 6px 0 0; }
 
 /* Consent y SOA para firmar: valores, descarga, texto de Cliq y enlace de firma */
@@ -1486,6 +1490,14 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
             <div class="seg seg-mini" data-lang-seg role="radiogroup" aria-label="Idioma del SMS y el email" hidden></div>
             <a class="link-btn" id="emailOpen" href="#" hidden>Abrir en el correo</a>
           </div>
+          <div class="email-part" id="emailSubjectPart" hidden>
+            <div class="out-sub">
+              <h3>Asunto</h3>
+              <button type="button" class="link-btn" id="emailSubjectRegen" hidden>Regenerar</button>
+              <button type="button" class="btn small" id="copyEmailSubject" data-label="Copiar">Copiar</button>
+            </div>
+            <textarea class="email-box email-line" id="emailSubject" rows="1" spellcheck="true" aria-label="Email para el cliente: asunto"></textarea>
+          </div>
           <div class="email-part">
             <div class="out-sub">
               <h3 id="emailHead1">1 · Documentos y plan</h3>
@@ -1493,6 +1505,22 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
               <button type="button" class="btn small" id="copyEmail1" data-label="Copiar">Copiar</button>
             </div>
             <textarea class="email-box" id="email1" rows="6" spellcheck="true" aria-label="Email para el cliente, parte 1: documentos y plan"></textarea>
+          </div>
+          <div class="email-part" id="emailKeepPart" hidden>
+            <div class="out-sub">
+              <h3>Tener en cuenta</h3><span class="muted out-hint">Pégalas sobre las dos viñetas de la plantilla</span>
+              <button type="button" class="link-btn" id="emailKeepRegen" hidden>Regenerar</button>
+              <button type="button" class="btn small" id="copyEmailKeep" data-label="Copiar">Copiar</button>
+            </div>
+            <textarea class="email-box email-line" id="emailKeep" rows="1" spellcheck="true" aria-label="Email para el cliente: las dos líneas de Favor tener en cuenta"></textarea>
+          </div>
+          <div class="email-part" id="emailCsPart" hidden>
+            <div class="out-sub">
+              <h3>Customer Service</h3><span class="muted out-hint">El teléfono de la franja gris</span>
+              <button type="button" class="link-btn" id="emailCsRegen" hidden>Regenerar</button>
+              <button type="button" class="btn small" id="copyEmailCs" data-label="Copiar">Copiar</button>
+            </div>
+            <textarea class="email-box email-line" id="emailCs" rows="1" spellcheck="true" aria-label="Email para el cliente: teléfono de Customer Service de la compañía"></textarea>
           </div>
           <div class="email-part" id="emailPart2">
             <div class="out-sub">
@@ -1783,7 +1811,7 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
 (function (root) {
   "use strict";
 
-  var VERSION = "1.28.2";
+  var VERSION = "1.29.0";
   /* De aquí la herramienta instalada lee el número de la última versión (y
      nada más). La política de seguridad de index.html solo permite esta
      dirección, y el actualizador de Windows usa el mismo repositorio. */
@@ -1818,14 +1846,16 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
      es el texto de la opción en el formulario, y van primero y en el orden
      oficial. Las demás se siguen reconociendo en los documentos y salen como
      «Otra», con su nombre. `state` pide el estado en dos letras: BCBS of GA. */
+  /* `tel`: el teléfono de Customer Service de la compañía (Obamacare), que va
+     en el email al cliente. Las que no lo tienen hacen avisar al agente. */
   var CARRIERS = {
     oc: [
-      { re: /florida\s*blue|blue\s*cross|bluecare|blueselect|blueoptions|myblue/i, name: "FLORIDA BLUE", display: "Florida Blue", short: "FB", option: "Florida Blue" },
-      { re: /ambetter|celtic|sunshine\s*health/i, name: "AMBETTER", display: "Ambetter", short: "Ambetter", option: "Ambetter" },
+      { re: /florida\s*blue|blue\s*cross|bluecare|blueselect|blueoptions|myblue/i, name: "FLORIDA BLUE", display: "Florida Blue", short: "FB", option: "Florida Blue", tel: "(800) 352-2583" },
+      { re: /ambetter|celtic|sunshine\s*health/i, name: "AMBETTER", display: "Ambetter", short: "Ambetter", option: "Ambetter", tel: "(877) 687-1169" },
       { re: /wellpoint/i, name: "WELLPOINT", display: "Wellpoint", short: "Wellpoint", option: "Wellpoint" },
-      { re: /unitedhealthcare|united\s*healthcare|\bUHC\b/i, name: "UNITED HEALTHCARE", display: "UnitedHealthcare", short: "UHC", option: "UHC" },
-      { re: /\boscar\b/i, name: "OSCAR", display: "Oscar", short: "Oscar", option: "Oscar" },
-      { re: /cigna/i, name: "CIGNA", display: "Cigna", short: "Cigna", option: "Cigna" },
+      { re: /unitedhealthcare|united\s*healthcare|\bUHC\b/i, name: "UNITED HEALTHCARE", display: "UnitedHealthcare", short: "UHC", option: "UHC", tel: "(888) 200-0405" },
+      { re: /\boscar\b/i, name: "OSCAR", display: "Oscar", short: "Oscar", option: "Oscar", tel: "(855) OSCAR-55" },
+      { re: /cigna/i, name: "CIGNA", display: "Cigna", short: "Cigna", option: "Cigna", tel: "(866) 494-2111" },
       { re: /molina/i, name: "MOLINA", display: "Molina", short: "Molina" },
       { re: /aetna/i, name: "AETNA CVS HEALTH", display: "Aetna CVS Health", short: "Aetna" },
       { re: /avmed/i, name: "AVMED", display: "AvMed", short: "AvMed" },
@@ -3762,6 +3792,9 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
     if (d.line === "supp") { return part === 1 ? emailSupp(d) : ""; }
     if (d.line !== "oc") { return ""; }
     var en = d.idioma === "en", lines = [];
+    if (part === "subject") { return emailSubject(d, en); }
+    if (part === "keep") { return emailKeep(d, en); }
+    if (part === "cs") { return carrierTel(d); }
     if (part === 1) {
       var y = val(d.anio), carrier = carrierName("oc", d.compania), plan = val(d.plan);
       var ef = U.parseDate(d.efectiva), pay = U.parseMoney(d.prima);
@@ -3800,6 +3833,36 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
     lines.push(en ? "Best Regards," : "Saludos");
     if (val(d.firmaNombre)) { lines.push(U.titleCase(d.firmaNombre)); }
     return lines.join("\n");
+  }
+
+  /* La plantilla de Zoho del email de Obamacare ya trae el título «Favor
+     tener en cuenta» y la franja de Customer Service: el agente solo pega el
+     asunto, las dos líneas con la fecha, el teléfono y la compañía, y el
+     teléfono de la franja. Un cambio de vida es ACTUALIZACION; una
+     inscripción nueva o una renovación, APLICACION. */
+  function emailSubject(d, en) {
+    var y = /^\d{4}$/.test(val(d.anio)) ? val(d.anio) : (U.parseDate(d.efectiva) || U.today()).split("/")[2];
+    var kind = d.gestion === "cambio" ? (en ? "UPDATE" : "ACTUALIZACION") : (en ? "APPLICATION" : "APLICACION");
+    return "LE: " + kind + " - OBAMACARE " + y;
+  }
+  function emailKeep(d, en) {
+    var ef = U.parseDate(d.efectiva) || "MM/DD/YYYY", tel = carrierTel(d) || "...........";
+    var carrier = upper(carrierName("oc", d.compania)) || "LA COMPAÑÍA";
+    return en ? [
+      "If you have a monthly premium payment, please make sure you make your first payment before " + ef + " by calling " + tel,
+      "In case you have not received your Insurance cards by your effective date, you need to contact " + carrier + " to verify your card's delivery status."
+    ].join("\n") : [
+      "Si su plan tiene prima a pagar, favor hacer el pago de la prima antes del " + ef + " llamando a " + tel,
+      "En caso de no recibir sus tarjetas a la fecha de inicio de la cobertura, debera comunicarse con " + carrier + " para revisar el estatus del envío."
+    ].join("\n");
+  }
+  /* El teléfono de Customer Service de la compañía del caso. Florida Blue
+     solo tiene el de Florida: con una dirección de otro estado no se sabe. */
+  function carrierTel(d) {
+    var e = carrierEntry("oc", val(d.compania));
+    if (!e || !e.tel) { return ""; }
+    var st = upper(d.direccion).match(/\b([A-Z]{2})\s+\d{5}(?:-\d{4})?\b/);
+    return e.name === "FLORIDA BLUE" && st && st[1] !== "FL" ? "" : e.tel;
   }
 
   /* Email con la cotización de Obamacare cuando el cliente revisará los
@@ -3982,6 +4045,9 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
       var hd = parseInt(d.hogarDoc, 10);
       if (hd && hd !== enTaxes(d).length) { w.push("Hogar: el documento indica " + hd + " en los taxes y la lista tiene " + enTaxes(d).length + "."); }
     }
+    if (d.line === "oc" && O.id === "enviada" && val(d.compania) && !carrierTel(d)) {
+      w.push("Email: falta el teléfono de la compañía (" + carrierName("oc", d.compania) + "): escríbelo a mano en la plantilla, en Tener en cuenta y en Customer Service.");
+    }
     if (d.line === "oc" && O.id === "cancelada" && !val(d.motivoCancel)) { w.push("Falta el motivo de la cancelación."); }
     if (d.line === "oc" && O.id === "cancelada" && d.tipoCancel === "terminated" && !U.parseDate(d.fechaTermino)) {
       w.push("Falta la fecha de terminación de la cobertura (va en el nombre del archivo).");
@@ -4001,7 +4067,12 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
     var O = outcomeOf(d), list = ["note", "task"];
     if (O.report) { list.push("report"); }
     if (!O.noSms) { list.push("sms"); }
+    /* el email de Obamacare en el orden de la plantilla: asunto, parte 1,
+       Tener en cuenta, Customer Service y parte 2 */
+    if (buildEmail(d, "subject")) { list.push("emailSubject"); }
     if (buildEmail(d, 1)) { list.push("email1"); }
+    if (buildEmail(d, "keep")) { list.push("emailKeep"); }
+    if (buildEmail(d, "cs")) { list.push("emailCs"); }
     if (buildEmail(d, 2)) { list.push("email2"); }
     return list;
   }
@@ -7720,7 +7791,7 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
     return { periodoMC: aep ? "AEP" : (maOep ? "OEP" : "SEP"), periodo: oep ? "OEP" : "SEP" };
   }
 
-  function freshEdited() { return { note: false, task: false, report: false, sms: false, email1: false, email2: false }; }
+  function freshEdited() { return { note: false, task: false, report: false, sms: false, email1: false, email2: false, emailSubject: false, emailKeep: false, emailCs: false }; }
 
   function freshFields() {
     var season = seasonDefaults();
@@ -9367,8 +9438,9 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
     box.style.height = (box.scrollHeight + 2) + "px";
   }
 
-  var OUT = { note: "note", task: "task", report: "report", sms: "sms", email1: "email1", email2: "email2" };
-  var generated = { note: "", task: "", report: "", sms: "", email1: "", email2: "" };
+  var OUT = { note: "note", task: "task", report: "report", sms: "sms", email1: "email1", email2: "email2",
+              emailSubject: "emailSubject", emailKeep: "emailKeep", emailCs: "emailCs" };
+  var generated = { note: "", task: "", report: "", sms: "", email1: "", email2: "", emailSubject: "", emailKeep: "", emailCs: "" };
 
   function setOut(key, text) {
     generated[key] = text;
@@ -9408,7 +9480,8 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
      task siempre; el reporte si se reporta; el SMS y el email si los hay. */
   var outTab = "note";
   var TAB_LABEL = { note: "Nota", task: "Task", report: "Reporte", sms: "SMS", email: "Email" };
-  var TAB_OF = { note: "note", task: "task", report: "report", sms: "sms", email1: "email", email2: "email" };
+  var TAB_OF = { note: "note", task: "task", report: "report", sms: "sms", email1: "email", email2: "email",
+                 emailSubject: "email", emailKeep: "email", emailCs: "email" };
   function tabCards() { return Array.prototype.slice.call(document.querySelectorAll(".out [data-tab]")); }
   function tabApplies(card) { return !card.hidden && (card.dataset.tab !== "report" || $("reportNA").hidden); }
   function renderOutTabs() {
@@ -9491,6 +9564,13 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
       setOut("email1", N.buildEmail(d, 1));
       if (!one) { setOut("email2", N.buildEmail(d, 2)); }
       fitHeight($("email1")); if (!one) { fitHeight($("email2")); }
+      /* Obamacare: el asunto y lo que se escribía a mano en la plantilla de Zoho */
+      ["emailSubject", "emailKeep", "emailCs"].forEach(function (k) {
+        var text = one ? "" : N.buildEmail(d, { emailSubject: "subject", emailKeep: "keep", emailCs: "cs" }[k]);
+        $(k + "Part").hidden = !text;
+        setOut(k, text);
+        fitHeight($(k));
+      });
     }
     /* abrir el SMS en el teléfono y el email en el correo, si hay número o email */
     $("smsOpen").hidden = noSms || !N.smsLink(S.f.clienteTel, "x");
@@ -10352,7 +10432,8 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
   /* ------------------------------------------------- copiar siguiente --
      Nota, task, reporte, SMS y email, en orden, sin lo que la situación no
      muestra ni lo que está vacío. Vuelve a empezar cuando cambia un campo. */
-  var COPY_LABEL = { note: "Nota", task: "Task", report: "Reporte", sms: "SMS", email1: "Email", email2: "Email 2" };
+  var COPY_LABEL = { note: "Nota", task: "Task", report: "Reporte", sms: "SMS", email1: "Email", email2: "Email 2",
+                     emailSubject: "Asunto", emailKeep: "Tener en cuenta", emailCs: "Customer Service" };
   function copyList() { return N.copyOrder(data()).filter(function (k) { return $(OUT[k]).value.trim(); }); }
   function copyLabel(k, list) { return k === "email1" && list.indexOf("email2") >= 0 ? "Email 1" : COPY_LABEL[k]; }
   function nextLabel() {
@@ -11427,11 +11508,24 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
       window.requestAnimationFrame(function () { ticking = false; markRail(); });
     }, { passive: true });
 
+    /* una salida que se midió sin su ancho real (al pasar de la pantalla de
+       inicio al formulario) queda altísima: se vuelve a ajustar cuando cambia
+       su ancho */
+    if ("ResizeObserver" in window) {
+      var widths = new WeakMap();
+      var refit = new ResizeObserver(function (entries) {
+        entries.forEach(function (en) {
+          var w = Math.round(en.contentRect.width);
+          if (w && widths.get(en.target) !== w) { widths.set(en.target, w); fitHeight(en.target); }
+        });
+      });
+      Object.keys(OUT).forEach(function (key) { refit.observe($(OUT[key])); });
+    }
     /* salidas editables */
     Object.keys(OUT).forEach(function (key) {
       $(OUT[key]).addEventListener("input", function () {
         /* el task y el reporte son de una sola línea aunque se muestren en dos */
-        if ((key === "task" || key === "report") && /\n/.test(this.value)) { this.value = this.value.replace(/\s*\n\s*/g, " "); }
+        if ((key === "task" || key === "report" || key === "emailSubject" || key === "emailCs") && /\n/.test(this.value)) { this.value = this.value.replace(/\s*\n\s*/g, " "); }
         S.edited[key] = this.value !== generated[key];
         refresh();
       });
@@ -11443,6 +11537,9 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
     $("copySms").addEventListener("click", function () { copyOut("sms", this); });
     $("copyEmail1").addEventListener("click", function () { copyOut("email1", this); });
     $("copyEmail2").addEventListener("click", function () { copyOut("email2", this); });
+    $("copyEmailSubject").addEventListener("click", function () { copyOut("emailSubject", this); });
+    $("copyEmailKeep").addEventListener("click", function () { copyOut("emailKeep", this); });
+    $("copyEmailCs").addEventListener("click", function () { copyOut("emailCs", this); });
     each(document.querySelectorAll("[data-lang-seg]"), function (seg) {
       fillSeg(seg, [{ v: "es", l: "Español" }, { v: "en", l: "English" }]);
       seg.addEventListener("click", function (e) {
@@ -11450,6 +11547,7 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
         if (!b || S.f.idioma === b.dataset.v) { return; }
         S.f.idioma = b.dataset.v;
         S.edited.sms = false; S.edited.email1 = false; S.edited.email2 = false;
+        S.edited.emailSubject = false; S.edited.emailKeep = false; S.edited.emailCs = false;
         refresh();
       });
     });

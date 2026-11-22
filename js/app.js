@@ -89,7 +89,7 @@
     return { periodoMC: aep ? "AEP" : (maOep ? "OEP" : "SEP"), periodo: oep ? "OEP" : "SEP" };
   }
 
-  function freshEdited() { return { note: false, task: false, report: false, sms: false, email1: false, email2: false }; }
+  function freshEdited() { return { note: false, task: false, report: false, sms: false, email1: false, email2: false, emailSubject: false, emailKeep: false, emailCs: false }; }
 
   function freshFields() {
     var season = seasonDefaults();
@@ -1736,8 +1736,9 @@
     box.style.height = (box.scrollHeight + 2) + "px";
   }
 
-  var OUT = { note: "note", task: "task", report: "report", sms: "sms", email1: "email1", email2: "email2" };
-  var generated = { note: "", task: "", report: "", sms: "", email1: "", email2: "" };
+  var OUT = { note: "note", task: "task", report: "report", sms: "sms", email1: "email1", email2: "email2",
+              emailSubject: "emailSubject", emailKeep: "emailKeep", emailCs: "emailCs" };
+  var generated = { note: "", task: "", report: "", sms: "", email1: "", email2: "", emailSubject: "", emailKeep: "", emailCs: "" };
 
   function setOut(key, text) {
     generated[key] = text;
@@ -1777,7 +1778,8 @@
      task siempre; el reporte si se reporta; el SMS y el email si los hay. */
   var outTab = "note";
   var TAB_LABEL = { note: "Nota", task: "Task", report: "Reporte", sms: "SMS", email: "Email" };
-  var TAB_OF = { note: "note", task: "task", report: "report", sms: "sms", email1: "email", email2: "email" };
+  var TAB_OF = { note: "note", task: "task", report: "report", sms: "sms", email1: "email", email2: "email",
+                 emailSubject: "email", emailKeep: "email", emailCs: "email" };
   function tabCards() { return Array.prototype.slice.call(document.querySelectorAll(".out [data-tab]")); }
   function tabApplies(card) { return !card.hidden && (card.dataset.tab !== "report" || $("reportNA").hidden); }
   function renderOutTabs() {
@@ -1860,6 +1862,13 @@
       setOut("email1", N.buildEmail(d, 1));
       if (!one) { setOut("email2", N.buildEmail(d, 2)); }
       fitHeight($("email1")); if (!one) { fitHeight($("email2")); }
+      /* Obamacare: el asunto y lo que se escribía a mano en la plantilla de Zoho */
+      ["emailSubject", "emailKeep", "emailCs"].forEach(function (k) {
+        var text = one ? "" : N.buildEmail(d, { emailSubject: "subject", emailKeep: "keep", emailCs: "cs" }[k]);
+        $(k + "Part").hidden = !text;
+        setOut(k, text);
+        fitHeight($(k));
+      });
     }
     /* abrir el SMS en el teléfono y el email en el correo, si hay número o email */
     $("smsOpen").hidden = noSms || !N.smsLink(S.f.clienteTel, "x");
@@ -2721,7 +2730,8 @@
   /* ------------------------------------------------- copiar siguiente --
      Nota, task, reporte, SMS y email, en orden, sin lo que la situación no
      muestra ni lo que está vacío. Vuelve a empezar cuando cambia un campo. */
-  var COPY_LABEL = { note: "Nota", task: "Task", report: "Reporte", sms: "SMS", email1: "Email", email2: "Email 2" };
+  var COPY_LABEL = { note: "Nota", task: "Task", report: "Reporte", sms: "SMS", email1: "Email", email2: "Email 2",
+                     emailSubject: "Asunto", emailKeep: "Tener en cuenta", emailCs: "Customer Service" };
   function copyList() { return N.copyOrder(data()).filter(function (k) { return $(OUT[k]).value.trim(); }); }
   function copyLabel(k, list) { return k === "email1" && list.indexOf("email2") >= 0 ? "Email 1" : COPY_LABEL[k]; }
   function nextLabel() {
@@ -3796,11 +3806,24 @@
       window.requestAnimationFrame(function () { ticking = false; markRail(); });
     }, { passive: true });
 
+    /* una salida que se midió sin su ancho real (al pasar de la pantalla de
+       inicio al formulario) queda altísima: se vuelve a ajustar cuando cambia
+       su ancho */
+    if ("ResizeObserver" in window) {
+      var widths = new WeakMap();
+      var refit = new ResizeObserver(function (entries) {
+        entries.forEach(function (en) {
+          var w = Math.round(en.contentRect.width);
+          if (w && widths.get(en.target) !== w) { widths.set(en.target, w); fitHeight(en.target); }
+        });
+      });
+      Object.keys(OUT).forEach(function (key) { refit.observe($(OUT[key])); });
+    }
     /* salidas editables */
     Object.keys(OUT).forEach(function (key) {
       $(OUT[key]).addEventListener("input", function () {
         /* el task y el reporte son de una sola línea aunque se muestren en dos */
-        if ((key === "task" || key === "report") && /\n/.test(this.value)) { this.value = this.value.replace(/\s*\n\s*/g, " "); }
+        if ((key === "task" || key === "report" || key === "emailSubject" || key === "emailCs") && /\n/.test(this.value)) { this.value = this.value.replace(/\s*\n\s*/g, " "); }
         S.edited[key] = this.value !== generated[key];
         refresh();
       });
@@ -3812,6 +3835,9 @@
     $("copySms").addEventListener("click", function () { copyOut("sms", this); });
     $("copyEmail1").addEventListener("click", function () { copyOut("email1", this); });
     $("copyEmail2").addEventListener("click", function () { copyOut("email2", this); });
+    $("copyEmailSubject").addEventListener("click", function () { copyOut("emailSubject", this); });
+    $("copyEmailKeep").addEventListener("click", function () { copyOut("emailKeep", this); });
+    $("copyEmailCs").addEventListener("click", function () { copyOut("emailCs", this); });
     each(document.querySelectorAll("[data-lang-seg]"), function (seg) {
       fillSeg(seg, [{ v: "es", l: "Español" }, { v: "en", l: "English" }]);
       seg.addEventListener("click", function (e) {
@@ -3819,6 +3845,7 @@
         if (!b || S.f.idioma === b.dataset.v) { return; }
         S.f.idioma = b.dataset.v;
         S.edited.sms = false; S.edited.email1 = false; S.edited.email2 = false;
+        S.edited.emailSubject = false; S.edited.emailKeep = false; S.edited.emailCs = false;
         refresh();
       });
     });

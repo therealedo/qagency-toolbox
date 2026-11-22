@@ -1103,6 +1103,9 @@
     if (d.line === "supp") { return part === 1 ? emailSupp(d) : ""; }
     if (d.line !== "oc") { return ""; }
     var en = d.idioma === "en", lines = [];
+    if (part === "subject") { return emailSubject(d, en); }
+    if (part === "keep") { return emailKeep(d, en); }
+    if (part === "cs") { return carrierTel(d); }
     if (part === 1) {
       var y = val(d.anio), carrier = carrierName("oc", d.compania), plan = val(d.plan);
       var ef = U.parseDate(d.efectiva), pay = U.parseMoney(d.prima);
@@ -1141,6 +1144,36 @@
     lines.push(en ? "Best Regards," : "Saludos");
     if (val(d.firmaNombre)) { lines.push(U.titleCase(d.firmaNombre)); }
     return lines.join("\n");
+  }
+
+  /* La plantilla de Zoho del email de Obamacare ya trae el título «Favor
+     tener en cuenta» y la franja de Customer Service: el agente solo pega el
+     asunto, las dos líneas con la fecha, el teléfono y la compañía, y el
+     teléfono de la franja. Un cambio de vida es ACTUALIZACION; una
+     inscripción nueva o una renovación, APLICACION. */
+  function emailSubject(d, en) {
+    var y = /^\d{4}$/.test(val(d.anio)) ? val(d.anio) : (U.parseDate(d.efectiva) || U.today()).split("/")[2];
+    var kind = d.gestion === "cambio" ? (en ? "UPDATE" : "ACTUALIZACION") : (en ? "APPLICATION" : "APLICACION");
+    return "LE: " + kind + " - OBAMACARE " + y;
+  }
+  function emailKeep(d, en) {
+    var ef = U.parseDate(d.efectiva) || "MM/DD/YYYY", tel = carrierTel(d) || "...........";
+    var carrier = upper(carrierName("oc", d.compania)) || "LA COMPAÑÍA";
+    return en ? [
+      "If you have a monthly premium payment, please make sure you make your first payment before " + ef + " by calling " + tel,
+      "In case you have not received your Insurance cards by your effective date, you need to contact " + carrier + " to verify your card's delivery status."
+    ].join("\n") : [
+      "Si su plan tiene prima a pagar, favor hacer el pago de la prima antes del " + ef + " llamando a " + tel,
+      "En caso de no recibir sus tarjetas a la fecha de inicio de la cobertura, debera comunicarse con " + carrier + " para revisar el estatus del envío."
+    ].join("\n");
+  }
+  /* El teléfono de Customer Service de la compañía del caso. Florida Blue
+     solo tiene el de Florida: con una dirección de otro estado no se sabe. */
+  function carrierTel(d) {
+    var e = carrierEntry("oc", val(d.compania));
+    if (!e || !e.tel) { return ""; }
+    var st = upper(d.direccion).match(/\b([A-Z]{2})\s+\d{5}(?:-\d{4})?\b/);
+    return e.name === "FLORIDA BLUE" && st && st[1] !== "FL" ? "" : e.tel;
   }
 
   /* Email con la cotización de Obamacare cuando el cliente revisará los
@@ -1323,6 +1356,9 @@
       var hd = parseInt(d.hogarDoc, 10);
       if (hd && hd !== enTaxes(d).length) { w.push("Hogar: el documento indica " + hd + " en los taxes y la lista tiene " + enTaxes(d).length + "."); }
     }
+    if (d.line === "oc" && O.id === "enviada" && val(d.compania) && !carrierTel(d)) {
+      w.push("Email: falta el teléfono de la compañía (" + carrierName("oc", d.compania) + "): escríbelo a mano en la plantilla, en Tener en cuenta y en Customer Service.");
+    }
     if (d.line === "oc" && O.id === "cancelada" && !val(d.motivoCancel)) { w.push("Falta el motivo de la cancelación."); }
     if (d.line === "oc" && O.id === "cancelada" && d.tipoCancel === "terminated" && !U.parseDate(d.fechaTermino)) {
       w.push("Falta la fecha de terminación de la cobertura (va en el nombre del archivo).");
@@ -1342,7 +1378,12 @@
     var O = outcomeOf(d), list = ["note", "task"];
     if (O.report) { list.push("report"); }
     if (!O.noSms) { list.push("sms"); }
+    /* el email de Obamacare en el orden de la plantilla: asunto, parte 1,
+       Tener en cuenta, Customer Service y parte 2 */
+    if (buildEmail(d, "subject")) { list.push("emailSubject"); }
     if (buildEmail(d, 1)) { list.push("email1"); }
+    if (buildEmail(d, "keep")) { list.push("emailKeep"); }
+    if (buildEmail(d, "cs")) { list.push("emailCs"); }
     if (buildEmail(d, 2)) { list.push("email2"); }
     return list;
   }

@@ -702,6 +702,10 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
 .out-sub h3 { font-size: 13px; font-weight: 600; color: var(--ink-2); margin: 0 auto 0 0; }
 .email-box { min-height: 92px; line-height: 1.55; background: var(--inset); border-color: var(--line); resize: none; overflow: hidden; }
 .email-box:focus { background: var(--field); }
+/* asunto y Customer Service: una línea; Tener en cuenta: dos */
+.email-box.email-line { min-height: 0; }
+.out-hint { font-size: 12px; margin-right: auto; }
+.out-sub h3:has(+ .out-hint) { margin-right: 0; }
 .people-hint { margin: 6px 0 0; }
 
 /* Consent y SOA para firmar: valores, descarga, texto de Cliq y enlace de firma */
