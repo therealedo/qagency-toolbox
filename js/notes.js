@@ -726,8 +726,11 @@
       return { variant: m[1] || "", year: yearIn(rest) || yearIn(it.name) || yearIn(it.path), it: it };
     }).filter(Boolean);
     if (!all.length && val(d.plan)) {
-      var want = plainName(d.plan);
-      all = files.filter(function (it) { return plainName(it.name) === want; })
+      /* el nombre del plan, o su código al final ("myBlue Bronze (HSA) 2129"
+         en FB/2027/HMO/2129.pdf); una palabra sin números no es un código */
+      var code = val(d.plan).split(/\s+/).pop().replace(/[()]/g, "");
+      var wants = [plainName(d.plan)].concat(/\d/.test(code) ? [plainName(code)] : []);
+      all = files.filter(function (it) { return wants.indexOf(plainName(it.name)) >= 0; })
         .map(function (it) { return { variant: "", year: yearIn(it.name) || yearIn(it.path), byName: true, it: it }; });
     }
     var year = String(planYearOf(d));
