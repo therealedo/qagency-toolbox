@@ -235,7 +235,7 @@ The plan's **Summary of Benefits** comes from its own folder, chosen in **Ajuste
 
 ### Copying faster
 
-- **Copiar siguiente** (at the top of the right column, or Ctrl + Shift + Enter) copies the note, then the task, the report, the SMS and the email, skipping what the situation does not show, and moves to the tab of what it copied. It starts over with the note when a field changes.
+- **Copiar siguiente** (at the top of the right column, or Ctrl + Shift + Enter) copies the note, then the task, the report, the email and, last, the SMS (it tells the client to check the email, so it goes once the email is out), skipping what the situation does not show, and moves to the tab of what it copied. It starts over with the note when a field changes.
 - **Ventana flotante** opens a small window that stays on top of Zoho, with the client's name and the same copy buttons (Chrome and Edge).
 - **Abrir en el teléfono** and **Abrir en el correo** open the SMS or the email with the text ready, when the titular's phone or email is filled in.
 
