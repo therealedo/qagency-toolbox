@@ -20,6 +20,35 @@ const data = P.loadLayouts();
 const byKey = Object.fromEntries(data.templates.map((t) => [t.key, t]));
 const flat = (v) => [].concat(v).flatMap((x) => (Array.isArray(x) ? x : [x]));
 
+/* runs the command line in a scratch folder; nothing here reaches the relay */
+function cli(args) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "qa-plt-"));
+  try {
+    const r = spawnSync(process.execPath, [path.join(ROOT, "tools", "docuseal", "plantillas.js")].concat(args),
+      { cwd: dir, encoding: "utf8", env: Object.assign({}, process.env, { PATH: "" }) });
+    return { status: r.status, out: r.stdout + r.stderr, files: fs.readdirSync(dir, { recursive: true }).sort() };
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+test("la linea de comandos no sigue con una opcion que no conoce", () => {
+  /* a typo like --prefix would otherwise run aplicar on the real templates */
+  for (const args of [["aplicar", "--prefix", "prueba-"], ["exportar", "--prefijos", "x"], ["aplicar", "prueba-"],
+    ["pdfs", "--prefix", "prueba-"], ["pdfs", "carpeta", "otra"], ["aplicar", "--prefijo", "prueba-", "-x"]]) {
+    const r = cli(args);
+    assert.equal(r.status, 1, args.join(" ") + ": " + r.out);
+    assert.match(r.out, /Error: no se entiende ".+"\. Uso: node tools\/docuseal\/plantillas\.js pdfs <carpeta> \| aplicar \| exportar {2}\[--prefijo X\]/, args.join(" "));
+    assert.deepEqual(r.files, [], args.join(" "));
+  }
+  assert.match(cli(["aplicar", "--prefijo"]).out, /Error: prefijo invalido/);
+  /* what it knows still works as before */
+  const ok = cli(["pdfs", "salida", "--prefijo", "prueba-"]);
+  assert.equal(ok.status, 0, ok.out);
+  assert.deepEqual(ok.files.filter((f) => f.endsWith(".pdf")), data.templates.map((t) => path.join("salida", "prueba-" + t.key + ".pdf")).sort());
+  assert.equal(cli([]).status, 2);
+});
+
 function counter() { let n = 0; return () => "id-" + (++n); }
 function uploaded(id, name, sha) {
   /* una plantilla recien subida: un firmante por defecto y los campos que

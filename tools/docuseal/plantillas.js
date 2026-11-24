@@ -222,12 +222,20 @@ function relayOverSsh() {
   return relay(child, code);
 }
 
+const USAGE = "Uso: node tools/docuseal/plantillas.js pdfs <carpeta> | aplicar | exportar  [--prefijo X]";
+
 async function main(argv) {
   const args = argv.slice();
   const cmd = args.shift();
   let prefix = "";
   const p = args.indexOf("--prefijo");
   if (p >= 0) { prefix = args[p + 1] || ""; args.splice(p, 2); if (!/^[A-Za-z0-9_-]{1,40}$/.test(prefix)) { throw new Error("prefijo invalido"); } }
+  /* anything else it does not know stops here, before any file or the server:
+     a typo like --prefix must not run aplicar on the real templates */
+  const extra = cmd === "pdfs" ? args.filter((a, i) => i > 0 || a.startsWith("-")) : args;
+  if ((cmd === "pdfs" || cmd === "aplicar" || cmd === "exportar") && extra.length) {
+    throw new Error("no se entiende \"" + extra[0] + "\". " + USAGE);
+  }
   const data = loadLayouts();
   if (cmd === "pdfs") {
     const dir = path.resolve(args[0] || "plantillas-pdf");
@@ -241,7 +249,7 @@ async function main(argv) {
     return 0;
   }
   if (cmd !== "aplicar" && cmd !== "exportar") {
-    console.log("Uso: node tools/docuseal/plantillas.js pdfs <carpeta> | aplicar | exportar  [--prefijo X]");
+    console.log(USAGE);
     return 2;
   }
   const r = relayOverSsh();

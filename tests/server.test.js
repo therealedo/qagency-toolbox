@@ -239,6 +239,10 @@ test("si el dominio no apunta solo a este servidor, el script para antes de toca
       assert.ok(r.out.includes("ALTO: firmas.ejemplo.com no apunta solo a este servidor (" + c.visto + ")."), r.out);
       assert.ok(r.out.includes("deje un solo registro A: firmas.ejemplo.com -> 34.1.2.3"), r.out);
       assert.ok(r.out.includes("bash crear-servidor.sh --sin-dominio"), r.out);
+      /* a lookup can fail for a moment: retry comes first, and the cost of going back is said */
+      assert.ok(r.out.includes("Si el registro ya esta bien, espere unos minutos y vuelva a correr el script."), r.out);
+      assert.ok(r.out.includes("los enlaces ya enviados con " + "firmas.ejemplo.com dejan de funcionar"), r.out);
+      assert.ok(r.out.indexOf("vuelva a correr") < r.out.indexOf("--sin-dominio"), r.out);
     }
   }
   /* the same address twice (one per socket type) is one record */

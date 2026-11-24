@@ -87,8 +87,10 @@ if [ -n "$DOMINIO" ]; then
     echo
     echo "ALTO: $DOMINIO no apunta solo a este servidor (${DNS:-sin registro})."
     echo "En el DNS del dominio, deje un solo registro A: $DOMINIO -> $IP"
-    echo "Espere unos minutos despues del cambio y vuelva a correr el script."
-    echo "Para volver al nombre de la IP: bash crear-servidor.sh --sin-dominio"
+    echo "Si el registro ya esta bien, espere unos minutos y vuelva a correr el script."
+    echo "(La consulta al DNS puede fallar un momento.)"
+    echo "Solo si el dominio ya no se usa: bash crear-servidor.sh --sin-dominio"
+    echo "vuelve al nombre de la IP, y los enlaces ya enviados con $DOMINIO dejan de funcionar."
     exit 1
   fi
 fi
