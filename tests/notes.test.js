@@ -1773,3 +1773,33 @@ test("SoB: el archivo se busca por el HIOS ID y el nivel, no por el nombre del p
   assert.equal(N.sobPick(N.sobMatches(["49004FL0010032-06 2027.pdf"], Object.assign({}, d, { planId: "49004FL0010032" })), d), "49004FL0010032-06 2027.pdf");
   assert.deepEqual(N.sobMatches(names, Object.assign({}, d, { planId: "" })), []);
 });
+
+test("SoB: el Plan ID se lee dentro del PDF cuando el archivo se llama como el plan (Ambetter/2027/Clarity Silver.pdf)", () => {
+  assert.deepEqual(N.sobIdsIn("Summary of Benefits and Coverage  SBC-49004FL0010031-05-2027\n87% AV  Clarity Silver"), ["49004FL0010031-05-2027"]);
+  const items = [
+    { name: "Clarity Silver.pdf", path: "Ambetter/2027", ids: ["49004FL0010031-01-2027"] },
+    { name: "Clarity Silver 87.pdf", path: "Ambetter/2027", ids: ["49004FL0010031-05-2027"] },
+    { name: "Clarity Silver 94.pdf", path: "Ambetter/2027", ids: ["49004FL0010031-06"] },
+    { name: "Clarity Silver 94.pdf", path: "Ambetter/2026", ids: ["49004FL0010031-06"] },
+    { name: "Clarity Gold.pdf", path: "Ambetter/2027", ids: ["49004FL0010040-01-2027"] }
+  ];
+  const d = make({ line: "oc", plan: "Clarity Silver", planId: "49004FL0010031", anio: "2027",
+    personas: [{ titular: true, taxes: true, cobertura: true, ingreso: "20000" }] });
+  const m = N.sobMatches(items, d);
+  assert.deepEqual(m.map((x) => x.key), ["Ambetter/2027/Clarity Silver.pdf", "Ambetter/2027/Clarity Silver 87.pdf", "Ambetter/2027/Clarity Silver 94.pdf"]);
+  assert.deepEqual(m.map((x) => x.variant), ["01", "05", "06"]);
+  /* el año sale de la subcarpeta cuando el Plan ID no lo trae */
+  assert.equal(m[2].year, "2027");
+  /* $20,000 para uno es el 125%: -06 */
+  assert.equal(N.sobPick(m, d), "Ambetter/2027/Clarity Silver 94.pdf");
+});
+
+test("SoB: sin Plan ID en ningún archivo, los que se llaman como el plan, marcados y sin elegir solos en una Plata", () => {
+  const items = [{ name: "Clarity Silver.pdf", path: "Ambetter/2027", ids: [] }, { name: "Clarity Gold.pdf", path: "Ambetter/2027", ids: [] }];
+  const d = make({ line: "oc", plan: "Clarity Silver", planId: "49004FL0010031", anio: "2027" });
+  const m = N.sobMatches(items, d);
+  assert.deepEqual(m.map((x) => [x.key, x.label, x.byName]), [["Ambetter/2027/Clarity Silver.pdf", "Por el nombre del plan", true]]);
+  assert.equal(N.sobPick(m, d), "", "una Plata por nombre puede ser de otro nivel: se elige a mano");
+  const gold = Object.assign({}, d, { plan: "Clarity Gold" });
+  assert.equal(N.sobPick(N.sobMatches(items, gold), gold), "Ambetter/2027/Clarity Gold.pdf");
+});

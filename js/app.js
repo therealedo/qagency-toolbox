@@ -1377,8 +1377,8 @@
      comillas, para pegarlos en «Nombre de archivo» al adjuntar. Un grupo por
      carpeta, porque Windows pega los de una carpeta a la vez. El Summary of
      Benefits sale de su propia carpeta (Ajustes), que solo se lee. */
-  var SOB = { dir: null, names: null, where: {}, planId: "", pick: "", busy: false, sig: "" };
-  var SOB_STORE = "sob";
+  var SOB = { dir: null, items: null, planId: "", pick: "", busy: false, sig: "", done: 0, total: 0 };
+  var SOB_STORE = "sob", SOB_INDEX = "sob-index";
   function loadSobDir() {
     renderSobDir();
     if (!canSave) { return; }
@@ -1396,7 +1396,7 @@
   }
   function pickSobDir() {
     return window.showDirectoryPicker({ id: "qa-sob", mode: "read" }).then(function (h) {
-      SOB.dir = h; SOB.names = null; SOB.sig = "";
+      SOB.dir = h; SOB.items = null; SOB.sig = "";
       settings.sobDirName = h.name; saveSettings();
       renderSobDir();
       handleStore("readwrite", function (st) { return st.put(h, SOB_STORE); }).catch(function (e) {
@@ -1406,42 +1406,100 @@
     });
   }
   function clearSobDir() {
-    SOB.dir = null; SOB.names = null; SOB.sig = "";
+    SOB.dir = null; SOB.items = null; SOB.sig = "";
     settings.sobDirName = ""; saveSettings();
     renderSobDir(); renderAttach();
     handleStore("readwrite", function (st) { return st.delete(SOB_STORE); }).catch(function () {});
   }
-  /* los PDF de la carpeta y de sus subcarpetas (dos niveles), con la
-     subcarpeta de cada uno para decir dónde está */
-  function readPdfNames(dir) {
-    var names = [], where = {};
+  /* los PDF de la carpeta y de sus subcarpetas (hasta cuatro niveles, como
+     «Ambetter/2027»), cada uno con su subcarpeta y su archivo */
+  function readPdfFiles(dir) {
+    var out = [];
     function walk(d, path, level) {
       var it = d.values(), subs = [];
       function next() {
         return it.next().then(function (r) {
           if (r.done) { return Promise.all(subs); }
           var h = r.value;
-          if (h.kind === "file" && /\.pdf$/i.test(h.name)) { names.push(h.name); where[h.name] = path; }
-          else if (h.kind === "directory" && level < 2) { subs.push(walk(h, path ? path + "/" + h.name : h.name, level + 1)); }
+          if (h.kind === "file" && /\.pdf$/i.test(h.name)) { out.push({ name: h.name, path: path, handle: h }); }
+          else if (h.kind === "directory" && level < 4) { subs.push(walk(h, path ? path + "/" + h.name : h.name, level + 1)); }
           return next();
         });
       }
       return next();
     }
-    return walk(dir, "", 0).then(function () { return { names: names, where: where }; });
+    return walk(dir, "", 0).then(function () { return out; });
+  }
+  /* el texto de las dos primeras páginas: el Plan ID con su nivel va arriba
+     del Summary of Benefits ("SBC-49004FL0010031-05-2027") */
+  function sobPageText(file) {
+    return file.arrayBuffer().then(function (buf) {
+      return window.pdfjsLib.getDocument({ data: new Uint8Array(buf), isEvalSupported: false, disableFontFace: true }).promise;
+    }).then(function (pdf) {
+      var pages = [];
+      for (var i = 1; i <= Math.min(pdf.numPages, 2); i++) { pages.push(pdf.getPage(i).then(function (pg) { return pg.getTextContent(); })); }
+      return Promise.all(pages).then(function (cs) {
+        pdf.destroy();
+        /* separado y pegado: un Plan ID puede venir partido en varios trozos */
+        return cs.map(function (c) {
+          var strs = c.items.map(function (x) { return x.str; });
+          return strs.join(" ") + "\n" + strs.join("");
+        }).join("\n");
+      });
+    });
+  }
+  /* Lee dentro de cada PDF los Plan ID, uno por uno, y los recuerda (por
+     subcarpeta, nombre, tamaño y fecha): la segunda vez solo se leen los
+     archivos nuevos o cambiados. Un archivo con el Plan ID en el nombre no
+     hace falta abrirlo. */
+  function indexSob(files) {
+    var cache = {}, fresh = {}, changed = false;
+    SOB.done = 0; SOB.total = files.length;
+    return handleStore("readonly", function (st) { return st.get(SOB_INDEX); }).then(function (req) {
+      if (req && req.result && typeof req.result === "object") { cache = req.result; }
+    }).catch(function () {}).then(function () {
+      return files.reduce(function (p, f) {
+        return p.then(function () {
+          var key = (f.path ? f.path + "/" : "") + f.name;
+          return f.handle.getFile().then(function (file) {
+            var c = cache[key];
+            if (c && c.size === file.size && c.mod === file.lastModified) { return c.ids; }
+            changed = true;
+            if (N.sobIdsIn(f.name).length || !window.pdfjsLib) { return []; }
+            return sobPageText(file).then(N.sobIdsIn, function () { return []; }).then(function (ids) {
+              fresh[key] = { size: file.size, mod: file.lastModified, ids: ids };
+              return ids;
+            });
+          }).then(function (ids) {
+            if (cache[key] && !fresh[key]) { fresh[key] = cache[key]; }
+            f.ids = ids || [];
+          }, function () { f.ids = []; }).then(function () {
+            SOB.done++;
+            if (SOB.done % 5 === 0) { renderAttach(); }
+          });
+        });
+      }, Promise.resolve());
+    }).then(function () {
+      /* lo que ya no está en la carpeta se olvida */
+      if (changed || Object.keys(cache).length !== Object.keys(fresh).length) {
+        handleStore("readwrite", function (st) { return st.put(fresh, SOB_INDEX); }).catch(function () {});
+      }
+      return files.map(function (f) { return { name: f.name, path: f.path, ids: f.ids }; });
+    });
   }
   /* leer la carpeta pide permiso la primera vez en la sesión (con un clic) */
   function listSob(ask) {
     var dir = SOB.dir;
     if (!dir || SOB.busy) { return Promise.resolve(); }
-    SOB.busy = true;
+    SOB.busy = true; SOB.done = 0; SOB.total = 0;
+    renderAttach();
     return dir.queryPermission({ mode: "read" }).then(function (p) {
       return p === "granted" || !ask ? p : dir.requestPermission({ mode: "read" });
     }).then(function (p) {
       if (p !== "granted") { return; }
-      return readPdfNames(dir).then(function (r) { SOB.names = r.names; SOB.where = r.where; });
+      return readPdfFiles(dir).then(indexSob).then(function (items) { SOB.items = items; });
     }).catch(function () {
-      SOB.names = null;
+      SOB.items = null;
       if (ask) { toast("No se pudo leer la carpeta de Summary of Benefits. Elígela otra vez en Ajustes."); }
     }).then(function () { SOB.busy = false; SOB.sig = ""; renderAttach(); });
   }
@@ -1463,13 +1521,13 @@
     var d = data(), groups = attachGroups(d), hios = N.planHios(d);
     var planId = hios ? hios.id + (hios.variant ? "-" + hios.variant : "") : "";
     if (planId !== SOB.planId) { SOB.planId = planId; SOB.pick = ""; }
-    var matches = hios && SOB.names ? N.sobMatches(SOB.names, d) : [];
+    var matches = hios && SOB.items ? N.sobMatches(SOB.items, d) : [];
     var suggest = N.csrSuggest(d);
-    if (SOB.pick && !matches.some(function (m) { return m.name === SOB.pick; })) { SOB.pick = ""; }
+    if (SOB.pick && !matches.some(function (m) { return m.key === SOB.pick; })) { SOB.pick = ""; }
     var pick = SOB.pick || N.sobPick(matches, d);
     /* se rehace solo si cambió algo: así no se cierra la lista mientras se elige */
     var sig = JSON.stringify([groups.map(function (g) { return [g.key, g.dir && g.dir.name, g.files.map(function (f) { return f.name; })]; }),
-      planId, !!SOB.dir, SOB.names && SOB.names.length, SOB.busy, matches.map(function (m) { return m.name; }), pick, suggest, canSave]);
+      planId, !!SOB.dir, SOB.items && SOB.items.length, SOB.busy, SOB.done, matches.map(function (m) { return m.key; }), pick, suggest, canSave]);
     if (sig === SOB.sig) { return; }
     SOB.sig = sig;
     box.textContent = "";
@@ -1498,8 +1556,9 @@
       srow.appendChild(el("span", "muted", "Summary of Benefits: este navegador no puede leer carpetas. Usa Chrome o Edge."));
     } else if (!SOB.dir) {
       srow.appendChild(el("span", "muted", "Summary of Benefits: elige su carpeta en Ajustes › Carpetas."));
-    } else if (!SOB.names) {
-      var find = el("button", "btn small", SOB.busy ? "Buscando…" : "Buscar el Summary of Benefits");
+    } else if (!SOB.items) {
+      var find = el("button", "btn small", !SOB.busy ? "Buscar el Summary of Benefits"
+        : SOB.total ? "Leyendo " + SOB.done + " de " + SOB.total + "…" : "Buscando…");
       find.type = "button"; find.dataset.attach = "sob-list"; find.disabled = SOB.busy;
       srow.appendChild(find);
       srow.appendChild(el("span", "muted", "Plan ID " + planId + " en «" + (SOB.dir.name || "la carpeta") + "»"));
@@ -1511,8 +1570,8 @@
       var sel = el("select"); sel.id = "attachSob"; sel.setAttribute("aria-label", "Summary of Benefits del plan");
       if (!pick) { var none = el("option", null, "Elige el nivel"); none.value = ""; sel.appendChild(none); }
       matches.forEach(function (m) {
-        var o = el("option", null, m.label + (m.variant && m.variant === suggest && matches.length > 1 ? " (sugerido)" : "") + " · " + m.name);
-        o.value = m.name; sel.appendChild(o);
+        var o = el("option", null, m.label + (m.variant && m.variant === suggest && matches.length > 1 ? " (sugerido)" : "") + " · " + m.key);
+        o.value = m.key; sel.appendChild(o);
       });
       sel.value = pick;
       srow.appendChild(sel);
@@ -1520,7 +1579,11 @@
       cp.disabled = !pick;
       srow.appendChild(cp);
       var notes = [];
-      if (pick && SOB.where[pick]) { notes.push("Está en la subcarpeta «" + SOB.where[pick] + "»."); }
+      var chosen = matches.filter(function (m) { return m.key === pick; })[0];
+      if (chosen && chosen.path) { notes.push("Está en la subcarpeta «" + chosen.path + "»: ábrela en la ventana de adjuntar antes de pegar."); }
+      if (matches.some(function (m) { return m.byName; })) {
+        notes.push("Ningún archivo trae el Plan ID " + planId + ": se buscó por el nombre del plan, que no dice el nivel de CSR. Ábrelo y revisa el % AV antes de copiar.");
+      }
       if (matches.length > 1 && !hios.variant && !SOB.pick) {
         notes.push(suggest && suggest !== "01" ? "Sugerido por el ingreso del hogar frente a la línea de pobreza: revísalo con la Eligibility antes de copiar."
           : suggest === "01" ? "Por el ingreso no le toca CSR: revísalo con la Eligibility antes de copiar."
@@ -1538,10 +1601,11 @@
         var g = attachGroups(data())[+b.dataset.attachGroup];
         if (g) { copyText(N.quotedNames(g.files.map(function (f) { return f.name; })), function () { flashButton(b); }); }
       } else if (b.dataset.attach === "sob-list") {
-        SOB.names = null; listSob(true);
+        SOB.items = null; listSob(true);
       } else if (b.dataset.attach === "sob-copy") {
-        var name = ($("attachSob") || {}).value;
-        if (name) { copyText("\"" + name + "\"", function () { flashButton(b); }); }
+        var key = ($("attachSob") || {}).value;
+        var hit = (SOB.items ? N.sobMatches(SOB.items, data()) : []).filter(function (m) { return m.key === key; })[0];
+        if (hit) { copyText("\"" + hit.name + "\"", function () { flashButton(b); }); }
       }
     });
     $("attachBox").addEventListener("change", function (e) {
