@@ -1,9 +1,10 @@
 {
-  "about": "The six DocuSeal templates of the toolbox, exported from the signing server. Each one uses the PDF in vendor/forms with the same key. Fields: name, type, signer (role), settings and areas (page from 0; x, y, w, h as fractions of the page). No client data. tools/docuseal/plantillas.js turns them into DocuSeal API requests.",
+  "about": "The six DocuSeal templates of the toolbox, exported from the signing server. Each one uses the PDF in vendor/forms with the same key (sha256 checks it). Fields: name, type, signer (role), settings and areas (page from 0; x, y, w, h as fractions of the page). No client data. tools/docuseal/plantillas.js puts them on a DocuSeal server and exports them back.",
   "templates": [
     {
       "key": "consent-qa-es",
       "label": "Consent QAgency Español",
+      "sha256": "8a17532d31604917b939abca43069c4ec8406a4bc16fa746ffa40becff441a53",
       "roles": ["Cliente"],
       "fields": [
         {"name":"Fecha","type":"text","required":false,"role":"Cliente","preferences":{"align":"left"},"areas":[{"page":0,"x":0.11549,"y":0.080758,"w":0.370392,"h":0.017424},{"page":1,"x":0.601123,"y":0.922003,"w":0.256257,"h":0.031011}]},
@@ -26,6 +27,7 @@
     {
       "key": "consent-qa-en",
       "label": "Consent QAgency English",
+      "sha256": "4500221048ed8805d7cf197b6c0c3a9c80d4c9601078e68580f0b32196408888",
       "roles": ["Cliente"],
       "fields": [
         {"name":"Ms","type":"text","required":false,"role":"Cliente","preferences":{"align":"left"},"areas":[{"page":0,"x":0.182941,"y":0.136212,"w":0.419216,"h":0.017424}]},
@@ -49,6 +51,7 @@
     {
       "key": "consent-ath-es",
       "label": "Consent ATH Español",
+      "sha256": "df7139c97fb7ad988011aa96528993534ff0651979543f830f9654a678aaf393",
       "roles": ["Cliente"],
       "fields": [
         {"name":"Fecha","type":"text","required":false,"role":"Cliente","preferences":{"align":"left"},"areas":[{"page":0,"x":0.114793,"y":0.076986,"w":0.370392,"h":0.020657},{"page":1,"x":0.602185,"y":0.924177,"w":0.245098,"h":0.027778}]},
@@ -71,6 +74,7 @@
     {
       "key": "consent-ath-en",
       "label": "Consent ATH English",
+      "sha256": "eb27f9b87f5ca8c9a2616e7c6da25256009d1ee02cf416f11262adae9af00c1c",
       "roles": ["Cliente"],
       "fields": [
         {"name":"Firma","type":"signature","required":true,"role":"Cliente","preferences":{"align":"left"},"areas":[{"page":0,"x":0.376167,"y":0.948876,"w":0.25902,"h":0.030357}]},
@@ -94,6 +98,7 @@
     {
       "key": "soa-es",
       "label": "SOA Español",
+      "sha256": "43b6445aa6782a9d5bd1896244b96e068803f1dd49ba3d6b30cdfc34e7b49be4",
       "roles": ["Cliente","Agente"],
       "fields": [
         {"name":"Firma del solicitantemiembrorepresentante autorizado","type":"signature","required":true,"title":"Firma del beneficiario o representante autorizado","role":"Cliente","preferences":{"align":"left"},"areas":[{"page":0,"x":0.107048,"y":0.48637,"w":0.586857,"h":0.02237}]},
@@ -117,6 +122,7 @@
     {
       "key": "soa-en",
       "label": "SOA English",
+      "sha256": "e9e7cb9f1a16d1d976898664f362ac2d0499729a3e5d9b06ea6ec4f67739b085",
       "roles": ["Cliente","Agente"],
       "fields": [
         {"name":"Signature","type":"signature","required":true,"role":"Cliente","areas":[{"page":0,"x":0.107317,"y":0.466422,"w":0.582439,"h":0.026749}]},
