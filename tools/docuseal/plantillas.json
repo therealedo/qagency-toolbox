@@ -1,0 +1,141 @@
+{
+  "about": "The six DocuSeal templates of the toolbox, exported from the signing server. Each one uses the PDF in vendor/forms with the same key. Fields: name, type, signer (role), settings and areas (page from 0; x, y, w, h as fractions of the page). No client data. tools/docuseal/plantillas.js turns them into DocuSeal API requests.",
+  "templates": [
+    {
+      "key": "consent-qa-es",
+      "label": "Consent QAgency Español",
+      "roles": ["Cliente"],
+      "fields": [
+        {"name":"Fecha","type":"text","required":false,"role":"Cliente","preferences":{"align":"left"},"areas":[{"page":0,"x":0.11549,"y":0.080758,"w":0.370392,"h":0.017424},{"page":1,"x":0.601123,"y":0.922003,"w":0.256257,"h":0.031011}]},
+        {"name":"Yo SrSra","type":"text","required":false,"description":"Yo, Sr./Sra","role":"Cliente","preferences":{"align":"left"},"areas":[{"page":0,"x":0.146295,"y":0.136212,"w":0.325712,"h":0.017424}]},
+        {"name":"mencionados a connuación en la fecha de","type":"text","required":false,"role":"Cliente","preferences":{"align":"left"},"areas":[{"page":0,"x":0.407255,"y":0.155,"w":0.29743,"h":0.017121}]},
+        {"name":"Agentes yo Endades","type":"text","required":false,"description":"Agentes y/o Endades","role":"Cliente","preferences":{"align":"left"},"areas":[{"page":0,"x":0.247255,"y":0.247273,"w":0.370588,"h":0.017424}]},
+        {"name":"NPN","type":"text","required":false,"role":"Cliente","preferences":{"align":"left"},"areas":[{"page":0,"x":0.104118,"y":0.284242,"w":0.370196,"h":0.017424}]},
+        {"name":"Estatus marital","type":"text","required":false,"role":"Cliente","preferences":{"align":"left"},"areas":[{"page":0,"x":0.154614,"y":0.682085,"w":0.370589,"h":0.017424}]},
+        {"name":"Ingreso proyectado anual familiar","type":"text","required":false,"role":"Cliente","preferences":{"align":"left"},"areas":[{"page":0,"x":0.303391,"y":0.700739,"w":0.370588,"h":0.017424}]},
+        {"name":"Candad de personas en su declaración de impuestos 2023","type":"text","required":false,"role":"Cliente","preferences":{"align":"left"},"areas":[{"page":0,"x":0.506724,"y":0.719021,"w":0.370392,"h":0.017424}]},
+        {"name":"Personas con cobertura médica","type":"text","required":false,"role":"Cliente","preferences":{"align":"left"},"areas":[{"page":0,"x":0.286832,"y":0.735299,"w":0.370196,"h":0.018737}]},
+        {"name":"Nombre y Apellido","type":"text","required":false,"role":"Cliente","preferences":{"align":"left"},"areas":[{"page":0,"x":0.037328,"y":0.943851,"w":0.302953,"h":0.031435}]},
+        {"name":"Firma","type":"signature","required":true,"role":"Cliente","preferences":{"align":"left"},"areas":[{"page":0,"x":0.353155,"y":0.948701,"w":0.265296,"h":0.025507}]},
+        {"name":"Fecha de la Firma","type":"text","required":false,"role":"Cliente","preferences":{"align":"left"},"areas":[{"page":0,"x":0.636902,"y":0.94924,"w":0.266691,"h":0.023891}]},
+        {"name":"Firma 2","type":"signature","required":true,"role":"Cliente","areas":[{"page":1,"x":0.590244,"y":0.887015,"w":0.265296,"h":0.025507}]},
+        {"name":"Plan","type":"text","required":false,"role":"Cliente","preferences":{"align":"left"},"areas":[{"page":0,"x":0.161787,"y":0.763037,"w":0.355979,"h":0.027778}]},
+        {"name":"Premium","type":"text","required":false,"role":"Cliente","preferences":{"align":"left"},"areas":[{"page":0,"x":0.244773,"y":0.800758,"w":0.255559,"h":0.027778}]}
+      ]
+    },
+    {
+      "key": "consent-qa-en",
+      "label": "Consent QAgency English",
+      "roles": ["Cliente"],
+      "fields": [
+        {"name":"Ms","type":"text","required":false,"role":"Cliente","preferences":{"align":"left"},"areas":[{"page":0,"x":0.182941,"y":0.136212,"w":0.419216,"h":0.017424}]},
+        {"name":"agentsEnes on the date of","type":"text","required":false,"description":"agent(s)/Enes on the date of","role":"Cliente","preferences":{"align":"left"},"areas":[{"page":0,"x":0.314314,"y":0.154697,"w":0.292745,"h":0.017424}]},
+        {"name":"Agents andor Enes","type":"text","required":false,"description":"Agents and/or Enes","role":"Cliente","preferences":{"align":"left"},"areas":[{"page":0,"x":0.246667,"y":0.247273,"w":0.370392,"h":0.017424}]},
+        {"name":"NPN_2","type":"text","required":false,"description":"NPN","role":"Cliente","preferences":{"align":"left"},"areas":[{"page":0,"x":0.103922,"y":0.284242,"w":0.370392,"h":0.017424}]},
+        {"name":"Marital status","type":"text","required":false,"role":"Cliente","preferences":{"align":"left"},"areas":[{"page":0,"x":0.172242,"y":0.690521,"w":0.370392,"h":0.017424}]},
+        {"name":"Projected Annual Family Income","type":"text","required":false,"role":"Cliente","preferences":{"align":"left"},"areas":[{"page":0,"x":0.318211,"y":0.709545,"w":0.370392,"h":0.017424}]},
+        {"name":"Number of people on your 2023 tax return","type":"text","required":false,"role":"Cliente","preferences":{"align":"left"},"areas":[{"page":0,"x":0.401065,"y":0.728366,"w":0.379458,"h":0.017963}]},
+        {"name":"People with medical coverage","type":"text","required":false,"role":"Cliente","preferences":{"align":"left"},"areas":[{"page":0,"x":0.299889,"y":0.747509,"w":0.370392,"h":0.017121}]},
+        {"name":"Full Name","type":"text","required":false,"role":"Cliente","preferences":{"align":"left"},"areas":[{"page":0,"x":0.040815,"y":0.953926,"w":0.297375,"h":0.029818}]},
+        {"name":"Firma","type":"signature","required":true,"role":"Cliente","preferences":{"align":"left"},"areas":[{"page":0,"x":0.360127,"y":0.955543,"w":0.275757,"h":0.02874}]},
+        {"name":"Signature2_es_:signer:signature","type":"text","required":false,"role":"Cliente","preferences":{"align":"left"},"areas":[{"page":0,"x":0.661309,"y":0.958237,"w":0.262507,"h":0.022813}]},
+        {"type":"signature","required":true,"role":"Cliente","areas":[{"page":1,"x":0.249756,"y":0.88917,"w":0.275757,"h":0.02874}]},
+        {"name":"Health Plan","type":"text","required":false,"role":"Cliente","preferences":{"align":"left"},"areas":[{"page":0,"x":0.155511,"y":0.772197,"w":0.371321,"h":0.027778}]},
+        {"name":"PREMIUM","type":"text","required":false,"role":"Cliente","preferences":{"align":"left"},"areas":[{"page":0,"x":0.304745,"y":0.809918,"w":0.254861,"h":0.027778}]},
+        {"name":"Todays Date","type":"text","required":false,"description":"Today’s Date","role":"Cliente","preferences":{"align":"left"},"areas":[{"page":0,"x":0.172657,"y":0.07914,"w":0.370392,"h":0.017424}]},
+        {"name":"Fecha","type":"text","required":false,"role":"Cliente","preferences":{"align":"left"},"areas":[{"page":1,"x":0.164577,"y":0.91392,"w":0.274387,"h":0.028317}]}
+      ]
+    },
+    {
+      "key": "consent-ath-es",
+      "label": "Consent ATH Español",
+      "roles": ["Cliente"],
+      "fields": [
+        {"name":"Fecha","type":"text","required":false,"role":"Cliente","preferences":{"align":"left"},"areas":[{"page":0,"x":0.114793,"y":0.076986,"w":0.370392,"h":0.020657},{"page":1,"x":0.602185,"y":0.924177,"w":0.245098,"h":0.027778}]},
+        {"name":"Yo SrSra","type":"text","required":false,"description":"Yo, Sr./Sra","role":"Cliente","preferences":{"align":"left"},"areas":[{"page":0,"x":0.151176,"y":0.133518,"w":0.311765,"h":0.020119}]},
+        {"name":"mencionados a connuación en la fecha de","type":"text","required":false,"role":"Cliente","preferences":{"align":"left"},"areas":[{"page":0,"x":0.407255,"y":0.153922,"w":0.292549,"h":0.018199}]},
+        {"name":"Agentes yo Endades","type":"text","required":false,"description":"Agentes y/o Endades","role":"Cliente","preferences":{"align":"left"},"areas":[{"page":0,"x":0.247255,"y":0.242962,"w":0.410338,"h":0.021735}]},
+        {"name":"NPN","type":"text","required":false,"role":"Cliente","preferences":{"align":"left"},"areas":[{"page":0,"x":0.104118,"y":0.281548,"w":0.393209,"h":0.020119}]},
+        {"name":"Estatus marital","type":"text","required":false,"role":"Cliente","preferences":{"align":"left"},"areas":[{"page":0,"x":0.187451,"y":0.688905,"w":0.370588,"h":0.01958}]},
+        {"name":"Ingreso proyectado anual familiar","type":"text","required":false,"role":"Cliente","preferences":{"align":"left"},"areas":[{"page":0,"x":0.336863,"y":0.706851,"w":0.370588,"h":0.020119}]},
+        {"name":"Candad de personas en su declaración de impuestos 2023","type":"text","required":false,"role":"Cliente","preferences":{"align":"left"},"areas":[{"page":0,"x":0.540196,"y":0.727289,"w":0.370392,"h":0.01958}]},
+        {"name":"Personas con cobertura médica","type":"text","required":false,"role":"Cliente","preferences":{"align":"left"},"areas":[{"page":0,"x":0.317516,"y":0.746431,"w":0.370196,"h":0.019277}]},
+        {"name":"Nombre y Apellido","type":"text","required":false,"role":"Cliente","preferences":{"align":"left"},"areas":[{"page":0,"x":0.081681,"y":0.943273,"w":0.259018,"h":0.029821}]},
+        {"name":"Firma","type":"signature","required":true,"role":"Cliente","preferences":{"align":"left"},"areas":[{"page":0,"x":0.364033,"y":0.946004,"w":0.25902,"h":0.027342}]},
+        {"name":"Fecha de la Firma","type":"text","required":false,"role":"Cliente","preferences":{"align":"left"},"areas":[{"page":0,"x":0.641642,"y":0.943525,"w":0.265436,"h":0.029821}]},
+        {"type":"signature","required":true,"role":"Cliente","areas":[{"page":1,"x":0.59122,"y":0.88535,"w":0.25902,"h":0.027342}]},
+        {"name":"Plan","type":"text","required":false,"role":"Cliente","preferences":{"align":"left"},"areas":[{"page":0,"x":0.175734,"y":0.773814,"w":0.352492,"h":0.027778}]},
+        {"name":"Pago","type":"text","required":false,"role":"Cliente","preferences":{"align":"left"},"areas":[{"page":0,"x":0.265693,"y":0.809918,"w":0.267413,"h":0.027778}]}
+      ]
+    },
+    {
+      "key": "consent-ath-en",
+      "label": "Consent ATH English",
+      "roles": ["Cliente"],
+      "fields": [
+        {"name":"Firma","type":"signature","required":true,"role":"Cliente","preferences":{"align":"left"},"areas":[{"page":0,"x":0.376167,"y":0.948876,"w":0.25902,"h":0.030357}]},
+        {"name":"Signature2_es_:signer:signature","type":"text","required":false,"role":"Cliente","preferences":{"align":"left"},"areas":[{"page":0,"x":0.660613,"y":0.952463,"w":0.262506,"h":0.026046}]},
+        {"type":"signature","required":true,"role":"Cliente","areas":[{"page":1,"x":0.211707,"y":0.887604,"w":0.25902,"h":0.030357}]},
+        {"name":"Todays Date","type":"text","required":false,"description":"Today’s Date","role":"Cliente","preferences":{"align":"left"},"areas":[{"page":0,"x":0.171263,"y":0.080218,"w":0.375274,"h":0.017424}]},
+        {"name":"Ms","type":"text","required":false,"role":"Cliente","preferences":{"align":"left"},"areas":[{"page":0,"x":0.182243,"y":0.133518,"w":0.425492,"h":0.020119}]},
+        {"name":"agentsEnes on the date of","type":"text","required":false,"description":"agent(s)/Enes on the date of","role":"Cliente","preferences":{"align":"left"},"areas":[{"page":0,"x":0.317801,"y":0.153081,"w":0.297627,"h":0.01904}]},
+        {"name":"Agents andor Enes","type":"text","required":false,"description":"Agents and/or Enes","role":"Cliente","preferences":{"align":"left"},"areas":[{"page":0,"x":0.245271,"y":0.245117,"w":0.375274,"h":0.01958}]},
+        {"name":"NPN_2","type":"text","required":false,"description":"NPN","role":"Cliente","preferences":{"align":"left"},"areas":[{"page":0,"x":0.103224,"y":0.282087,"w":0.373879,"h":0.01904}]},
+        {"name":"Marital status","type":"text","required":false,"role":"Cliente","preferences":{"align":"left"},"areas":[{"page":0,"x":0.167359,"y":0.671662,"w":0.370392,"h":0.020117}]},
+        {"name":"Projected Annual Family Income","type":"text","required":false,"role":"Cliente","preferences":{"align":"left"},"areas":[{"page":0,"x":0.309843,"y":0.691763,"w":0.378064,"h":0.01958}]},
+        {"name":"Number of people on your 2023 tax return","type":"text","required":false,"role":"Cliente","preferences":{"align":"left"},"areas":[{"page":0,"x":0.394093,"y":0.711122,"w":0.370392,"h":0.01958}]},
+        {"name":"People with medical coverage","type":"text","required":false,"role":"Cliente","preferences":{"align":"left"},"areas":[{"page":0,"x":0.292915,"y":0.730264,"w":0.375275,"h":0.018739}]},
+        {"name":"Health Plan","type":"text","required":false,"role":"Cliente","preferences":{"align":"left"},"areas":[{"page":0,"x":0.150629,"y":0.756569,"w":0.332268,"h":0.027778}]},
+        {"name":"Premium","type":"text","required":false,"role":"Cliente","preferences":{"align":"left"},"areas":[{"page":0,"x":0.289405,"y":0.793753,"w":0.286242,"h":0.027778}]},
+        {"name":"Full Name","type":"text","required":false,"role":"Cliente","preferences":{"align":"left"},"areas":[{"page":0,"x":0.086143,"y":0.950492,"w":0.25902,"h":0.028202}]},
+        {"name":"Fecha","type":"text","required":false,"role":"Cliente","preferences":{"align":"left"},"areas":[{"page":1,"x":0.176719,"y":0.913175,"w":0.245098,"h":0.027778}]}
+      ]
+    },
+    {
+      "key": "soa-es",
+      "label": "SOA Español",
+      "roles": ["Cliente","Agente"],
+      "fields": [
+        {"name":"Firma del solicitantemiembrorepresentante autorizado","type":"signature","required":true,"title":"Firma del beneficiario o representante autorizado","role":"Cliente","preferences":{"align":"left"},"areas":[{"page":0,"x":0.107048,"y":0.48637,"w":0.586857,"h":0.02237}]},
+        {"name":"Fecha de Hoy","type":"date","required":true,"readonly":true,"default_value":"{{date}}","role":"Cliente","preferences":{"format":"MM/DD/YYYY","background":"white","align":"center","font_size":11},"areas":[{"page":0,"x":0.703175,"y":0.49321,"w":0.146032,"h":0.018519}]},
+        {"name":"Teléfono del Representante (área)","type":"cells","required":false,"role":"Agente","preferences":{"font_size":11,"align":"center"},"areas":[{"page":0,"x":0.401587,"y":0.67,"w":0.076071,"h":0.022222,"cell_w":0.025357}]},
+        {"name":"Teléfono del Representante (prefijo)","type":"cells","required":false,"role":"Agente","preferences":{"font_size":11,"align":"center"},"areas":[{"page":0,"x":0.493016,"y":0.67,"w":0.076071,"h":0.022222,"cell_w":0.025357}]},
+        {"name":"Teléfono del Representante (número)","type":"cells","required":false,"role":"Agente","preferences":{"font_size":11,"align":"center"},"areas":[{"page":0,"x":0.58381,"y":0.67,"w":0.100952,"h":0.022222,"cell_w":0.025238}]},
+        {"name":"Nombre del Representante de Ventas con Licencia nombre y apellidos","type":"text","required":false,"description":"Nombre del Representante de Ventas con Licencia (nombre y apellidos)","role":"Agente","preferences":{"align":"left"},"areas":[{"page":0,"x":0.101333,"y":0.662222,"w":0.293143,"h":0.035556}]},
+        {"name":"ID del Representante de Ventas con Licencia","type":"text","required":false,"role":"Agente","preferences":{"align":"left"},"areas":[{"page":0,"x":0.714286,"y":0.662222,"w":0.184571,"h":0.035556}]},
+        {"name":"Nombre del beneficiario nombre y apellidos","type":"text","required":false,"description":"Nombre del beneficiario (nombre y apellidos)","role":"Agente","preferences":{"align":"left"},"areas":[{"page":0,"x":0.101143,"y":0.729778,"w":0.293524,"h":0.028444}]},
+        {"name":"Teléfono del beneficiario (área)","type":"cells","required":false,"role":"Agente","preferences":{"font_size":11,"align":"center"},"areas":[{"page":0,"x":0.401587,"y":0.721667,"w":0.076071,"h":0.022222,"cell_w":0.025357}]},
+        {"name":"Teléfono del beneficiario (prefijo)","type":"cells","required":false,"role":"Agente","preferences":{"font_size":11,"align":"center"},"areas":[{"page":0,"x":0.493016,"y":0.721667,"w":0.076071,"h":0.022222,"cell_w":0.025357}]},
+        {"name":"Teléfono del beneficiario (número)","type":"cells","required":false,"role":"Agente","preferences":{"font_size":11,"align":"center"},"areas":[{"page":0,"x":0.58381,"y":0.721667,"w":0.100952,"h":0.022222,"cell_w":0.025238}]},
+        {"name":"Fecha de la cita","type":"text","required":false,"role":"Agente","preferences":{"background":"white","align":"center","font_size":11},"areas":[{"page":0,"x":0.71746,"y":0.738272,"w":0.177778,"h":0.019136}]},
+        {"name":"Direccion del beneficiario","type":"text","required":false,"role":"Agente","areas":[{"page":0,"x":0.101463,"y":0.777181,"w":0.795122,"h":0.027068}]},
+        {"name":"Método de contacto inicial","type":"text","required":false,"role":"Agente","preferences":{"align":"left"},"areas":[{"page":0,"x":0.100945,"y":0.834507,"w":0.20019,"h":0.023704}]},
+        {"name":"Planes que el Representante de Ventas con Licencia explicará durante la reunión","type":"text","required":false,"role":"Agente","preferences":{"align":"left"},"areas":[{"page":0,"x":0.303619,"y":0.834519,"w":0.595619,"h":0.023704}]},
+        {"name":"Firma del Representante de Ventas con Licencia","type":"signature","required":true,"role":"Agente","preferences":{"align":"left"},"areas":[{"page":0,"x":0.1,"y":0.880296,"w":0.80019,"h":0.02237}]}
+      ]
+    },
+    {
+      "key": "soa-en",
+      "label": "SOA English",
+      "roles": ["Cliente","Agente"],
+      "fields": [
+        {"name":"Signature","type":"signature","required":true,"role":"Cliente","areas":[{"page":0,"x":0.107317,"y":0.466422,"w":0.582439,"h":0.026749}]},
+        {"name":"Today's Date","type":"date","required":true,"readonly":true,"default_value":"{{date}}","role":"Cliente","preferences":{"format":"MM/DD/YYYY","background":"white","align":"center","font_size":11},"areas":[{"page":0,"x":0.703968,"y":0.473086,"w":0.174603,"h":0.017284}]},
+        {"name":"Licensed Sales Representative Phone Area","type":"cells","required":false,"role":"Agente","preferences":{"font_size":11,"align":"center"},"areas":[{"page":0,"x":0.410714,"y":0.622222,"w":0.072857,"h":0.022222,"cell_w":0.024286}]},
+        {"name":"Licensed Sales Representative Phone Prefix","type":"cells","required":false,"role":"Agente","preferences":{"font_size":11,"align":"center"},"areas":[{"page":0,"x":0.498571,"y":0.622222,"w":0.072857,"h":0.022222,"cell_w":0.024286}]},
+        {"name":"Licensed Sales Representative Phone Line","type":"cells","required":false,"role":"Agente","preferences":{"font_size":11,"align":"center"},"areas":[{"page":0,"x":0.586349,"y":0.622222,"w":0.098095,"h":0.022222,"cell_w":0.024524}]},
+        {"name":"Licensed Sales Representative Name","type":"text","required":false,"role":"Agente","preferences":{"align":"left"},"areas":[{"page":0,"x":0.101587,"y":0.633333,"w":0.298413,"h":0.018519}]},
+        {"name":"Licensed Sales Representative ID","type":"text","required":false,"role":"Agente","preferences":{"align":"left"},"areas":[{"page":0,"x":0.726984,"y":0.633333,"w":0.171429,"h":0.018519}]},
+        {"name":"Beneficiary Name","type":"text","required":false,"role":"Agente","preferences":{"align":"left"},"areas":[{"page":0,"x":0.101587,"y":0.683951,"w":0.298413,"h":0.018519}]},
+        {"name":"Beneficiary Phone Area","type":"cells","required":false,"role":"Agente","preferences":{"font_size":11,"align":"center"},"areas":[{"page":0,"x":0.410714,"y":0.68,"w":0.072857,"h":0.022222,"cell_w":0.024286}]},
+        {"name":"Beneficiary Phone Prefix","type":"cells","required":false,"role":"Agente","preferences":{"font_size":11,"align":"center"},"areas":[{"page":0,"x":0.498571,"y":0.68,"w":0.072857,"h":0.022222,"cell_w":0.024286}]},
+        {"name":"Beneficiary Phone Line","type":"cells","required":false,"role":"Agente","preferences":{"font_size":11,"align":"center"},"areas":[{"page":0,"x":0.586349,"y":0.68,"w":0.098095,"h":0.022222,"cell_w":0.024524}]},
+        {"name":"Date Appointment will be Completed","type":"text","required":false,"role":"Agente","preferences":{"background":"white","align":"center","font_size":11},"areas":[{"page":0,"x":0.72381,"y":0.684568,"w":0.168254,"h":0.020988}]},
+        {"name":"Beneficiary Address","type":"text","required":false,"role":"Agente","areas":[{"page":0,"x":0.098537,"y":0.723402,"w":0.798049,"h":0.03153}]},
+        {"name":"Initial Method of Contact","type":"text","required":false,"role":"Agente","preferences":{"align":"left"},"areas":[{"page":0,"x":0.101587,"y":0.779012,"w":0.193651,"h":0.018519}]},
+        {"name":"Plans the Licensed Sales Representative Will Represent","type":"text","required":false,"role":"Agente","preferences":{"align":"left"},"areas":[{"page":0,"x":0.304762,"y":0.779012,"w":0.593651,"h":0.018519}]},
+        {"name":"Licensed Sales Representative Signature","type":"signature","required":true,"role":"Agente","areas":[{"page":0,"x":0.098537,"y":0.81136,"w":0.798049,"h":0.032343}]}
+      ]
+    }
+  ]
+}
