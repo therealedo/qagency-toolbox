@@ -1876,7 +1876,7 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
 (function (root) {
   "use strict";
 
-  var VERSION = "1.32.3";
+  var VERSION = "1.32.4";
   /* De aquí la herramienta instalada lee el número de la última versión (y
      nada más). La política de seguridad de index.html solo permite esta
      dirección, y el actualizador de Windows usa el mismo repositorio. */
@@ -9149,6 +9149,9 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
   var MUST_CHOOSE = ["canal", "codigoTipo", "periodo", "periodoMC"];
   function mustChoose(F) {
     var k = key(F);
+    /* en Obamacare casi siempre se elige un estado del pago: se marca
+       mientras esté vacío */
+    if (k === "pagoEstado") { return S.line === "oc" && !S.f.pagoEstado; }
     return MUST_CHOOSE.indexOf(k) >= 0 && !S.chosen[k] && S.auto[k] !== true;
   }
 

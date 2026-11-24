@@ -764,6 +764,9 @@
   var MUST_CHOOSE = ["canal", "codigoTipo", "periodo", "periodoMC"];
   function mustChoose(F) {
     var k = key(F);
+    /* en Obamacare casi siempre se elige un estado del pago: se marca
+       mientras esté vacío */
+    if (k === "pagoEstado") { return S.line === "oc" && !S.f.pagoEstado; }
     return MUST_CHOOSE.indexOf(k) >= 0 && !S.chosen[k] && S.auto[k] !== true;
   }
 
