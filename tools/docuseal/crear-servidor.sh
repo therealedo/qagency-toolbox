@@ -11,14 +11,31 @@
 # de la API: queda solo en el servidor, y el script muestra el codigo de
 # firma de cada oficina, que va en el archivo del equipo de la herramienta.
 #   bash crear-servidor.sh --codigos-nuevos   cambia los dos codigos
+# El servidor se llama por su IP (1-2-3-4.sslip.io) o por un nombre del
+# dominio de la agencia, que se elige una vez y queda guardado en la maquina:
+#   bash crear-servidor.sh --dominio firmas.ejemplo.com
+# Antes, en el DNS del dominio, un registro A con ese nombre apunta a la IP
+# que muestra este script. El nombre de la IP sigue funcionando igual (los
+# enlaces ya enviados no se rompen). Si el servidor se rehace en otro
+# proyecto, la IP cambia: solo hay que cambiar el registro A.
 set -euo pipefail
 
 NUEVOS=0
-for arg in "$@"; do
-  case "$arg" in
+DOMINIO=""
+while [ $# -gt 0 ]; do
+  case "$1" in
     --codigos-nuevos) NUEVOS=1 ;;
-    *) echo "Opcion desconocida: $arg (la unica es --codigos-nuevos)"; exit 1 ;;
+    --dominio)
+      DOMINIO="$(printf '%s' "${2:-}" | tr '[:upper:]' '[:lower:]')"
+      shift
+      if ! [[ "$DOMINIO" =~ ^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$ ]] || [[ "$DOMINIO" == *.sslip.io ]]; then
+        echo "Ese no parece un nombre de dominio (por ejemplo: firmas.ejemplo.com)."
+        exit 1
+      fi
+      ;;
+    *) echo "Opcion desconocida: $1 (son --codigos-nuevos y --dominio <nombre>)"; exit 1 ;;
   esac
+  shift
 done
 
 DOCUSEAL_VERSION="3.3.7"
@@ -45,8 +62,26 @@ if ! gcloud compute addresses describe "$NAME-ip" --region="$REGION" >/dev/null 
   gcloud compute addresses create "$NAME-ip" --region="$REGION"
 fi
 IP="$(gcloud compute addresses describe "$NAME-ip" --region="$REGION" --format='value(address)')"
-HOST="${IP//./-}.sslip.io"
+ALIAS="${IP//./-}.sslip.io"
+# Sin --dominio se queda el nombre que ya tiene la maquina (si tiene uno).
+if [ -z "$DOMINIO" ] && gcloud compute instances describe "$NAME" --zone="$ZONE" >/dev/null 2>&1; then
+  ANTES="$(gcloud compute instances describe "$NAME" --zone="$ZONE" --flatten="metadata.items[]" \
+    --format="csv[no-heading](metadata.items.key,metadata.items.value)" | sed -n 's/^docuseal-host,//p' | head -n 1)"
+  if [[ "$ANTES" =~ ^[a-z0-9.-]+$ ]] && [[ "$ANTES" != *.sslip.io ]]; then DOMINIO="$ANTES"; fi
+fi
+HOST="${DOMINIO:-$ALIAS}"
 echo "Direccion del servidor: https://$HOST"
+if [ -n "$DOMINIO" ]; then
+  echo "Tambien responde en: https://$ALIAS"
+  DNS="$(getent ahostsv4 "$DOMINIO" 2>/dev/null | awk '{print $1; exit}' || true)"
+  if [ "$DNS" != "$IP" ]; then
+    echo
+    echo "AVISO: $DOMINIO todavia no apunta a este servidor (${DNS:-sin registro})."
+    echo "En el DNS del dominio, cree o cambie el registro A: $DOMINIO -> $IP"
+    echo "La direccion https://$DOMINIO funciona unos minutos despues de ese cambio."
+    echo
+  fi
+fi
 
 # Cortafuegos: web abierta; SSH solo desde el servicio IAP de Google.
 if ! gcloud compute firewall-rules describe "$NAME-web" >/dev/null 2>&1; then
@@ -90,6 +125,8 @@ if [ ! -f /srv/docuseal/.instalado ]; then
 fi
 cd /srv/docuseal
 HOST="$(md docuseal-host)"
+# el nombre de la IP, cuando el servidor tiene un nombre del dominio
+ALIAS="$(md docuseal-alias 2>/dev/null || true)"
 cat > .env <<EOF
 HOST=$HOST
 DOCUSEAL_VERSION=$(md docuseal-version)
@@ -100,6 +137,9 @@ EOF
 # llega a DocuSeal con la clave de la API, que solo esta en este servidor
 # (pasarela.env, que este script no reescribe). Solo pasan los pedidos que
 # usa el ayudante de firma. Un pedido sin codigo pasa igual que antes.
+# Responde igual en sus dos nombres (el del dominio y el de la IP).
+SITES="$HOST"
+if [[ "${ALIAS:-}" =~ ^[a-z0-9.-]+$ ]] && [ "$ALIAS" != "$HOST" ]; then SITES="$HOST, $ALIAS"; fi
 leer() { if [ -f pasarela.env ]; then sed -n "s/^$1=//p" pasarela.env | head -n 1; fi; }
 CLAVE="$(leer DOCUSEAL_KEY)"
 CQ="$(leer CODIGO_QAGENCY)"
@@ -145,7 +185,7 @@ else
 fi
 umask 077
 cat > Caddyfile <<EOF
-$HOST {
+$SITES {
 	@codigo header X-Office-Code *
 	route @codigo {
 		$OFICINA
@@ -160,7 +200,7 @@ umask 022
 if ! docker run --rm -v "$PWD/Caddyfile:/etc/caddy/Caddyfile:ro" "caddy:$(md caddy-version)" \
     caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile >/dev/null 2>&1; then
   echo "pasarela: Caddy no acepto el Caddyfile; queda solo el proxy" >&2
-  printf '%s {\n\treverse_proxy app:3000\n}\n' "$HOST" > Caddyfile
+  printf '%s {\n\treverse_proxy app:3000\n}\n' "$SITES" > Caddyfile
 fi
 cat > docker-compose.yml <<'EOF'
 services:
@@ -171,6 +211,8 @@ services:
       - ./data:/data/docuseal
     environment:
       - FORCE_SSL=${HOST}
+      # los enlaces de DocuSeal salen con el nombre del servidor
+      - APP_URL=https://${HOST}
   caddy:
     image: caddy:${CADDY_VERSION}
     restart: unless-stopped
@@ -188,7 +230,7 @@ docker compose up -d
 docker compose restart caddy
 INICIO
 
-METADATA="docuseal-host=$HOST,docuseal-version=$DOCUSEAL_VERSION,caddy-version=$CADDY_VERSION"
+METADATA="docuseal-host=$HOST,docuseal-alias=$ALIAS,docuseal-version=$DOCUSEAL_VERSION,caddy-version=$CADDY_VERSION"
 NUEVA=0
 if ! gcloud compute instances describe "$NAME" --zone="$ZONE" >/dev/null 2>&1; then
   gcloud compute instances create "$NAME" --zone="$ZONE" \

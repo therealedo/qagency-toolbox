@@ -16,7 +16,7 @@ Branch: `feat/rebuild-from-repo` from `origin/main` (efe18bb, 1.32.1). Delivery:
 
 - T1 (S1, S3) Save the six layouts to `tools/docuseal/plantillas.json`, and add a pure builder for the create-template API requests, with tests. Route: inline. Status: done (7af001a, plus sha256 per template in the next commit).
 - T2 (S1, S3, S4) Add a `crear-servidor.sh` option that sends those requests to DocuSeal on the server (the key is read there) and prints the new template numbers; README. Route: inline. Status: done locally, tests with a fake DocuSeal and the real relay against a fake HTTP server (12 tests; mutation checks caught a widened relay allowlist and a skipped PDF check). Not tried on the real server (S4: needs the user). Commit: see Log L6.
-- T3 (S2) Server address. Route: inline. Status: pending (after S1).
+- T3 (S2) Server address on the agency domain: `crear-servidor.sh --dominio <name>` (kept on the machine, DNS warning, both names served by one Caddy block, DocuSeal APP_URL follows the name). Route: inline. Status: server side done (tests 3 new, mutation check caught an unfiltered alias); pending: the user creates the A record, runs the script on the real server, and a release changes `$Servidor` in signing-helper.ps1 to the domain name.
 
 ## Log
 
@@ -27,3 +27,4 @@ Branch: `feat/rebuild-from-repo` from `origin/main` (efe18bb, 1.32.1). Delivery:
 - L4 Exported the six template layouts read-only from the logged-in editor (`data-template`), rounded to 6 decimals, with no ids, uuids or user data. The saved copy's SHA-256 matches the browser's export.
 - L6 2026-11-24 Built `tools/docuseal/plantillas.js` (pdfs, aplicar, exportar, --prefijo) and `tools/docuseal/relevo.py`; plantillas.json now has each PDF sha256. Tests were written after the code (no RED observed); two deliberate breaks made them fail. Full suite 356/0. Next: real-server try on `prueba-` copies with the user, then T3.
 - L7 2026-11-24 Native review of 8ac7e8b (lenses risk, reliability; user granted): approved and acknowledged (lineage review-420811f9c4783ac6). Non-blocking follow-ups: R1-001/R1-002/R3-006 relevo.py:26-30 (allowlist regexes), R3-001 plantillas.js:171-178 (relay line handling), R3-002 :197, R3-003 :209, R3-004 :142, R3-005 :225. T3 waits on one product question: does the agency have a domain whose DNS can point a name (for example firmas.<domain>) at the server?
+- L8 2026-11-24 user: "Yes, we have one" (the agency has a domain whose DNS it can edit). Design: the server answers on the domain name and on its IP name with the same gateway, so pending links and old computers keep working; DocuSeal has no host check (production.rb) and takes its link address from APP_URL (lib/docuseal.rb default_url_options), now set from HOST. Full suite 359/0.

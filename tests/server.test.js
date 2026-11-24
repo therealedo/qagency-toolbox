@@ -19,11 +19,12 @@ const QA = "a".repeat(40);
 const ATH = "b".repeat(40);
 
 /* runs the gateway step in a scratch folder and returns the Caddyfile */
-function caddyfile(env) {
+function caddyfile(env, alias) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "qa-gw-"));
   try {
     if (env !== null) { fs.writeFileSync(path.join(dir, "pasarela.env"), env); }
-    const r = spawnSync("bash", ["-c", "set -euo pipefail\nHOST=firmas.example.test\n" + gateway], { cwd: dir, encoding: "utf8" });
+    const vars = "HOST=firmas.example.test\n" + (alias !== undefined ? "ALIAS='" + alias + "'\n" : "");
+    const r = spawnSync("bash", ["-c", "set -euo pipefail\n" + vars + gateway], { cwd: dir, encoding: "utf8" });
     assert.strictEqual(r.status, 0, r.stderr);
     return fs.readFileSync(path.join(dir, "Caddyfile"), "utf8");
   } finally {
@@ -114,7 +115,7 @@ test("el servidor lee el Caddyfile, guarda la clave aparte y la pide sin mostrar
   assert.ok(startup.includes("docker compose restart caddy"));
   /* a Caddyfile Caddy rejects falls back to the plain proxy, so DocuSeal stays online */
   assert.ok(startup.includes("caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile"));
-  assert.ok(startup.includes("printf '%s {\\n\\treverse_proxy app:3000\\n}\\n' \"$HOST\" > Caddyfile"));
+  assert.ok(startup.includes("printf '%s {\\n\\treverse_proxy app:3000\\n}\\n' \"$SITES\" > Caddyfile"));
   assert.ok(startup.indexOf("caddy validate") < startup.indexOf("docker compose up -d"));
   assert.ok(script.includes('if ! grep -q "header_regexp X-Office-Code" Caddyfile; then'));
   /* the server script comes by stdin: nothing it runs may read the rest of it */
@@ -130,4 +131,46 @@ test("el servidor lee el Caddyfile, guarda la clave aparte y la pide sin mostrar
   /* the codes are made on the server and only replaced with --codigos-nuevos */
   assert.ok(script.includes("od -An -tx1 -N20 /dev/urandom"));
   assert.ok(script.includes('if [ "$NUEVOS" = 1 ] || [ -z "$CQ" ]; then CQ="$(nuevo)"; fi'));
+});
+
+test("con un dominio, la pasarela responde igual en ese nombre y en el de la IP", { skip: !hasBash && "no bash" }, function () {
+  const both = caddyfile(goodEnv, "34-1-2-3.sslip.io");
+  assert.match(both, /^firmas\.example\.test, 34-1-2-3\.sslip\.io \{\n/);
+  /* un solo bloque: el mismo código, la misma clave y las mismas rutas para los dos nombres */
+  assert.equal((both.match(/request_header X-Auth-Token/g) || []).length, 1);
+  /* sin dominio el nombre de la IP es el del servidor: un solo nombre */
+  assert.match(caddyfile(goodEnv, "firmas.example.test"), /^firmas\.example\.test \{\n/);
+  assert.match(caddyfile(goodEnv, ""), /^firmas\.example\.test \{\n/);
+  /* algo que no es un nombre no entra al Caddyfile */
+  assert.match(caddyfile(goodEnv, "x { respond 200 }"), /^firmas\.example\.test \{\n/);
+  /* sin clave tambien responde en los dos, con 503 */
+  const sinClave = caddyfile(null, "34-1-2-3.sslip.io");
+  assert.match(sinClave, /^firmas\.example\.test, 34-1-2-3\.sslip\.io \{\n/);
+  assert.ok(sinClave.includes('respond `{"error":"pasarela"}` 503'));
+});
+
+test("--dominio: un nombre del dominio de la agencia, en minúsculas; lo demás no sigue", { skip: !hasBash && "no bash" }, function () {
+  const parse = script.slice(script.indexOf("NUEVOS=0\n"), script.indexOf("\ndone\n", script.indexOf("NUEVOS=0\n")) + 6);
+  const run = (args) => spawnSync("bash", ["-c", "set -euo pipefail\n" + parse + 'echo "D=$DOMINIO N=$NUEVOS"', "x"].concat(args), { encoding: "utf8" });
+  assert.equal(run(["--dominio", "Firmas.Ejemplo.COM"]).stdout.trim(), "D=firmas.ejemplo.com N=0");
+  assert.equal(run(["--codigos-nuevos", "--dominio", "firmas.mi-agencia.com"]).stdout.trim(), "D=firmas.mi-agencia.com N=1");
+  assert.equal(run([]).stdout.trim(), "D= N=0");
+  for (const bad of [[], ["firmas"], ["-x.com"], ["a..com"], ["firmas.ejemplo.com;rm"], ["34-1-2-3.sslip.io"], ["firmas ejemplo.com"]]) {
+    const r = run(["--dominio"].concat(bad));
+    assert.equal(r.status, 1, String(bad));
+    assert.match(r.stdout, /no parece un nombre de dominio/);
+  }
+  assert.match(run(["--otra"]).stdout, /Opcion desconocida: --otra/);
+});
+
+test("el nombre del servidor: queda guardado en la máquina y DocuSeal hace sus enlaces con él", function () {
+  /* DocuSeal toma su dirección de APP_URL: los enlaces siguen al nombre del servidor */
+  assert.ok(startup.includes("      - APP_URL=https://${HOST}\n"));
+  assert.ok(startup.includes('ALIAS="$(md docuseal-alias 2>/dev/null || true)"'));
+  assert.ok(script.includes('METADATA="docuseal-host=$HOST,docuseal-alias=$ALIAS,'));
+  /* sin --dominio se queda el nombre que ya tenía la máquina */
+  assert.ok(script.includes('sed -n \'s/^docuseal-host,//p\''));
+  assert.ok(script.includes('HOST="${DOMINIO:-$ALIAS}"'));
+  /* avisa si el registro A todavía no apunta a la IP */
+  assert.ok(script.includes('echo "En el DNS del dominio, cree o cambie el registro A: $DOMINIO -> $IP"'));
 });
