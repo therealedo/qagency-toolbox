@@ -696,34 +696,57 @@
     var m = upper(d.planId).replace(/\s+/g, "").match(/^(\d{5}[A-Z]{2}\d{7})(?:-?(\d{2}))?$/);
     return m ? { id: m[1], variant: m[2] || "" } : null;
   }
-  /* Los archivos de la carpeta de Summary of Benefits que son del plan, por
-     su HIOS ID y no por el nombre del plan (una misma Plata tiene un SoB por
-     nivel: SBC-49004FL0010031-05-2027, -06-2027). Si hay del año del plan,
-     solo esos. */
-  function sobMatches(names, d) {
+  /* Los Plan ID que trae el texto de un Summary of Benefits, arriba de la
+     primera página: "SBC-49004FL0010031-05-2027" (con el nivel y el año). */
+  function sobIdsIn(text) {
+    var out = [], re = /\b\d{5}[A-Z]{2}\d{7}(?:-\d{2})?(?:-20\d{2})?/g, m;
+    while ((m = re.exec(String(text || ""))) !== null) { if (out.indexOf(m[0]) < 0) { out.push(m[0]); } }
+    return out;
+  }
+  function yearIn(s) { return (String(s || "").match(/(?:^|\D)(20\d{2})(?!\d)/) || [])[1] || ""; }
+  function plainName(s) { return U.stripAccents(String(s || "")).toUpperCase().replace(/\.PDF$/, "").replace(/[^A-Z0-9]+/g, " ").trim(); }
+  /* Los archivos de la carpeta de Summary of Benefits que son del plan. Cada
+     archivo es { name, path, ids }: su nombre, la subcarpeta y los Plan ID
+     leídos dentro. Se busca el HIOS ID del caso en el nombre o en lo leído,
+     no el nombre del plan: una misma Plata tiene un SoB por nivel
+     (SBC-49004FL0010031-05-2027, -06-2027) aunque se llame igual. El año sale
+     del Plan ID, del nombre o de la subcarpeta ("Ambetter/2027"); si hay del
+     año del plan, solo esos. Si ninguno trae el Plan ID, los que se llaman
+     como el plan, marcados como «por nombre» (sin nivel). */
+  function sobMatches(items, d) {
     var p = planHios(d);
     if (!p) { return []; }
     var re = new RegExp(p.id + "(?:[-_ ]?(\\d{2}))?(?!\\d)", "i");
-    var all = (names || []).map(function (name) {
-      var m = re.exec(name);
+    var files = (items || []).map(function (it) { return typeof it === "string" ? { name: it, path: "", ids: [] } : it; });
+    var all = files.map(function (it) {
+      var m = null, src = "";
+      [it.name].concat(it.ids || []).some(function (s) { src = s; m = re.exec(s); return !!m; });
       if (!m) { return null; }
-      var rest = name.slice(0, m.index) + " " + name.slice(m.index + m[0].length);
-      var y = (rest.match(/(?:^|\D)(20\d{2})(?!\d)/) || [])[1] || "";
-      return { name: name, variant: m[1] || "", year: y };
+      var rest = src.slice(0, m.index) + " " + src.slice(m.index + m[0].length);
+      return { variant: m[1] || "", year: yearIn(rest) || yearIn(it.name) || yearIn(it.path), it: it };
     }).filter(Boolean);
+    if (!all.length && val(d.plan)) {
+      var want = plainName(d.plan);
+      all = files.filter(function (it) { return plainName(it.name) === want; })
+        .map(function (it) { return { variant: "", year: yearIn(it.name) || yearIn(it.path), byName: true, it: it }; });
+    }
     var year = String(planYearOf(d));
     if (all.some(function (x) { return x.year === year; })) { all = all.filter(function (x) { return !x.year || x.year === year; }); }
     if (p.variant && all.some(function (x) { return x.variant === p.variant; })) { all = all.filter(function (x) { return x.variant === p.variant; }); }
-    return all.sort(function (a, b) { return a.variant === b.variant ? (a.name < b.name ? -1 : 1) : (a.variant < b.variant ? -1 : 1); })
-      .map(function (x) { x.label = C.CSR_VARIANTS[x.variant] || (x.variant ? "-" + x.variant : "Sin nivel"); return x; });
+    return all.map(function (x) {
+      var path = x.it.path || "";
+      return { key: (path ? path + "/" : "") + x.it.name, name: x.it.name, path: path, variant: x.variant, year: x.year, byName: !!x.byName,
+               label: x.byName ? "Por el nombre del plan" : C.CSR_VARIANTS[x.variant] || (x.variant ? "-" + x.variant : "Sin nivel") };
+    }).sort(function (a, b) { return a.variant === b.variant ? (a.key < b.key ? -1 : 1) : (a.variant < b.variant ? -1 : 1); });
   }
-  /* El archivo que se propone: el nivel que traía el documento, si no el
-     sugerido; con uno solo, ese. */
+  /* El archivo que se propone (su key): el nivel que traía el documento, si
+     no el sugerido; con uno solo, ese, salvo una Plata hallada solo por el
+     nombre, que puede ser de otro nivel. */
   function sobPick(matches, d) {
-    if (matches.length === 1) { return matches[0].name; }
+    if (matches.length === 1) { return matches[0].byName && isSilver(d.plan) ? "" : matches[0].key; }
     var p = planHios(d), want = (p && p.variant) || csrSuggest(d);
     var hit = want && matches.filter(function (x) { return x.variant === want; })[0];
-    return hit ? hit.name : "";
+    return hit ? hit.key : "";
   }
 
   /* --------------------------------------------- documentos leídos (app) */
@@ -1638,7 +1661,7 @@
     mergeDocs: mergeDocs, rowSource: rowSource, discarded: discarded, discardRow: discardRow, mergeMembers: mergeMembers, mergeHousehold: mergeHousehold, samePerson: samePerson, moveDocKey: moveDocKey,
     enTaxes: enTaxes, conCobertura: conCobertura, ingresoHogar: ingresoHogar, ingresoSinContar: ingresoSinContar, limiteDeclarar: limiteDeclarar, moneyShort: moneyShort,
     attachmentFiles: attachmentFiles, quotedNames: quotedNames, fplFor: fplFor, csrSuggest: csrSuggest, planHios: planHios,
-    sobMatches: sobMatches, sobPick: sobPick,
+    sobMatches: sobMatches, sobPick: sobPick, sobIdsIn: sobIdsIn,
     NET_DIRS: NET_DIRS, netDirFor: netDirFor, docKinds: docKinds, kindOf: kindOf, oepStart: oepStart, needsSheet: needsSheet, officeFor: officeFor
   };
   root.QA = root.QA || {};
