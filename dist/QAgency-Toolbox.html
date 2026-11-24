@@ -1876,7 +1876,7 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
 (function (root) {
   "use strict";
 
-  var VERSION = "1.32.2";
+  var VERSION = "1.32.3";
   /* De aquí la herramienta instalada lee el número de la última versión (y
      nada más). La política de seguridad de index.html solo permite esta
      dirección, y el actualizador de Windows usa el mismo repositorio. */
@@ -3505,8 +3505,11 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
       return { variant: m[1] || "", year: yearIn(rest) || yearIn(it.name) || yearIn(it.path), it: it };
     }).filter(Boolean);
     if (!all.length && val(d.plan)) {
-      var want = plainName(d.plan);
-      all = files.filter(function (it) { return plainName(it.name) === want; })
+      /* el nombre del plan, o su código al final ("myBlue Bronze (HSA) 2129"
+         en FB/2027/HMO/2129.pdf); una palabra sin números no es un código */
+      var code = val(d.plan).split(/\s+/).pop().replace(/[()]/g, "");
+      var wants = [plainName(d.plan)].concat(/\d/.test(code) ? [plainName(code)] : []);
+      all = files.filter(function (it) { return wants.indexOf(plainName(it.name)) >= 0; })
         .map(function (it) { return { variant: "", year: yearIn(it.name) || yearIn(it.path), byName: true, it: it }; });
     }
     var year = String(planYearOf(d));
@@ -9793,8 +9796,8 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
     renderSobDir(); renderAttach();
     handleStore("readwrite", function (st) { return st.delete(SOB_STORE); }).catch(function () {});
   }
-  /* los PDF de la carpeta y de sus subcarpetas (hasta cuatro niveles, como
-     «Ambetter/2027»), cada uno con su subcarpeta y su archivo */
+  /* los PDF de la carpeta y de sus subcarpetas (hasta seis niveles, como
+     «Ambetter/2027» o «FB/2027/HMO»), cada uno con su subcarpeta y su archivo */
   function readPdfFiles(dir) {
     var out = [];
     function walk(d, path, level) {
@@ -9804,7 +9807,7 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
           if (r.done) { return Promise.all(subs); }
           var h = r.value;
           if (h.kind === "file" && /\.pdf$/i.test(h.name)) { out.push({ name: h.name, path: path, handle: h }); }
-          else if (h.kind === "directory" && level < 4) { subs.push(walk(h, path ? path + "/" + h.name : h.name, level + 1)); }
+          else if (h.kind === "directory" && level < 6) { subs.push(walk(h, path ? path + "/" + h.name : h.name, level + 1)); }
           return next();
         });
       }

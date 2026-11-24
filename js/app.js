@@ -1411,8 +1411,8 @@
     renderSobDir(); renderAttach();
     handleStore("readwrite", function (st) { return st.delete(SOB_STORE); }).catch(function () {});
   }
-  /* los PDF de la carpeta y de sus subcarpetas (hasta cuatro niveles, como
-     «Ambetter/2027»), cada uno con su subcarpeta y su archivo */
+  /* los PDF de la carpeta y de sus subcarpetas (hasta seis niveles, como
+     «Ambetter/2027» o «FB/2027/HMO»), cada uno con su subcarpeta y su archivo */
   function readPdfFiles(dir) {
     var out = [];
     function walk(d, path, level) {
@@ -1422,7 +1422,7 @@
           if (r.done) { return Promise.all(subs); }
           var h = r.value;
           if (h.kind === "file" && /\.pdf$/i.test(h.name)) { out.push({ name: h.name, path: path, handle: h }); }
-          else if (h.kind === "directory" && level < 4) { subs.push(walk(h, path ? path + "/" + h.name : h.name, level + 1)); }
+          else if (h.kind === "directory" && level < 6) { subs.push(walk(h, path ? path + "/" + h.name : h.name, level + 1)); }
           return next();
         });
       }

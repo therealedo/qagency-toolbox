@@ -1803,3 +1803,17 @@ test("SoB: sin Plan ID en ningún archivo, los que se llaman como el plan, marca
   const gold = Object.assign({}, d, { plan: "Clarity Gold" });
   assert.equal(N.sobPick(N.sobMatches(items, gold), gold), "Ambetter/2027/Clarity Gold.pdf");
 });
+
+test("SoB: sin Plan ID, también el archivo que se llama como el código del plan (FB/2027/HMO/2129.pdf)", () => {
+  const items = [{ name: "2129.pdf", path: "FB/2027/HMO", ids: [] }, { name: "2130.pdf", path: "FB/2027/HMO", ids: [] },
+    { name: "2129.pdf", path: "FB/2026/HMO", ids: [] }];
+  const d = make({ line: "oc", plan: "myBlue Bronze (HSA) 2129", planId: "30252FL0070031", anio: "2027" });
+  const m = N.sobMatches(items, d);
+  assert.deepEqual(m.map((x) => [x.key, x.byName]), [["FB/2027/HMO/2129.pdf", true]]);
+  assert.equal(N.sobPick(m, d), "FB/2027/HMO/2129.pdf");
+  /* un código con letras también: "myBlue Essentials Silver 27M07-01C" */
+  const s = make({ line: "oc", plan: "myBlue Essentials Silver 27M07-01C", planId: "30252FL0210001", anio: "2027" });
+  assert.deepEqual(N.sobMatches([{ name: "27M07-01C.pdf", path: "FB/2027", ids: [] }], s).map((x) => x.key), ["FB/2027/27M07-01C.pdf"]);
+  /* una palabra sin números no es un código */
+  assert.deepEqual(N.sobMatches([{ name: "Silver.pdf", path: "", ids: [] }], make({ line: "oc", plan: "Clarity Silver", planId: "49004FL0010031" })), []);
+});
