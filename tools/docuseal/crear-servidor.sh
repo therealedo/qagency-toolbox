@@ -15,16 +15,20 @@
 # dominio de la agencia, que se elige una vez y queda guardado en la maquina:
 #   bash crear-servidor.sh --dominio firmas.ejemplo.com
 # Antes, en el DNS del dominio, un registro A con ese nombre apunta a la IP
-# que muestra este script. El nombre de la IP sigue funcionando igual (los
-# enlaces ya enviados no se rompen). Si el servidor se rehace en otro
-# proyecto, la IP cambia: solo hay que cambiar el registro A.
+# que muestra este script; si no apunta, el script para sin tocar la maquina.
+# El nombre de la IP sigue funcionando igual (los enlaces ya enviados no se
+# rompen). Si el servidor se rehace en otro proyecto, la IP cambia: solo hay
+# que cambiar el registro A. Para volver al nombre de la IP:
+#   bash crear-servidor.sh --sin-dominio
 set -euo pipefail
 
 NUEVOS=0
 DOMINIO=""
+SIN_DOMINIO=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --codigos-nuevos) NUEVOS=1 ;;
+    --sin-dominio) SIN_DOMINIO=1 ;;
     --dominio)
       DOMINIO="$(printf '%s' "${2:-}" | tr '[:upper:]' '[:lower:]')"
       shift
@@ -33,10 +37,14 @@ while [ $# -gt 0 ]; do
         exit 1
       fi
       ;;
-    *) echo "Opcion desconocida: $1 (son --codigos-nuevos y --dominio <nombre>)"; exit 1 ;;
+    *) echo "Opcion desconocida: $1 (son --codigos-nuevos, --dominio <nombre> y --sin-dominio)"; exit 1 ;;
   esac
   shift
 done
+if [ -n "$DOMINIO" ] && [ "$SIN_DOMINIO" = 1 ]; then
+  echo "Use --dominio o --sin-dominio, no los dos."
+  exit 1
+fi
 
 DOCUSEAL_VERSION="3.3.7"
 CADDY_VERSION="2.11.9"
@@ -62,26 +70,32 @@ if ! gcloud compute addresses describe "$NAME-ip" --region="$REGION" >/dev/null 
   gcloud compute addresses create "$NAME-ip" --region="$REGION"
 fi
 IP="$(gcloud compute addresses describe "$NAME-ip" --region="$REGION" --format='value(address)')"
+# --- nombre ---
 ALIAS="${IP//./-}.sslip.io"
-# Sin --dominio se queda el nombre que ya tiene la maquina (si tiene uno).
-if [ -z "$DOMINIO" ] && gcloud compute instances describe "$NAME" --zone="$ZONE" >/dev/null 2>&1; then
+# Sin --dominio se queda el nombre que ya tiene la maquina (si tiene uno);
+# --sin-dominio vuelve al nombre de la IP.
+if [ -z "$DOMINIO" ] && [ "$SIN_DOMINIO" = 0 ] && gcloud compute instances describe "$NAME" --zone="$ZONE" >/dev/null 2>&1; then
   ANTES="$(gcloud compute instances describe "$NAME" --zone="$ZONE" --flatten="metadata.items[]" \
     --format="csv[no-heading](metadata.items.key,metadata.items.value)" | sed -n 's/^docuseal-host,//p' | head -n 1)"
   if [[ "$ANTES" =~ ^[a-z0-9.-]+$ ]] && [[ "$ANTES" != *.sslip.io ]]; then DOMINIO="$ANTES"; fi
 fi
-HOST="${DOMINIO:-$ALIAS}"
-echo "Direccion del servidor: https://$HOST"
 if [ -n "$DOMINIO" ]; then
-  echo "Tambien responde en: https://$ALIAS"
-  DNS="$(getent ahostsv4 "$DOMINIO" 2>/dev/null | awk '{print $1; exit}' || true)"
+  # Los enlaces de firma llevan este nombre: si no apunta solo a esta IP, no
+  # sigue (la maquina no se toca).
+  DNS="$( (getent ahostsv4 "$DOMINIO" 2>/dev/null || true) | awk '{print $1}' | sort -u | paste -sd ' ' -)"
   if [ "$DNS" != "$IP" ]; then
     echo
-    echo "AVISO: $DOMINIO todavia no apunta a este servidor (${DNS:-sin registro})."
-    echo "En el DNS del dominio, cree o cambie el registro A: $DOMINIO -> $IP"
-    echo "La direccion https://$DOMINIO funciona unos minutos despues de ese cambio."
-    echo
+    echo "ALTO: $DOMINIO no apunta solo a este servidor (${DNS:-sin registro})."
+    echo "En el DNS del dominio, deje un solo registro A: $DOMINIO -> $IP"
+    echo "Espere unos minutos despues del cambio y vuelva a correr el script."
+    echo "Para volver al nombre de la IP: bash crear-servidor.sh --sin-dominio"
+    exit 1
   fi
 fi
+HOST="${DOMINIO:-$ALIAS}"
+echo "Direccion del servidor: https://$HOST"
+if [ -n "$DOMINIO" ]; then echo "Tambien responde en: https://$ALIAS"; fi
+# --- fin nombre ---
 
 # Cortafuegos: web abierta; SSH solo desde el servicio IAP de Google.
 if ! gcloud compute firewall-rules describe "$NAME-web" >/dev/null 2>&1; then

@@ -150,11 +150,17 @@ test("con un dominio, la pasarela responde igual en ese nombre y en el de la IP"
 });
 
 test("--dominio: un nombre del dominio de la agencia, en minúsculas; lo demás no sigue", { skip: !hasBash && "no bash" }, function () {
-  const parse = script.slice(script.indexOf("NUEVOS=0\n"), script.indexOf("\ndone\n", script.indexOf("NUEVOS=0\n")) + 6);
+  const parse = script.slice(script.indexOf("NUEVOS=0\n"), script.indexOf("\nDOCUSEAL_VERSION="));
   const run = (args) => spawnSync("bash", ["-c", "set -euo pipefail\n" + parse + 'echo "D=$DOMINIO N=$NUEVOS"', "x"].concat(args), { encoding: "utf8" });
   assert.equal(run(["--dominio", "Firmas.Ejemplo.COM"]).stdout.trim(), "D=firmas.ejemplo.com N=0");
   assert.equal(run(["--codigos-nuevos", "--dominio", "firmas.mi-agencia.com"]).stdout.trim(), "D=firmas.mi-agencia.com N=1");
   assert.equal(run([]).stdout.trim(), "D= N=0");
+  /* --sin-dominio vuelve al nombre de la IP; no va junto con --dominio */
+  const sin = spawnSync("bash", ["-c", "set -euo pipefail\n" + parse + 'echo "S=$SIN_DOMINIO"', "x", "--sin-dominio"], { encoding: "utf8" });
+  assert.equal(sin.stdout.trim(), "S=1");
+  const ambos = run(["--sin-dominio", "--dominio", "firmas.ejemplo.com"]);
+  assert.equal(ambos.status, 1);
+  assert.match(ambos.stdout, /--dominio o --sin-dominio, no los dos/);
   for (const bad of [[], ["firmas"], ["-x.com"], ["a..com"], ["firmas.ejemplo.com;rm"], ["34-1-2-3.sslip.io"], ["firmas ejemplo.com"]]) {
     const r = run(["--dominio"].concat(bad));
     assert.equal(r.status, 1, String(bad));
@@ -168,9 +174,73 @@ test("el nombre del servidor: queda guardado en la máquina y DocuSeal hace sus 
   assert.ok(startup.includes("      - APP_URL=https://${HOST}\n"));
   assert.ok(startup.includes('ALIAS="$(md docuseal-alias 2>/dev/null || true)"'));
   assert.ok(script.includes('METADATA="docuseal-host=$HOST,docuseal-alias=$ALIAS,'));
-  /* sin --dominio se queda el nombre que ya tenía la máquina */
-  assert.ok(script.includes('sed -n \'s/^docuseal-host,//p\''));
-  assert.ok(script.includes('HOST="${DOMINIO:-$ALIAS}"'));
-  /* avisa si el registro A todavía no apunta a la IP */
-  assert.ok(script.includes('echo "En el DNS del dominio, cree o cambie el registro A: $DOMINIO -> $IP"'));
+  /* the name step runs before anything touches the machine */
+  assert.ok(script.indexOf("# --- nombre ---") < script.indexOf("# Cortafuegos"));
+  assert.ok(script.indexOf("# --- fin nombre ---") < script.indexOf("gcloud compute instances create"));
+});
+
+/* runs the name step with a fake gcloud (the machine's stored name) and a fake
+   getent (the domain's A records); returns status, output and the chosen HOST */
+function nombre({ dominio = "", sin = 0, guardado = null, registros = null }) {
+  const step = script.slice(script.indexOf("# --- nombre ---"), script.indexOf("# --- fin nombre ---"));
+  const fakes =
+    "gcloud() { [ -n \"${GUARDADO+x}\" ] || return 1; printf '%s\\n' 'startup-script,x' \"docuseal-host,$GUARDADO\"; }\n" +
+    "getent() { [ -n \"${REGISTROS:-}\" ] || return 2; for a in $REGISTROS; do echo \"$a STREAM $2\"; echo \"$a DGRAM\"; done; }\n";
+  const vars = "IP=34.1.2.3\nNAME=docuseal\nZONE=us-central1-a\nDOMINIO='" + dominio + "'\nSIN_DOMINIO=" + sin + "\n";
+  const env = Object.assign({}, process.env);
+  delete env.GUARDADO; delete env.REGISTROS;
+  if (guardado !== null) { env.GUARDADO = guardado; }
+  if (registros !== null) { env.REGISTROS = registros; }
+  const r = spawnSync("bash", ["-c", "set -euo pipefail\n" + fakes + vars + step + 'echo "HOST=$HOST ALIAS=$ALIAS"'], { encoding: "utf8", env });
+  const m = /HOST=(\S*) ALIAS=(\S*)/.exec(r.stdout);
+  return { status: r.status, out: r.stdout, host: m ? m[1] : null, alias: m ? m[2] : null };
+}
+
+test("el nombre del servidor: sin dominio es el de la IP, y el dominio guardado se queda", { skip: !hasBash && "no bash" }, function () {
+  /* a new server, or one without a domain, uses the IP name */
+  let r = nombre({});
+  assert.equal(r.status, 0, r.out);
+  assert.equal(r.host, "34-1-2-3.sslip.io");
+  assert.equal(r.alias, "34-1-2-3.sslip.io");
+  r = nombre({ guardado: "34-1-2-3.sslip.io" });
+  assert.equal(r.host, "34-1-2-3.sslip.io");
+  /* a run without --dominio keeps the domain already on the machine */
+  r = nombre({ guardado: "firmas.ejemplo.com", registros: "34.1.2.3" });
+  assert.equal(r.status, 0, r.out);
+  assert.equal(r.host, "firmas.ejemplo.com");
+  assert.match(r.out, /Tambien responde en: https:\/\/34-1-2-3\.sslip\.io/);
+  /* a stored value that is not a name is not used */
+  r = nombre({ guardado: "x{respond 200}" });
+  assert.equal(r.host, "34-1-2-3.sslip.io");
+  /* --dominio wins over the stored one */
+  r = nombre({ dominio: "firmas.otra.com", guardado: "firmas.ejemplo.com", registros: "34.1.2.3" });
+  assert.equal(r.host, "firmas.otra.com");
+});
+
+test("--sin-dominio vuelve al nombre de la IP aunque la máquina tenga un dominio guardado", { skip: !hasBash && "no bash" }, function () {
+  const r = nombre({ sin: 1, guardado: "firmas.ejemplo.com" });
+  assert.equal(r.status, 0, r.out);
+  assert.equal(r.host, "34-1-2-3.sslip.io");
+  assert.ok(!/firmas\.ejemplo\.com/.test(r.out));
+});
+
+test("si el dominio no apunta solo a este servidor, el script para antes de tocar la máquina", { skip: !hasBash && "no bash" }, function () {
+  const casos = [
+    { registros: null, visto: "sin registro" },
+    { registros: "9.9.9.9", visto: "9.9.9.9" },
+    /* an extra stale A record also stops it, even when the new IP comes first */
+    { registros: "34.1.2.3 9.9.9.9", visto: "34.1.2.3 9.9.9.9" }
+  ];
+  for (const c of casos) {
+    for (const r of [nombre({ dominio: "firmas.ejemplo.com", registros: c.registros }),
+      nombre({ guardado: "firmas.ejemplo.com", registros: c.registros })]) {
+      assert.equal(r.status, 1, r.out);
+      assert.equal(r.host, null, "the script went on: " + r.out);
+      assert.ok(r.out.includes("ALTO: firmas.ejemplo.com no apunta solo a este servidor (" + c.visto + ")."), r.out);
+      assert.ok(r.out.includes("deje un solo registro A: firmas.ejemplo.com -> 34.1.2.3"), r.out);
+      assert.ok(r.out.includes("bash crear-servidor.sh --sin-dominio"), r.out);
+    }
+  }
+  /* the same address twice (one per socket type) is one record */
+  assert.equal(nombre({ dominio: "firmas.ejemplo.com", registros: "34.1.2.3 34.1.2.3" }).status, 0);
 });
