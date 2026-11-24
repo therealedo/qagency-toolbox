@@ -1485,7 +1485,6 @@
   function copyOrder(d) {
     var O = outcomeOf(d), list = ["note", "task"];
     if (O.report) { list.push("report"); }
-    if (!O.noSms) { list.push("sms"); }
     /* el email de Obamacare en el orden de la plantilla: asunto, parte 1,
        Tener en cuenta, Customer Service y parte 2 */
     if (buildEmail(d, "subject")) { list.push("emailSubject"); }
@@ -1493,6 +1492,9 @@
     if (buildEmail(d, "keep")) { list.push("emailKeep"); }
     if (buildEmail(d, "cs")) { list.push("emailCs"); }
     if (buildEmail(d, 2)) { list.push("email2"); }
+    /* el SMS le dice al cliente que revise su email: se manda al final,
+       cuando el email ya salió */
+    if (!O.noSms) { list.push("sms"); }
     return list;
   }
 

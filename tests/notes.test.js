@@ -1143,12 +1143,14 @@ test("avisos: faltantes y Seguro Social en la nota", () => {
 test("copiar siguiente: el orden salta lo que la situación no muestra", () => {
   const order = (extra) => N.copyOrder(make(extra));
   assert.deepEqual(order({ line: "oc", outcome: "enviada", gestion: "nueva", compania: "Florida Blue" }),
-    ["note", "task", "report", "sms", "emailSubject", "email1", "emailKeep", "emailCs", "email2"]);
+    ["note", "task", "report", "emailSubject", "email1", "emailKeep", "emailCs", "email2", "sms"]);
   /* sin teléfono de la compañía no hay Customer Service que copiar */
   assert.deepEqual(order({ line: "oc", outcome: "enviada", gestion: "nueva", compania: "Wellpoint" }),
-    ["note", "task", "report", "sms", "emailSubject", "email1", "emailKeep", "email2"]);
-  assert.deepEqual(order({ line: "supp", outcome: "enviada", gestion: "nueva" }), ["note", "task", "report", "sms", "email1"]);
-  assert.deepEqual(order({ line: "supp", outcome: "cotizacion" }), ["note", "task", "sms", "email1"]);
+    ["note", "task", "report", "emailSubject", "email1", "emailKeep", "email2", "sms"]);
+  assert.deepEqual(order({ line: "supp", outcome: "enviada", gestion: "nueva" }), ["note", "task", "report", "email1", "sms"]);
+  assert.deepEqual(order({ line: "supp", outcome: "cotizacion" }), ["note", "task", "email1", "sms"]);
+  /* el SMS le dice al cliente que revise el email: va después del email (en Medicare no hay email) */
+  assert.deepEqual(order({ line: "mc", outcome: "enviada", gestion: "nueva" }).slice(-1), ["sms"]);
   assert.deepEqual(order({ line: "mc", outcome: "sincambio" }), ["note", "task", "report"]);
   assert.deepEqual(order({ line: "oc", outcome: "pendiente" }), ["note", "task"]);
 });
