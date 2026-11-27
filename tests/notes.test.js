@@ -2016,13 +2016,29 @@ test("cancelación: el titular que sigue en la póliza no cede el reporte ni los
   assert.deepEqual(reportNames(hijo), ["Perez, Carlos"]);
 });
 
-test("cotización y cancelación: los grupos no separan el reporte ni piden los Summary of Benefits", () => {
+test("cotización y cancelación: los grupos no piden los Summary of Benefits; la cotización no separa el reporte", () => {
   ["pendiente", "cancelada"].forEach((outcome) => {
     const d = hijos({ outcome, personas: [{ titular: true, taxes: true, cobertura: true }].concat(hijos().personas.slice(1)) });
-    assert.ok(!/\n/.test(N.buildReport(d)), outcome + ": una línea");
     assert.ok(!N.warnings(d).some((w) => /Summary of Benefits/.test(w)), outcome + ": sin el aviso");
   });
+  const quote = hijos({ outcome: "pendiente", personas: [{ titular: true, taxes: true, cobertura: true }].concat(hijos().personas.slice(1)) });
+  assert.ok(!/\n/.test(N.buildReport(quote)), "pendiente: una línea");
   assert.ok(N.warnings(hijos()).some((w) => /Summary of Benefits/.test(w)), "la app enviada sí lo pide");
+});
+
+test("cancelación con grupos: una línea del reporte por grupo; los archivos, solo el titular", () => {
+  const d = madre({ outcome: "cancelada", motivoCancel: "Otro" });
+  assert.equal(N.buildReport(d), [
+    "Q5678 - Vega Luna, Andres - App OC Ambetter 2027_Cancelled - Call (LI)",
+    "Q5678 - Luna Paz, Marisol - App OC Ambetter 2027_Cancelled - Call (LI)"
+  ].join("\n"));
+  /* +N cuenta a los demás del mismo grupo */
+  const dos = madre({ outcome: "cancelada", grupos: [{ plan: "Clarity Silver", miembros: ["ANDRES VEGA LUNA", "ANA VEGA LUNA"] }, madre().grupos[1]] });
+  assert.equal(N.buildReport(dos).split("\n")[0], "Q5678 - Vega Luna, Andres - App OC Ambetter 2027_Cancelled - Call (LI) +1");
+  /* el My Plans & Programs de la cancelación no suma los nombres de pila */
+  assert.equal(nameOf(d, "plans"), "Luna Paz, Marisol - OC_My Plans & Programs Ambetter 2027 JAN CANCELLED");
+  /* un solo grupo: la línea de siempre */
+  assert.equal(N.buildReport(madre({ outcome: "cancelada", grupos: [] })), "Q5678 - Luna Paz, Marisol - App OC Ambetter 2027_Cancelled - Call (LI) +1");
 });
 
 test("los grupos de Obamacare no pasan a otro producto", () => {
