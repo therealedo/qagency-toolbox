@@ -330,6 +330,9 @@ input[type="text"]:focus, input[type="search"]:focus, select:focus, textarea:foc
 .btn.ghost { background: transparent; border-color: transparent; color: var(--ink-2); }
 .btn.ghost:hover { background: var(--inset); border-color: var(--line); color: var(--ink); }
 .btn.small { min-height: 32px; padding: 0 12px; font-size: 13px; }
+/* botones de todos los días (Nueva nota, Ventana flotante): tinte de la marca para que no se pierdan */
+.btn.accent { background: var(--brand-soft); border-color: var(--brand); color: var(--brand-ink); font-weight: 650; }
+.btn.accent:hover { background: color-mix(in srgb, var(--brand) 22%, var(--surface)); border-color: var(--brand); }
 a.btn { text-decoration: none; }
 /* el botón Actualizar se enciende cuando hay una versión nueva */
 .update-btn.has-update { background: var(--btn); border-color: var(--btn); color: #fff; }
