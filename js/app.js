@@ -104,6 +104,9 @@
       talker: "", npnAgente: "", colaborador: "", prefijo: "",
       personas: [{ titular: true, parentesco: "Titular", taxes: true, cobertura: true, ingreso: "", estatus: "", dob: "" }],
       docs: [], planes: [], revisaPlanes: false, motivoCancel: "", motivoOtro: "", hogarDoc: "",
+      /* grupos de cobertura de My Plans & Programs (dos o más planes en la
+         misma aplicación) */
+      grupos: [],
       /* compañía elegida en el selector (Obamacare y Medicare) y estado de BCBS of */
       companiaSel: "", bcbsEstado: "", tipoCancel: "cancelled", fechaTermino: "",
       direccion: "", clienteTel: "", clienteEmail: "", idioma: "es",
@@ -2107,6 +2110,8 @@
     $("prefix").checked = !!d.reportPrefix;
     $("prefixLabel").textContent = p.talker ? "Anteponer a quien habló con el cliente (" + p.talker.ini + ":)" : "Anteponer a quien habló con el cliente";
     setOut("report", report);
+    /* con grupos de cobertura, una línea por grupo: el cuadro crece */
+    if (/\n/.test($("report").value)) { fitHeight($("report")); } else { $("report").style.height = ""; }
 
     setOut("note", N.buildNote(d, { sinAcentos: settings.sinAcentos }));
 
@@ -3187,6 +3192,8 @@
     S.f.docs = S.f.docs.filter(function (x) { return !x.auto; });
     S.f.planes = S.f.planes.filter(function (x) { return !x.auto; });
     S.f.hogarDoc = ""; S.f.hogarPdf = false;
+    /* los grupos vuelven solo si otro My Plans & Programs los trae */
+    S.f.grupos = [];
     /* sin documentos no queda nadie que se haya quitado de ellos */
     if (!S.files.length) { S.f.quitados = []; S.f.descartados = []; }
     /* las casillas del Network que marcó un documento se vuelven a marcar
@@ -3223,7 +3230,7 @@
     delete fields.escritura;
     /* lo que va a las listas o a los selectores se aparta del resto */
     var special = {};
-    ["miembros", "ingreso", "hogar", "docs", "agente", "npn", "dob", "planes", "personas"].forEach(function (k) {
+    ["miembros", "ingreso", "hogar", "docs", "agente", "npn", "dob", "planes", "personas", "grupos", "titularCuenta"].forEach(function (k) {
       if (k in fields) { special[k] = fields[k]; delete fields[k]; }
     });
     /* Cotización de HealthSherpa: los planes van a Planes cotizados y la nota
@@ -3252,7 +3259,19 @@
       if (k === "anio" && S.line === "oc" && S.outcome === "pendiente" && +v < +S.f.anio) { return; }
       S.f[k] = v; S.auto[k] = true; S.rank[k] = rank; S.base[k] = v; applied++;
     });
-    if (special.miembros && S.line !== "mc") { applied += N.mergeMembers(S.f, U.parseList(special.miembros)); }
+    /* el titular de la cuenta que no aplica (solo los hijos): sigue siendo el
+       titular, sin cobertura; de pila mientras otro documento no traiga su
+       nombre completo (cualquiera lo reemplaza) */
+    var fuera = !!special.titularCuenta && S.line === "oc";
+    if (fuera) {
+      if (!U.collapse(S.f.nombres)) { S.f.nombres = special.titularCuenta; S.auto.nombres = true; S.rank.nombres = 0; applied++; }
+      applied += N.mergeHousehold(S.f, [{ titular: true, cobertura: false }], rank);
+    }
+    if (special.miembros && S.line !== "mc") { applied += N.mergeMembers(S.f, U.parseList(special.miembros), fuera); }
+    if (special.grupos && S.line === "oc") {
+      S.f.grupos = special.grupos.map(function (g) { return Object.assign({}, g, { miembros: (g.miembros || []).slice() }); });
+      applied++;
+    }
     if (special.planes && special.planes.length && S.line === "oc") {
       if (S.outcome !== "pendiente") { S.outcome = "pendiente"; S.f.taskId = ""; afterOutcomeChange(); }
       applied += mergePlanes(special.planes);
@@ -4336,8 +4355,10 @@
     /* salidas editables */
     Object.keys(OUT).forEach(function (key) {
       $(OUT[key]).addEventListener("input", function () {
-        /* el task y el reporte son de una sola línea aunque se muestren en dos */
-        if ((key === "task" || key === "report" || key === "emailSubject" || key === "emailCs") && /\n/.test(this.value)) { this.value = this.value.replace(/\s*\n\s*/g, " "); }
+        /* el task y el reporte son de una sola línea aunque se muestren en dos
+           (el reporte con grupos de cobertura lleva una línea por grupo) */
+        var oneLine = key === "task" || key === "emailSubject" || key === "emailCs" || (key === "report" && !/\n/.test(generated.report));
+        if (oneLine && /\n/.test(this.value)) { this.value = this.value.replace(/\s*\n\s*/g, " "); }
         S.edited[key] = this.value !== generated[key];
         refresh();
       });
