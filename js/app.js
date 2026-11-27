@@ -104,6 +104,10 @@
       talker: "", npnAgente: "", colaborador: "", prefijo: "",
       personas: [{ titular: true, parentesco: "Titular", taxes: true, cobertura: true, ingreso: "", estatus: "", dob: "" }],
       docs: [], planes: [], revisaPlanes: false, motivoCancel: "", motivoOtro: "", hogarDoc: "",
+      /* grupos de cobertura de My Plans & Programs (dos o más planes en la
+         misma aplicación; con uno, solo sus miembros, por cómo los escribe)
+         y el titular como lo escribe esa página */
+      grupos: [], titularPlan: "",
       /* compañía elegida en el selector (Obamacare y Medicare) y estado de BCBS of */
       companiaSel: "", bcbsEstado: "", tipoCancel: "cancelled", fechaTermino: "",
       direccion: "", clienteTel: "", clienteEmail: "", idioma: "es",
@@ -859,7 +863,8 @@
     var ps = S.f.personas;
     switch (act) {
       case "toggle": ps[i].open = !ps[i].open; renderPersonas(); return;
-      case "taxes": case "cobertura": ps[i][act] = !ps[i][act]; delete ps[i].auto; renderPersonas(); break;
+      /* `hand`: lo que el agente cambió a mano no lo vuelve a cambiar un documento */
+      case "taxes": case "cobertura": ps[i][act] = !ps[i][act]; (ps[i].hand = ps[i].hand || {})[act] = true; delete ps[i].auto; renderPersonas(); break;
       case "remove-person":
         /* quitar a alguien que trajo un documento es un cambio */
         if (ps[i].orig && ps[i].orig.nombre) { S.f.quitados.push(ps[i].orig.nombre); }
@@ -2107,6 +2112,8 @@
     $("prefix").checked = !!d.reportPrefix;
     $("prefixLabel").textContent = p.talker ? "Anteponer a quien habló con el cliente (" + p.talker.ini + ":)" : "Anteponer a quien habló con el cliente";
     setOut("report", report);
+    /* con grupos de cobertura, una línea por grupo: el cuadro crece */
+    if (/\n/.test($("report").value)) { fitHeight($("report")); } else { $("report").style.height = ""; }
 
     setOut("note", N.buildNote(d, { sinAcentos: settings.sinAcentos }));
 
@@ -3112,11 +3119,9 @@
        casillas del Network y las personas del hogar que trajo un documento */
     S.f.net = {};
     S.f.personas = S.f.personas.filter(function (p) { return p.titular || !p.auto; });
-    S.f.personas.forEach(function (p) {
-      Object.keys(p.filled || {}).forEach(function (k) { if (!p.orig || p[k] === p.orig[k]) { p[k] = ""; } });
-      delete p.filled; delete p.orig;
-    });
+    S.f.personas.forEach(unfillPersona);
     S.f.hogarPdf = false;
+    S.f.grupos = []; S.f.titularPlan = "";
     afterOutcomeChange();
   }
 
@@ -3167,6 +3172,18 @@
   /* Quitar un documento deshace lo que llenó: se vacía lo que vino de
      documentos y el agente no tocó, y se vuelven a usar los que quedan, en
      el mismo orden. Lo escrito o corregido a mano se queda. */
+  /* Lo que llenó un documento en una persona se vacía, salvo que el agente
+     lo haya cambiado; un sí/no vuelve a lo que tenía antes del documento
+     (el titular sigue pidiendo cobertura). Lo cambiado a mano (`hand`) se
+     queda aunque coincida con lo que dice el documento. */
+  function unfillPersona(p) {
+    Object.keys(p.filled || {}).forEach(function (k) {
+      if (p.hand && p.hand[k]) { return; }
+      if (!p.orig || p[k] === p.orig[k]) { p[k] = p.prev && (k in p.prev) ? p.prev[k] : ""; }
+    });
+    delete p.filled; delete p.orig; delete p.prev;
+  }
+
   function removeFile(entry) {
     var i = S.files.indexOf(entry);
     if (i < 0) { return; }
@@ -3179,14 +3196,12 @@
     if (S.f.npnAgente === "" || S.f.npnAgente === fresh.npnAgente) { S.f.agenteExtra = null; }
     S.base = {};
     S.f.personas = S.f.personas.filter(function (p) { return p.titular || !p.auto; });
-    S.f.personas.forEach(function (p) {
-      /* lo que llenó un documento se vacía, salvo que el agente lo haya cambiado */
-      Object.keys(p.filled || {}).forEach(function (k) { if (!p.orig || p[k] === p.orig[k]) { p[k] = ""; } });
-      delete p.filled; delete p.orig;
-    });
+    S.f.personas.forEach(unfillPersona);
     S.f.docs = S.f.docs.filter(function (x) { return !x.auto; });
     S.f.planes = S.f.planes.filter(function (x) { return !x.auto; });
     S.f.hogarDoc = ""; S.f.hogarPdf = false;
+    /* los grupos vuelven solo si otro My Plans & Programs los trae */
+    S.f.grupos = []; S.f.titularPlan = "";
     /* sin documentos no queda nadie que se haya quitado de ellos */
     if (!S.files.length) { S.f.quitados = []; S.f.descartados = []; }
     /* las casillas del Network que marcó un documento se vuelven a marcar
@@ -3223,7 +3238,7 @@
     delete fields.escritura;
     /* lo que va a las listas o a los selectores se aparta del resto */
     var special = {};
-    ["miembros", "ingreso", "hogar", "docs", "agente", "npn", "dob", "planes", "personas"].forEach(function (k) {
+    ["miembros", "ingreso", "hogar", "docs", "agente", "npn", "dob", "planes", "personas", "grupos", "titularCuenta", "titularPlan"].forEach(function (k) {
       if (k in fields) { special[k] = fields[k]; delete fields[k]; }
     });
     /* Cotización de HealthSherpa: los planes van a Planes cotizados y la nota
@@ -3252,7 +3267,26 @@
       if (k === "anio" && S.line === "oc" && S.outcome === "pendiente" && +v < +S.f.anio) { return; }
       S.f[k] = v; S.auto[k] = true; S.rank[k] = rank; S.base[k] = v; applied++;
     });
-    if (special.miembros && S.line !== "mc") { applied += N.mergeMembers(S.f, U.parseList(special.miembros)); }
+    /* el titular de la cuenta que no aplica (solo los hijos): sigue siendo el
+       titular, sin cobertura; de pila mientras otro documento no traiga su
+       nombre completo (cualquiera lo reemplaza) */
+    var fuera = !!special.titularCuenta && S.line === "oc";
+    if (fuera) {
+      if (!U.collapse(S.f.nombres)) { S.f.nombres = special.titularCuenta; S.auto.nombres = true; S.rank.nombres = 0; applied++; }
+      applied += N.mergeHousehold(S.f, [{ titular: true, cobertura: false }], rank);
+    }
+    /* el titular como lo escribe My Plans & Programs: así se lo reconoce
+       aunque sus apellidos no sean los de Zoho */
+    if (special.titularPlan && S.line === "oc") { S.f.titularPlan = special.titularPlan; }
+    if (special.miembros && S.line !== "mc") { applied += N.mergeMembers(S.f, U.parseList(special.miembros), fuera); }
+    if (special.grupos && S.line === "oc") {
+      S.f.grupos = special.grupos.map(function (g) { return Object.assign({}, g, { miembros: (g.miembros || []).slice() }); });
+      applied++;
+    } else if (res.type === "oc_plans" && special.miembros && S.line === "oc") {
+      /* un solo plan: no hay grupos, pero cómo escribe la página a los
+         miembros dice dónde empiezan sus apellidos */
+      S.f.grupos = [{ miembros: U.parseList(special.miembros) }];
+    }
     if (special.planes && special.planes.length && S.line === "oc") {
       if (S.outcome !== "pendiente") { S.outcome = "pendiente"; S.f.taskId = ""; afterOutcomeChange(); }
       applied += mergePlanes(special.planes);
@@ -4336,8 +4370,10 @@
     /* salidas editables */
     Object.keys(OUT).forEach(function (key) {
       $(OUT[key]).addEventListener("input", function () {
-        /* el task y el reporte son de una sola línea aunque se muestren en dos */
-        if ((key === "task" || key === "report" || key === "emailSubject" || key === "emailCs") && /\n/.test(this.value)) { this.value = this.value.replace(/\s*\n\s*/g, " "); }
+        /* el task y el reporte son de una sola línea aunque se muestren en dos
+           (el reporte con grupos de cobertura lleva una línea por grupo) */
+        var oneLine = key === "task" || key === "emailSubject" || key === "emailCs" || (key === "report" && !/\n/.test(generated.report));
+        if (oneLine && /\n/.test(this.value)) { this.value = this.value.replace(/\s*\n\s*/g, " "); }
         S.edited[key] = this.value !== generated[key];
         refresh();
       });

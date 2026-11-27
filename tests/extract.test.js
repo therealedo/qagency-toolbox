@@ -476,51 +476,80 @@ for (const [name, exp] of Object.entries(SUPP_DOCS)) {
 /* Documentos reales de Obamacare (texto de pdfToText o del OCR; nombres, IDs,
    direcciones y montos ficticios). Se leen sin el nombre del archivo. */
 const OC_DOCS = {
+  /* una aplicación con varios grupos de cobertura: el titular de la cuenta
+     (arriba) no aplica, así que no es ninguno de los miembros y su nombre
+     viene de otro documento; cada grupo trae su plan, su prima y sus
+     miembros, y la prima es la suma de lo que paga el hogar */
+  "OC My Plans & Programs Groups": { type: "oc_plans", net: "plans", fields: {
+    plan: "Everyday Bronze", planId: "49004FL0010002", telCompania: "(877) 687-1169", prima: "$45.10", appId: "4412345700",
+    miembros: "LUCIA MENDEZ RIVAS\nTOMAS MENDEZ RIVAS\nPEDRO MENDEZ RIVAS JR\nINES MENDEZ RIVAS", titularCuenta: "ROSALBA",
+    efectiva: "01/01/2027", estado: "Initial enrollment", compania: "AMBETTER", anio: "2027", plataforma: "MKPL",
+    grupos: [
+      { plan: "Everyday Bronze", planId: "49004FL0010002", prima: "$0.00", compania: "AMBETTER", miembros: ["LUCIA MENDEZ RIVAS"] },
+      { plan: "Everyday Bronze", planId: "49004FL0010002", prima: "$0.00", compania: "AMBETTER", miembros: ["TOMAS MENDEZ RIVAS"] },
+      { plan: "Clarity Silver", planId: "49004FL0010031", prima: "$45.10", compania: "AMBETTER", miembros: ["PEDRO MENDEZ RIVAS JR"] },
+      { plan: "Everyday Bronze", planId: "49004FL0010002", prima: "$0.00", compania: "AMBETTER", miembros: ["INES MENDEZ RIVAS"] }
+    ] } },
+  /* el titular tiene su propio grupo, después del de su hijo (un hijo
+     adulto en los taxes de su madre): ella sigue siendo la titular */
+  "OC My Plans & Programs Groups Owner": { type: "oc_plans", net: "plans", fields: { titularPlan: "MARISOL LUNA PAZ",
+    plan: "Clarity Silver", planId: "49004FL0010031", telCompania: "(877) 687-1169", prima: "$78.37", appId: "4412345701",
+    miembros: "MARISOL LUNA PAZ\nANDRES VEGA LUNA", nombres: "MARISOL", apellidos: "LUNA PAZ",
+    efectiva: "01/01/2027", estado: "Initial enrollment", compania: "AMBETTER", anio: "2027",
+    grupos: [
+      { plan: "Clarity Silver", planId: "49004FL0010031", prima: "$22.50", compania: "AMBETTER", miembros: ["ANDRES VEGA LUNA"] },
+      { plan: "Clarity Silver", planId: "49004FL0010031", prima: "$55.87", compania: "AMBETTER", miembros: ["MARISOL LUNA PAZ"] }
+    ] } },
+  /* un plan dental del Mercado para los mismos miembros no es otro grupo de
+     cobertura: la prima es la del plan de salud */
+  "OC My Plans & Programs Dental": { type: "oc_plans", net: "plans", fields: { titularPlan: "LAURA RAMOS",
+    plan: "Clarity Silver", planId: "12345FL0020045", prima: "$1.40", appId: "4412345702", miembros: "LAURA RAMOS\nDIEGO RAMOS",
+    nombres: "LAURA", apellidos: "RAMOS", efectiva: "01/01/2027", estado: "Active", compania: "AMBETTER", telCompania: "(800) 555-0100", anio: "2027" } },
   /* el plan es "Clarity Silver", no "Communication" (el menú de la izquierda) */
-  "OC My Plans & Programs Ambetter": { type: "oc_plans", net: "plans", fields: {
+  "OC My Plans & Programs Ambetter": { type: "oc_plans", net: "plans", fields: { titularPlan: "LAURA RAMOS",
     plan: "Clarity Silver", planId: "12345FL0020045", prima: "$1.40", appId: "4412345678", miembros: "LAURA RAMOS\nDIEGO RAMOS",
     nombres: "LAURA", apellidos: "RAMOS", efectiva: "01/01/2027", estado: "Active", compania: "AMBETTER", telCompania: "(800) 555-0100", anio: "2027" } },
   /* el plan es "Clarity Silver", no "Report a life" (el menú, en la línea del
      Plan ID); la fila del miembro parte el apellido y el año a la línea de abajo */
-  "OC My Plans & Programs Wrapped": { type: "oc_plans", net: "plans", fields: {
+  "OC My Plans & Programs Wrapped": { type: "oc_plans", net: "plans", fields: { titularPlan: "MARTA LOPEZ VIDAL",
     plan: "Clarity Silver", planId: "12345FL0010031", prima: "$16.91", appId: "4412345679", miembros: "MARTA LOPEZ VIDAL",
     nombres: "MARTA", apellidos: "LOPEZ VIDAL", efectiva: "01/01/2027", estado: "Active", compania: "AMBETTER", telCompania: "(800) 555-0100", anio: "2027" } },
   /* el nombre parte su paréntesis alrededor de los botones "Go to my plan
      benefits" y "Change plans": el plan es lo de antes del paréntesis */
-  "OC My Plans & Programs Florida Blue": { type: "oc_plans", net: "plans", fields: {
+  "OC My Plans & Programs Florida Blue": { type: "oc_plans", net: "plans", fields: { titularPlan: "ROSA FUENTES MORA",
     plan: "myBlue Silver 26M02-04C", planId: "30252FL0070062", prima: "$104.00", appId: "4412345680", miembros: "ROSA FUENTES MORA",
     nombres: "ROSA", apellidos: "FUENTES MORA", efectiva: "12/01/2026", estado: "Initial enrollment", compania: "FLORIDA BLUE", telCompania: "(800) 352-2583", anio: "2026" } },
   /* el titular es el de la esquina de arriba ("Ramon     Menu") aunque salga
      segundo en Members, donde su fila trae las fechas encima del nombre */
-  "OC My Plans & Programs Second Member": { type: "oc_plans", net: "plans", fields: {
+  "OC My Plans & Programs Second Member": { type: "oc_plans", net: "plans", fields: { titularPlan: "RAMON DE LA PAZ",
     plan: "Clarity Silver", planId: "12345FL0010031", prima: "$7.67", appId: "4412345681", miembros: "RAMON DE LA PAZ\nLUCIA SOTO VERA",
     nombres: "RAMON", apellidos: "DE LA PAZ", efectiva: "01/01/2027", estado: "Active", compania: "AMBETTER", telCompania: "(800) 555-0100", anio: "2027" } },
   /* el plan comparte la línea con el menú ("Exemptions") y el botón, y sus
      beneficios van en la línea de abajo; "(HSA)" es parte del nombre */
-  "OC My Plans & Programs Menu Beside Plan": { type: "oc_plans", net: "plans", fields: {
+  "OC My Plans & Programs Menu Beside Plan": { type: "oc_plans", net: "plans", fields: { titularPlan: "ELSA MORA",
     plan: "myBlue Bronze (HSA) 2129", planId: "30252FL0070031", prima: "$204.52", appId: "4412345682", miembros: "ELSA MORA",
     nombres: "ELSA", apellidos: "MORA", efectiva: "01/01/2027", estado: "Initial enrollment", compania: "FLORIDA BLUE", telCompania: "(800) 352-2583", anio: "2027" } },
   /* el nombre de arriba a la derecha ("jose miguel     Menu") dice dónde
      termina el nombre: Jose Miguel es el nombre y Pena el apellido */
-  "OC My Plans & Programs Two First Names": { type: "oc_plans", net: "plans", fields: {
+  "OC My Plans & Programs Two First Names": { type: "oc_plans", net: "plans", fields: { titularPlan: "JOSE MIGUEL PENA",
     plan: "Clarity Silver", planId: "49004FL0010031", prima: "$0.00", appId: "4412345683", miembros: "JOSE MIGUEL PENA",
     nombres: "JOSE MIGUEL", apellidos: "PENA", efectiva: "01/01/2027", estado: "Initial enrollment", compania: "AMBETTER", telCompania: "(877) 687-1169", anio: "2027" } },
   /* encima del Plan ID queda "change", el final de "Report a life change"
      del menú; el plan parte "(HSA, $0 Insulin)" alrededor del botón */
-  "OC My Plans & Programs Menu Fragment": { type: "oc_plans", net: "plans", fields: {
+  "OC My Plans & Programs Menu Fragment": { type: "oc_plans", net: "plans", fields: { titularPlan: "PEDRO RUIZ",
     plan: "UHC Bronze Standard", planId: "68398FL0030042", prima: "$328.40", appId: "4412345684", miembros: "PEDRO RUIZ",
     nombres: "PEDRO", apellidos: "RUIZ", efectiva: "01/01/2027", estado: "Active", compania: "UNITED HEALTHCARE", telCompania: "(888) 200-0405", anio: "2027" } },
   /* el nombre parte su código a la línea de abajo ("myBlue Essentials Silver"
      / "27M07-01C ($0 Deductible /") y los beneficios quedan cortados con "…",
      sin cerrar el paréntesis: la última línea ("Visits / $5 Labs …") no es el plan */
-  "OC My Plans & Programs Wrapped Code": { type: "oc_plans", net: "plans", fields: {
+  "OC My Plans & Programs Wrapped Code": { type: "oc_plans", net: "plans", fields: { titularPlan: "MORGAN WHITAKER",
     plan: "myBlue Essentials Silver 27M07-01C", planId: "30252FL0210001", prima: "$190.00", appId: "4412345691", miembros: "MORGAN WHITAKER\nWESLEY WHITAKER",
     nombres: "MORGAN", apellidos: "WHITAKER", efectiva: "01/01/2027", estado: "Active", compania: "FLORIDA BLUE", telCompania: "(800) 352-2583", anio: "2027" } },
   /* Blue Cross and Blue Shield of NC no es Florida Blue: es "BCBS of" con su
      estado. El nombre sigue con beneficios separados por "|" en tres líneas
      (con el botón en medio): el plan es lo de antes del primer "|". El
      teléfono de la compañía va junto a su nombre. */
-  "OC My Plans & Programs BCBS NC Pipes": { type: "oc_plans", net: "plans", fields: {
+  "OC My Plans & Programs BCBS NC Pipes": { type: "oc_plans", net: "plans", fields: { titularPlan: "DANA HOLLOWAY",
     plan: "Blue Home Bronze Standard", planId: "11512NC0400099", prima: "$101.41", appId: "4412345692", miembros: "DANA HOLLOWAY",
     nombres: "DANA", apellidos: "HOLLOWAY", efectiva: "01/01/2027", estado: "Active", compania: "BCBS OF NC", telCompania: "(800) 324-4973", anio: "2027" } },
   /* la guía que viene detrás de la carta habla de documentos: nadie los pidió */
@@ -580,6 +609,22 @@ const OC_DOCS = {
     appId: "4498765432", anio: "2027",
     docs: [{ cat: "immigration", persona: "YANET SOTO MESA", titular: false, enviado: true, doc: "Employment Authorization Card (I-766)" }] } }
 };
+
+test("My Plans & Programs: dos tarjetas de salud con los mismos miembros no son dos grupos", () => {
+  /* un plan terminado junto al nuevo: cada persona está en un solo grupo */
+  const text = fixture("OC My Plans & Programs Dental").replace(/^Dental$/m, "Health").replace("Ameritas Dental Basic", "Everyday Bronze");
+  const f = X.extract(text, "document.pdf", "oc").fields;
+  assert.equal(f.grupos, undefined);
+  assert.equal(f.prima, "$1.40");
+});
+
+test("My Plans & Programs: un plan de salud con Dental en el nombre sigue siendo un grupo", () => {
+  /* bajo el encabezado Health manda el encabezado, no el nombre del plan */
+  const text = fixture("OC My Plans & Programs Groups Owner").split("Clarity Silver").join("Ambetter Value Silver + Vision + Adult Dental");
+  const f = X.extract(text, "document.pdf", "oc").fields;
+  assert.equal((f.grupos || []).length, 2);
+  assert.equal(f.prima, "$78.37");
+});
 
 for (const [name, exp] of Object.entries(OC_DOCS)) {
   test(name + ": tipo y datos sin el nombre del archivo", () => {

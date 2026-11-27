@@ -660,14 +660,17 @@
     return null;
   }
 
-  function planAboveId(doc) {
-    for (var i = 0; i < doc.lines.length; i++) {
+  /* from: la línea donde empieza a buscar (el plan siguiente de la misma
+     página); el nombre no se busca más arriba de ella */
+  function planAboveId(doc, from) {
+    var lo = from || 0;
+    for (var i = lo; i < doc.lines.length; i++) {
       var m = doc.lines[i].match(HIOS_RE);
       if (!m) { continue; }
       var before = nameCell(doc.lines[i].slice(0, m.index).replace(/(plan\s*id|id del plan)\s*[:#]?\s*$/i, "")) || "";
       var parts = [];
       if (before.length > 4 && !PLAN_STOP.test(before)) { parts.push(before); }
-      for (var j = i - 1; !parts.length && j >= 0 && j >= i - 4; j--) {
+      for (var j = i - 1; !parts.length && j >= lo && j >= i - 4; j--) {
         var c = nameCell(doc.lines[j]);
         if (!c) { continue; }
         if (PLAN_STOP.test(c) || datesIn(c).length || c.length > 110 || !/[A-Za-z]/.test(c)) { break; }
@@ -751,6 +754,69 @@
     return out;
   }
 
+  /* Nombres (en mayúsculas, sin repetir) y fechas de la tabla de miembros:
+     el nombre va seguido de las fechas de cobertura */
+  function planMembers(lines) {
+    var names = [], dates = [];
+    memberRows(lines).forEach(function (l) {
+      var ds = datesIn(l);
+      if (!ds.length) { return; }
+      var name = vFullName(l.slice(0, ds[0].index));
+      if (!name) { return; }
+      name = name.toUpperCase();
+      if (names.indexOf(name) < 0) { names.push(name); }
+      ds.forEach(function (d) { dates.push(d.value); });
+    });
+    return { names: names, dates: dates };
+  }
+
+  /* Lo que paga el cliente por un plan; si no aparece, prima menos crédito */
+  function planPay(doc) {
+    var pay = after(doc, [/\bYou\s*pay\b/i, /Usted\s*paga/i, /\bYour\s*(monthly\s*)?(payment|cost|premium)\b/i, /(Prima|Monto)\s*a\s*pagar/i], vMoney, 1);
+    if (!pay) {
+      var total = U.moneyNumber(after(doc, [/\b(Base|Total|Full|Monthly)\s*premium\b/i, /Prima\s*(total|mensual|base)/i, /^\s*Premium\b(?!\s*tax)/i], vMoney, 1));
+      var credit = U.moneyNumber(after(doc, [/Premium\s*tax\s*credit/i, /\bAPTC\b/, /Cr[eé]dito\s*(fiscal|tributario)/i], vMoney, 1)) || 0;
+      if (total !== null) { pay = U.parseMoney(Math.max(0, total - credit)); }
+    }
+    return pay;
+  }
+
+  /* Una aplicación del Mercado puede tener varios grupos de cobertura (un
+     hijo adulto en los taxes de su madre, o hijos sin sus padres): cada
+     uno es un plan aparte en la misma página, con su Plan ID, lo que paga
+     y sus miembros. Con uno solo no hay grupos.
+     - Un plan dental (bajo el encabezado "Dental" o con dental en el
+       nombre) no es un grupo de cobertura.
+     - Cada persona está en un solo grupo: otra tarjeta con los mismos
+       miembros (un plan terminado junto al nuevo) no es otro grupo. */
+  /* el encabezado de la sección, solo en la línea o después del menú de la
+     izquierda con 2+ espacios ("Ambetter Health", con uno, es la compañía) */
+  var PLAN_SECTION = /(?:^|\s{2,})(health|salud|dental)\s*$/i;
+  function planGroups(doc) {
+    /* manda el encabezado; el nombre del plan solo si no hay encabezado (un
+       plan de salud puede incluir "Adult Dental" en el nombre) */
+    var found = [], p, start = 0, section = "";
+    while ((p = planAboveId(doc, start))) {
+      for (var i = start; i < p.at; i++) {
+        var h = PLAN_SECTION.exec(doc.lines[i]);
+        if (h) { section = /dental/i.test(h[1]) ? "dental" : "health"; }
+      }
+      found.push({ b: p, dental: section ? section === "dental" : /\bdental\b/i.test(p.name || "") });
+      start = p.at + 1;
+    }
+    var seen = [], groups = [];
+    found.forEach(function (x, k) {
+      if (x.dental) { return; }
+      /* cada tarjeta termina donde empieza la siguiente, dental o no */
+      var b = x.b, end = k + 1 < found.length ? found[k + 1].b.at : doc.lines.length;
+      var sub = makeDoc(doc.lines.slice(b.at, end).join("\n")), miembros = planMembers(sub.lines).names;
+      if (miembros.length && miembros.every(function (m) { return seen.indexOf(m) >= 0; })) { return; }
+      miembros.forEach(function (m) { seen.push(m); });
+      groups.push({ plan: b.name, planId: b.id, prima: planPay(sub) || "", compania: carrierIn("oc", b.name + "\n" + sub.flat), miembros: miembros });
+    });
+    return groups.length < 2 ? [] : groups;
+  }
+
   function extractPlans(doc) {
     var f = {};
     var p = planAboveId(doc);
@@ -764,27 +830,18 @@
     }
     if (!f.plan) { f.plan = after(doc, [/\bPlan\s*name\b/i, /Nombre del plan/i, /\bSelected\s*plan\b/i], vText(90), 1); }
 
-    /* Prima mensual: lo que paga el cliente; si no aparece, prima menos crédito */
-    var pay = after(doc, [/\bYou\s*pay\b/i, /Usted\s*paga/i, /\bYour\s*(monthly\s*)?(payment|cost|premium)\b/i, /(Prima|Monto)\s*a\s*pagar/i], vMoney, 1);
-    if (!pay) {
-      var total = U.moneyNumber(after(doc, [/\b(Base|Total|Full|Monthly)\s*premium\b/i, /Prima\s*(total|mensual|base)/i, /^\s*Premium\b(?!\s*tax)/i], vMoney, 1));
-      var credit = U.moneyNumber(after(doc, [/Premium\s*tax\s*credit/i, /\bAPTC\b/, /Cr[eé]dito\s*(fiscal|tributario)/i], vMoney, 1)) || 0;
-      if (total !== null) { pay = U.parseMoney(Math.max(0, total - credit)); }
+    /* Prima mensual: lo que paga el cliente; con varios grupos, lo que paga
+       el hogar (la suma de los grupos) */
+    var groups = planGroups(doc);
+    var pay = planPay(doc);
+    if (groups.length && groups.every(function (g) { return g.prima; })) {
+      pay = U.parseMoney(Math.round(groups.reduce(function (s, g) { return s + U.moneyNumber(g.prima) * 100; }, 0)) / 100);
     }
     if (pay) { f.prima = pay; }
     f.appId = appId(doc);
 
-    /* Tabla de miembros: nombre seguido de las fechas de cobertura */
-    var names = [], all = [];
-    memberRows(doc.lines).forEach(function (l) {
-      var ds = datesIn(l);
-      if (!ds.length) { return; }
-      var name = vFullName(l.slice(0, ds[0].index));
-      if (!name) { return; }
-      name = name.toUpperCase();
-      if (names.indexOf(name) < 0) { names.push(name); }
-      ds.forEach(function (d) { all.push(d.value); });
-    });
+    /* Tabla de miembros (todos los grupos) */
+    var mm = planMembers(doc.lines), names = mm.names, all = mm.dates;
     /* el titular es quien tiene la cuenta: su nombre está arriba a la
        derecha ("Ramon     Menu"), aunque en Members salga después. Ese es su
        nombre de pila, así que también dice dónde empiezan los apellidos:
@@ -795,10 +852,17 @@
       if (o && !owner) { owner = U.stripAccents(o[1]).toUpperCase(); }
     });
     var mine = owner ? names.filter(function (n) { return (U.stripAccents(n) + " ").indexOf(owner + " ") === 0; }) : [];
-    if (mine.length === 1) { names.splice(names.indexOf(mine[0]), 1); names.unshift(mine[0]); }
+    /* titularPlan: el titular como lo escribe esta página (sus apellidos
+       pueden no ser los de Zoho), solo si su nombre de pila lo dice */
+    if (mine.length === 1) { names.splice(names.indexOf(mine[0]), 1); names.unshift(mine[0]); f.titularPlan = mine[0]; }
+    /* el titular de la cuenta que no aplica (los hijos sin sus padres) no es
+       ninguno de los miembros: sigue siendo el titular, y su nombre completo
+       viene de otro documento (aquí solo está el de pila) */
+    var outside = !!owner && !mine.length && names.length > 0;
+    if (outside) { f.titularCuenta = owner; }
     if (names.length) {
       f.miembros = names.join("\n");
-      setName(f, names[0]);
+      if (!outside) { setName(f, names[0]); }
       var given = owner.split(" ").length, words = names[0].split(" ");
       if (mine.length === 1 && given > 1 && words.length > given) {
         f.nombres = words.slice(0, given).join(" ");
@@ -816,6 +880,7 @@
     f.anio = planYear(doc) || (f.efectiva ? f.efectiva.slice(-4) : "");
     if (/healthsherpa/i.test(doc.flat)) { f.plataforma = "HealthSherpa"; }
     else if (/healthcare\.gov|cuidadodesalud\.gov/i.test(doc.flat)) { f.plataforma = "MKPL"; }
+    if (groups.length) { f.grupos = groups; }
     return f;
   }
 
