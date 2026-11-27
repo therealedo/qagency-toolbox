@@ -164,10 +164,15 @@
      quiere decir «se cancela». */
   function appEnviada(d) { return d.line === "oc" && outcomeOf(d).id === "enviada"; }
   function pideCobertura(d) { return d.line === "oc" && outcomeOf(d).id !== "cancelada"; }
-  function gruposOf(d) {
-    if (!appEnviada(d)) { return []; }
+  function groupList(d) {
     var list = Array.isArray(d.grupos) ? d.grupos.filter(function (g) { return g && (g.miembros || []).length; }) : [];
     return list.length > 1 ? list : [];
+  }
+  function gruposOf(d) { return appEnviada(d) ? groupList(d) : []; }
+  /* el reporte lleva una línea por grupo también en la cancelación (cada
+     grupo es su propia póliza); los archivos y los avisos, no */
+  function reportGroups(d) {
+    return appEnviada(d) || (d.line === "oc" && outcomeOf(d).id === "cancelada") ? groupList(d) : [];
   }
   /* los miembros como los escribe My Plans & Programs: nombre y apellidos,
      sin el segundo nombre (con un solo plan, d.grupos trae solo los miembros) */
@@ -455,7 +460,7 @@
      el titular de la cuenta no aplica, a nombre de quien tiene la póliza
      (el cónyuge, o el primero que aplica). */
   function reportPeople(d) {
-    var gs = gruposOf(d), t = titularOf(d);
+    var gs = reportGroups(d), t = titularOf(d);
     if (gs.length) {
       return gs.map(function (g) {
         var n = g.miembros.length, mine = g.miembros.some(function (m) { return isTitularMember(d, m); });
