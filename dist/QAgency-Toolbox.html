@@ -1876,7 +1876,7 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
 (function (root) {
   "use strict";
 
-  var VERSION = "1.32.6";
+  var VERSION = "1.32.7";
   /* De aquí la herramienta instalada lee el número de la última versión (y
      nada más). La política de seguridad de index.html solo permite esta
      dirección, y el actualizador de Windows usa el mismo repositorio. */
@@ -4038,7 +4038,8 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
   function emailSubject(d, en) {
     var y = /^\d{4}$/.test(val(d.anio)) ? val(d.anio) : (U.parseDate(d.efectiva) || U.today()).split("/")[2];
     var kind = d.gestion === "cambio" ? (en ? "UPDATE" : "ACTUALIZACION") : (en ? "APPLICATION" : "APLICACION");
-    return "LE: " + kind + " - OBAMACARE " + y;
+    /* el asunto empieza con las iniciales de quien habló con el cliente */
+    return (upper(d.talkerIni) || "XX") + ": " + kind + " - OBAMACARE " + y;
   }
   function emailKeep(d, en) {
     var ef = U.parseDate(d.efectiva) || "MM/DD/YYYY", tel = carrierTel(d) || "...........";
@@ -10391,6 +10392,8 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
     var signer = p.talker || p.me;
     d.firmaNombre = signer ? signer.name : "";
     d.firmaTel = signer ? (signer.tel || "") : "";
+    /* el asunto del email de Obamacare lleva sus iniciales (ER:, DI:) */
+    d.talkerIni = signer ? signer.ini : "";
     /* hoja de cambios: el agente que atiende, el colaborador, y el NPN del
        proceso anterior (el agente del último documento) junto al elegido */
     d.sheetAgente = signer ? signer.name : "";
