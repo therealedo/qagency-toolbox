@@ -2041,6 +2041,30 @@ test("cancelación con grupos: una línea del reporte por grupo; los archivos, s
   assert.equal(N.buildReport(madre({ outcome: "cancelada", grupos: [] })), "Q5678 - Luna Paz, Marisol - App OC Ambetter 2027_Cancelled - Call (LI) +1");
 });
 
+test("cancelación con grupos: el grupo que nadie cancela no lleva línea; +N cuenta solo a quien se cancela", () => {
+  const titular = { titular: true, taxes: true, cobertura: true }, andres = { nombre: "ANDRES VEGA LUNA", parentesco: "Hijo/a", taxes: true, cobertura: true };
+  const sigue = (p) => Object.assign({}, p, { cobertura: false });
+  /* en la cancelación el sí/no de Cobertura quiere decir «se cancela» */
+  assert.equal(N.buildReport(madre({ outcome: "cancelada", personas: [titular, sigue(andres)] })),
+    "Q5678 - Luna Paz, Marisol - App OC Ambetter 2027_Cancelled - Call (LI)");
+  assert.equal(N.buildReport(madre({ outcome: "cancelada", personas: [sigue(titular), andres] })),
+    "Q5678 - Vega Luna, Andres - App OC Ambetter 2027_Cancelled - Call (LI)");
+  /* un grupo de dos donde uno sigue: la línea queda, sin contar al que sigue */
+  const ana = { nombre: "ANA VEGA LUNA", parentesco: "Hijo/a", taxes: true, cobertura: true };
+  const dos = (personas) => madre({ outcome: "cancelada", personas,
+    grupos: [{ plan: "Clarity Silver", miembros: ["ANDRES VEGA LUNA", "ANA VEGA LUNA"] }, madre().grupos[1]] });
+  assert.deepEqual(N.buildReport(dos([titular, andres, sigue(ana)])).split("\n"), [
+    "Q5678 - Vega Luna, Andres - App OC Ambetter 2027_Cancelled - Call (LI)",
+    "Q5678 - Luna Paz, Marisol - App OC Ambetter 2027_Cancelled - Call (LI)"
+  ]);
+  assert.equal(N.buildReport(dos([titular, andres, ana])).split("\n")[0], "Q5678 - Vega Luna, Andres - App OC Ambetter 2027_Cancelled - Call (LI) +1");
+  /* nadie marcado para cancelar: la línea de siempre, a nombre del titular */
+  assert.equal(N.buildReport(madre({ outcome: "cancelada", personas: [sigue(titular), sigue(andres)] })),
+    "Q5678 - Luna Paz, Marisol - App OC Ambetter 2027_Cancelled - Call (LI)");
+  /* la app enviada no cambia: cada grupo lleva su línea */
+  assert.equal(N.buildReport(madre({ personas: [titular, sigue(andres)] })).split("\n").length, 2);
+});
+
 test("los grupos de Obamacare no pasan a otro producto", () => {
   const d = hijos({ line: "supp", outcome: "cotizacion", producto: "Dental", compania: "AMERITAS", plan: "PrimeStar Care Complete", prima: "$42.00" });
   assert.match(N.buildSms(d), /PrimeStar Care Complete/);

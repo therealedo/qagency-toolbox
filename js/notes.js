@@ -169,10 +169,24 @@
     return list.length > 1 ? list : [];
   }
   function gruposOf(d) { return appEnviada(d) ? groupList(d) : []; }
+  function esCancelacion(d) { return d.line === "oc" && outcomeOf(d).id === "cancelada"; }
+  /* En la cancelación el sí/no de Cobertura quiere decir «se cancela»: sigue
+     en la póliza solo quien el agente marcó así. Quien no está en el hogar
+     cuenta como cancelado. */
+  function sigueEnPoliza(d, m) {
+    var t = titularOf(d);
+    if (t && isTitularMember(d, m)) { return !t.cobertura; }
+    var p = findMember(d, m);
+    return !!p && !p.cobertura;
+  }
+  function cancelados(d, g) { return g.miembros.filter(function (m) { return !sigueEnPoliza(d, m); }); }
   /* el reporte lleva una línea por grupo también en la cancelación (cada
-     grupo es su propia póliza); los archivos y los avisos, no */
+     grupo es su propia póliza), menos el grupo que nadie cancela; los
+     archivos y los avisos, no */
   function reportGroups(d) {
-    return appEnviada(d) || (d.line === "oc" && outcomeOf(d).id === "cancelada") ? groupList(d) : [];
+    if (appEnviada(d)) { return groupList(d); }
+    if (!esCancelacion(d)) { return []; }
+    return groupList(d).filter(function (g) { return cancelados(d, g).length > 0; });
   }
   /* los miembros como los escribe My Plans & Programs: nombre y apellidos,
      sin el segundo nombre (con un solo plan, d.grupos trae solo los miembros) */
@@ -463,7 +477,9 @@
     var gs = reportGroups(d), t = titularOf(d);
     if (gs.length) {
       return gs.map(function (g) {
-        var n = g.miembros.length, mine = g.miembros.some(function (m) { return isTitularMember(d, m); });
+        /* en la cancelación, +N cuenta solo a quienes se cancelan */
+        var n = esCancelacion(d) ? cancelados(d, g).length : g.miembros.length;
+        var mine = g.miembros.some(function (m) { return isTitularMember(d, m); });
         return { name: mine ? zohoName(d) : personZoho(d, memberName(d, g.miembros[0])),
                  delta: n > 1 ? "+" + (n - 1) : "", compania: g.compania };
       });
