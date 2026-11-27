@@ -1320,13 +1320,19 @@
   function ensureNetDir(kind, line) {
     var t = N.netDirFor(netDirs, line || S.line, kind), dir = t.dir;
     if (!dir) { return pickNetDir("general"); }
-    return dir.queryPermission({ mode: "readwrite" }).then(function (p) {
-      if (p === "granted") { return dir; }
-      return dir.requestPermission({ mode: "readwrite" }).then(function (q) {
-        if (q !== "granted") { throw new Error("permiso"); }
-        return dir;
-      });
-    });
+    return N.grantDirs([dir], clickActive).then(function () { return dir; });
+  }
+  /* el clic que inició el guardado sigue vigente (sin la API, se intenta) */
+  function clickActive() { var u = navigator.userActivation; return !u || u.isActive; }
+  /* por qué no se guardó: falta otro clic para el aviso de permiso o el
+     permiso se negó */
+  function saveProblem(e, what) {
+    if (e && e.name === "AbortError") { return; }
+    if (e && e.needsClick) {
+      toast("Chrome necesita otro clic para pedir el permiso de la carpeta «" + e.dirName + "». Haz clic otra vez en " + what + ".", 7000);
+      return;
+    }
+    toast("No se pudo guardar en la carpeta del Network. Revisa el permiso o elige la carpeta otra vez en Ajustes.");
   }
   function savableFiles(k) { return S.files.filter(function (f) { return f.file && f.res && f.res.net === k; }); }
   function savableKeys() {
@@ -1356,22 +1362,29 @@
       });
     });
     if (!jobs.length) { return; }
-    /* cada archivo va a la carpeta de su clase (o de la línea, o la general) */
-    jobs.reduce(function (p, job) {
-      return p.then(function (saved) {
-        return ensureNetDir(job.k).then(function (dir) { return writeOne(dir, job); })
-          .then(function (ok) { if (ok) { S.f.net[job.k] = true; saved.push(job.name); } return saved; });
-      });
-    }, Promise.resolve([])).then(function (saved) {
+    /* cada archivo va a la carpeta de su clase (o de la línea, o la general).
+       Primero se piden todos los permisos y después se escribe: así el aviso
+       de permiso llega mientras dura el clic, y si una carpeta necesita otro
+       clic no queda nada guardado a medias. */
+    function dirOf(job) { return N.netDirFor(netDirs, S.line, job.k).dir; }
+    (jobs.some(function (job) { return !dirOf(job); }) ? pickNetDir("general") : Promise.resolve()).then(function () {
+      var dirs = [];
+      jobs.forEach(function (job) { var d = dirOf(job); if (dirs.indexOf(d) < 0) { dirs.push(d); } });
+      return N.grantDirs(dirs, clickActive);
+    }).then(function () {
+      return jobs.reduce(function (p, job) {
+        return p.then(function (saved) {
+          return writeOne(dirOf(job), job)
+            .then(function (ok) { if (ok) { S.f.net[job.k] = true; saved.push(job.name); } return saved; });
+        });
+      }, Promise.resolve([]));
+    }).then(function (saved) {
       if (!saved || !saved.length) { return; }
       S.dirty = true;
       renderNetwork(); refresh();
       if (btn && btn.isConnected) { flashButton(btn); }
       toast(saved.length === 1 ? "Guardado en el Network: " + saved[0] : "Se guardaron " + saved.length + " archivos en el Network.");
-    }).catch(function (e) {
-      if (e && e.name === "AbortError") { return; }
-      toast("No se pudo guardar en la carpeta del Network. Revisa el permiso o elige la carpeta otra vez en Ajustes.");
-    });
+    }).catch(function (e) { saveProblem(e, "Guardar"); });
   }
 
   /* ------------------------------------------------- adjuntos del email --
@@ -2235,10 +2248,7 @@
       if (!ok) { return; }
       flashButton(btn);
       toast("Hoja de cambios guardada: " + job.name);
-    }).catch(function (e) {
-      if (e && e.name === "AbortError") { return; }
-      toast("No se pudo guardar la hoja. Revisa el permiso o elige la carpeta otra vez en Ajustes.");
-    });
+    }).catch(function (e) { saveProblem(e, "Guardar en la carpeta"); });
   }
 
   /* la vista previa es la página entera, achicada al ancho de la tarjeta */
@@ -2738,6 +2748,7 @@
     }).then(function (ok) {
       if (ok) { return markSaved(doc, "Guardado en el Network: " + name); }
     }).catch(function (e) {
+      if (e && e.needsClick) { saveProblem(e, "Guardar"); return; }
       if (e && e.name === "AbortError") { return; }
       toast("No se pudo guardar en la carpeta del Network. Usa Descargar y guárdalo a mano.");
     }).then(function () { if (btn.isConnected) { btn.disabled = false; } });
@@ -2948,12 +2959,12 @@
   /* -------------------------------------------------------------- copiar */
 
   var toastTimer = null;
-  function toast(msg) {
+  function toast(msg, ms) {
     var t = $("toast");
     t.textContent = msg;
     t.classList.add("show");
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(function () { t.classList.remove("show"); }, 2600);
+    toastTimer = setTimeout(function () { t.classList.remove("show"); }, ms || 2600);
   }
 
   /* win: la ventana que tiene el foco (la flotante, cuando se copia desde ella) */

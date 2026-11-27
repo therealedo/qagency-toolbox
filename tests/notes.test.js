@@ -1819,3 +1819,50 @@ test("SoB: sin Plan ID, también el archivo que se llama como el código del pla
   /* una palabra sin números no es un código */
   assert.deepEqual(N.sobMatches([{ name: "Silver.pdf", path: "", ids: [] }], make({ line: "oc", plan: "Clarity Silver", planId: "49004FL0010031" })), []);
 });
+
+/* ------------------------------------------- permiso de las carpetas -- */
+
+function fakeDir(name, state, answer) {
+  const calls = [];
+  return {
+    name, calls,
+    queryPermission() { calls.push("query"); return Promise.resolve(state); },
+    requestPermission() {
+      calls.push("request");
+      if (answer instanceof Error) { return Promise.reject(answer); }
+      state = answer; return Promise.resolve(answer);
+    }
+  };
+}
+
+test("grantDirs: una carpeta sin permiso lo pide mientras dura el clic", async () => {
+  const a = fakeDir("Network OC", "prompt", "granted");
+  await N.grantDirs([a], () => true);
+  assert.deepEqual(a.calls, ["query", "request"]);
+});
+
+test("grantDirs: la segunda carpeta sin permiso pide otro clic en vez de fallar callada", async () => {
+  const a = fakeDir("Network OC", "prompt", "granted"), b = fakeDir("Hoja de cambios", "prompt", "granted");
+  let active = true;
+  a.requestPermission = function () { this.calls.push("request"); active = false; return Promise.resolve("granted"); };
+  await assert.rejects(N.grantDirs([a, b], () => active), (e) => e.needsClick === true && e.dirName === "Hoja de cambios");
+  assert.deepEqual(b.calls, ["query"]);
+});
+
+test("grantDirs: las carpetas que ya tienen permiso no gastan el clic", async () => {
+  const a = fakeDir("Network OC", "granted"), b = fakeDir("Hoja de cambios", "prompt", "granted");
+  await N.grantDirs([a, b], () => true);
+  assert.deepEqual(a.calls, ["query"]);
+  assert.deepEqual(b.calls, ["query", "request"]);
+});
+
+test("grantDirs: si el navegador rechaza el pedido por falta de clic, se pide otro clic", async () => {
+  const err = new Error("User activation is required"); err.name = "SecurityError";
+  const a = fakeDir("Network OC", "prompt", err);
+  await assert.rejects(N.grantDirs([a], () => true), (e) => e.needsClick === true && e.dirName === "Network OC");
+});
+
+test("grantDirs: un permiso negado no se confunde con falta de clic", async () => {
+  const a = fakeDir("Network OC", "prompt", "denied");
+  await assert.rejects(N.grantDirs([a], () => true), (e) => e.message === "permiso" && !e.needsClick);
+});
