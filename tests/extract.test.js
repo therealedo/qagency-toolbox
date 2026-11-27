@@ -476,6 +476,30 @@ for (const [name, exp] of Object.entries(SUPP_DOCS)) {
 /* Documentos reales de Obamacare (texto de pdfToText o del OCR; nombres, IDs,
    direcciones y montos ficticios). Se leen sin el nombre del archivo. */
 const OC_DOCS = {
+  /* una aplicación con varios grupos de cobertura: el titular de la cuenta
+     (arriba) no aplica, así que no es ninguno de los miembros y su nombre
+     viene de otro documento; cada grupo trae su plan, su prima y sus
+     miembros, y la prima es la suma de lo que paga el hogar */
+  "OC My Plans & Programs Groups": { type: "oc_plans", net: "plans", fields: {
+    plan: "Everyday Bronze", planId: "49004FL0010002", telCompania: "(877) 687-1169", prima: "$45.10", appId: "4412345700",
+    miembros: "LUCIA MENDEZ RIVAS\nTOMAS MENDEZ RIVAS\nPEDRO MENDEZ RIVAS JR\nINES MENDEZ RIVAS", titularCuenta: "ROSALBA",
+    efectiva: "01/01/2027", estado: "Initial enrollment", compania: "AMBETTER", anio: "2027", plataforma: "MKPL",
+    grupos: [
+      { plan: "Everyday Bronze", planId: "49004FL0010002", prima: "$0.00", compania: "AMBETTER", miembros: ["LUCIA MENDEZ RIVAS"] },
+      { plan: "Everyday Bronze", planId: "49004FL0010002", prima: "$0.00", compania: "AMBETTER", miembros: ["TOMAS MENDEZ RIVAS"] },
+      { plan: "Clarity Silver", planId: "49004FL0010031", prima: "$45.10", compania: "AMBETTER", miembros: ["PEDRO MENDEZ RIVAS JR"] },
+      { plan: "Everyday Bronze", planId: "49004FL0010002", prima: "$0.00", compania: "AMBETTER", miembros: ["INES MENDEZ RIVAS"] }
+    ] } },
+  /* el titular tiene su propio grupo, después del de su hijo (un hijo
+     adulto en los taxes de su madre): ella sigue siendo la titular */
+  "OC My Plans & Programs Groups Owner": { type: "oc_plans", net: "plans", fields: {
+    plan: "Clarity Silver", planId: "49004FL0010031", telCompania: "(877) 687-1169", prima: "$78.37", appId: "4412345701",
+    miembros: "MARISOL LUNA PAZ\nANDRES VEGA LUNA", nombres: "MARISOL", apellidos: "LUNA PAZ",
+    efectiva: "01/01/2027", estado: "Initial enrollment", compania: "AMBETTER", anio: "2027",
+    grupos: [
+      { plan: "Clarity Silver", planId: "49004FL0010031", prima: "$22.50", compania: "AMBETTER", miembros: ["ANDRES VEGA LUNA"] },
+      { plan: "Clarity Silver", planId: "49004FL0010031", prima: "$55.87", compania: "AMBETTER", miembros: ["MARISOL LUNA PAZ"] }
+    ] } },
   /* el plan es "Clarity Silver", no "Communication" (el menú de la izquierda) */
   "OC My Plans & Programs Ambetter": { type: "oc_plans", net: "plans", fields: {
     plan: "Clarity Silver", planId: "12345FL0020045", prima: "$1.40", appId: "4412345678", miembros: "LAURA RAMOS\nDIEGO RAMOS",
