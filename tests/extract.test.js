@@ -618,6 +618,14 @@ test("My Plans & Programs: dos tarjetas de salud con los mismos miembros no son 
   assert.equal(f.prima, "$1.40");
 });
 
+test("My Plans & Programs: un plan de salud con Dental en el nombre sigue siendo un grupo", () => {
+  /* bajo el encabezado Health manda el encabezado, no el nombre del plan */
+  const text = fixture("OC My Plans & Programs Groups Owner").split("Clarity Silver").join("Ambetter Value Silver + Vision + Adult Dental");
+  const f = X.extract(text, "document.pdf", "oc").fields;
+  assert.equal((f.grupos || []).length, 2);
+  assert.equal(f.prima, "$78.37");
+});
+
 for (const [name, exp] of Object.entries(OC_DOCS)) {
   test(name + ": tipo y datos sin el nombre del archivo", () => {
     const r = X.extract(fixture(name), "document.pdf", "oc");

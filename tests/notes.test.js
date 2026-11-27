@@ -2079,6 +2079,45 @@ test("cónyuge en lugar del titular: Docs Submitted nombra al titular y no repit
     ["Kent, Nora Lee - OC_Docs Submitted_Immigration status 2026 NOV", "Kent, Nora Lee - OC_Docs Submitted_Tomas_Income 2026 NOV"]);
 });
 
+test("cónyuge en lugar del titular también en Pendiente: el consent y la hoja de cambios van a su nombre", () => {
+  const d = conyuge("NORA LEE KENT", { outcome: "pendiente", grupos: [{ miembros: ["NORA KENT"] }] });
+  assert.match(nameOf(d, "consent"), /^Kent, Nora Lee - OC_Consent /);
+  assert.match(N.changeSheet(d).archivo, /^Kent, Nora Lee - OC_Change Sheet /);
+  assert.match(N.buildSms(conyuge("NORA LEE KENT", { grupos: [{ miembros: ["NORA KENT"] }] })), /^Estimada Nora: /);
+});
+
+test("el titular que no aplica no es el hijo que se llama como él", () => {
+  /* el encabezado de My Plans & Programs solo trae el nombre de pila: "Lucia" también es la hija */
+  const d = hijos({ nombres: "LUCIA", apellidos: "RIVAS PAZ", titularPlan: "LUCIA MENDEZ RIVAS" });
+  assert.equal(nameOf(d, "plans"), "Rivas Paz, Lucia_Lucia_Tomas_Pedro_Ines - OC_My Plans & Programs Ambetter 2027 JAN");
+  assert.equal(reportNames(d)[0], "Mendez Rivas, Lucia");
+  /* y al soltar My Plans & Programs el hijo no se confunde con el titular */
+  const f = { nombres: "JOSE", apellidos: "PEREZ", titularPlan: "JOSE PEREZ GOMEZ", personas: [{ titular: true, taxes: true, cobertura: true }] };
+  N.mergeMembers(f, ["JOSE PEREZ GOMEZ", "ANA PEREZ GOMEZ"], false);
+  assert.deepEqual(f.personas.filter((p) => !p.titular).map((p) => p.nombre), ["JOSE PEREZ GOMEZ", "ANA PEREZ GOMEZ"]);
+});
+
+test("apellidos: si My Plans & Programs escribe el nombre completo, no dice dónde empiezan", () => {
+  assert.deepEqual(reportNames(conyuge("ANA MARIA PEREZ", { nombres: "CARLOS", apellidos: "PEREZ", grupos: [{ miembros: ["ANA MARIA PEREZ"] }] })), ["Perez, Ana Maria"]);
+  assert.deepEqual(reportNames(conyuge("MARIA JOSE GOMEZ RIVAS", { grupos: [{ miembros: ["MARIA JOSE GOMEZ RIVAS"] }] })), ["Gomez Rivas, Maria Jose"]);
+  const dos = hijos({
+    personas: [{ titular: true, taxes: true, cobertura: false },
+      { nombre: "JUAN CARLOS MENDEZ RIVAS", parentesco: "Hijo/a", taxes: true, cobertura: true },
+      { nombre: "JUAN PABLO MENDEZ RIVAS", parentesco: "Hijo/a", taxes: true, cobertura: true }],
+    grupos: [{ plan: "Everyday Bronze", prima: "$0.00", miembros: ["JUAN CARLOS MENDEZ RIVAS"] },
+             { plan: "Everyday Bronze", prima: "$0.00", miembros: ["JUAN PABLO MENDEZ RIVAS"] }]
+  });
+  assert.deepEqual(reportNames(dos), ["Mendez Rivas, Juan Carlos", "Mendez Rivas, Juan Pablo"]);
+});
+
+test("otro cliente: sin contar JR como apellido, y con el caso solo con el nombre", () => {
+  const res = { line: "oc", type: "oc_plans", fields: { titularCuenta: "ROSALBA", miembros: "LUCIA MENDEZ RIVAS\nPEDRO MENDEZ RIVAS JR\nINES MENDEZ RIVAS" } };
+  assert.deepEqual(N.docConflicts({ nombres: "CARLOS", apellidos: "DIAZ JR" }, "oc", res), ["otro cliente (ROSALBA, el caso es de CARLOS DIAZ JR)"]);
+  assert.deepEqual(N.docConflicts({ nombres: "BEATRIZ" }, "oc", res), ["otro cliente (ROSALBA, el caso es de BEATRIZ)"]);
+  /* alguien de la familia */
+  assert.deepEqual(N.docConflicts({ nombres: "INES" }, "oc", res), []);
+});
+
 test("My Plans & Programs: dos hermanas con el mismo nombre de pila van las dos", () => {
   const d = hijos({
     personas: [{ titular: true, taxes: true, cobertura: false },

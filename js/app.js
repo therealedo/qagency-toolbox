@@ -3174,9 +3174,11 @@
      el mismo orden. Lo escrito o corregido a mano se queda. */
   /* Lo que llenó un documento en una persona se vacía, salvo que el agente
      lo haya cambiado; un sí/no vuelve a lo que tenía antes del documento
-     (el titular sigue pidiendo cobertura). */
+     (el titular sigue pidiendo cobertura). Lo cambiado a mano (`hand`) se
+     queda aunque coincida con lo que dice el documento. */
   function unfillPersona(p) {
     Object.keys(p.filled || {}).forEach(function (k) {
+      if (p.hand && p.hand[k]) { return; }
       if (!p.orig || p[k] === p.orig[k]) { p[k] = p.prev && (k in p.prev) ? p.prev[k] : ""; }
     });
     delete p.filled; delete p.orig; delete p.prev;

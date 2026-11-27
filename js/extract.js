@@ -793,13 +793,15 @@
      izquierda con 2+ espacios ("Ambetter Health", con uno, es la compañía) */
   var PLAN_SECTION = /(?:^|\s{2,})(health|salud|dental)\s*$/i;
   function planGroups(doc) {
-    var found = [], p, start = 0, dental = false;
+    /* manda el encabezado; el nombre del plan solo si no hay encabezado (un
+       plan de salud puede incluir "Adult Dental" en el nombre) */
+    var found = [], p, start = 0, section = "";
     while ((p = planAboveId(doc, start))) {
       for (var i = start; i < p.at; i++) {
         var h = PLAN_SECTION.exec(doc.lines[i]);
-        if (h) { dental = /dental/i.test(h[1]); }
+        if (h) { section = /dental/i.test(h[1]) ? "dental" : "health"; }
       }
-      found.push({ b: p, dental: dental || /\bdental\b/i.test(p.name || "") });
+      found.push({ b: p, dental: section ? section === "dental" : /\bdental\b/i.test(p.name || "") });
       start = p.at + 1;
     }
     var seen = [], groups = [];
