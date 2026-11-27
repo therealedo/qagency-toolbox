@@ -1546,6 +1546,32 @@
     return { key: "general", dir: (dirs && dirs.general) || null };
   }
 
+  /* Pide permiso de escritura a cada carpeta, una tras otra, antes de
+     guardar nada. Chrome solo muestra un aviso de permiso por clic (el
+     aviso gasta el clic) y olvida los permisos tras unos días: una carpeta
+     que necesita otro aviso no falla callada, rechaza con needsClick para
+     que la herramienta pida volver a hacer clic. isActive dice si el clic
+     sigue vigente (navigator.userActivation.isActive). */
+  function grantDirs(dirs, isActive) {
+    function needsClick(dir) {
+      var e = new Error("clic"); e.needsClick = true; e.dirName = (dir && dir.name) || ""; return e;
+    }
+    return (dirs || []).reduce(function (p, dir) {
+      return p.then(function () {
+        return dir.queryPermission({ mode: "readwrite" }).then(function (state) {
+          if (state === "granted") { return; }
+          if (!isActive()) { throw needsClick(dir); }
+          return dir.requestPermission({ mode: "readwrite" }).then(function (q) {
+            if (q !== "granted") { throw new Error("permiso"); }
+          }, function (e) {
+            if (e && e.name === "SecurityError") { throw needsClick(dir); }
+            throw e;
+          });
+        });
+      });
+    }, Promise.resolve());
+  }
+
   /* ----------------------------------------- documento que no es del caso --
      Antes de usar un documento se compara con lo que ya tiene el caso: el
      cliente siempre; la compañía y los números de la aplicación solo si el
@@ -1667,7 +1693,7 @@
     enTaxes: enTaxes, conCobertura: conCobertura, ingresoHogar: ingresoHogar, ingresoSinContar: ingresoSinContar, limiteDeclarar: limiteDeclarar, moneyShort: moneyShort,
     attachmentFiles: attachmentFiles, quotedNames: quotedNames, fplFor: fplFor, csrSuggest: csrSuggest, planHios: planHios,
     sobMatches: sobMatches, sobPick: sobPick, sobIdsIn: sobIdsIn,
-    NET_DIRS: NET_DIRS, netDirFor: netDirFor, docKinds: docKinds, kindOf: kindOf, oepStart: oepStart, needsSheet: needsSheet, officeFor: officeFor
+    NET_DIRS: NET_DIRS, netDirFor: netDirFor, grantDirs: grantDirs, docKinds: docKinds, kindOf: kindOf, oepStart: oepStart, needsSheet: needsSheet, officeFor: officeFor
   };
   root.QA = root.QA || {};
   root.QA.notes = api;
