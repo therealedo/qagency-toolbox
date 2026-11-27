@@ -1997,6 +1997,99 @@ test("titular que no aplica con su cónyuge que sí: el SMS y el email saludan a
   assert.match(N.buildSms(hijo), /^Estimado Tomas: Somos /);
 });
 
+/* el S6 de una app enviada: el titular TOMAS R ALVAREZ no aplica, su cónyuge sí */
+const conyuge = (spouse, extra) => make(Object.assign({
+  line: "oc", outcome: "enviada", gestion: "nueva", codigoQ: "4321", compania: "FLORIDA BLUE", anio: "2027", efectiva: "01/01/2027",
+  nombres: "TOMAS R", apellidos: "ALVAREZ", fecha: "11/27/2026",
+  personas: [{ titular: true, taxes: true, cobertura: false }, { nombre: spouse, parentesco: "Cónyuge", sexo: "a", taxes: true, cobertura: true }]
+}, extra));
+const reportNames = (d) => N.buildReport(d).split("\n").map((l) => l.split(" - ")[1]);
+
+test("cancelación: el titular que sigue en la póliza no cede el reporte ni los archivos", () => {
+  /* en la cancelación el sí/no quiere decir «se cancela»: se cancela solo el cónyuge o el hijo */
+  const base = { line: "oc", outcome: "cancelada", gestion: "nueva", codigoQ: "1234", compania: "AMBETTER", anio: "2027", efectiva: "01/01/2027",
+    nombres: "CARLOS", apellidos: "PEREZ", fecha: "11/27/2026" };
+  const sp = make(Object.assign({}, base, { personas: [{ titular: true, taxes: true, cobertura: false }, { nombre: "MARIA GOMEZ", parentesco: "Cónyuge", taxes: true, cobertura: true }] }));
+  assert.deepEqual(reportNames(sp), ["Perez, Carlos"]);
+  assert.ok(N.buildFileNames(sp).every((f) => /^Perez, Carlos - /.test(f.name)));
+  const hijo = make(Object.assign({}, base, { personas: [{ titular: true, taxes: true, cobertura: false }, { nombre: "ANA PEREZ", parentesco: "Hijo/a", taxes: true, cobertura: true }] }));
+  assert.deepEqual(reportNames(hijo), ["Perez, Carlos"]);
+});
+
+test("cotización y cancelación: los grupos no separan el reporte ni piden los Summary of Benefits", () => {
+  ["pendiente", "cancelada"].forEach((outcome) => {
+    const d = hijos({ outcome, personas: [{ titular: true, taxes: true, cobertura: true }].concat(hijos().personas.slice(1)) });
+    assert.ok(!/\n/.test(N.buildReport(d)), outcome + ": una línea");
+    assert.ok(!N.warnings(d).some((w) => /Summary of Benefits/.test(w)), outcome + ": sin el aviso");
+  });
+  assert.ok(N.warnings(hijos()).some((w) => /Summary of Benefits/.test(w)), "la app enviada sí lo pide");
+});
+
+test("los grupos de Obamacare no pasan a otro producto", () => {
+  const d = hijos({ line: "supp", outcome: "cotizacion", producto: "Dental", compania: "AMERITAS", plan: "PrimeStar Care Complete", prima: "$42.00" });
+  assert.match(N.buildSms(d), /PrimeStar Care Complete/);
+  assert.ok(!/Everyday Bronze/.test(N.buildSms(d)));
+});
+
+test("otro cliente: el My Plans & Programs de un titular que no aplica trae solo su nombre de pila", () => {
+  const res = { line: "oc", type: "oc_plans", fields: { titularCuenta: "ROSALBA", miembros: "LUCIA MENDEZ RIVAS\nTOMAS MENDEZ RIVAS" } };
+  assert.deepEqual(N.docConflicts({ nombres: "BEATRIZ", apellidos: "DIAZ" }, "oc", res), ["otro cliente (ROSALBA, el caso es de BEATRIZ DIAZ)"]);
+  assert.deepEqual(N.docConflicts({ nombres: "ROSALBA", apellidos: "MENDEZ" }, "oc", res), []);
+  /* el caso puede estar a nombre de alguien de la familia: los apellidos coinciden */
+  assert.deepEqual(N.docConflicts({ nombres: "INES", apellidos: "MENDEZ RIVAS" }, "oc", res), []);
+  assert.deepEqual(N.docConflicts({}, "oc", res), []);
+});
+
+test("sí/no de un documento: guarda lo de antes y no pisa lo cambiado a mano", () => {
+  const f = { nombres: "BEATRIZ", apellidos: "DIAZ", personas: [{ titular: true, taxes: true, cobertura: true }] };
+  N.mergeHousehold(f, [{ titular: true, cobertura: false }], 3);
+  const p = f.personas[0];
+  assert.equal(p.cobertura, false);
+  assert.equal(p.prev.cobertura, true, "al quitar el documento vuelve a pedir cobertura");
+  /* el agente lo vuelve a encender; al quitar otro documento se vuelven a aplicar los demás */
+  p.cobertura = true; p.hand = { cobertura: true }; delete p.filled; delete p.orig; delete p.prev;
+  N.mergeHousehold(f, [{ titular: true, cobertura: false }], 3);
+  assert.equal(p.cobertura, true);
+});
+
+test("apellidos de otra persona: los de My Plans & Programs, no el único apellido del titular", () => {
+  assert.deepEqual(reportNames(hijos({ apellidos: "RIVAS" })), ["Mendez Rivas, Lucia", "Mendez Rivas, Tomas Andres", "Mendez Rivas Jr, Pedro", "Mendez Rivas, Ines"]);
+  assert.deepEqual(reportNames(hijos({ apellidos: "RIVAS", grupos: [] })), ["Mendez Rivas, Lucia"]);
+  /* el titular en Zoho con un apellido y en My Plans & Programs con dos */
+  const m = madre({ apellidos: "LUNA", titularPlan: "MARISOL LUNA PAZ" });
+  assert.deepEqual(reportNames(m), ["Vega Luna, Andres", "Luna, Marisol"]);
+  assert.equal(nameOf(m, "plans"), "Luna, Marisol_Andres - OC_My Plans & Programs Ambetter 2027 JAN");
+});
+
+test("cónyuge en lugar del titular: la inicial del segundo nombre va con el nombre; con un plan, la página dice el apellido", () => {
+  const ini = conyuge("NORA L KENT");
+  assert.equal(nameOf(ini, "appsummary"), "Kent, Nora L - OC_App Summary 2027");
+  assert.deepEqual(reportNames(ini), ["Kent, Nora L"]);
+  /* un solo plan: la app guarda solo cómo escribe la página a los miembros */
+  const uno = conyuge("NORA LEE KENT", { grupos: [{ miembros: ["NORA KENT"] }] });
+  assert.equal(nameOf(uno, "appsummary"), "Kent, Nora Lee - OC_App Summary 2027");
+});
+
+test("cónyuge en lugar del titular: Docs Submitted nombra al titular y no repite al cónyuge", () => {
+  const d = conyuge("NORA LEE KENT", { grupos: [{ miembros: ["NORA KENT"] }], docs: [
+    { cat: "immigration", persona: "NORA LEE KENT", enviado: true },
+    { cat: "income", persona: "TOMAS R ALVAREZ", enviado: true, titular: true }
+  ] });
+  assert.deepEqual(N.buildFileNames(d).filter((f) => /Docs Submitted/.test(f.name)).map((f) => f.name),
+    ["Kent, Nora Lee - OC_Docs Submitted_Immigration status 2026 NOV", "Kent, Nora Lee - OC_Docs Submitted_Tomas_Income 2026 NOV"]);
+});
+
+test("My Plans & Programs: dos hermanas con el mismo nombre de pila van las dos", () => {
+  const d = hijos({
+    personas: [{ titular: true, taxes: true, cobertura: false },
+      { nombre: "MARIA JOSE MENDEZ RIVAS", parentesco: "Hijo/a", taxes: true, cobertura: true },
+      { nombre: "MARIA FERNANDA MENDEZ RIVAS", parentesco: "Hijo/a", taxes: true, cobertura: true }],
+    grupos: [{ plan: "Everyday Bronze", prima: "$0.00", miembros: ["MARIA JOSE MENDEZ RIVAS"] },
+             { plan: "Everyday Bronze", prima: "$0.00", miembros: ["MARIA FERNANDA MENDEZ RIVAS"] }]
+  });
+  assert.equal(nameOf(d, "plans"), "Mendez Rivas, Rosalba_Maria_Maria - OC_My Plans & Programs Ambetter 2027 JAN");
+});
+
 test("el padre y el hijo con el mismo nombre (JR) son dos personas", () => {
   assert.equal(N.samePerson("PEDRO MENDEZ RIVAS JR", "PEDRO MENDEZ RIVAS"), false);
   assert.equal(N.samePerson("PEDRO MENDEZ RIVAS JR", "PEDRO RIVAS JR"), true);

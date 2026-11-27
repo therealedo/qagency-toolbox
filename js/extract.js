@@ -784,17 +784,35 @@
   /* Una aplicación del Mercado puede tener varios grupos de cobertura (un
      hijo adulto en los taxes de su madre, o hijos sin sus padres): cada
      uno es un plan aparte en la misma página, con su Plan ID, lo que paga
-     y sus miembros. Con uno solo no hay grupos. */
+     y sus miembros. Con uno solo no hay grupos.
+     - Un plan dental (bajo el encabezado "Dental" o con dental en el
+       nombre) no es un grupo de cobertura.
+     - Cada persona está en un solo grupo: otra tarjeta con los mismos
+       miembros (un plan terminado junto al nuevo) no es otro grupo. */
+  /* el encabezado de la sección, solo en la línea o después del menú de la
+     izquierda con 2+ espacios ("Ambetter Health", con uno, es la compañía) */
+  var PLAN_SECTION = /(?:^|\s{2,})(health|salud|dental)\s*$/i;
   function planGroups(doc) {
-    var blocks = [], p, start = 0;
-    while ((p = planAboveId(doc, start))) { blocks.push(p); start = p.at + 1; }
-    if (blocks.length < 2) { return []; }
-    return blocks.map(function (b, k) {
-      var end = k + 1 < blocks.length ? blocks[k + 1].at : doc.lines.length;
-      var sub = makeDoc(doc.lines.slice(b.at, end).join("\n"));
-      return { plan: b.name, planId: b.id, prima: planPay(sub) || "", compania: carrierIn("oc", b.name + "\n" + sub.flat),
-               miembros: planMembers(sub.lines).names };
+    var found = [], p, start = 0, dental = false;
+    while ((p = planAboveId(doc, start))) {
+      for (var i = start; i < p.at; i++) {
+        var h = PLAN_SECTION.exec(doc.lines[i]);
+        if (h) { dental = /dental/i.test(h[1]); }
+      }
+      found.push({ b: p, dental: dental || /\bdental\b/i.test(p.name || "") });
+      start = p.at + 1;
+    }
+    var seen = [], groups = [];
+    found.forEach(function (x, k) {
+      if (x.dental) { return; }
+      /* cada tarjeta termina donde empieza la siguiente, dental o no */
+      var b = x.b, end = k + 1 < found.length ? found[k + 1].b.at : doc.lines.length;
+      var sub = makeDoc(doc.lines.slice(b.at, end).join("\n")), miembros = planMembers(sub.lines).names;
+      if (miembros.length && miembros.every(function (m) { return seen.indexOf(m) >= 0; })) { return; }
+      miembros.forEach(function (m) { seen.push(m); });
+      groups.push({ plan: b.name, planId: b.id, prima: planPay(sub) || "", compania: carrierIn("oc", b.name + "\n" + sub.flat), miembros: miembros });
     });
+    return groups.length < 2 ? [] : groups;
   }
 
   function extractPlans(doc) {
@@ -832,7 +850,9 @@
       if (o && !owner) { owner = U.stripAccents(o[1]).toUpperCase(); }
     });
     var mine = owner ? names.filter(function (n) { return (U.stripAccents(n) + " ").indexOf(owner + " ") === 0; }) : [];
-    if (mine.length === 1) { names.splice(names.indexOf(mine[0]), 1); names.unshift(mine[0]); }
+    /* titularPlan: el titular como lo escribe esta página (sus apellidos
+       pueden no ser los de Zoho), solo si su nombre de pila lo dice */
+    if (mine.length === 1) { names.splice(names.indexOf(mine[0]), 1); names.unshift(mine[0]); f.titularPlan = mine[0]; }
     /* el titular de la cuenta que no aplica (los hijos sin sus padres) no es
        ninguno de los miembros: sigue siendo el titular, y su nombre completo
        viene de otro documento (aquí solo está el de pila) */

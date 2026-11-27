@@ -158,44 +158,63 @@
      prima. Se cotizan juntos, pero cada grupo se reporta por separado
      (la comisión se consulta por grupo). d.grupos viene de My Plans &
      Programs: [{ plan, planId, prima, compania, miembros: [NOMBRES] }]. */
+  /* Los grupos, quién no aplica y a nombre de quién van los documentos son de
+     la app enviada: la cotización se hace con todos juntos y en la
+     cancelación «pide cobertura» quiere decir «se cancela». */
+  function appEnviada(d) { return d.line === "oc" && outcomeOf(d).id === "enviada"; }
   function gruposOf(d) {
+    if (!appEnviada(d)) { return []; }
     var list = Array.isArray(d.grupos) ? d.grupos.filter(function (g) { return g && (g.miembros || []).length; }) : [];
     return list.length > 1 ? list : [];
   }
   /* los miembros como los escribe My Plans & Programs: nombre y apellidos,
-     sin el segundo nombre */
+     sin el segundo nombre (con un solo plan, d.grupos trae solo los miembros) */
   function planSpellings(d) {
     var out = [];
-    (Array.isArray(d.grupos) ? d.grupos : []).forEach(function (g) { (g.miembros || []).forEach(function (m) { out.push(m); }); });
+    (Array.isArray(d.grupos) ? d.grupos : []).forEach(function (g) { ((g && g.miembros) || []).forEach(function (m) { out.push(m); }); });
     return out;
   }
   function endsWithWords(a, b) { return b.length > 0 && a.length > b.length && a.slice(-b.length).join(" ") === b.join(" "); }
   /* "Apellidos, Nombres" de otra persona del hogar: sus apellidos son los
-     del titular si su nombre termina en ellos; si no, los que siguen al
-     nombre de pila en My Plans & Programs ("NORA KENT" dice que en
-     "NORA LEE KENT" el apellido es KENT); si no, como cualquier nombre.
-     JR va con los apellidos. */
+     que siguen al nombre de pila en My Plans & Programs ("NORA KENT" dice
+     que en "NORA LEE KENT" el apellido es KENT); si no, los del titular si
+     es su cónyuge y su nombre termina en ellos (de casada); si no, como
+     cualquier nombre, con la inicial del segundo nombre junto al nombre
+     ("NORA L KENT" es Kent, Nora L). JR va con los apellidos. */
   function personZoho(d, name) {
     var w = words(name), sfx = suffixOf(w), core = sfx ? w.slice(0, -1) : w;
     if (!core.length) { return ""; }
-    var ap = endsWithWords(core, words(d.apellidos)) ? words(d.apellidos) : [];
+    var ap = [];
     planSpellings(d).forEach(function (s) {
       var c = words(s);
       if (suffixOf(c)) { c = c.slice(0, -1); }
       if (!ap.length && c.length >= 2 && c[0] === core[0] && endsWithWords(core, c.slice(1))) { ap = c.slice(1); }
     });
+    var who = findMember(d, name);
+    if (!ap.length && who && !who.titular && who.parentesco === "Cónyuge" && endsWithWords(core, words(d.apellidos))) { ap = words(d.apellidos); }
     var no, sp;
     if (ap.length) { no = core.slice(0, core.length - ap.length).join(" "); sp = ap.join(" "); }
+    else if (core.length > 2 && /^[A-Z]\.?$/.test(core[1])) { no = core.slice(0, 2).join(" "); sp = core.slice(2).join(" "); }
     else { var s = U.splitName(core.join(" ")); no = s.nombres; sp = s.apellidos; }
     if (sfx) { sp = (sp ? sp + " " : "") + sfx; }
     return zohoName({ nombres: no, apellidos: sp });
   }
   function titularOf(d) { return personas(d).filter(function (p) { return p.titular; })[0] || null; }
+  /* el titular es este miembro de My Plans & Programs: el mismo nombre, o
+     como lo escribe la página (con apellidos que no son los de Zoho) */
+  function isTitularMember(d, m) {
+    var t = titularOf(d);
+    return !!t && !!val(t.name) && (samePerson(t.name, m) || isTitularPlan(d, t.name, m));
+  }
+  function isTitularPlan(f, titName, m) {
+    var a = words(f.titularPlan), b = words(m), t = words(titName);
+    return a.length > 1 && a.join(" ") === b.join(" ") && t[0] === b[0];
+  }
   /* el titular de la cuenta no aplica pero su cónyuge sí: los documentos
      van a nombre del cónyuge (con los hijos solos, siguen con el titular) */
   function spouseInstead(d) {
     var t = titularOf(d);
-    if (d.line !== "oc" || !t || t.cobertura) { return null; }
+    if (!appEnviada(d) || !t || t.cobertura) { return null; }
     return personas(d).filter(function (p) { return !p.titular && p.cobertura && p.parentesco === "Cónyuge"; })[0] || null;
   }
   /* a nombre de quién van los archivos */
@@ -208,7 +227,6 @@
     var p = findMember(d, m);
     return p && !p.titular ? p.nombre : m;
   }
-  function inGroup(name, g) { return !!val(name) && (g.miembros || []).some(function (m) { return samePerson(name, m); }); }
   /* "Lucia y Tomas": los nombres de pila de un grupo */
   function groupLabel(g, en) {
     var ns = (g.miembros || []).map(first);
@@ -433,14 +451,14 @@
      (el cónyuge, o el primero que aplica). */
   function reportPeople(d) {
     var gs = gruposOf(d), t = titularOf(d);
-    if (d.line === "oc" && gs.length) {
+    if (gs.length) {
       return gs.map(function (g) {
-        var n = g.miembros.length;
-        return { name: t && inGroup(t.name, g) ? zohoName(d) : personZoho(d, memberName(d, g.miembros[0])),
+        var n = g.miembros.length, mine = g.miembros.some(function (m) { return isTitularMember(d, m); });
+        return { name: mine ? zohoName(d) : personZoho(d, memberName(d, g.miembros[0])),
                  delta: n > 1 ? "+" + (n - 1) : "", compania: g.compania };
       });
     }
-    if (d.line === "oc" && t && !t.cobertura) {
+    if (appEnviada(d) && t && !t.cobertura) {
       var lead = spouseInstead(d) || conCobertura(d)[0];
       if (lead) { return [{ name: personZoho(d, lead.name), delta: memberDelta(d) }]; }
     }
@@ -737,7 +755,7 @@
       if (n.tipoCancel && n.tipoCancel !== tipo) { return; }
       if (!n.perDoc) { out.push(n); return; }
       docsOf(d).filter(function (x) { return x.enviado; }).forEach(function (x) {
-        var c = docCat(x.cat), who = docTitular(d, x) ? "" : first(x.persona);
+        var c = docCat(x.cat), who = docTag(d, x);
         out.push({ k: docKey(x), label: n.label + ": " + c.label + (who ? " (" + who + ")" : ""), date: n.date,
                    file: n.file.replace("{doc}", (who ? who + "_" : "") + (c.file || c.label)) });
       });
@@ -758,6 +776,17 @@
     var plain = function (v) { return U.stripAccents(upper(v)); };
     var p = plain(x.persona), no = plain(d.nombres);
     return !p || p === plain(val(d.nombres) + " " + val(d.apellidos)) || (p.indexOf(" ") < 0 && p === no.split(" ")[0]);
+  }
+  /* El nombre de pila que lleva un documento en Docs Submitted: ninguno si
+     es de quien da el nombre a los archivos. Con el cónyuge en lugar del
+     titular que no aplica, el del titular sí lo lleva ("_Tomas_Income") y
+     el del cónyuge, o sin persona, no. */
+  function docTag(d, x) {
+    var sp = spouseInstead(d);
+    if (!sp) { return docTitular(d, x) ? "" : first(x.persona); }
+    if (!val(x.persona) && !x.titular) { return ""; }
+    if (docTitular(d, x)) { return first(d.nombres); }
+    return samePerson(x.persona, sp.name) ? "" : first(x.persona);
   }
 
   /* ------------------------------------------------- adjuntos del email --
@@ -961,7 +990,7 @@
     var list = f.personas || [], tit = list.filter(function (p) { return p.titular; })[0];
     if (titular) { return tit || null; }
     var titName = tit ? personaLabel(f, tit) : "";
-    if (titName && samePerson(titName, name)) { return tit; }
+    if (titName && (samePerson(titName, name) || isTitularPlan(f, titName, name))) { return tit; }
     var others = list.filter(function (p) { return !p.titular; });
     var ps = others.filter(function (p) { return sameName(p.nombre, name); });
     if (!ps.length) { ps = others.filter(function (p) { return samePerson(p.nombre, name); }); }
@@ -1061,11 +1090,16 @@
         if (had == null && !weak) { p.orig[k] = x[k]; }
       });
       /* sí/no del documento (pide cobertura, es dependiente en los taxes):
-         se aplica salvo que el agente ya lo haya cambiado a mano */
+         se aplica salvo que el agente ya lo haya cambiado a mano (`hand`,
+         que sigue aunque se quite un documento y se vuelvan a aplicar los
+         demás). `prev` guarda lo que había antes, para volver a eso si se
+         quita el documento. */
       FLAG_KEYS.forEach(function (k) {
         if (typeof x[k] !== "boolean" || weak) { return; }
+        if (p.hand && p.hand[k]) { p.orig[k] = x[k]; return; }
         var had = p.filled[k];
         if (had != null && (p[k] !== p.orig[k] || r < had)) { return; }
+        if (had == null) { p.prev = p.prev || {}; if (!(k in p.prev)) { p.prev[k] = p[k]; } }
         if (p[k] !== x[k]) { n++; delete p.ok; }
         p[k] = x[k]; p.orig[k] = x[k]; p.filled[k] = r;
       });
@@ -1550,17 +1584,20 @@
     });
   }
   /* "_Lucia_Tomas": los nombres de pila de los miembros de los grupos, en el
-     orden de la página, menos el de quien da el nombre a los archivos */
+     orden de la página, menos el de quien da el nombre a los archivos. Cada
+     miembro está en un solo grupo: dos hermanos que se llaman igual van los
+     dos ("_Maria_Maria"). */
   function planFileNames(d) {
     var gs = gruposOf(d);
     if (!gs.length) { return ""; }
-    var sp = spouseInstead(d), t = titularOf(d), lead = sp ? sp.name : (t ? t.name : "");
+    var sp = spouseInstead(d);
+    var isLead = function (m) { return sp ? samePerson(sp.name, m) : isTitularMember(d, m); };
     var out = [];
     gs.forEach(function (g) {
       g.miembros.forEach(function (m) {
-        if (lead && samePerson(lead, m)) { return; }
+        if (isLead(m)) { return; }
         var fn = U.stripAccents(first(memberName(d, m)));
-        if (fn && out.indexOf(fn) < 0) { out.push(fn); }
+        if (fn) { out.push(fn); }
       });
     });
     return out.length ? "_" + out.join("_") : "";
@@ -1608,7 +1645,7 @@
       if (!val(d.anio)) { w.push("Reporte: falta el año del plan."); }
     }
     /* grupos en planes distintos: cada plan tiene su Summary of Benefits */
-    if (d.line === "oc" && distinctPlans(d).length > 1) {
+    if (appEnviada(d) && distinctPlans(d).length > 1) {
       w.push("Email: los grupos de cobertura tienen planes distintos (" + distinctPlans(d).join(", ") + "): adjunta el Summary of Benefits de cada uno.");
     }
     var T = taskById(d.taskId) || taskById(autoTaskId(d));
@@ -1759,6 +1796,14 @@
     f = f || {};
     var apCase = nameWords(f.apellidos), apDoc = nameWords(d.apellidos);
     var other = apCase.length && apDoc.length ? disjoint(apCase, apDoc) : disjoint(nameWords(f.nombres), nameWords(d.nombres));
+    /* My Plans & Programs de un titular que no aplica: trae solo su nombre de
+       pila (arriba) y los miembros. Es otro cliente si ni ese nombre es el
+       del caso ni ningún miembro tiene sus apellidos (el caso puede estar a
+       nombre del cónyuge que aplica). */
+    if (!other && !apDoc.length && !nameWords(d.nombres).length && val(d.titularCuenta)) {
+      other = disjoint(nameWords(f.nombres), nameWords(d.titularCuenta)) && disjoint(apCase, nameWords(d.miembros));
+      if (other) { d = Object.assign({}, d, { nombres: d.titularCuenta }); }
+    }
     if (other) { out.push("otro cliente (" + fullName(d.nombres, d.apellidos) + ", el caso es de " + fullName(f.nombres, f.apellidos) + ")"); }
     var sameLine = !res.line || res.line === line;
     if (sameLine && val(f.compania) && val(d.compania) && !sameCarrier(line, f.compania, d.compania)) {
