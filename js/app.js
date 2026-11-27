@@ -1978,6 +1978,8 @@
     var signer = p.talker || p.me;
     d.firmaNombre = signer ? signer.name : "";
     d.firmaTel = signer ? (signer.tel || "") : "";
+    /* el asunto del email de Obamacare lleva sus iniciales (ER:, DI:) */
+    d.talkerIni = signer ? signer.ini : "";
     /* hoja de cambios: el agente que atiende, el colaborador, y el NPN del
        proceso anterior (el agente del último documento) junto al elegido */
     d.sheetAgente = signer ? signer.name : "";

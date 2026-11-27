@@ -722,15 +722,18 @@ test("email Obamacare: parte 1 con la póliza y parte 2 con lo que pide el Merca
 });
 
 test("email Obamacare: asunto, las dos líneas de Tener en cuenta y el teléfono de Customer Service", () => {
-  const d = make({ line: "oc", outcome: "enviada", gestion: "nueva", anio: "2027", compania: "Florida Blue", efectiva: "01/01/2027", prima: "85.4" });
+  const d = make({ line: "oc", outcome: "enviada", gestion: "nueva", anio: "2027", compania: "Florida Blue", efectiva: "01/01/2027", prima: "85.4", talkerIni: "ER" });
   const en = Object.assign({}, d, { idioma: "en" });
-  assert.equal(N.buildEmail(d, "subject"), "LE: APLICACION - OBAMACARE 2027");
-  assert.equal(N.buildEmail(en, "subject"), "LE: APPLICATION - OBAMACARE 2027");
-  assert.equal(N.buildEmail(Object.assign({}, d, { gestion: "renovacion" }), "subject"), "LE: APLICACION - OBAMACARE 2027");
-  assert.equal(N.buildEmail(Object.assign({}, d, { gestion: "cambio" }), "subject"), "LE: ACTUALIZACION - OBAMACARE 2027");
-  assert.equal(N.buildEmail(Object.assign({}, en, { gestion: "cambio" }), "subject"), "LE: UPDATE - OBAMACARE 2027");
+  assert.equal(N.buildEmail(d, "subject"), "ER: APLICACION - OBAMACARE 2027");
+  assert.equal(N.buildEmail(en, "subject"), "ER: APPLICATION - OBAMACARE 2027");
+  assert.equal(N.buildEmail(Object.assign({}, d, { gestion: "renovacion" }), "subject"), "ER: APLICACION - OBAMACARE 2027");
+  assert.equal(N.buildEmail(Object.assign({}, d, { gestion: "cambio" }), "subject"), "ER: ACTUALIZACION - OBAMACARE 2027");
+  assert.equal(N.buildEmail(Object.assign({}, en, { gestion: "cambio" }), "subject"), "ER: UPDATE - OBAMACARE 2027");
+  /* las iniciales de quien habló con el cliente; sin nadie elegido, XX */
+  assert.equal(N.buildEmail(Object.assign({}, d, { talkerIni: "di" }), "subject"), "DI: APLICACION - OBAMACARE 2027");
+  assert.equal(N.buildEmail(Object.assign({}, d, { talkerIni: "" }), "subject"), "XX: APLICACION - OBAMACARE 2027");
   /* sin año, el de la cobertura */
-  assert.equal(N.buildEmail(Object.assign({}, d, { anio: "" }), "subject"), "LE: APLICACION - OBAMACARE 2027");
+  assert.equal(N.buildEmail(Object.assign({}, d, { anio: "" }), "subject"), "ER: APLICACION - OBAMACARE 2027");
   assert.equal(N.buildEmail(d, "keep"), [
     "Si su plan tiene prima a pagar, favor hacer el pago de la prima antes del 01/01/2027 llamando a (800) 352-2583",
     "En caso de no recibir sus tarjetas a la fecha de inicio de la cobertura, debera comunicarse con FLORIDA BLUE para revisar el estatus del envío."

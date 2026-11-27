@@ -1259,7 +1259,8 @@
   function emailSubject(d, en) {
     var y = /^\d{4}$/.test(val(d.anio)) ? val(d.anio) : (U.parseDate(d.efectiva) || U.today()).split("/")[2];
     var kind = d.gestion === "cambio" ? (en ? "UPDATE" : "ACTUALIZACION") : (en ? "APPLICATION" : "APLICACION");
-    return "LE: " + kind + " - OBAMACARE " + y;
+    /* el asunto empieza con las iniciales de quien habló con el cliente */
+    return (upper(d.talkerIni) || "XX") + ": " + kind + " - OBAMACARE " + y;
   }
   function emailKeep(d, en) {
     var ef = U.parseDate(d.efectiva) || "MM/DD/YYYY", tel = carrierTel(d) || "...........";
