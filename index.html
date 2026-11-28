@@ -203,27 +203,11 @@
             <p class="sign-warn" id="signSendWarn" role="note"><strong>Servidor de prueba.</strong> Usa solo datos de prueba hasta que Q Agency tenga su propio servidor de firma con el acuerdo de privacidad (BAA).</p>
             <p class="muted sign-hint" id="signSendStatus"></p>
           </div>
-          <div class="sign-block" id="signLinkBox" hidden>
-            <div class="out-sub">
-              <h3>Enlace de firma del cliente</h3>
-              <button type="button" class="btn small" id="copySignUrl" data-label="Copiar enlace">Copiar enlace</button>
-            </div>
-            <p class="sign-warn" id="signWarn" role="note"><strong>Solo con datos de prueba.</strong> No lo envíes a clientes reales hasta que el servidor de firma de Q Agency tenga el acuerdo de privacidad (BAA); mientras tanto, usa el PDF.</p>
-            <input type="text" class="mono" id="signUrl" readonly spellcheck="false" aria-label="Enlace de firma">
-            <div class="out-sub">
-              <h3>SMS</h3>
-              <a class="link-btn" id="signSmsOpen" href="#" hidden>Abrir en el teléfono</a>
-              <button type="button" class="btn small" id="copySignSms" data-label="Copiar">Copiar</button>
-            </div>
-            <textarea class="email-box" id="signSms" rows="4" readonly aria-label="SMS con el enlace de firma"></textarea>
-            <div class="out-sub">
-              <h3>Email</h3>
-              <a class="link-btn" id="signEmailOpen" href="#" hidden>Abrir en el correo</a>
-              <button type="button" class="btn small" id="copySignEmail" data-label="Copiar">Copiar</button>
-            </div>
-            <textarea class="email-box" id="signEmail" rows="6" readonly aria-label="Email con el enlace de firma"></textarea>
-          </div>
-          <p class="muted sign-hint" id="signLinkHint" hidden></p>
+          <!-- con el enlace creado: el SMS y el email salen en la pestaña Firma, con los textos para copiar -->
+          <p class="muted sign-hint sign-where" id="signLinkHint" hidden>
+            El enlace de firma ya está creado. El SMS y el email para el cliente están en la pestaña Firma, junto a Nota y Task.
+            <button type="button" class="link-btn" id="signShow">Ver el SMS y el email</button>
+          </p>
         </section>
 
         <!-- Hoja de cambios (Obamacare Pendiente): resumen para el colaborador que completa la aplicación -->
@@ -359,6 +343,31 @@
               <button type="button" class="btn small" id="copyEmail2" data-label="Copiar">Copiar</button>
             </div>
             <textarea class="email-box" id="email2" rows="6" spellcheck="true" aria-label="Email para el cliente, parte 2: lo que pide el Mercado y firma"></textarea>
+          </div>
+        </div>
+
+        <!-- el enlace de firma del Consent o el SOA: sale al crearlo, dentro de un SMS y un email para el cliente -->
+        <div class="card out-card" id="signCard" data-tab="sign" role="tabpanel" aria-labelledby="tab-sign" hidden>
+          <div class="out-head">
+            <h2 id="signCardTitle">Enlace de firma</h2>
+          </div>
+          <p class="sign-warn" id="signWarn" role="note"><strong>Solo con datos de prueba.</strong> No lo envíes a clientes reales hasta que el servidor de firma de Q Agency tenga el acuerdo de privacidad (BAA); mientras tanto, usa el PDF.</p>
+          <p class="muted sign-for">Mándale uno de los dos al cliente. El enlace va dentro del texto: para copiarlo solo, selecciónalo ahí.</p>
+          <div class="email-part">
+            <div class="out-sub">
+              <h3>SMS</h3>
+              <a class="link-btn" id="signSmsOpen" href="#" hidden>Abrir en el teléfono</a>
+              <button type="button" class="btn small" id="copySignSms" data-label="Copiar">Copiar</button>
+            </div>
+            <textarea class="email-box" id="signSms" rows="4" readonly aria-label="SMS con el enlace de firma"></textarea>
+          </div>
+          <div class="email-part">
+            <div class="out-sub">
+              <h3>Email</h3>
+              <a class="link-btn" id="signEmailOpen" href="#" hidden>Abrir en el correo</a>
+              <button type="button" class="btn small" id="copySignEmail" data-label="Copiar">Copiar</button>
+            </div>
+            <textarea class="email-box" id="signEmail" rows="6" readonly aria-label="Email con el enlace de firma"></textarea>
           </div>
         </div>
       </aside>

@@ -2055,9 +2055,10 @@
 
   /* ---------------------------------------------------- pestañas de salida --
      Un texto a la vez. Hay pestaña para lo que aplica al caso: la nota y el
-     task siempre; el reporte si se reporta; el SMS y el email si los hay. */
+     task siempre; el reporte si se reporta; el SMS y el email si los hay; la
+     Firma (el SMS y el email del enlace de firma) mientras hay un enlace. */
   var outTab = "note";
-  var TAB_LABEL = { note: "Nota", task: "Task", report: "Reporte", sms: "SMS", email: "Email" };
+  var TAB_LABEL = { note: "Nota", task: "Task", report: "Reporte", sms: "SMS", email: "Email", sign: "Firma" };
   var TAB_OF = { note: "note", task: "task", report: "report", sms: "sms", email1: "email", email2: "email",
                  emailSubject: "email", emailKeep: "email", emailCs: "email" };
   function tabCards() { return Array.prototype.slice.call(document.querySelectorAll(".out [data-tab]")); }
@@ -2392,7 +2393,8 @@
   function renderSign(d) {
     var sec = $("sec-firma"), kind = FM.formKind(d);
     sec.hidden = !kind;
-    if (!kind) { return; }
+    /* sin formulario tampoco hay enlace: su pestaña se va */
+    if (!kind) { renderSignLink("", d); return; }
     var key = FM.templateKey(kind, d.oficina, S.f.idioma), T = FM.TEMPLATES[key];
     var title = kind === "soa" ? "SOA" : "Consent";
     sec.dataset.rail = title;
@@ -2423,17 +2425,22 @@
     $("signCliq").value = FM.cliqText(kind, N.zohoName(S.f) || (kind === "soa" ? v.beneficiaryName : v.clientName), email, phone);
     fitHeight($("signCliq"));
     renderSignSend(kind, d, v, key, T);
-    /* el enlace de firma sale al enviarlo: no se manda ningún email, el
-       agente se lo pasa al cliente por SMS o email */
-    var url = sentLink(kind, d);
-    $("signLinkBox").hidden = !url;
-    $("signLinkHint").hidden = !!url || !helper.ok;
-    if (!url) {
-      $("signLinkHint").textContent = "Al enviarlo a firmar, aquí sale el enlace para mandárselo al cliente por SMS o email.";
-      return;
-    }
+    renderSignLink(kind, d, title, phone, email);
+  }
+
+  /* El enlace de firma sale al crearlo: no se manda ningún email, el agente
+     se lo pasa al cliente por SMS o email. Los dos textos van en la pestaña
+     Firma, con los demás textos para copiar; el enlace se selecciona de ahí.
+     La sección solo dice dónde están. */
+  function renderSignLink(kind, d, title, phone, email) {
+    var url = kind ? sentLink(kind, d) : "", was = $("signCard").hidden;
+    $("signCard").hidden = !url;
+    /* la pestaña aparece o se va con el enlace */
+    if (was !== !url) { renderOutTabs(); }
+    $("signLinkHint").hidden = !url;
+    if (!url) { return; }
     var t = FM.signTexts(kind, d, url);
-    $("signUrl").value = url;
+    $("signCardTitle").textContent = "Enlace de firma del " + title;
     $("signSms").value = t.sms;
     $("signEmail").value = t.email;
     $("signSmsOpen").hidden = !N.smsLink(phone, "x");
@@ -2644,7 +2651,7 @@
       } else {
         btn.hidden = false;
         msg = "Se crea el enlace de firma de " + r.body.recipient.name + " (" + r.body.recipient.email + "); no se le envía ningún email: " +
-          "el enlace sale aquí para mandárselo por SMS o email. " + (kind === "soa"
+          "el SMS y el email con el enlace salen en la pestaña Firma, junto a Nota y Task. " + (kind === "soa"
           ? "Cuando el cliente firme, " + r.body.agent.name + " firma desde Firmas con sus datos ya llenos, y el PDF se guarda solo en el Network ("
           : "Cuando el cliente firme, el PDF se guarda solo en el Network (") + r.body.meta.fileName + ").";
       }
@@ -2683,6 +2690,7 @@
           link: FM.signLink(res.link) };
       }
       renderSign(data());
+      showTab("sign");
       toast("Enlace de firma del " + title + " listo: mándaselo al cliente por SMS o email. Su estado se ve en Firmas.");
       checkHelper();
     }, function (e) { toast(sendError(e)); }).then(function () { btn.disabled = false; });
@@ -4366,6 +4374,8 @@
         });
       });
       Object.keys(OUT).forEach(function (key) { refit.observe($(OUT[key])); });
+      /* el SMS y el email del enlace de firma están en la misma columna */
+      refit.observe($("signSms")); refit.observe($("signEmail"));
     }
     /* salidas editables */
     Object.keys(OUT).forEach(function (key) {
@@ -4431,7 +4441,8 @@
     $("sheetPrint").addEventListener("click", printSheet);
     $("sheetSave").addEventListener("click", saveSheet);
     window.addEventListener("resize", fitSheet);
-    [["copySignCliq", "signCliq"], ["copySignUrl", "signUrl"], ["copySignSms", "signSms"], ["copySignEmail", "signEmail"]].forEach(function (p) {
+    $("signShow").addEventListener("click", function () { showTab("sign", true); });
+    [["copySignCliq", "signCliq"], ["copySignSms", "signSms"], ["copySignEmail", "signEmail"]].forEach(function (p) {
       $(p[0]).addEventListener("click", function () {
         var btn = this, text = $(p[1]).value;
         if (text.trim()) { copyText(text, function () { flashButton(btn); }); }
