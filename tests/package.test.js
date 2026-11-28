@@ -187,6 +187,12 @@ test("el SMS y el email con el enlace de firma salen en su pestaña, con los tex
   /* its tab, and the app opens it when the link is created */
   assert.match(app, /TAB_LABEL = \{[^}]*sign: "Firma"/);
   assert.match(app, /\$\("signCard"\)\.hidden = !url;/);
+  /* the tab bar follows the link when it appears or goes away outside a form edit (signed, cancelled, helper poll) */
+  assert.match(app, /if \(was !== !url\) \{ renderOutTabs\(\); \}/);
+  /* a case without Consent or SOA takes the tab away too */
+  assert.match(app, /if \(!kind\) \{ renderSignLink\("", d\); return; \}/);
+  /* both texts are refitted with the other outputs when the column changes width */
+  assert.match(app, /refit\.observe\(\$\("signSms"\)\); refit\.observe\(\$\("signEmail"\)\);/);
   const send = app.slice(app.indexOf("function sendForSignature"), app.indexOf("function signedName"));
   assert.match(send, /renderSign\(data\(\)\);\s*showTab\("sign"\);/);
   /* the section says where the texts are, with a button that opens the tab */

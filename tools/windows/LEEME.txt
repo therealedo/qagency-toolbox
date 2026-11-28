@@ -53,8 +53,9 @@ que viene en el archivo del equipo: importalo una vez en Ajustes > Equipo
 ("Importar equipo"). Ese archivo es secreto: compartelo solo dentro de la
 oficina. El instalador deja abierto el ayudante de firma, que arranca
 solo al iniciar sesion en Windows. No se envia ningun email:
-al pulsar "Crear enlace de firma" sale el enlace del cliente con el SMS y
-el email para mandarselo. La pagina de firma sale en el idioma del
+al pulsar "Crear enlace de firma" salen el SMS y el email para mandarselo
+al cliente, con el enlace dentro, en la pestana Firma (junto a Nota y
+Task). La pagina de firma sale en el idioma del
 cliente (Espanol o English), botones incluidos. Mientras el servidor de firma no tenga el
 acuerdo de privacidad (BAA), usa solo datos de prueba. El Consent va con
 todo lleno: el cliente solo firma. En el SOA firma primero el cliente y

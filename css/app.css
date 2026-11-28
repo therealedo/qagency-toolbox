@@ -749,7 +749,6 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
 .sign-template.sign-office { padding: 8px 12px; border-radius: 8px; border: 1px solid var(--gold); background: var(--gold-soft); color: var(--gold-ink); }
 .sign-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 14px; }
 .sign-block { display: flex; flex-direction: column; gap: 6px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
-.sign-block textarea + .out-sub { margin-top: 6px; }
 .sign-hint { margin-top: 12px; }
 /* dónde están el SMS y el email del enlace (la pestaña Firma), con el botón que la abre */
 .sign-where .link-btn { margin-left: 6px; }

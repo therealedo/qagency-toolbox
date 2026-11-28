@@ -2055,7 +2055,8 @@
 
   /* ---------------------------------------------------- pestañas de salida --
      Un texto a la vez. Hay pestaña para lo que aplica al caso: la nota y el
-     task siempre; el reporte si se reporta; el SMS y el email si los hay. */
+     task siempre; el reporte si se reporta; el SMS y el email si los hay; la
+     Firma (el SMS y el email del enlace de firma) mientras hay un enlace. */
   var outTab = "note";
   var TAB_LABEL = { note: "Nota", task: "Task", report: "Reporte", sms: "SMS", email: "Email", sign: "Firma" };
   var TAB_OF = { note: "note", task: "task", report: "report", sms: "sms", email1: "email", email2: "email",
@@ -2650,7 +2651,7 @@
       } else {
         btn.hidden = false;
         msg = "Se crea el enlace de firma de " + r.body.recipient.name + " (" + r.body.recipient.email + "); no se le envía ningún email: " +
-          "el SMS y el email con el enlace salen en la pestaña Firma. " + (kind === "soa"
+          "el SMS y el email con el enlace salen en la pestaña Firma, junto a Nota y Task. " + (kind === "soa"
           ? "Cuando el cliente firme, " + r.body.agent.name + " firma desde Firmas con sus datos ya llenos, y el PDF se guarda solo en el Network ("
           : "Cuando el cliente firme, el PDF se guarda solo en el Network (") + r.body.meta.fileName + ").";
       }
@@ -4373,6 +4374,8 @@
         });
       });
       Object.keys(OUT).forEach(function (key) { refit.observe($(OUT[key])); });
+      /* el SMS y el email del enlace de firma están en la misma columna */
+      refit.observe($("signSms")); refit.observe($("signEmail"));
     }
     /* salidas editables */
     Object.keys(OUT).forEach(function (key) {
