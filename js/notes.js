@@ -63,7 +63,7 @@
         dependiente: typeof p.dependiente === "boolean" ? p.dependiente : null,
         estatus: val(p.estatus), estatusOtro: val(p.estatusOtro), sexo: val(p.sexo)
       };
-    }).filter(function (p) { return p.titular || p.name; });
+    }).filter(function (p) { return p.titular || p.name; }).map(function (p, i) { p.pos = i; return p; });
   }
   function enTaxes(d) { return personas(d).filter(function (p) { return p.taxes; }); }
   function conCobertura(d) { return personas(d).filter(function (p) { return p.cobertura; }); }
@@ -215,7 +215,8 @@
   var repartoCache = { sig: null, out: null };
   function reparto(d) {
     var enviada = !esCancelacion(d), ps = personas(d), ms = planSpellings(d).filter(function (m) { return val(m); });
-    var sig = JSON.stringify([enviada, val(d.titularPlan), ps.map(function (p) { return [p.name, p.titular, p.cobertura]; }), ms]);
+    /* las personas guardadas se usan después (el parentesco decide el apellido de casada) */
+    var sig = JSON.stringify([enviada, val(d.titularPlan), ps.map(function (p) { return [p.name, p.titular, p.cobertura, p.parentesco]; }), ms]);
     if (repartoCache.sig === sig) { return repartoCache.out; }
     var S = ms.map(function (m) {
       return ps.map(function (p) {
@@ -229,7 +230,8 @@
     var byKey = {};
     /* los miembros escritos igual no se distinguen: valen lo mismo */
     ms.forEach(function (m, n) {
-      var kk = words(m).join(" "), q = byKey[kk] || (byKey[kk] = { idx: [], none: false });
+      var kk = words(m).join(" "), q = byKey[kk] || (byKey[kk] = { idx: [], none: false, n: 0 });
+      q.n++;
       out[n].idx.forEach(function (j) { if (q.idx.indexOf(j) < 0) { q.idx.push(j); } });
       q.none = q.none || out[n].none;
     });
@@ -290,7 +292,7 @@
   /* las personas que puede ser un miembro: { ps, idx, none }, o null */
   function quienes(d, m) {
     var r = reparto(d), q = r && r.byKey[words(m).join(" ")];
-    return q ? { ps: r.ps, idx: q.idx, none: q.none } : null;
+    return q ? { ps: r.ps, idx: q.idx, none: q.none, n: q.n } : null;
   }
   /* la única persona que es un miembro (su índice), o -1 */
   function unico(q) { return q && q.idx.length === 1 && !q.none ? q.idx[0] : -1; }
@@ -301,6 +303,9 @@
     if (!q) { return isTitularMember(d, m) ? "quizas" : ""; }
     if (!q.idx.some(function (j) { return q.ps[j].titular; })) { return ""; }
     if (unico(q) >= 0) { return "si"; }
+    /* varios miembros escritos igual que siempre son las mismas personas:
+       uno de ellos es el titular */
+    if (!q.none && q.n >= q.idx.length) { return "quizas"; }
     return isTitularMember(d, m) ? "quizas" : "";
   }
   /* El titular (o quien da el nombre a los archivos) es un solo miembro:
@@ -314,9 +319,21 @@
   function nombreMiembro(d, m) {
     var q = quienes(d, m);
     if (!q) { return memberName(d, m); }
-    var u = unico(q);
-    if (u >= 0) { return q.ps[u].titular ? m : q.ps[u].name; }
+    var p = personaMiembro(d, m);
+    if (p) { return p.titular ? m : p.name; }
     return q.idx.some(function (j) { return q.ps[j].titular; }) ? memberName(d, m) : m;
+  }
+  /* la persona del hogar que es un miembro, o null si puede ser más de una */
+  function personaMiembro(d, m) {
+    var q = quienes(d, m);
+    if (!q) { return null; }
+    var u = unico(q);
+    if (u >= 0) { return q.ps[u]; }
+    var resto = q.idx.filter(function (j) { return !q.ps[j].titular; });
+    /* escrito igual que el titular y otra persona: el titular tiene su
+       propio grupo, así que este es la otra */
+    if (resto.length < q.idx.length && !q.none && q.n >= q.idx.length && resto.length === 1) { return q.ps[resto[0]]; }
+    return null;
   }
   /* En la cancelación el sí/no de Cobertura quiere decir «se cancela»: un
      miembro sigue en la póliza solo si todos los que puede ser están
@@ -348,16 +365,23 @@
      que en "NORA LEE KENT" el apellido es KENT); si no, los del titular si
      es su cónyuge y su nombre termina en ellos (de casada); si no, como
      cualquier nombre, con la inicial del segundo nombre junto al nombre
-     ("NORA L KENT" es Kent, Nora L). JR va con los apellidos. */
-  function personZoho(d, name) {
+     ("NORA L KENT" es Kent, Nora L). JR va con los apellidos. quien: la
+     persona del hogar, cuando ya se sabe cuál es. */
+  function personZoho(d, name, quien) {
     var w = words(name), sfx = suffixOf(w), core = sfx ? w.slice(0, -1) : w;
     if (!core.length) { return ""; }
     var ap = [], key = function (s) { return words(s).join(" "); };
     /* la forma de My Plans que es de otra persona del hogar no dice nada de esta */
-    var r = reparto(d), dueno = -1;
-    if (r) {
-      r.ps.forEach(function (p, j) { if (dueno < 0 && key(p.name) === key(name)) { dueno = j; } });
-      if (dueno < 0) { dueno = unico(quienes(d, name)); }
+    /* de quién es este nombre: la persona dada; si no, la otra persona del
+       hogar que se llama así (antes que el titular, que tiene su nombre de
+       Zoho), o el miembro que es. Si se llaman así varias, no se sabe. */
+    var r = reparto(d), dueno = quien ? quien.pos : -1, varias = false;
+    if (r && !quien) {
+      var igual = r.ps.filter(function (p) { return !p.titular && key(p.name) === key(name); });
+      varias = igual.length > 1;
+      if (igual.length === 1) { dueno = igual[0].pos; }
+      if (!igual.length) { r.ps.forEach(function (p, j) { if (dueno < 0 && p.titular && key(p.name) === key(name)) { dueno = j; } }); }
+      if (!igual.length && dueno < 0) { dueno = unico(quienes(d, name)); }
     }
     var deOtro = function (s) { var u = unico(quienes(d, s)); return u >= 0 && u !== dueno; };
     /* solo una forma más corta que el nombre lo dice: la que es el nombre
@@ -368,7 +392,9 @@
       if (suffixOf(c)) { c = c.slice(0, -1); }
       if (!ap.length && c.length >= 2 && c.length < core.length && c[0] === core[0] && endsWithWords(core, c.slice(1))) { ap = c.slice(1); }
     });
-    var who = findMember(d, name);
+    /* varias con el mismo nombre y el mismo parentesco dan lo mismo: vale la primera */
+    var mismas = varias && igual.every(function (p) { return p.parentesco === igual[0].parentesco; });
+    var who = quien || (dueno >= 0 ? r.ps[dueno] : (varias ? (mismas ? igual[0] : null) : findMember(d, name)));
     if (!ap.length && who && !who.titular && who.parentesco === "Cónyuge" && endsWithWords(core, words(d.apellidos))) { ap = words(d.apellidos); }
     var no, sp;
     if (ap.length) { no = core.slice(0, core.length - ap.length).join(" "); sp = ap.join(" "); }
@@ -399,7 +425,7 @@
   /* a nombre de quién van los archivos */
   function docName(d) {
     var sp = spouseInstead(d);
-    return sp ? personZoho(d, sp.name) : zohoName(d);
+    return sp ? personZoho(d, sp.name, sp) : zohoName(d);
   }
   /* el nombre del miembro como está en el hogar (el agente pudo corregirlo) */
   function memberName(d, m) {
@@ -639,14 +665,14 @@
       return gs.map(function (g, gi) {
         /* en la cancelación, +N cuenta solo a quienes se cancelan */
         var n = esCancelacion(d) ? cancelados(d, g).length : g.miembros.length;
-        var mine = gi === suyo;
-        return { name: mine ? zohoName(d) : personZoho(d, nombreMiembro(d, g.miembros[0])),
+        var mine = gi === suyo, pm = mine ? null : personaMiembro(d, g.miembros[0]);
+        return { name: mine ? zohoName(d) : personZoho(d, nombreMiembro(d, g.miembros[0]), pm && !pm.titular ? pm : null),
                  delta: n > 1 ? "+" + (n - 1) : "", compania: g.compania };
       });
     }
     if (pideCobertura(d) && t && !t.cobertura) {
       var lead = spouseInstead(d) || conCobertura(d)[0];
-      if (lead) { return [{ name: personZoho(d, lead.name), delta: memberDelta(d) }]; }
+      if (lead) { return [{ name: personZoho(d, lead.name, lead), delta: memberDelta(d) }]; }
     }
     return [{ name: zohoName(d), delta: memberDelta(d) }];
   }

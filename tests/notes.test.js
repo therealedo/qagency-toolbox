@@ -2185,10 +2185,39 @@ test("grupos: cada miembro es la persona del hogar que más se le parece, y cada
   assert.equal(plans(mv), "Vega, Maria_Maria_Carlos");
   const otro = app("MARIA", "LUNA", [tit(true), p("CARLOS LUNA", true), p("CARLOS RUIZ", false, "Otro")], [g(["MARIA LUNA", "CARLOS LUNA"]), g(["CARLOS VEGA LUNA"], "OSCAR")]);
   assert.deepEqual(quien(otro), ["Luna, Maria", "Vega Luna, Carlos"]);
-  /* dos grupos escritos igual ("ANA LUNA"), la titular y su hija: la titular tiene un solo grupo */
+  /* dos grupos escritos igual ("ANA LUNA"), la titular y su hija: la titular tiene un solo grupo, el otro es la hija */
   const dos = app("ANA MARIA", "LUNA", [tit(true), p("ANA SOFIA LUNA", true)], [g(["ANA LUNA"]), g(["ANA LUNA"], "OSCAR")]);
-  assert.deepEqual(quien(dos), ["Luna, Ana Maria", "Luna, Ana"]);
+  assert.deepEqual(quien(dos), ["Luna, Ana Maria", "Luna, Ana Sofia"]);
   assert.equal(plans(dos), "Luna, Ana Maria_Ana");
+  /* lo mismo con un hijo que My Plans escribe como el titular, entre otros Luis */
+  const luis = app("LUIS", "GARCIA DIAZ", [tit(true), p("luis maria garcia", true), p("luis", true), p("LUIS DIAZ", true)],
+    [g(["LUIS GARCIA"]), g(["LUIS"], "OSCAR"), g(["LUIS GARCIA"], "MOLINA")]);
+  assert.deepEqual(quien(luis), ["Garcia Diaz, Luis", "Luis", "Garcia, Luis Maria"]);
+  assert.equal(plans(luis), "Garcia Diaz, Luis_Luis_Luis");
+  /* el hijo con el nombre exacto del titular que no aplica: la forma "ANDRES PAZ" es suya y dice su apellido */
+  const andres = app("ANDRES", "LOPEZ PAZ", [tit(false), p("ANDRES LOPEZ PAZ", true)], [g(["ANDRES PAZ"])]);
+  assert.deepEqual(quien(andres), ["Paz, Andres Lopez"]);
+  /* la cónyuge con el apellido del titular: su forma en My Plans es más larga, así que vale la regla del apellido de casada */
+  const casada = app("MARISOL", "PEREZ", [tit(false), p("MARISOL ALVAREZ PEREZ", true, "Cónyuge"), p("MARISOL ANTONIO PEREZ ALVAREZ", true),
+    p("CARLOS DÍAZ CRUZ", true, "Hermano/a"), p("ivan perez", false, "Hermano/a")],
+    [g(["MARISOL ALVAREZ PEREZ RIVAS", "MARISOL PEREZ", "CARLOS MÉNDEZ"], "AETNA"), g(["CARLOS MÉNDEZ"], "OSCAR")], { titularPlan: "MARISOL PEREZ" });
+  assert.equal(nameOf(casada, "appsummary").split(" - ")[0], "Perez, Marisol Alvarez");
+  /* la cónyuge y el hijo con el mismo nombre: el miembro es el hijo (aplica), que no lleva el apellido de casada */
+  const jose = app("MARIA", "VEGA", [tit(true), p("JOSE MARIA RIVAS VEGA", false, "Cónyuge"), p("JOSE MARIA RIVAS VEGA", true)],
+    [g(["MARIA VEGA"]), g(["JOSE RIVAS VEGA"], "OSCAR")]);
+  assert.deepEqual(quien(jose), ["Vega, Maria", "Rivas Vega, Jose Maria"]);
+  /* ...y si los dos aplican, el miembro puede ser cualquiera: el nombre se lee como cualquier nombre */
+  const anas = app("ANA", "LUNA", [tit(true), p("ANA VEGA LUNA", true, "Cónyuge"), p("ANA VEGA LUNA", true)], [g(["ANA LUNA"]), g(["ANA VEGA LUNA"], "OSCAR")]);
+  assert.deepEqual(quien(anas), ["Luna, Ana", "Vega Luna, Ana"]);
+  /* la misma cónyuge escrita dos veces: las dos dan el apellido de casada */
+  const dosVeces = app("TOMAS", "ALVAREZ", [tit(true), p("NORA KENT ALVAREZ", true, "Cónyuge"), p("NORA KENT ÁLVAREZ", true, "Cónyuge")],
+    [g(["TOMAS ALVAREZ"]), g(["NORA KENT ALVAREZ"], "OSCAR")]);
+  assert.deepEqual(quien(dosVeces), ["Alvarez, Tomas", "Alvarez, Nora Kent"]);
+  /* el agente cambia el parentesco con la app abierta: la línea sigue al parentesco nuevo */
+  const noraComo = (parentesco) => app("TOMAS", "ALVAREZ", [tit(true), p("NORA KENT ALVAREZ", true, parentesco)], [g(["TOMAS ALVAREZ"]), g(["NORA KENT ALVAREZ"], "OSCAR")]);
+  assert.deepEqual(quien(noraComo("Hijo/a")), ["Alvarez, Tomas", "Kent Alvarez, Nora"]);
+  assert.deepEqual(quien(noraComo("Cónyuge")), ["Alvarez, Tomas", "Alvarez, Nora Kent"]);
+  assert.deepEqual(quien(noraComo("Hijo/a")), ["Alvarez, Tomas", "Kent Alvarez, Nora"]);
 });
 
 test("los grupos de Obamacare no pasan a otro producto", () => {
