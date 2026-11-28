@@ -179,46 +179,118 @@
      que la pide entra por su primer nombre si ningún otro miembro puede ser
      él; en la cancelación el titular no entra por su primer nombre. Pueden
      salir varias, o ninguna. */
-  function candidatos(d, m, enviada) {
-    var key = function (s) { return words(s).join(" "); }, k = key(m), w = words(m), ps = personas(d);
-    var exact = ps.filter(function (p) { return key(p.name) === k; });
-    if (exact.length) { return exact; }
-    var otros = [];
-    groupList(d).forEach(function (g) { g.miembros.forEach(function (x) { if (key(x) !== k) { otros.push(key(x)); } }); });
-    var libres = ps.filter(function (p) { return otros.indexOf(key(p.name)) < 0 && (!enviada || p.cobertura); });
-    var cerca = function (p, x) { return (p.titular && key(d.titularPlan) === key(x)) || samePerson(p.name, x); };
-    var near = libres.filter(function (p) { return cerca(p, m); });
-    if (near.length) { return near; }
-    /* otro miembro que no tiene el nombre exacto de nadie puede ser el titular */
-    var nombres = ps.map(function (p) { return key(p.name); });
-    var otroTitular = function (p) { return otros.some(function (x) { return nombres.indexOf(x) < 0 && cerca(p, x); }); };
-    return libres.filter(function (p) {
-      if (p.titular && (!enviada || otroTitular(p))) { return false; }
-      var x = words(p.name);
-      return x[0] === w[0] && (x.length < 2 || w.length < 2 || suffixOf(x) === suffixOf(w));
+  function isSubseq(a, b) { var i = 0; for (var j = 0; j < b.length && i < a.length; j++) { if (a[i] === b[j]) { i++; } } return i === a.length; }
+  /* Cuánto se parece una persona del hogar a un miembro: el nombre exacto
+     pesa más que todo; luego el nombre sin el segundo nombre (así escribe My
+     Plans), el titular como lo escribe My Plans, un apellido de más o de
+     menos, el mismo primer nombre y último apellido, y solo el primer nombre
+     (no para el titular, como al leer la página). JR/SR tienen que ser los
+     mismos. Cada apellido en común desempata. */
+  function parecido(d, p, m) {
+    var split = function (s) { var w = words(s), x = suffixOf(w); return { w: x ? w.slice(0, -1) : w, sfx: x }; };
+    var a = split(p.name), b = split(m), score = 0;
+    if (p.titular && val(d.titularPlan) && words(d.titularPlan).join(" ") === words(m).join(" ")) { score = 400; }
+    if (a.w.length && b.w.length && a.w[0] === b.w[0] && a.sfx === b.sfx) {
+      var x = a.w, y = b.w, last = x[x.length - 1] === y[y.length - 1], s = 0;
+      if (x.join(" ") === y.join(" ")) { s = 1000; }
+      else if (last && isSubseq(y, x)) { s = 400; }
+      else if (isSubseq(x, y) || isSubseq(y, x)) { s = 300; }
+      else if (last) { s = 200; }
+      else if (!p.titular) { s = 50; }
+      if (s) { s += x.slice(1).filter(function (w) { return y.indexOf(w, 1) > 0; }).length; }
+      score = Math.max(score, s);
+    }
+    return score;
+  }
+  /* Quién del hogar es cada miembro de My Plans & Programs. Cada miembro es
+     a lo sumo una persona y cada persona, a lo sumo un miembro: se elige el
+     reparto que más se parece. En la app enviada los miembros piden
+     cobertura: quien no la pide casi no cuenta. Si dos repartos son igual de
+     buenos, el miembro puede ser cualquiera de los dos. Por cada miembro:
+     idx (las personas que puede ser) y none (puede no ser nadie del hogar).
+     Con un hogar muy grande no se reparte (null). */
+  var repartoCache = { sig: null, out: null };
+  function reparto(d) {
+    var enviada = !esCancelacion(d), ps = personas(d), ms = planSpellings(d).filter(function (m) { return val(m); });
+    var sig = JSON.stringify([enviada, val(d.titularPlan), ps.map(function (p) { return [p.name, p.titular, p.cobertura]; }), ms]);
+    if (repartoCache.sig === sig) { return repartoCache.out; }
+    var S = ms.map(function (m) {
+      return ps.map(function (p) { var s = parecido(d, p, m); return enviada && !p.cobertura ? Math.floor(s / 4) : s; });
     });
+    var R = ps.map(function (p, j) { return j; }).filter(function (j) { return S.some(function (row) { return row[j] > 0; }); });
+    var out = null;
+    if (R.length <= 12) {
+      var M = ms.length, full = 1 << R.length, best = [], k, mask, i;
+      best[M] = []; for (mask = 0; mask < full; mask++) { best[M][mask] = 0; }
+      for (k = M - 1; k >= 0; k--) {
+        best[k] = [];
+        for (mask = 0; mask < full; mask++) {
+          var v = best[k + 1][mask];
+          for (i = 0; i < R.length; i++) {
+            if (!(mask & (1 << i)) && S[k][R[i]] > 0) { v = Math.max(v, S[k][R[i]] + best[k + 1][mask | (1 << i)]); }
+          }
+          best[k][mask] = v;
+        }
+      }
+      var top = best[0][0], pre = { 0: 0 }, per = ms.map(function () { return { idx: [], none: false }; });
+      for (k = 0; k < M; k++) {
+        var next = {};
+        Object.keys(pre).forEach(function (key) {
+          var mk = +key, pv = pre[key];
+          if (pv + best[k + 1][mk] === top) { per[k].none = true; }
+          next[mk] = Math.max(next[mk] == null ? -1 : next[mk], pv);
+          for (var r = 0; r < R.length; r++) {
+            var s = S[k][R[r]];
+            if (mk & (1 << r) || s <= 0) { continue; }
+            var nm = mk | (1 << r);
+            if (pv + s + best[k + 1][nm] === top && per[k].idx.indexOf(R[r]) < 0) { per[k].idx.push(R[r]); }
+            next[nm] = Math.max(next[nm] == null ? -1 : next[nm], pv + s);
+          }
+        });
+        pre = next;
+      }
+      /* los miembros escritos igual no se distinguen: valen lo mismo */
+      var byKey = {};
+      ms.forEach(function (m, n) {
+        var kk = words(m).join(" "), q = byKey[kk] || (byKey[kk] = { idx: [], none: false });
+        per[n].idx.forEach(function (j) { if (q.idx.indexOf(j) < 0) { q.idx.push(j); } });
+        q.none = q.none || per[n].none;
+      });
+      out = { ps: ps, byKey: byKey };
+    }
+    repartoCache = { sig: sig, out: out };
+    return out;
   }
-  /* La persona del hogar que es un miembro, para nombrarlo: la única que
-     puede ser; null si no es nadie del hogar (va como lo escribe My Plans);
-     undefined si puede ser más de una (se nombra como siempre). */
-  function miembroEs(d, m) {
-    var c = candidatos(d, m, !esCancelacion(d));
-    return c.length === 1 ? c[0] : (c.length ? undefined : null);
+  /* las personas que puede ser un miembro: { ps, idx, none }, o null */
+  function quienes(d, m) {
+    var r = reparto(d), q = r && r.byKey[words(m).join(" ")];
+    return q ? { ps: r.ps, idx: q.idx, none: q.none } : null;
   }
+  /* la única persona que es un miembro (su índice), o -1 */
+  function unico(q) { return q && q.idx.length === 1 && !q.none ? q.idx[0] : -1; }
   function esDelTitular(d, m) {
-    var p = miembroEs(d, m);
-    return p === undefined ? isTitularMember(d, m) : !!(p && p.titular);
+    var q = quienes(d, m);
+    if (!q) { return isTitularMember(d, m); }
+    var tit = q.idx.filter(function (j) { return q.ps[j].titular; }).length > 0;
+    if (!tit) { return false; }
+    return unico(q) >= 0 ? true : isTitularMember(d, m);
   }
+  /* el nombre del miembro como está en el hogar; como lo escribe My Plans
+     si no es nadie del hogar o si puede ser más de una persona */
   function nombreMiembro(d, m) {
-    var p = miembroEs(d, m);
-    return p === undefined ? memberName(d, m) : (p && !p.titular ? p.name : m);
+    var q = quienes(d, m);
+    if (!q) { return memberName(d, m); }
+    var u = unico(q);
+    if (u >= 0) { return q.ps[u].titular ? m : q.ps[u].name; }
+    return q.idx.some(function (j) { return q.ps[j].titular; }) ? memberName(d, m) : m;
   }
   /* En la cancelación el sí/no de Cobertura quiere decir «se cancela»: un
      miembro sigue en la póliza solo si todos los que puede ser están
      marcados así; quien no está en el hogar cuenta como cancelado. */
   function sigueEnPoliza(d, m) {
-    var c = candidatos(d, m, false);
-    return c.length > 0 && c.every(function (p) { return !p.cobertura; });
+    var q = quienes(d, m);
+    if (!q) { var p = findMember(d, m); return !!p && !p.cobertura; }
+    return !q.none && q.idx.length > 0 && q.idx.every(function (j) { return !q.ps[j].cobertura; });
   }
   function cancelados(d, g) { return g.miembros.filter(function (m) { return !sigueEnPoliza(d, m); }); }
   /* el reporte lleva una línea por grupo también en la cancelación (cada
@@ -247,8 +319,13 @@
     var w = words(name), sfx = suffixOf(w), core = sfx ? w.slice(0, -1) : w;
     if (!core.length) { return ""; }
     var ap = [], key = function (s) { return words(s).join(" "); };
-    /* el nombre exacto de otra persona del hogar es de ella, no de esta */
-    var deOtro = function (s) { return personas(d).some(function (p) { return key(p.name) === key(s) && key(p.name) !== key(name); }); };
+    /* la forma de My Plans que es de otra persona del hogar no dice nada de esta */
+    var r = reparto(d), dueno = -1;
+    if (r) {
+      r.ps.forEach(function (p, j) { if (dueno < 0 && key(p.name) === key(name)) { dueno = j; } });
+      if (dueno < 0) { dueno = unico(quienes(d, name)); }
+    }
+    var deOtro = function (s) { var u = unico(quienes(d, s)); return u >= 0 && u !== dueno; };
     /* solo una forma más corta que el nombre lo dice: la que es el nombre
        completo ("MARIA JOSE GOMEZ RIVAS") no dice dónde empiezan */
     planSpellings(d).forEach(function (s) {
@@ -1661,11 +1738,20 @@
     var gs = gruposOf(d);
     if (!gs.length) { return ""; }
     var sp = spouseInstead(d);
-    var isLead = function (m) { return sp ? samePerson(sp.name, m) : esDelTitular(d, m); };
-    var out = [];
+    var key = function (s) { return words(s).join(" "); };
+    var isLead = function (m) {
+      if (!sp) { return esDelTitular(d, m); }
+      var q = quienes(d, m), u = unico(q);
+      if (!q) { return samePerson(sp.name, m); }
+      if (u >= 0) { return key(q.ps[u].name) === key(sp.name); }
+      return q.idx.some(function (j) { return key(q.ps[j].name) === key(sp.name); }) && samePerson(sp.name, m);
+    };
+    /* quien da el nombre a los archivos es un solo miembro, aunque otro se
+       escriba igual ("NORA KENT" la cónyuge y "NORA KENT" su hija) */
+    var out = [], led = false;
     gs.forEach(function (g) {
       g.miembros.forEach(function (m) {
-        if (isLead(m)) { return; }
+        if (!led && isLead(m)) { led = true; return; }
         var fn = U.stripAccents(first(nombreMiembro(d, m)));
         if (fn) { out.push(fn); }
       });
