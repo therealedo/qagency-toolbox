@@ -170,26 +170,32 @@
   }
   function gruposOf(d) { return appEnviada(d) ? groupList(d) : []; }
   function esCancelacion(d) { return d.line === "oc" && outcomeOf(d).id === "cancelada"; }
-  /* En la cancelación el sí/no de Cobertura quiere decir «se cancela»: sigue
-     en la póliza solo quien el agente marcó así. El miembro de My Plans &
-     Programs es la persona del hogar con su nombre exacto; si no hay, el
-     titular como lo escribe My Plans; si no, todas las que podría ser (mismo
-     primer nombre y último apellido, o solo el primer nombre). Sigue si
-     todas están marcadas así; quien no está en el hogar cuenta como
-     cancelado. */
+  /* Quién del hogar puede ser un miembro de My Plans & Programs, como al
+     leer la página (findMember): quien tiene su nombre exacto; si no, el
+     titular como lo escribe My Plans o quien tiene su primer nombre y su
+     último apellido; si no, otro (no el titular) con su primer nombre. Una
+     persona es un solo miembro: quien ya tiene el nombre exacto de otro
+     miembro no cuenta. Pueden salir varias, o ninguna. */
+  function candidatos(d, m) {
+    var key = function (s) { return words(s).join(" "); }, k = key(m), w = words(m), ps = personas(d);
+    var exact = ps.filter(function (p) { return key(p.name) === k; });
+    if (exact.length) { return exact; }
+    var otros = [];
+    groupList(d).forEach(function (g) { g.miembros.forEach(function (x) { if (key(x) !== k) { otros.push(key(x)); } }); });
+    var libres = ps.filter(function (p) { return otros.indexOf(key(p.name)) < 0; });
+    var near = libres.filter(function (p) { return (p.titular && key(d.titularPlan) === k) || samePerson(p.name, m); });
+    if (near.length) { return near; }
+    return libres.filter(function (p) {
+      var x = words(p.name);
+      return !p.titular && x[0] === w[0] && (x.length < 2 || w.length < 2 || suffixOf(x) === suffixOf(w));
+    });
+  }
+  /* En la cancelación el sí/no de Cobertura quiere decir «se cancela»: un
+     miembro sigue en la póliza solo si todos los que puede ser están
+     marcados así; quien no está en el hogar cuenta como cancelado. */
   function sigueEnPoliza(d, m) {
-    var ps = personas(d), w = words(m), y = w.join(" ");
-    var tiers = [
-      function (p) { return words(p.name).join(" ") === y; },
-      function (p) { return p.titular && words(d.titularPlan).join(" ") === y; },
-      function (p) { return samePerson(p.name, m); },
-      function (p) { var x = words(p.name); return x[0] === w[0] && (x.length < 2 || w.length < 2 || suffixOf(x) === suffixOf(w)); }
-    ];
-    for (var i = 0; i < tiers.length; i++) {
-      var c = ps.filter(tiers[i]);
-      if (c.length) { return c.every(function (p) { return !p.cobertura; }); }
-    }
-    return false;
+    var c = candidatos(d, m);
+    return c.length > 0 && c.every(function (p) { return !p.cobertura; });
   }
   function cancelados(d, g) { return g.miembros.filter(function (m) { return !sigueEnPoliza(d, m); }); }
   /* el reporte lleva una línea por grupo también en la cancelación (cada
