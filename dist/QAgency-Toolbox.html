@@ -767,9 +767,12 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
 .sign-template.sign-office { padding: 8px 12px; border-radius: 8px; border: 1px solid var(--gold); background: var(--gold-soft); color: var(--gold-ink); }
 .sign-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 14px; }
 .sign-block { display: flex; flex-direction: column; gap: 6px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
-.sign-block textarea + .out-sub, .sign-block input + .out-sub { margin-top: 6px; }
-.sign-block input[readonly] { background: var(--inset); border-color: var(--line); }
 .sign-hint { margin-top: 12px; }
+/* dónde están el SMS y el email del enlace (la pestaña Firma), con el botón que la abre */
+.sign-where .link-btn { margin-left: 6px; }
+/* la pestaña Firma: el aviso y la indicación, antes del SMS y el email */
+.out-card .sign-warn, .out-card .sign-for { margin: 0; }
+.out-card .sign-for { font-size: 12.5px; }
 /* Consent y SOA: el documento lleno, como papel (claro también en modo oscuro) */
 .sheet-frame.sign-frame { margin-top: 10px; max-height: 70vh; overflow: auto; }
 .sign-preview { display: grid; gap: 10px; padding: 10px; background: #E9EDF3; min-height: 120px; }
@@ -1431,27 +1434,11 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
             <p class="sign-warn" id="signSendWarn" role="note"><strong>Servidor de prueba.</strong> Usa solo datos de prueba hasta que Q Agency tenga su propio servidor de firma con el acuerdo de privacidad (BAA).</p>
             <p class="muted sign-hint" id="signSendStatus"></p>
           </div>
-          <div class="sign-block" id="signLinkBox" hidden>
-            <div class="out-sub">
-              <h3>Enlace de firma del cliente</h3>
-              <button type="button" class="btn small" id="copySignUrl" data-label="Copiar enlace">Copiar enlace</button>
-            </div>
-            <p class="sign-warn" id="signWarn" role="note"><strong>Solo con datos de prueba.</strong> No lo envíes a clientes reales hasta que el servidor de firma de Q Agency tenga el acuerdo de privacidad (BAA); mientras tanto, usa el PDF.</p>
-            <input type="text" class="mono" id="signUrl" readonly spellcheck="false" aria-label="Enlace de firma">
-            <div class="out-sub">
-              <h3>SMS</h3>
-              <a class="link-btn" id="signSmsOpen" href="#" hidden>Abrir en el teléfono</a>
-              <button type="button" class="btn small" id="copySignSms" data-label="Copiar">Copiar</button>
-            </div>
-            <textarea class="email-box" id="signSms" rows="4" readonly aria-label="SMS con el enlace de firma"></textarea>
-            <div class="out-sub">
-              <h3>Email</h3>
-              <a class="link-btn" id="signEmailOpen" href="#" hidden>Abrir en el correo</a>
-              <button type="button" class="btn small" id="copySignEmail" data-label="Copiar">Copiar</button>
-            </div>
-            <textarea class="email-box" id="signEmail" rows="6" readonly aria-label="Email con el enlace de firma"></textarea>
-          </div>
-          <p class="muted sign-hint" id="signLinkHint" hidden></p>
+          <!-- con el enlace creado: el SMS y el email salen en la pestaña Firma, con los textos para copiar -->
+          <p class="muted sign-hint sign-where" id="signLinkHint" hidden>
+            El enlace de firma ya está creado. El SMS y el email para el cliente están en la pestaña Firma, junto a Nota y Task.
+            <button type="button" class="link-btn" id="signShow">Ver el SMS y el email</button>
+          </p>
         </section>
 
         <!-- Hoja de cambios (Obamacare Pendiente): resumen para el colaborador que completa la aplicación -->
@@ -1587,6 +1574,31 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
               <button type="button" class="btn small" id="copyEmail2" data-label="Copiar">Copiar</button>
             </div>
             <textarea class="email-box" id="email2" rows="6" spellcheck="true" aria-label="Email para el cliente, parte 2: lo que pide el Mercado y firma"></textarea>
+          </div>
+        </div>
+
+        <!-- el enlace de firma del Consent o el SOA: sale al crearlo, dentro de un SMS y un email para el cliente -->
+        <div class="card out-card" id="signCard" data-tab="sign" role="tabpanel" aria-labelledby="tab-sign" hidden>
+          <div class="out-head">
+            <h2 id="signCardTitle">Enlace de firma</h2>
+          </div>
+          <p class="sign-warn" id="signWarn" role="note"><strong>Solo con datos de prueba.</strong> No lo envíes a clientes reales hasta que el servidor de firma de Q Agency tenga el acuerdo de privacidad (BAA); mientras tanto, usa el PDF.</p>
+          <p class="muted sign-for">Mándale uno de los dos al cliente. El enlace va dentro del texto: para copiarlo solo, selecciónalo ahí.</p>
+          <div class="email-part">
+            <div class="out-sub">
+              <h3>SMS</h3>
+              <a class="link-btn" id="signSmsOpen" href="#" hidden>Abrir en el teléfono</a>
+              <button type="button" class="btn small" id="copySignSms" data-label="Copiar">Copiar</button>
+            </div>
+            <textarea class="email-box" id="signSms" rows="4" readonly aria-label="SMS con el enlace de firma"></textarea>
+          </div>
+          <div class="email-part">
+            <div class="out-sub">
+              <h3>Email</h3>
+              <a class="link-btn" id="signEmailOpen" href="#" hidden>Abrir en el correo</a>
+              <button type="button" class="btn small" id="copySignEmail" data-label="Copiar">Copiar</button>
+            </div>
+            <textarea class="email-box" id="signEmail" rows="6" readonly aria-label="Email con el enlace de firma"></textarea>
           </div>
         </div>
       </aside>
@@ -1879,7 +1891,7 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
 (function (root) {
   "use strict";
 
-  var VERSION = "1.33.3";
+  var VERSION = "1.33.4";
   /* De aquí la herramienta instalada lee el número de la última versión (y
      nada más). La política de seguridad de index.html solo permite esta
      dirección, y el actualizador de Windows usa el mismo repositorio. */
@@ -10967,9 +10979,10 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
 
   /* ---------------------------------------------------- pestañas de salida --
      Un texto a la vez. Hay pestaña para lo que aplica al caso: la nota y el
-     task siempre; el reporte si se reporta; el SMS y el email si los hay. */
+     task siempre; el reporte si se reporta; el SMS y el email si los hay; la
+     Firma (el SMS y el email del enlace de firma) mientras hay un enlace. */
   var outTab = "note";
-  var TAB_LABEL = { note: "Nota", task: "Task", report: "Reporte", sms: "SMS", email: "Email" };
+  var TAB_LABEL = { note: "Nota", task: "Task", report: "Reporte", sms: "SMS", email: "Email", sign: "Firma" };
   var TAB_OF = { note: "note", task: "task", report: "report", sms: "sms", email1: "email", email2: "email",
                  emailSubject: "email", emailKeep: "email", emailCs: "email" };
   function tabCards() { return Array.prototype.slice.call(document.querySelectorAll(".out [data-tab]")); }
@@ -11304,7 +11317,8 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
   function renderSign(d) {
     var sec = $("sec-firma"), kind = FM.formKind(d);
     sec.hidden = !kind;
-    if (!kind) { return; }
+    /* sin formulario tampoco hay enlace: su pestaña se va */
+    if (!kind) { renderSignLink("", d); return; }
     var key = FM.templateKey(kind, d.oficina, S.f.idioma), T = FM.TEMPLATES[key];
     var title = kind === "soa" ? "SOA" : "Consent";
     sec.dataset.rail = title;
@@ -11335,17 +11349,22 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
     $("signCliq").value = FM.cliqText(kind, N.zohoName(S.f) || (kind === "soa" ? v.beneficiaryName : v.clientName), email, phone);
     fitHeight($("signCliq"));
     renderSignSend(kind, d, v, key, T);
-    /* el enlace de firma sale al enviarlo: no se manda ningún email, el
-       agente se lo pasa al cliente por SMS o email */
-    var url = sentLink(kind, d);
-    $("signLinkBox").hidden = !url;
-    $("signLinkHint").hidden = !!url || !helper.ok;
-    if (!url) {
-      $("signLinkHint").textContent = "Al enviarlo a firmar, aquí sale el enlace para mandárselo al cliente por SMS o email.";
-      return;
-    }
+    renderSignLink(kind, d, title, phone, email);
+  }
+
+  /* El enlace de firma sale al crearlo: no se manda ningún email, el agente
+     se lo pasa al cliente por SMS o email. Los dos textos van en la pestaña
+     Firma, con los demás textos para copiar; el enlace se selecciona de ahí.
+     La sección solo dice dónde están. */
+  function renderSignLink(kind, d, title, phone, email) {
+    var url = kind ? sentLink(kind, d) : "", was = $("signCard").hidden;
+    $("signCard").hidden = !url;
+    /* la pestaña aparece o se va con el enlace */
+    if (was !== !url) { renderOutTabs(); }
+    $("signLinkHint").hidden = !url;
+    if (!url) { return; }
     var t = FM.signTexts(kind, d, url);
-    $("signUrl").value = url;
+    $("signCardTitle").textContent = "Enlace de firma del " + title;
     $("signSms").value = t.sms;
     $("signEmail").value = t.email;
     $("signSmsOpen").hidden = !N.smsLink(phone, "x");
@@ -11556,7 +11575,7 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
       } else {
         btn.hidden = false;
         msg = "Se crea el enlace de firma de " + r.body.recipient.name + " (" + r.body.recipient.email + "); no se le envía ningún email: " +
-          "el enlace sale aquí para mandárselo por SMS o email. " + (kind === "soa"
+          "el SMS y el email con el enlace salen en la pestaña Firma, junto a Nota y Task. " + (kind === "soa"
           ? "Cuando el cliente firme, " + r.body.agent.name + " firma desde Firmas con sus datos ya llenos, y el PDF se guarda solo en el Network ("
           : "Cuando el cliente firme, el PDF se guarda solo en el Network (") + r.body.meta.fileName + ").";
       }
@@ -11595,6 +11614,7 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
           link: FM.signLink(res.link) };
       }
       renderSign(data());
+      showTab("sign");
       toast("Enlace de firma del " + title + " listo: mándaselo al cliente por SMS o email. Su estado se ve en Firmas.");
       checkHelper();
     }, function (e) { toast(sendError(e)); }).then(function () { btn.disabled = false; });
@@ -13278,6 +13298,8 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
         });
       });
       Object.keys(OUT).forEach(function (key) { refit.observe($(OUT[key])); });
+      /* el SMS y el email del enlace de firma están en la misma columna */
+      refit.observe($("signSms")); refit.observe($("signEmail"));
     }
     /* salidas editables */
     Object.keys(OUT).forEach(function (key) {
@@ -13343,7 +13365,8 @@ window.QA_FORMS["soa-en"] = "JVBERi0xLjcKJYGBgYEKCjIgMCBvYmoKPDwKL0ZpbHRlciAvRmx
     $("sheetPrint").addEventListener("click", printSheet);
     $("sheetSave").addEventListener("click", saveSheet);
     window.addEventListener("resize", fitSheet);
-    [["copySignCliq", "signCliq"], ["copySignUrl", "signUrl"], ["copySignSms", "signSms"], ["copySignEmail", "signEmail"]].forEach(function (p) {
+    $("signShow").addEventListener("click", function () { showTab("sign", true); });
+    [["copySignCliq", "signCliq"], ["copySignSms", "signSms"], ["copySignEmail", "signEmail"]].forEach(function (p) {
       $(p[0]).addEventListener("click", function () {
         var btn = this, text = $(p[1]).value;
         if (text.trim()) { copyText(text, function () { flashButton(btn); }); }
