@@ -159,16 +159,48 @@ test("el botón Actualizar corre el actualizador sin ventana de consola y avisa 
 
 test("el enlace de firma avisa que es solo para datos de prueba hasta el BAA", () => {
   const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
-  const box = html.match(/<div class="sign-block" id="signLinkBox"[\s\S]*?id="signUrl"/)[0];
+  const box = html.match(/<div class="card out-card" id="signCard"[\s\S]*?id="signSms"/)[0];
   assert.match(box, /id="signWarn"/);
   assert.match(box, /Solo con datos de prueba/);
   assert.match(box, /BAA/);
 });
 
+test("el SMS y el email con el enlace de firma salen en su pestaña, con los textos para copiar", () => {
+  const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
+  const app = fs.readFileSync(path.join(root, "js", "app.js"), "utf8");
+  /* the link has no field of its own: it is selected from the SMS or the email */
+  assert.doesNotMatch(html + app, /signUrl|copySignUrl|signLinkBox/);
+  /* the Consent section (left column) keeps the form, the Cliq line and the button; the texts are not there */
+  const left = html.slice(html.indexOf('id="sec-firma"'), html.indexOf('id="sec-hoja"'));
+  assert.doesNotMatch(left, /id="signSms"|id="signEmail"|id="signWarn"/);
+  assert.match(left, /id="signCliq"/);
+  assert.match(left, /id="signSend"/);
+  /* they are one more card of the output column, shown only when there is a link */
+  const out = html.slice(html.indexOf('<aside class="out"'), html.indexOf("</aside>", html.indexOf('<aside class="out"')));
+  const card = out.match(/<div class="card out-card" id="signCard" data-tab="sign" role="tabpanel" aria-labelledby="tab-sign" hidden>[\s\S]*?\n        <\/div>/)[0];
+  for (const id of ["signSms", "signEmail", "copySignSms", "copySignEmail", "signSmsOpen", "signEmailOpen"]) {
+    assert.equal(card.split('id="' + id + '"').length, 2, id);
+  }
+  assert.match(card, /<textarea class="email-box" id="signSms"[^>]*readonly/);
+  assert.match(card, /<textarea class="email-box" id="signEmail"[^>]*readonly/);
+  assert.ok(out.indexOf('id="signCard"') > out.indexOf('id="emailCard"'), "va después del Email");
+  /* its tab, and the app opens it when the link is created */
+  assert.match(app, /TAB_LABEL = \{[^}]*sign: "Firma"/);
+  assert.match(app, /\$\("signCard"\)\.hidden = !url;/);
+  const send = app.slice(app.indexOf("function sendForSignature"), app.indexOf("function signedName"));
+  assert.match(send, /renderSign\(data\(\)\);\s*showTab\("sign"\);/);
+  /* the section says where the texts are, with a button that opens the tab */
+  assert.match(left, /<p class="muted sign-hint sign-where" id="signLinkHint" hidden>\s*El enlace de firma ya está creado\.[^<]*pestaña Firma[^<]*<button type="button" class="link-btn" id="signShow">Ver el SMS y el email<\/button>/);
+  assert.match(app, /\$\("signLinkHint"\)\.hidden = !url;/);
+  assert.match(app, /\$\("signShow"\)\.addEventListener\("click", function \(\) \{ showTab\("sign", true\);/);
+  /* it is not part of «Copiar siguiente»: that order is for the note's texts */
+  assert.doesNotMatch(app, /TAB_OF = \{[^}]*sign/);
+});
+
 test("firma con DocuSeal: se crea el enlace (sin email), el servidor de prueba se avisa y Firmas muestra lo de esta computadora", () => {
   const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
   const app = fs.readFileSync(path.join(root, "js", "app.js"), "utf8");
-  const send = html.match(/<div class="sign-block" id="signSendBox">[\s\S]*?<div class="sign-block" id="signLinkBox"/)[0];
+  const send = html.match(/<div class="sign-block" id="signSendBox">[\s\S]*?<\/section>/)[0];
   assert.match(send, /id="signSend"[^>]*>Crear enlace de firma</);
   assert.match(send, /<p class="sign-warn" id="signSendWarn" role="note">/, "el aviso del servidor de prueba siempre se ve");
   assert.match(send, /Usa solo datos de prueba/);
