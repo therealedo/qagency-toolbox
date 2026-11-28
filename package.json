@@ -1,6 +1,6 @@
 {
   "name": "qagency-toolbox",
-  "version": "1.33.3",
+  "version": "1.33.4",
   "private": true,
   "description": "Generador de notas para Zoho CRM, tasks y reportes de Cliq para Q Agency.",
   "scripts": {
