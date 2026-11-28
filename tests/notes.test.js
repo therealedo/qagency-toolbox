@@ -2176,6 +2176,19 @@ test("grupos: cada miembro es la persona del hogar que más se le parece, y cada
   /* la forma de la hija es suya aunque sea el nombre exacto de la titular que no aplica */
   const sofia = app("ANA", "LUNA", [tit(false), p("ANA SOFIA LUNA", true), p("LUIS LUNA", true)], [g(["ANA LUNA", "LUIS LUNA"])]);
   assert.equal(N.buildReport(sofia), "Q5678 - Luna, Ana Sofia - App OC Ambetter 2027 - Call (LI) +1");
+  /* quien solo tiene el nombre de pila en el hogar es el miembro aunque My Plans le ponga JR */
+  const pedroJr = app("PEDRO", "", [tit(true), p("LUZ RUIZ", true)], [g(["PEDRO RUIZ JR"]), g(["LUZ RUIZ"], "OSCAR")]);
+  assert.equal(plans(pedroJr), "Pedro_Luz");
+  assert.deepEqual(quien(Object.assign({}, app("LEO", "GIL", [tit(true), p("PABLO", false)], [g(["LEO GIL"]), g(["PABLO GIL JR"], "OSCAR")]), { outcome: "cancelada" })), ["Gil, Leo"]);
+  /* quien pide cobertura va antes que quien no; quien no la pide no entra solo por su nombre de pila */
+  const mv = app("MARIA", "VEGA", [tit(false), p("MARIA LUISA VEGA", true), p("CARLOS VEGA LUNA", true)], [g(["MARIA VEGA LUNA"]), g(["CARLOS VEGA LUNA"], "OSCAR")]);
+  assert.equal(plans(mv), "Vega, Maria_Maria_Carlos");
+  const otro = app("MARIA", "LUNA", [tit(true), p("CARLOS LUNA", true), p("CARLOS RUIZ", false, "Otro")], [g(["MARIA LUNA", "CARLOS LUNA"]), g(["CARLOS VEGA LUNA"], "OSCAR")]);
+  assert.deepEqual(quien(otro), ["Luna, Maria", "Vega Luna, Carlos"]);
+  /* dos grupos escritos igual ("ANA LUNA"), la titular y su hija: la titular tiene un solo grupo */
+  const dos = app("ANA MARIA", "LUNA", [tit(true), p("ANA SOFIA LUNA", true)], [g(["ANA LUNA"]), g(["ANA LUNA"], "OSCAR")]);
+  assert.deepEqual(quien(dos), ["Luna, Ana Maria", "Luna, Ana"]);
+  assert.equal(plans(dos), "Luna, Ana Maria_Ana");
 });
 
 test("los grupos de Obamacare no pasan a otro producto", () => {
