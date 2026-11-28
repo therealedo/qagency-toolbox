@@ -2081,8 +2081,7 @@ test("cancelación con grupos: cada miembro de My Plans es quien más se le pare
     personas: [{ titular: true, taxes: true, cobertura: tc }, { nombre: "ANA VEGA LUNA", parentesco: "Hijo/a", taxes: true, cobertura: hc }],
     grupos: [g(["ANA LUNA"], "AMBETTER"), g(["ANA VEGA LUNA"], "OSCAR")] });
   assert.equal(N.buildReport(hija(true, false)), "Q5678 - Luna, Ana - App OC Ambetter 2027_Cancelled - Call (LI)");
-  const solo = N.buildReport(hija(false, true));
-  assert.ok(!/\n/.test(solo) && /App OC Oscar 2027_Cancelled/.test(solo), solo);
+  assert.equal(N.buildReport(hija(false, true)), "Q5678 - Vega Luna, Ana - App OC Oscar 2027_Cancelled - Call (LI)");
   /* dos hermanas que My Plans escribe igual, las dos se quedan: el grupo no lleva línea */
   const hermanas = (a, b) => madre({ outcome: "cancelada",
     personas: [{ titular: true, taxes: true, cobertura: true },
@@ -2112,9 +2111,113 @@ test("cancelación con grupos: una persona del hogar es un solo miembro de My Pl
   assert.equal(hija.length, 2);
   assert.match(hija[0], /App OC Ambetter 2027_Cancelled/);
   /* la madre que My Plans escribe con otro apellido: su grupo queda, el de la hija que se queda no */
-  const madreAna = N.buildReport(caso(["ANA", "LUNA"], [{ titular: true, taxes: true, cobertura: true }, hijo("ANA VEGA LUNA", false)],
-    [g(["ANA LUNA PAZ"], "AMBETTER"), g(["ANA VEGA LUNA"], "OSCAR")]));
-  assert.ok(!/\n/.test(madreAna) && /App OC Ambetter 2027_Cancelled/.test(madreAna), madreAna);
+  /* la madre que My Plans escribe con otro apellido: su grupo queda, con su nombre de Zoho; el de la hija que se queda no */
+  assert.equal(N.buildReport(caso(["ANA", "LUNA"], [{ titular: true, taxes: true, cobertura: true }, hijo("ANA VEGA LUNA", false)],
+    [g(["ANA LUNA PAZ"], "AMBETTER"), g(["ANA VEGA LUNA"], "OSCAR")])), "Q5678 - Luna, Ana - App OC Ambetter 2027_Cancelled - Call (LI)");
+});
+
+test("grupos: la madre y la hija con el mismo nombre de pila no se cambian los nombres", () => {
+  const g = (miembros, compania) => ({ plan: "Clarity Silver", compania, miembros });
+  const app = (grupos) => make({ line: "oc", outcome: "enviada", gestion: "nueva", codigoQ: "5678", compania: "AMBETTER", anio: "2027", efectiva: "01/01/2027",
+    fecha: "11/27/2026", nombres: "ANA", apellidos: "LUNA",
+    personas: [{ titular: true, taxes: true, cobertura: true }, { nombre: "ANA VEGA LUNA", parentesco: "Hijo/a", taxes: true, cobertura: true }], grupos });
+  /* cada una con su nombre exacto */
+  const exacto = app([g(["ANA LUNA"], "AMBETTER"), g(["ANA VEGA LUNA"], "OSCAR")]);
+  assert.equal(N.buildReport(exacto), [
+    "Q5678 - Luna, Ana - App OC Ambetter 2027 - Call (LI)",
+    "Q5678 - Vega Luna, Ana - App OC Oscar 2027 - Call (LI)"
+  ].join("\n"));
+  assert.equal(nameOf(exacto, "plans"), "Luna, Ana_Ana - OC_My Plans & Programs Ambetter 2027 JAN");
+  /* My Plans escribe a la madre con otro apellido: la hija ya tiene su nombre exacto, así que la otra Ana es la titular */
+  const otro = app([g(["ANA LUNA PAZ"], "AMBETTER"), g(["ANA VEGA LUNA"], "OSCAR")]);
+  assert.equal(N.buildReport(otro), [
+    "Q5678 - Luna, Ana - App OC Ambetter 2027 - Call (LI)",
+    "Q5678 - Vega Luna, Ana - App OC Oscar 2027 - Call (LI)"
+  ].join("\n"));
+  assert.equal(nameOf(otro, "plans"), "Luna, Ana_Ana - OC_My Plans & Programs Ambetter 2027 JAN");
+});
+
+test("grupos: cada miembro es la persona del hogar que más se le parece, y cada persona un solo miembro", () => {
+  const g = (miembros, compania) => ({ plan: "Clarity Silver", compania: compania || "AMBETTER", miembros });
+  const tit = (cobertura) => ({ titular: true, taxes: true, cobertura });
+  const p = (nombre, cobertura, parentesco) => ({ nombre, parentesco: parentesco || "Hijo/a", taxes: true, cobertura });
+  const app = (nombres, apellidos, personas, grupos, extra) => make(Object.assign({ line: "oc", outcome: "enviada", gestion: "nueva", codigoQ: "5678",
+    compania: "AMBETTER", anio: "2027", efectiva: "01/01/2027", fecha: "11/27/2026", nombres, apellidos, personas, grupos }, extra));
+  const quien = (d) => N.buildReport(d).split("\n").map((l) => l.split(" - ")[1]);
+  const plans = (d) => nameOf(d, "plans").split(" - ")[0];
+  /* la hija con su segundo nombre en el hogar; My Plans escribe a la madre con otro apellido */
+  const ana = app("ANA", "LUNA", [tit(true), p("ANA MARIA VEGA LUNA", true)], [g(["ANA LUNA PAZ"]), g(["ANA VEGA LUNA"], "OSCAR")]);
+  assert.deepEqual(quien(ana), ["Luna, Ana", "Vega Luna, Ana Maria"]);
+  assert.deepEqual(quien(Object.assign({}, ana, { outcome: "cancelada", personas: [tit(false), p("ANA MARIA VEGA LUNA", true)] })), ["Vega Luna, Ana Maria"]);
+  /* el padre y el hijo: el hijo es "CARLOS LOPEZ GARCIA", el padre el otro */
+  const carlos = app("CARLOS", "LOPEZ", [tit(true), p("CARLOS ANDRES LOPEZ GARCIA", true)], [g(["CARLOS LOPEZ DIAZ"]), g(["CARLOS LOPEZ GARCIA"], "OSCAR")]);
+  assert.deepEqual(quien(carlos), ["Lopez, Carlos", "Lopez Garcia, Carlos Andres"]);
+  assert.equal(plans(carlos), "Lopez, Carlos_Carlos");
+  /* dos hermanas que My Plans escribe igual: no son la madre, y van las dos */
+  const hermanas = app("ANA", "LUNA", [tit(true), p("ANA MARIA VEGA LUNA", true), p("ANA SOFIA VEGA LUNA", true)], [g(["ANA LUNA"]), g(["ANA VEGA LUNA", "ANA VEGA LUNA"], "OSCAR")]);
+  assert.deepEqual(quien(hermanas), ["Luna, Ana", "Vega Luna, Ana"]);
+  assert.equal(plans(hermanas), "Luna, Ana_Ana_Ana");
+  /* quien no pide cobertura no es el miembro si otro con su nombre sí la pide */
+  const pedro = app("PEDRO", "MENDEZ", [tit(false), p("PEDRO ANTONIO MENDEZ", true), p("LUCIA MENDEZ", true)], [g(["PEDRO MENDEZ"]), g(["LUCIA MENDEZ"], "OSCAR")]);
+  assert.deepEqual(quien(pedro), ["Mendez, Pedro Antonio", "Mendez, Lucia"]);
+  assert.equal(plans(pedro), "Mendez, Pedro_Pedro_Lucia");
+  /* ...pero sí cuando es el único que puede ser */
+  const sola = app("MARISOL ELENA", "LUNA PAZ", [tit(false), p("ANDRES VEGA LUNA", true)], [g(["ANDRES VEGA LUNA"]), g(["MARISOL LUNA PAZ"])], { titularPlan: "MARISOL LUNA PAZ" });
+  assert.deepEqual(quien(sola), ["Vega Luna, Andres", "Luna Paz, Marisol Elena"]);
+  assert.equal(plans(sola), "Luna Paz, Marisol Elena_Andres");
+  /* la cónyuge en lugar del titular, con su hija del mismo nombre de pila */
+  const maria = app("TOMAS", "ALVAREZ", [tit(false), p("MARIA LUISA GOMEZ", true, "Cónyuge"), p("MARIA ELENA ALVAREZ GOMEZ", true)], [g(["MARIA GOMEZ"]), g(["MARIA ALVAREZ GOMEZ"], "OSCAR")]);
+  assert.deepEqual(quien(maria), ["Gomez, Maria Luisa", "Alvarez Gomez, Maria Elena"]);
+  assert.equal(plans(maria), "Gomez, Maria Luisa_Maria");
+  /* la cónyuge y su hija escritas igual ("NORA KENT"): la forma de My Plans sigue diciendo el apellido de la cónyuge */
+  const nora = app("TOMAS", "ALVAREZ", [tit(false), p("NORA LEE KENT", true, "Cónyuge"), p("NORA KENT", true)], [g(["NORA KENT"]), g(["NORA KENT"], "OSCAR")]);
+  assert.equal(nameOf(nora, "appsummary").split(" - ")[0], "Kent, Nora Lee");
+  assert.equal(plans(nora), "Kent, Nora Lee_Nora");
+  /* la forma de la hija es suya aunque sea el nombre exacto de la titular que no aplica */
+  const sofia = app("ANA", "LUNA", [tit(false), p("ANA SOFIA LUNA", true), p("LUIS LUNA", true)], [g(["ANA LUNA", "LUIS LUNA"])]);
+  assert.equal(N.buildReport(sofia), "Q5678 - Luna, Ana Sofia - App OC Ambetter 2027 - Call (LI) +1");
+  /* quien solo tiene el nombre de pila en el hogar es el miembro aunque My Plans le ponga JR */
+  const pedroJr = app("PEDRO", "", [tit(true), p("LUZ RUIZ", true)], [g(["PEDRO RUIZ JR"]), g(["LUZ RUIZ"], "OSCAR")]);
+  assert.equal(plans(pedroJr), "Pedro_Luz");
+  assert.deepEqual(quien(Object.assign({}, app("LEO", "GIL", [tit(true), p("PABLO", false)], [g(["LEO GIL"]), g(["PABLO GIL JR"], "OSCAR")]), { outcome: "cancelada" })), ["Gil, Leo"]);
+  /* quien pide cobertura va antes que quien no; quien no la pide no entra solo por su nombre de pila */
+  const mv = app("MARIA", "VEGA", [tit(false), p("MARIA LUISA VEGA", true), p("CARLOS VEGA LUNA", true)], [g(["MARIA VEGA LUNA"]), g(["CARLOS VEGA LUNA"], "OSCAR")]);
+  assert.equal(plans(mv), "Vega, Maria_Maria_Carlos");
+  const otro = app("MARIA", "LUNA", [tit(true), p("CARLOS LUNA", true), p("CARLOS RUIZ", false, "Otro")], [g(["MARIA LUNA", "CARLOS LUNA"]), g(["CARLOS VEGA LUNA"], "OSCAR")]);
+  assert.deepEqual(quien(otro), ["Luna, Maria", "Vega Luna, Carlos"]);
+  /* dos grupos escritos igual ("ANA LUNA"), la titular y su hija: la titular tiene un solo grupo, el otro es la hija */
+  const dos = app("ANA MARIA", "LUNA", [tit(true), p("ANA SOFIA LUNA", true)], [g(["ANA LUNA"]), g(["ANA LUNA"], "OSCAR")]);
+  assert.deepEqual(quien(dos), ["Luna, Ana Maria", "Luna, Ana Sofia"]);
+  assert.equal(plans(dos), "Luna, Ana Maria_Ana");
+  /* lo mismo con un hijo que My Plans escribe como el titular, entre otros Luis */
+  const luis = app("LUIS", "GARCIA DIAZ", [tit(true), p("luis maria garcia", true), p("luis", true), p("LUIS DIAZ", true)],
+    [g(["LUIS GARCIA"]), g(["LUIS"], "OSCAR"), g(["LUIS GARCIA"], "MOLINA")]);
+  assert.deepEqual(quien(luis), ["Garcia Diaz, Luis", "Luis", "Garcia, Luis Maria"]);
+  assert.equal(plans(luis), "Garcia Diaz, Luis_Luis_Luis");
+  /* el hijo con el nombre exacto del titular que no aplica: la forma "ANDRES PAZ" es suya y dice su apellido */
+  const andres = app("ANDRES", "LOPEZ PAZ", [tit(false), p("ANDRES LOPEZ PAZ", true)], [g(["ANDRES PAZ"])]);
+  assert.deepEqual(quien(andres), ["Paz, Andres Lopez"]);
+  /* la cónyuge con el apellido del titular: su forma en My Plans es más larga, así que vale la regla del apellido de casada */
+  const casada = app("MARISOL", "PEREZ", [tit(false), p("MARISOL ALVAREZ PEREZ", true, "Cónyuge"), p("MARISOL ANTONIO PEREZ ALVAREZ", true),
+    p("CARLOS DÍAZ CRUZ", true, "Hermano/a"), p("ivan perez", false, "Hermano/a")],
+    [g(["MARISOL ALVAREZ PEREZ RIVAS", "MARISOL PEREZ", "CARLOS MÉNDEZ"], "AETNA"), g(["CARLOS MÉNDEZ"], "OSCAR")], { titularPlan: "MARISOL PEREZ" });
+  assert.equal(nameOf(casada, "appsummary").split(" - ")[0], "Perez, Marisol Alvarez");
+  /* la cónyuge y el hijo con el mismo nombre: el miembro es el hijo (aplica), que no lleva el apellido de casada */
+  const jose = app("MARIA", "VEGA", [tit(true), p("JOSE MARIA RIVAS VEGA", false, "Cónyuge"), p("JOSE MARIA RIVAS VEGA", true)],
+    [g(["MARIA VEGA"]), g(["JOSE RIVAS VEGA"], "OSCAR")]);
+  assert.deepEqual(quien(jose), ["Vega, Maria", "Rivas Vega, Jose Maria"]);
+  /* ...y si los dos aplican, el miembro puede ser cualquiera: el nombre se lee como cualquier nombre */
+  const anas = app("ANA", "LUNA", [tit(true), p("ANA VEGA LUNA", true, "Cónyuge"), p("ANA VEGA LUNA", true)], [g(["ANA LUNA"]), g(["ANA VEGA LUNA"], "OSCAR")]);
+  assert.deepEqual(quien(anas), ["Luna, Ana", "Vega Luna, Ana"]);
+  /* la misma cónyuge escrita dos veces: las dos dan el apellido de casada */
+  const dosVeces = app("TOMAS", "ALVAREZ", [tit(true), p("NORA KENT ALVAREZ", true, "Cónyuge"), p("NORA KENT ÁLVAREZ", true, "Cónyuge")],
+    [g(["TOMAS ALVAREZ"]), g(["NORA KENT ALVAREZ"], "OSCAR")]);
+  assert.deepEqual(quien(dosVeces), ["Alvarez, Tomas", "Alvarez, Nora Kent"]);
+  /* el agente cambia el parentesco con la app abierta: la línea sigue al parentesco nuevo */
+  const noraComo = (parentesco) => app("TOMAS", "ALVAREZ", [tit(true), p("NORA KENT ALVAREZ", true, parentesco)], [g(["TOMAS ALVAREZ"]), g(["NORA KENT ALVAREZ"], "OSCAR")]);
+  assert.deepEqual(quien(noraComo("Hijo/a")), ["Alvarez, Tomas", "Kent Alvarez, Nora"]);
+  assert.deepEqual(quien(noraComo("Cónyuge")), ["Alvarez, Tomas", "Alvarez, Nora Kent"]);
+  assert.deepEqual(quien(noraComo("Hijo/a")), ["Alvarez, Tomas", "Kent Alvarez, Nora"]);
 });
 
 test("los grupos de Obamacare no pasan a otro producto", () => {
