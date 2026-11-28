@@ -1879,7 +1879,7 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
 (function (root) {
   "use strict";
 
-  var VERSION = "1.33.1";
+  var VERSION = "1.33.2";
   /* De aquí la herramienta instalada lee el número de la última versión (y
      nada más). La política de seguridad de index.html solo permite esta
      dirección, y el actualizador de Windows usa el mismo repositorio. */
@@ -2951,10 +2951,42 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
     return list.length > 1 ? list : [];
   }
   function gruposOf(d) { return appEnviada(d) ? groupList(d) : []; }
+  function esCancelacion(d) { return d.line === "oc" && outcomeOf(d).id === "cancelada"; }
+  /* Quién del hogar puede ser un miembro de My Plans & Programs, como al
+     leer la página (findMember): quien tiene su nombre exacto; si no, el
+     titular como lo escribe My Plans o quien tiene su primer nombre y su
+     último apellido; si no, otro (no el titular) con su primer nombre. Una
+     persona es un solo miembro: quien ya tiene el nombre exacto de otro
+     miembro no cuenta. Pueden salir varias, o ninguna. */
+  function candidatos(d, m) {
+    var key = function (s) { return words(s).join(" "); }, k = key(m), w = words(m), ps = personas(d);
+    var exact = ps.filter(function (p) { return key(p.name) === k; });
+    if (exact.length) { return exact; }
+    var otros = [];
+    groupList(d).forEach(function (g) { g.miembros.forEach(function (x) { if (key(x) !== k) { otros.push(key(x)); } }); });
+    var libres = ps.filter(function (p) { return otros.indexOf(key(p.name)) < 0; });
+    var near = libres.filter(function (p) { return (p.titular && key(d.titularPlan) === k) || samePerson(p.name, m); });
+    if (near.length) { return near; }
+    return libres.filter(function (p) {
+      var x = words(p.name);
+      return !p.titular && x[0] === w[0] && (x.length < 2 || w.length < 2 || suffixOf(x) === suffixOf(w));
+    });
+  }
+  /* En la cancelación el sí/no de Cobertura quiere decir «se cancela»: un
+     miembro sigue en la póliza solo si todos los que puede ser están
+     marcados así; quien no está en el hogar cuenta como cancelado. */
+  function sigueEnPoliza(d, m) {
+    var c = candidatos(d, m);
+    return c.length > 0 && c.every(function (p) { return !p.cobertura; });
+  }
+  function cancelados(d, g) { return g.miembros.filter(function (m) { return !sigueEnPoliza(d, m); }); }
   /* el reporte lleva una línea por grupo también en la cancelación (cada
-     grupo es su propia póliza); los archivos y los avisos, no */
+     grupo es su propia póliza), menos el grupo que nadie cancela; los
+     archivos y los avisos, no */
   function reportGroups(d) {
-    return appEnviada(d) || (d.line === "oc" && outcomeOf(d).id === "cancelada") ? groupList(d) : [];
+    if (appEnviada(d)) { return groupList(d); }
+    if (!esCancelacion(d)) { return []; }
+    return groupList(d).filter(function (g) { return cancelados(d, g).length > 0; });
   }
   /* los miembros como los escribe My Plans & Programs: nombre y apellidos,
      sin el segundo nombre (con un solo plan, d.grupos trae solo los miembros) */
@@ -3245,7 +3277,9 @@ body.starting #view-nota .layout, body.starting .dock { display: none !important
     var gs = reportGroups(d), t = titularOf(d);
     if (gs.length) {
       return gs.map(function (g) {
-        var n = g.miembros.length, mine = g.miembros.some(function (m) { return isTitularMember(d, m); });
+        /* en la cancelación, +N cuenta solo a quienes se cancelan */
+        var n = esCancelacion(d) ? cancelados(d, g).length : g.miembros.length;
+        var mine = g.miembros.some(function (m) { return isTitularMember(d, m); });
         return { name: mine ? zohoName(d) : personZoho(d, memberName(d, g.miembros[0])),
                  delta: n > 1 ? "+" + (n - 1) : "", compania: g.compania };
       });
