@@ -173,28 +173,51 @@
   /* Quién del hogar puede ser un miembro de My Plans & Programs, como al
      leer la página (findMember): quien tiene su nombre exacto; si no, el
      titular como lo escribe My Plans o quien tiene su primer nombre y su
-     último apellido; si no, otro (no el titular) con su primer nombre. Una
-     persona es un solo miembro: quien ya tiene el nombre exacto de otro
-     miembro no cuenta. Pueden salir varias, o ninguna. */
-  function candidatos(d, m) {
+     último apellido; si no, otro con su primer nombre. Una persona es un
+     solo miembro: quien ya tiene el nombre exacto de otro miembro no cuenta.
+     En la app enviada (enviada) los miembros piden cobertura, y el titular
+     que la pide entra por su primer nombre si ningún otro miembro puede ser
+     él; en la cancelación el titular no entra por su primer nombre. Pueden
+     salir varias, o ninguna. */
+  function candidatos(d, m, enviada) {
     var key = function (s) { return words(s).join(" "); }, k = key(m), w = words(m), ps = personas(d);
     var exact = ps.filter(function (p) { return key(p.name) === k; });
     if (exact.length) { return exact; }
     var otros = [];
     groupList(d).forEach(function (g) { g.miembros.forEach(function (x) { if (key(x) !== k) { otros.push(key(x)); } }); });
-    var libres = ps.filter(function (p) { return otros.indexOf(key(p.name)) < 0; });
-    var near = libres.filter(function (p) { return (p.titular && key(d.titularPlan) === k) || samePerson(p.name, m); });
+    var libres = ps.filter(function (p) { return otros.indexOf(key(p.name)) < 0 && (!enviada || p.cobertura); });
+    var cerca = function (p, x) { return (p.titular && key(d.titularPlan) === key(x)) || samePerson(p.name, x); };
+    var near = libres.filter(function (p) { return cerca(p, m); });
     if (near.length) { return near; }
+    /* otro miembro que no tiene el nombre exacto de nadie puede ser el titular */
+    var nombres = ps.map(function (p) { return key(p.name); });
+    var otroTitular = function (p) { return otros.some(function (x) { return nombres.indexOf(x) < 0 && cerca(p, x); }); };
     return libres.filter(function (p) {
+      if (p.titular && (!enviada || otroTitular(p))) { return false; }
       var x = words(p.name);
-      return !p.titular && x[0] === w[0] && (x.length < 2 || w.length < 2 || suffixOf(x) === suffixOf(w));
+      return x[0] === w[0] && (x.length < 2 || w.length < 2 || suffixOf(x) === suffixOf(w));
     });
+  }
+  /* La persona del hogar que es un miembro, para nombrarlo: la única que
+     puede ser; null si no es nadie del hogar (va como lo escribe My Plans);
+     undefined si puede ser más de una (se nombra como siempre). */
+  function miembroEs(d, m) {
+    var c = candidatos(d, m, !esCancelacion(d));
+    return c.length === 1 ? c[0] : (c.length ? undefined : null);
+  }
+  function esDelTitular(d, m) {
+    var p = miembroEs(d, m);
+    return p === undefined ? isTitularMember(d, m) : !!(p && p.titular);
+  }
+  function nombreMiembro(d, m) {
+    var p = miembroEs(d, m);
+    return p === undefined ? memberName(d, m) : (p && !p.titular ? p.name : m);
   }
   /* En la cancelación el sí/no de Cobertura quiere decir «se cancela»: un
      miembro sigue en la póliza solo si todos los que puede ser están
      marcados así; quien no está en el hogar cuenta como cancelado. */
   function sigueEnPoliza(d, m) {
-    var c = candidatos(d, m);
+    var c = candidatos(d, m, false);
     return c.length > 0 && c.every(function (p) { return !p.cobertura; });
   }
   function cancelados(d, g) { return g.miembros.filter(function (m) { return !sigueEnPoliza(d, m); }); }
@@ -223,10 +246,13 @@
   function personZoho(d, name) {
     var w = words(name), sfx = suffixOf(w), core = sfx ? w.slice(0, -1) : w;
     if (!core.length) { return ""; }
-    var ap = [];
+    var ap = [], key = function (s) { return words(s).join(" "); };
+    /* el nombre exacto de otra persona del hogar es de ella, no de esta */
+    var deOtro = function (s) { return personas(d).some(function (p) { return key(p.name) === key(s) && key(p.name) !== key(name); }); };
     /* solo una forma más corta que el nombre lo dice: la que es el nombre
        completo ("MARIA JOSE GOMEZ RIVAS") no dice dónde empiezan */
     planSpellings(d).forEach(function (s) {
+      if (deOtro(s)) { return; }
       var c = words(s);
       if (suffixOf(c)) { c = c.slice(0, -1); }
       if (!ap.length && c.length >= 2 && c.length < core.length && c[0] === core[0] && endsWithWords(core, c.slice(1))) { ap = c.slice(1); }
@@ -497,8 +523,8 @@
       return gs.map(function (g) {
         /* en la cancelación, +N cuenta solo a quienes se cancelan */
         var n = esCancelacion(d) ? cancelados(d, g).length : g.miembros.length;
-        var mine = g.miembros.some(function (m) { return isTitularMember(d, m); });
-        return { name: mine ? zohoName(d) : personZoho(d, memberName(d, g.miembros[0])),
+        var mine = g.miembros.some(function (m) { return esDelTitular(d, m); });
+        return { name: mine ? zohoName(d) : personZoho(d, nombreMiembro(d, g.miembros[0])),
                  delta: n > 1 ? "+" + (n - 1) : "", compania: g.compania };
       });
     }
@@ -1635,12 +1661,12 @@
     var gs = gruposOf(d);
     if (!gs.length) { return ""; }
     var sp = spouseInstead(d);
-    var isLead = function (m) { return sp ? samePerson(sp.name, m) : isTitularMember(d, m); };
+    var isLead = function (m) { return sp ? samePerson(sp.name, m) : esDelTitular(d, m); };
     var out = [];
     gs.forEach(function (g) {
       g.miembros.forEach(function (m) {
         if (isLead(m)) { return; }
-        var fn = U.stripAccents(first(memberName(d, m)));
+        var fn = U.stripAccents(first(nombreMiembro(d, m)));
         if (fn) { out.push(fn); }
       });
     });
